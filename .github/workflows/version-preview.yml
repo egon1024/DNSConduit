@@ -1,0 +1,46 @@
+name: Version preview
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, edited]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: version-preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    name: Preview next release version
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compute next version
+        id: version
+        uses: ./.github/actions/version-bump
+        with:
+          pr_body: ${{ github.event.pull_request.body }}
+          default_bump: minor
+
+      - name: Update PR comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          VERSION_ERROR: ${{ steps.version.outputs.error }}
+          CURRENT_VERSION: ${{ steps.version.outputs.current_version }}
+          NEXT_VERSION: ${{ steps.version.outputs.next_version }}
+          BUMP_LEVEL: ${{ steps.version.outputs.bump_level }}
+          BUMP_SOURCE: ${{ steps.version.outputs.bump_source }}
+        run: bash .github/scripts/pr-version-comment.sh
+
+      - name: Fail on version error
+        if: steps.version.outputs.error != ''
+        run: |
+          echo "::error::Version preview failed (${{ steps.version.outputs.error }})"
+          exit 1
