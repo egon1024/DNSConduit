@@ -1,0 +1,53 @@
+syntax = "proto3";
+
+package conduit.v1;
+
+import "conduit/v1/config.proto";
+
+service ConduitControl {
+  rpc GetConfig(GetConfigRequest) returns (GetConfigResponse);
+  rpc ValidateConfig(ValidateConfigRequest) returns (ValidateConfigResponse);
+  rpc ApplyConfig(ApplyConfigRequest) returns (ApplyConfigResponse);
+  rpc ExportConfig(ExportConfigRequest) returns (ExportConfigResponse);
+  rpc ReloadFromFile(ReloadFromFileRequest) returns (ReloadFromFileResponse);
+  rpc Health(HealthRequest) returns (HealthResponse);
+}
+
+message GetConfigRequest {}
+message GetConfigResponse {
+  Config effective = 1;
+}
+
+message ValidateConfigRequest {
+  Config config = 1;
+}
+message ValidateConfigResponse {
+  bool ok = 1;
+  repeated string errors = 2;
+}
+
+message ApplyConfigRequest {
+  Config overlay = 1;           // fields to merge over file layer
+}
+message ApplyConfigResponse {
+  bool ok = 1;
+  repeated string errors = 2;
+}
+
+message ExportConfigRequest {
+  string format = 1;            // "yaml" | "json"
+}
+message ExportConfigResponse {
+  string body = 1;
+}
+
+message ReloadFromFileRequest {}
+message ReloadFromFileResponse {
+  bool ok = 1;
+  repeated string errors = 2;
+}
+
+message HealthRequest {}
+message HealthResponse {
+  string status = 1;            // "serving"
+}
