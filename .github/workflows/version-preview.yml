@@ -18,30 +18,35 @@ jobs:
     name: Preview next release version
     runs-on: ubuntu-latest
     steps:
-      # Use trusted base-branch scripts only; PR body is untrusted data passed as input.
-      # Checkout the PR base ref (target branch tip), not repository.default_branch, so PRs
-      # into a non-default target branch still resolve ./.github/actions/version-bump correctly.
-      - name: Checkout PR base branch (trusted scripts)
+      # Merge ref: full tree from PR + base (so .github/ exists even when the base branch tip
+      # is sparse). PR body is still untrusted; only passed into the bump script as env.
+      - name: Checkout merge ref
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      # Same commit as the PR target branch tip: use these copies of scripts when present so
+      # forks cannot swap workflow-adjacent bash without a base-branch update.
+      - name: Checkout PR base into trusted/
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: ${{ github.event.pull_request.base.sha }}
           path: trusted
 
-      - name: Require version-bump composite on base branch
-        run: |
-          if [[ ! -f trusted/.github/actions/version-bump/action.yml ]]; then
-            echo "::error::Missing trusted/.github/actions/version-bump/action.yml on PR base ref" \
-              "${{ github.event.pull_request.base.ref }} (${{ github.event.pull_request.base.sha }})." \
-              "Add .github/actions/version-bump to that branch (e.g. merge development work into the PR target branch) so this job can run."
-            exit 1
-          fi
-
       - name: Compute next version
         id: version
-        uses: ./trusted/.github/actions/version-bump
-        with:
-          pr_body: ${{ github.event.pull_request.body }}
-          default_bump: minor
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          DEFAULT_BUMP: minor
+        run: |
+          set -euo pipefail
+          if [[ -f trusted/.github/actions/version-bump/version-bump.sh ]]; then
+            bash trusted/.github/actions/version-bump/version-bump.sh
+          elif [[ -f .github/actions/version-bump/version-bump.sh ]]; then
+            echo "::notice::Using merge-ref version-bump.sh (missing on PR base ${{ github.event.pull_request.base.ref }}). For PRs from untrusted forks, add .github/actions/version-bump to the base branch."
+            bash .github/actions/version-bump/version-bump.sh
+          else
+            echo "::error::Could not find version-bump.sh under trusted/ or .github/actions/version-bump/."
+            exit 1
+          fi
 
       - name: Update PR comment
         env:
@@ -52,7 +57,17 @@ jobs:
           NEXT_VERSION: ${{ steps.version.outputs.next_version }}
           BUMP_LEVEL: ${{ steps.version.outputs.bump_level }}
           BUMP_SOURCE: ${{ steps.version.outputs.bump_source }}
-        run: bash trusted/.github/scripts/pr-version-comment.sh
+        run: |
+          set -euo pipefail
+          if [[ -f trusted/.github/scripts/pr-version-comment.sh ]]; then
+            bash trusted/.github/scripts/pr-version-comment.sh
+          elif [[ -f .github/scripts/pr-version-comment.sh ]]; then
+            echo "::notice::Using merge-ref pr-version-comment.sh (missing on PR base ${{ github.event.pull_request.base.ref }})."
+            bash .github/scripts/pr-version-comment.sh
+          else
+            echo "::error::Could not find pr-version-comment.sh under trusted/ or .github/scripts/."
+            exit 1
+          fi
 
       - name: Fail on version error
         if: steps.version.outputs.error != ''
