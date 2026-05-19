@@ -1,3 +1,5 @@
 //! Core runtime: snapshots, transactions, pipeline traits.
 
-pub fn placeholder() {}
+pub mod snapshot;
+
+pub use snapshot::{RuntimeSnapshot, SnapshotStore};
