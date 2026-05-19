@@ -10,10 +10,7 @@ pub fn validate(cfg: &Config) -> ValidationResult {
     let mut errors = Vec::new();
 
     if cfg.schema_version != 1 {
-        errors.push(format!(
-            "unsupported schema_version {}",
-            cfg.schema_version
-        ));
+        errors.push(format!("unsupported schema_version {}", cfg.schema_version));
     }
 
     if let Some(l) = &cfg.listeners {

@@ -5,10 +5,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build_server(true)
         .build_client(true)
         .compile_protos(
-            &[
-                "conduit/v1/config.proto",
-                "conduit/v1/control.proto",
-            ],
+            &["conduit/v1/config.proto", "conduit/v1/control.proto"],
             &[proto_root],
         )?;
     Ok(())
