@@ -1,0 +1,20 @@
+[package]
+name = "conduit-api"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+conduit-proto = { path = "../conduit-proto" }
+conduit-config = { path = "../conduit-config" }
+conduit-core = { path = "../conduit-core" }
+anyhow = { workspace = true }
+prost = { workspace = true }
+tonic = { workspace = true }
+tokio = { workspace = true }
+tokio-stream = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "net"] }

@@ -1,0 +1,113 @@
+# Creates a semver tag and GitHub Release on merge to main.
+# Phase 0: tag + generated notes only (no binary assets).
+# Future: add a job that builds conduit and uploads release assets.
+
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Tag and release
+    runs-on: ubuntu-latest
+    # Skip the version-bump commit this workflow creates (avoids infinite loop).
+    if: ${{ !startsWith(github.event.head_commit.message, 'chore: release ') }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Resolve merged pull request body
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          body="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/pulls" \
+            --jq '.[0].body // empty')"
+          if [[ -z "$body" ]]; then
+            echo "::error::No pull request found for merge commit ${GITHUB_SHA}. Releases require a merged PR."
+            exit 1
+          fi
+          {
+            echo "body<<EOF"
+            echo "$body"
+            echo "EOF"
+          } >>"$GITHUB_OUTPUT"
+
+      - name: Compute next version
+        id: version
+        uses: ./.github/actions/version-bump
+        with:
+          pr_body: ${{ steps.pr.outputs.body }}
+          default_bump: minor
+
+      - name: Validate version bump
+        if: steps.version.outputs.error != ''
+        run: |
+          echo "::error::Release version bump failed (${{ steps.version.outputs.error }})"
+          exit 1
+
+      - name: Skip if release already exists
+        id: exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEXT_VERSION: ${{ steps.version.outputs.next_version }}
+        run: |
+          set -euo pipefail
+          if gh release view "$NEXT_VERSION" >/dev/null 2>&1; then
+            echo "skip=true" >>"$GITHUB_OUTPUT"
+            echo "Release ${NEXT_VERSION} already exists; skipping."
+          else
+            echo "skip=false" >>"$GITHUB_OUTPUT"
+          fi
+
+      - name: Bump Cargo.toml workspace version
+        if: steps.exists.outputs.skip != 'true'
+        env:
+          NEXT_VERSION: ${{ steps.version.outputs.next_version }}
+        run: bash .github/scripts/bump-cargo-versions.sh
+
+      - name: Commit version bump
+        if: steps.exists.outputs.skip != 'true'
+        env:
+          NEXT_VERSION: ${{ steps.version.outputs.next_version }}
+        run: |
+          set -euo pipefail
+          if git diff --quiet Cargo.toml; then
+            echo "Cargo.toml already at ${NEXT_VERSION}; nothing to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Cargo.toml
+          git commit -m "chore: release ${NEXT_VERSION}"
+          git push origin HEAD:main
+
+      - name: Create GitHub Release
+        if: steps.exists.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEXT_VERSION: ${{ steps.version.outputs.next_version }}
+        run: |
+          set -euo pipefail
+          gh release create "$NEXT_VERSION" \
+            --title "$NEXT_VERSION" \
+            --generate-notes
+
+      # --- Future: attach build artifacts ---
+      # - name: Build release binaries
+      #   run: cargo build --release -p conduit
+      # - name: Upload release assets
+      #   run: gh release upload "${NEXT_VERSION}" target/release/conduit ...

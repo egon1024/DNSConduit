@@ -1,0 +1,72 @@
+syntax = "proto3";
+
+package conduit.v1;
+
+// Canonical configuration model. Every tunable field lives here.
+
+message Config {
+  uint32 schema_version = 1;  // must be 1 for Phase 0
+  ListenersConfig listeners = 2;
+  ForwardConfig forward = 3;
+  OrchestratorConfig orchestrator = 4;
+  ObservationConfig observation = 5;
+  RhaiConfig rhai = 6;
+  repeated Pool pools = 7;
+  ControlConfig control = 8;
+}
+
+message ListenersConfig {
+  uint32 threads = 1;           // min 1
+  bool reuse_port = 2;
+  uint32 rcvbuf = 3;
+  uint32 sndbuf = 4;
+  repeated Listener listeners = 5;
+}
+
+message Listener {
+  string address = 1;           // e.g. "0.0.0.0:53"
+  string protocol = 2;          // "udp" | "tcp"
+}
+
+message ForwardConfig {
+  uint32 outstanding_per_backend = 1;
+  uint32 timeout_ms = 2;
+}
+
+message OrchestratorConfig {
+  uint32 max_attempts = 1;
+  uint32 max_txn_duration_ms = 2;
+  uint32 txn_table_capacity = 3;
+}
+
+message ObservationConfig {
+  uint32 queue_depth = 1;
+  string drop_policy = 2;       // "drop_oldest" | "drop_newest"
+  repeated ObservationSink sinks = 3;
+}
+
+message ObservationSink {
+  string type = 1;              // "dnstap" (Phase 2)
+  string export_id = 2;
+  repeated string destinations = 3;
+  repeated string emit = 4;
+}
+
+message RhaiConfig {
+  uint64 max_operations = 1;
+  uint32 max_call_depth = 2;
+}
+
+message Pool {
+  string name = 1;
+  repeated Backend backends = 2;
+}
+
+message Backend {
+  string address = 1;           // "ip:port"
+  uint32 weight = 2;
+}
+
+message ControlConfig {
+  string listen_address = 1;    // gRPC, e.g. "127.0.0.1:5199"
+}
