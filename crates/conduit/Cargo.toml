@@ -14,6 +14,7 @@ conduit-proto = { path = "../conduit-proto" }
 conduit-config = { path = "../conduit-config" }
 conduit-core = { path = "../conduit-core" }
 conduit-api = { path = "../conduit-api" }
+anyhow = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
