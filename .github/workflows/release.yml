@@ -21,7 +21,7 @@ jobs:
     name: Tag and release
     runs-on: ubuntu-latest
     # Skip the version-bump commit this workflow creates (avoids infinite loop).
-    if: ${{ !startsWith(github.event.head_commit.message, 'chore: release ') }}
+    if: "${{ !startsWith(github.event.head_commit.message, 'chore: release ') }}"
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
