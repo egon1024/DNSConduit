@@ -13,11 +13,7 @@ pub enum StageOutcome {
 
 pub trait PipelineStage: Send + Sync {
     fn name(&self) -> &'static str;
-    fn handle(
-        &self,
-        txn: &mut Transaction,
-        snapshot: &Arc<RuntimeSnapshot>,
-    ) -> StageOutcome;
+    fn handle(&self, txn: &mut Transaction, snapshot: &Arc<RuntimeSnapshot>) -> StageOutcome;
 }
 
 #[cfg(test)]
@@ -33,11 +29,7 @@ mod tests {
             "set_tag"
         }
 
-        fn handle(
-            &self,
-            txn: &mut Transaction,
-            _snapshot: &Arc<RuntimeSnapshot>,
-        ) -> StageOutcome {
+        fn handle(&self, txn: &mut Transaction, _snapshot: &Arc<RuntimeSnapshot>) -> StageOutcome {
             txn.tags.set_bool("seen", true);
             StageOutcome::Continue(Phase::Parse)
         }
