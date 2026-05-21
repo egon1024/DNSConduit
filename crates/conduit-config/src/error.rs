@@ -7,4 +7,7 @@ pub enum ConfigError {
 
     #[error("config cannot be exported: {0}")]
     Incomplete(String),
+
+    #[error("invalid config: {0}")]
+    Invalid(String),
 }

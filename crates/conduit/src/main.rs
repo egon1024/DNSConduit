@@ -1,13 +1,11 @@
 use conduit_api::serve;
-use conduit_config::{load_yaml, validate, EffectiveConfig};
+use conduit_config::{init_from_config, load_yaml, validate, EffectiveConfig};
 use conduit_core::{RuntimeSnapshot, SnapshotStore};
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt::init();
-
     let path = std::env::args()
         .nth(1)
         .unwrap_or_else(|| "conduit.yaml".into());
@@ -15,13 +13,20 @@ async fn main() -> anyhow::Result<()> {
     let file_cfg = load_yaml(&yaml)?;
     let validation = validate(&file_cfg);
     if !validation.ok {
-        anyhow::bail!("config invalid: {:?}", validation.errors);
+        eprintln!("config invalid: {:?}", validation.errors);
+        anyhow::bail!("config invalid");
     }
 
-    let store = Arc::new(SnapshotStore::new(RuntimeSnapshot::from_config(
-        file_cfg.clone(),
-    )));
+    init_from_config(file_cfg.logging.as_ref())?;
+
+    let mut snapshot = RuntimeSnapshot::from_config(file_cfg.clone());
+    let store = Arc::new(SnapshotStore::new(snapshot.clone()));
+    snapshot.generation = store.generation();
+    store.swap(snapshot);
     let effective = Arc::new(Mutex::new(EffectiveConfig::new(file_cfg)));
+
+    let _dataplane = conduit_dataplane::supervisor::start(store.clone())?;
+    tracing::info!("dataplane listeners started");
 
     let listen_address = store
         .load()

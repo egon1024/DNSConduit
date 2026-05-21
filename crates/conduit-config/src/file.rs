@@ -1,7 +1,9 @@
+use crate::backend::DEFAULT_BACKEND_WEIGHT;
 use crate::error::ConfigError;
 use conduit_proto::config::{
-    Backend, Config, ControlConfig, ForwardConfig, Listener, ListenersConfig, ObservationConfig,
-    OrchestratorConfig, Pool, RhaiConfig,
+    Action, Backend, Config, ControlConfig, ForwardConfig, Listener, ListenersConfig,
+    LoggingConfig, ObservationConfig, OrchestratorConfig, Pool, RhaiConfig, Rule, RulesConfig,
+    Selector,
 };
 use serde::{Deserialize, Serialize};
 
@@ -15,6 +17,78 @@ pub(crate) struct YamlConfig {
     rhai: YamlRhai,
     pools: Vec<YamlPool>,
     control: YamlControl,
+    #[serde(default)]
+    rules: YamlRules,
+    #[serde(default)]
+    logging: YamlLogging,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub(crate) struct YamlLogging {
+    #[serde(default = "default_log_level")]
+    level: String,
+    #[serde(default = "default_log_output")]
+    output: String,
+}
+
+fn default_log_level() -> String {
+    crate::logging::DEFAULT_LOG_LEVEL.into()
+}
+
+fn default_log_output() -> String {
+    crate::logging::DEFAULT_LOG_OUTPUT.into()
+}
+
+impl Default for YamlLogging {
+    fn default() -> Self {
+        Self {
+            level: default_log_level(),
+            output: default_log_output(),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub(crate) struct YamlRules {
+    #[serde(default = "default_match_mode")]
+    match_mode: String,
+    #[serde(default)]
+    rules: Vec<YamlRule>,
+}
+
+fn default_match_mode() -> String {
+    "first_match".into()
+}
+
+impl Default for YamlRules {
+    fn default() -> Self {
+        Self {
+            match_mode: default_match_mode(),
+            rules: Vec::new(),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub(crate) struct YamlRule {
+    id: String,
+    hook: String,
+    selectors: Vec<YamlSelector>,
+    actions: Vec<YamlAction>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub(crate) struct YamlSelector {
+    #[serde(rename = "type")]
+    selector_type: String,
+    value: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub(crate) struct YamlAction {
+    #[serde(rename = "type")]
+    action_type: String,
+    value: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -82,7 +156,9 @@ pub(crate) struct YamlPool {
 #[derive(Debug, Deserialize, Serialize)]
 pub(crate) struct YamlBackend {
     address: String,
-    weight: u32,
+    /// Omitted in YAML means default weight (100).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    weight: Option<u32>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -106,6 +182,55 @@ impl From<YamlConfig> for Config {
             rhai: Some(y.rhai.into()),
             pools: y.pools.into_iter().map(Into::into).collect(),
             control: Some(y.control.into()),
+            rules: Some(y.rules.into()),
+            logging: Some(y.logging.into()),
+        }
+    }
+}
+
+impl From<YamlLogging> for LoggingConfig {
+    fn from(y: YamlLogging) -> Self {
+        LoggingConfig {
+            level: y.level,
+            output: y.output,
+        }
+    }
+}
+
+impl From<YamlRules> for RulesConfig {
+    fn from(y: YamlRules) -> Self {
+        RulesConfig {
+            match_mode: y.match_mode,
+            rules: y.rules.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl From<YamlRule> for Rule {
+    fn from(y: YamlRule) -> Self {
+        Rule {
+            id: y.id,
+            hook: y.hook,
+            selectors: y.selectors.into_iter().map(Into::into).collect(),
+            actions: y.actions.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl From<YamlSelector> for Selector {
+    fn from(y: YamlSelector) -> Self {
+        Selector {
+            r#type: y.selector_type,
+            value: y.value,
+        }
+    }
+}
+
+impl From<YamlAction> for Action {
+    fn from(y: YamlAction) -> Self {
+        Action {
+            r#type: y.action_type,
+            value: y.value,
         }
     }
 }
@@ -249,7 +374,81 @@ pub(crate) fn config_to_yaml(cfg: &Config) -> Result<YamlConfig, ConfigError> {
             .as_ref()
             .ok_or_else(|| missing_section("control"))?
             .try_into()?,
+        rules: cfg
+            .rules
+            .as_ref()
+            .map(|r| r.try_into())
+            .transpose()?
+            .unwrap_or_default(),
+        logging: cfg
+            .logging
+            .as_ref()
+            .map(YamlLogging::from)
+            .unwrap_or_default(),
     })
+}
+
+impl From<&LoggingConfig> for YamlLogging {
+    fn from(l: &LoggingConfig) -> Self {
+        YamlLogging {
+            level: if l.level.is_empty() {
+                default_log_level()
+            } else {
+                l.level.clone()
+            },
+            output: if l.output.is_empty() {
+                default_log_output()
+            } else {
+                l.output.clone()
+            },
+        }
+    }
+}
+
+impl TryFrom<&RulesConfig> for YamlRules {
+    type Error = ConfigError;
+
+    fn try_from(r: &RulesConfig) -> Result<Self, Self::Error> {
+        Ok(YamlRules {
+            match_mode: r.match_mode.clone(),
+            rules: r
+                .rules
+                .iter()
+                .map(YamlRule::try_from)
+                .collect::<Result<_, _>>()?,
+        })
+    }
+}
+
+impl TryFrom<&Rule> for YamlRule {
+    type Error = ConfigError;
+
+    fn try_from(rule: &Rule) -> Result<Self, Self::Error> {
+        Ok(YamlRule {
+            id: rule.id.clone(),
+            hook: rule.hook.clone(),
+            selectors: rule.selectors.iter().map(YamlSelector::from).collect(),
+            actions: rule.actions.iter().map(YamlAction::from).collect(),
+        })
+    }
+}
+
+impl From<&Selector> for YamlSelector {
+    fn from(s: &Selector) -> Self {
+        YamlSelector {
+            selector_type: s.r#type.clone(),
+            value: s.value.clone(),
+        }
+    }
+}
+
+impl From<&Action> for YamlAction {
+    fn from(a: &Action) -> Self {
+        YamlAction {
+            action_type: a.r#type.clone(),
+            value: a.value.clone(),
+        }
+    }
 }
 
 impl TryFrom<&ListenersConfig> for YamlListeners {
@@ -347,7 +546,10 @@ impl From<&Backend> for YamlBackend {
     fn from(b: &Backend) -> Self {
         YamlBackend {
             address: b.address.clone(),
-            weight: b.weight,
+            weight: match b.weight {
+                None | Some(DEFAULT_BACKEND_WEIGHT) => None,
+                Some(w) => Some(w),
+            },
         }
     }
 }
@@ -373,5 +575,25 @@ mod tests {
         let cfg: Config = load_yaml(yaml).expect("parse");
         assert_eq!(cfg.schema_version, 1);
         assert_eq!(cfg.listeners.as_ref().unwrap().threads, 2);
+    }
+
+    #[test]
+    fn load_backend_without_weight_defaults_in_effective_routing() {
+        let yaml = include_str!("../../../tests/fixtures/config/minimal-no-weight.yaml");
+        let cfg: Config = load_yaml(yaml).expect("parse");
+        assert!(cfg.pools[0].backends[0].weight.is_none());
+        assert_eq!(
+            crate::effective_backend_weight(&cfg.pools[0].backends[0]),
+            DEFAULT_BACKEND_WEIGHT
+        );
+    }
+
+    #[test]
+    fn load_with_rules_yaml() {
+        let yaml = include_str!("../../../tests/fixtures/config/with-rules.yaml");
+        let cfg: Config = load_yaml(yaml).expect("parse");
+        let rules = cfg.rules.as_ref().expect("rules");
+        assert_eq!(rules.rules.len(), 2);
+        assert_eq!(rules.rules[0].id, "use-primary");
     }
 }

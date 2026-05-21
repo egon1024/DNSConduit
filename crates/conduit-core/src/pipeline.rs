@@ -20,7 +20,9 @@ pub trait PipelineStage: Send + Sync {
 mod tests {
     use super::*;
     use crate::snapshot::RuntimeSnapshot;
+    use crate::transaction::ClientProtocol;
     use conduit_config::load_yaml;
+    use std::net::SocketAddr;
 
     struct SetTagStage;
 
@@ -37,7 +39,11 @@ mod tests {
 
     #[test]
     fn fake_stage_sets_tag() {
-        let mut txn = Transaction::new(1);
+        let mut txn = Transaction::new(
+            1,
+            "127.0.0.1:5353".parse::<SocketAddr>().unwrap(),
+            ClientProtocol::Udp,
+        );
         let stage = SetTagStage;
         let yaml = include_str!("../../../tests/fixtures/config/minimal.yaml");
         let cfg = load_yaml(yaml).expect("parse");

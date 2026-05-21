@@ -1,6 +1,6 @@
 //! Named steps in the per-query orchestrator graph (spec §3.1).
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Phase {
     Receive,
     Parse,

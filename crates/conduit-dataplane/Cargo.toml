@@ -1,17 +1,19 @@
 [package]
-name = "conduit-core"
+name = "conduit-dataplane"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-conduit-proto = { path = "../conduit-proto" }
+conduit-core = { path = "../conduit-core" }
 conduit-config = { path = "../conduit-config" }
-arc-swap = { workspace = true }
+conduit-proto = { path = "../conduit-proto" }
+hickory-proto = { workspace = true }
+socket2 = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
-hickory-proto = { workspace = true }
+arc-swap = { workspace = true }
 
 [dev-dependencies]
 conduit-config = { path = "../conduit-config" }
