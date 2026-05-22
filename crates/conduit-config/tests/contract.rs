@@ -1,6 +1,6 @@
 //! Config contract: load → validate → export → load (spec §5.1, §5.4).
 
-use conduit_config::{export_yaml, load_yaml, validate};
+use conduit_config::{effective_backend_weight, export_yaml, load_yaml, validate};
 
 #[test]
 fn config_contract_roundtrip() {
@@ -18,7 +18,7 @@ fn config_contract_roundtrip() {
         cfg2.listeners.as_ref().unwrap().threads
     );
     assert_eq!(
-        cfg.pools[0].backends[0].weight,
-        cfg2.pools[0].backends[0].weight
+        effective_backend_weight(&cfg.pools[0].backends[0]),
+        effective_backend_weight(&cfg2.pools[0].backends[0])
     );
 }

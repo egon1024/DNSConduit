@@ -1,20 +1,26 @@
 //! Immutable runtime configuration snapshot and atomic swap (spec §4.4).
 
+use crate::rules::CompiledRules;
 use arc_swap::ArcSwap;
 use conduit_config::validate;
 use conduit_proto::config::Config;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
+#[derive(Clone)]
 pub struct RuntimeSnapshot {
     pub config: Config,
-    // Phase 3+: compiled rhai, data_sources, metric defs
-    // Phase 7+: wasm modules (AOT cache)
+    pub rules: CompiledRules,
+    pub generation: u64,
 }
 
 impl RuntimeSnapshot {
     pub fn from_config(config: Config) -> Self {
-        Self { config }
+        Self {
+            rules: CompiledRules::compile(config.rules.as_ref()),
+            config,
+            generation: 0,
+        }
     }
 }
 
@@ -52,8 +58,19 @@ impl SnapshotStore {
         if !result.ok {
             return Err(result.errors);
         }
-        self.swap(RuntimeSnapshot::from_config(cfg));
+        let mut snap = RuntimeSnapshot::from_config(cfg);
+        snap.generation = self.generation() + 1;
+        self.swap(snap);
         Ok(())
+    }
+}
+
+impl SnapshotStore {
+    /// Build snapshot with generation aligned to store counter.
+    pub fn build_snapshot(&self, config: Config) -> RuntimeSnapshot {
+        let mut snap = RuntimeSnapshot::from_config(config);
+        snap.generation = self.generation();
+        snap
     }
 }
 

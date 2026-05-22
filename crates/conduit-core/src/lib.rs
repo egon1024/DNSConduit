@@ -1,13 +1,20 @@
 //! Core runtime: snapshots, transactions, pipeline traits.
 
 pub mod clock;
+pub mod orchestrator;
 pub mod phase;
 pub mod pipeline;
+pub mod routing;
+pub mod rules;
 pub mod snapshot;
+pub mod stages;
 pub mod transaction;
 
 pub use clock::{Clock, SystemClock};
+pub use orchestrator::{Orchestrator, RunOutcome, StageRegistry};
 pub use phase::Phase;
 pub use pipeline::{PipelineStage, StageOutcome};
+pub use routing::{select_backend, AttemptRecord};
+pub use rules::CompiledRules;
 pub use snapshot::{RuntimeSnapshot, SnapshotStore};
-pub use transaction::{TagSet, Transaction};
+pub use transaction::{ClientProtocol, TagSet, Transaction};

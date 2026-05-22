@@ -4,6 +4,7 @@ members = [
     "crates/conduit-proto",
     "crates/conduit-config",
     "crates/conduit-core",
+    "crates/conduit-dataplane",
     "crates/conduit-api",
     "crates/conduit",
 ]
@@ -31,3 +32,5 @@ tokio-stream = "0.1"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "net"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+hickory-proto = "0.24"
+socket2 = { version = "0.5", features = ["all"] }

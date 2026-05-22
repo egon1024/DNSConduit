@@ -58,6 +58,9 @@ pub fn merge_file_and_overlay(file: &Config, overlay: &Config) -> Config {
     if overlay.control.is_some() {
         merged.control = overlay.control.clone();
     }
+    if overlay.logging.is_some() {
+        merged.logging = overlay.logging.clone();
+    }
 
     if !overlay.pools.is_empty() {
         merge_pools(&mut merged.pools, &overlay.pools);
@@ -86,7 +89,10 @@ fn merge_backends(base: &mut Vec<Backend>, overlay: &[Backend]) {
             .iter_mut()
             .find(|b| b.address == overlay_backend.address)
         {
-            *base_backend = overlay_backend.clone();
+            // Optional weight: unset in overlay does not clear the file-layer value.
+            if overlay_backend.weight.is_some() {
+                base_backend.weight = overlay_backend.weight;
+            }
         } else {
             base.push(overlay_backend.clone());
         }
@@ -103,10 +109,10 @@ mod tests {
         let file_cfg =
             load_yaml(include_str!("../../../tests/fixtures/config/minimal.yaml")).unwrap();
         let mut overlay = file_cfg.clone();
-        overlay.pools[0].backends[0].weight = 50;
+        overlay.pools[0].backends[0].weight = Some(50);
         let merged = merge_file_and_overlay(&file_cfg, &overlay);
-        assert_eq!(merged.pools[0].backends[0].weight, 50);
-        assert_eq!(file_cfg.pools[0].backends[0].weight, 100);
+        assert_eq!(merged.pools[0].backends[0].weight, Some(50));
+        assert_eq!(file_cfg.pools[0].backends[0].weight, Some(100));
     }
 
     #[test]
@@ -115,7 +121,7 @@ mod tests {
             load_yaml(include_str!("../../../tests/fixtures/config/minimal.yaml")).unwrap();
         let effective = EffectiveConfig::new(file_cfg.clone());
         let merged = effective.effective();
-        assert_eq!(merged.pools[0].backends[0].weight, 100);
+        assert_eq!(merged.pools[0].backends[0].weight, Some(100));
     }
 
     #[test]
@@ -124,11 +130,21 @@ mod tests {
             load_yaml(include_str!("../../../tests/fixtures/config/minimal.yaml")).unwrap();
         let mut effective = EffectiveConfig::new(file_cfg);
         let mut overlay = effective.file.clone();
-        overlay.pools[0].backends[0].weight = 50;
+        overlay.pools[0].backends[0].weight = Some(50);
         effective.overlay = Some(overlay);
-        assert_eq!(effective.effective().pools[0].backends[0].weight, 50);
+        assert_eq!(effective.effective().pools[0].backends[0].weight, Some(50));
         clear_overlay(&mut effective);
-        assert_eq!(effective.effective().pools[0].backends[0].weight, 100);
+        assert_eq!(effective.effective().pools[0].backends[0].weight, Some(100));
+    }
+
+    #[test]
+    fn overlay_without_weight_preserves_file_backend_weight() {
+        let file_cfg =
+            load_yaml(include_str!("../../../tests/fixtures/config/minimal.yaml")).unwrap();
+        let mut overlay = file_cfg.clone();
+        overlay.pools[0].backends[0].weight = None;
+        let merged = merge_file_and_overlay(&file_cfg, &overlay);
+        assert_eq!(merged.pools[0].backends[0].weight, Some(100));
     }
 
     #[test]

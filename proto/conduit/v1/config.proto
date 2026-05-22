@@ -13,6 +13,36 @@ message Config {
   RhaiConfig rhai = 6;
   repeated Pool pools = 7;
   ControlConfig control = 8;
+  RulesConfig rules = 9;
+  LoggingConfig logging = 10;
+}
+
+// Phase 1 dev/ops logging (not full transaction trace — see design §4.3).
+message LoggingConfig {
+  string level = 1;    // error | warn | info | debug | trace; default info
+  string output = 2;   // stderr | stdout; default stderr
+}
+
+message RulesConfig {
+  string match_mode = 1;   // "first_match" (phase 1)
+  repeated Rule rules = 2;
+}
+
+message Rule {
+  string id = 1;
+  string hook = 2;           // "request" | "response"
+  repeated Selector selectors = 3;
+  repeated Action actions = 4;
+}
+
+message Selector {
+  string type = 1;   // qname_suffix | qname_exact | qtype | rcode | tag
+  string value = 2;
+}
+
+message Action {
+  string type = 1;   // set_pool | set_tag | retry_pool | drop | set_rcode
+  string value = 2;
 }
 
 message ListenersConfig {
@@ -64,7 +94,7 @@ message Pool {
 
 message Backend {
   string address = 1;           // "ip:port"
-  uint32 weight = 2;
+  optional uint32 weight = 2;   // load-balancing weight; default 100 when unset
 }
 
 message ControlConfig {
