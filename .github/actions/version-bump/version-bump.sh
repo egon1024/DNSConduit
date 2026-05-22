@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Compute next semver from latest GitHub release and PR description directives.
+# Compute next semver from latest published release / git tag and PR description directives.
 set -euo pipefail
 
 PR_BODY="${PR_BODY:-}"
@@ -45,16 +45,80 @@ bump_semver() {
   esac
 }
 
-current_version="0.0.0"
-if latest_tag="$(
-  gh release list --limit 1 --json tagName --jq '.[0].tagName // empty' 2>/dev/null
-)" && [[ -n "$latest_tag" ]]; then
-  current_version="$(normalize_tag "$latest_tag")"
+# Collect semver strings from GitHub Releases and git tags (REST). Tags alone are enough
+# when a release object was never created (e.g. tag pushed manually or a partial workflow).
+collect_version_candidates() {
+  local repo="$1"
+  local -a candidates=()
+  local tag err
+
+  if [[ -z "${GH_TOKEN:-}" ]]; then
+    echo "::warning::GH_TOKEN is not set; cannot query GitHub for existing versions (defaulting to 0.0.0 if none found locally)."
+    return 0
+  fi
+
+  err="$(mktemp)"
+  if release_tags="$(
+    gh api "repos/${repo}/releases?per_page=100" \
+      --jq '[.[] | select(.draft == false) | .tag_name] | .[]' 2>"$err"
+  )"; then
+    while IFS= read -r tag || [[ -n "${tag:-}" ]]; do
+      [[ -z "$tag" ]] && continue
+      candidates+=("$(normalize_tag "$tag")")
+    done <<<"$release_tags"
+  else
+    echo "::warning::Failed to list GitHub releases for ${repo}: $(tr '\n' ' ' <"$err")"
+  fi
+
+  if tag_names="$(
+    gh api "repos/${repo}/tags?per_page=100" --jq '.[].name' 2>"$err"
+  )"; then
+    while IFS= read -r tag || [[ -n "${tag:-}" ]]; do
+      [[ -z "$tag" ]] && continue
+      candidates+=("$(normalize_tag "$tag")")
+    done <<<"$tag_names"
+  else
+    echo "::warning::Failed to list git tags for ${repo}: $(tr '\n' ' ' <"$err")"
+  fi
+  rm -f "$err"
+
+  local v
+  for v in "${candidates[@]}"; do
+    if is_valid_semver "$v"; then
+      echo "$v"
+    fi
+  done
+}
+
+resolve_current_version() {
+  local repo="${GITHUB_REPOSITORY:?GITHUB_REPOSITORY is required}"
+  local max=""
+
+  while IFS= read -r v; do
+    [[ -z "$v" ]] && continue
+    if [[ -z "$max" ]] || [[ "$(printf '%s\n%s\n' "$max" "$v" | sort -V | tail -1)" == "$v" ]]; then
+      max="$v"
+    fi
+  done < <(collect_version_candidates "$repo")
+
+  if [[ -n "$max" ]]; then
+    echo "$max"
+    return 0
+  fi
+
+  echo "0.0.0"
+}
+
+current_version="$(resolve_current_version)"
+if ! is_valid_semver "$current_version"; then
+  echo "::error::Resolved version is not valid semver: ${current_version}"
+  fail_with_error invalid_current_version
 fi
 
-if ! is_valid_semver "$current_version"; then
-  echo "::error::Latest release tag is not valid semver: ${current_version}"
-  fail_with_error invalid_current_version
+if [[ "$current_version" == "0.0.0" ]]; then
+  echo "::notice::No published releases or semver git tags found; treating current version as 0.0.0 (first release)."
+else
+  echo "::notice::Current version resolved as ${current_version} (max semver from releases and tags)."
 fi
 
 declare -a directives=()
