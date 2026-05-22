@@ -36,6 +36,8 @@ jobs:
         env:
           PR_BODY: ${{ github.event.pull_request.body }}
           DEFAULT_BUMP: minor
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
           if [[ -f trusted/.github/actions/version-bump/version-bump.sh ]]; then

@@ -37,3 +37,5 @@ runs:
       env:
         PR_BODY: ${{ inputs.pr_body }}
         DEFAULT_BUMP: ${{ inputs.default_bump }}
+        GH_TOKEN: ${{ github.token }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
