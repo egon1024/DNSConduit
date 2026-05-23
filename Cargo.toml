@@ -4,6 +4,7 @@ members = [
     "crates/conduit-proto",
     "crates/conduit-config",
     "crates/conduit-core",
+    "crates/conduit-observation",
     "crates/conduit-dataplane",
     "crates/conduit-api",
     "crates/conduit",
@@ -34,3 +35,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 hickory-proto = "0.24"
 socket2 = { version = "0.5", features = ["all"] }
+crossbeam-channel = "0.5"
+dnstap = "0.1.7"
+framestream = "0.2.5"
+protobuf = "3.7"

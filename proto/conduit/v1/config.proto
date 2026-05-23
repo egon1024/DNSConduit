@@ -75,11 +75,16 @@ message ObservationConfig {
   repeated ObservationSink sinks = 3;
 }
 
+message ObservationSinkFilters {
+  optional string tag_required = 1;
+}
+
 message ObservationSink {
   string type = 1;              // "dnstap" (Phase 2)
   string export_id = 2;
   repeated string destinations = 3;
   repeated string emit = 4;
+  ObservationSinkFilters filters = 5;
 }
 
 message RhaiConfig {

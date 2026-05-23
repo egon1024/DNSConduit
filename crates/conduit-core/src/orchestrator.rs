@@ -1,10 +1,12 @@
 //! Phase state machine driving pipeline stages (spec §3.1).
 
 use crate::clock::Clock;
+use crate::observation_emit::{emit_query, emit_response, emit_retry};
 use crate::phase::Phase;
 use crate::pipeline::{PipelineStage, StageOutcome};
 use crate::snapshot::RuntimeSnapshot;
 use crate::transaction::Transaction;
+use conduit_observation::ObservationHub;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -51,6 +53,7 @@ impl Orchestrator {
         txn: &mut Transaction,
         snapshot: &Arc<RuntimeSnapshot>,
         _clock: &dyn Clock,
+        observation: Option<&ObservationHub>,
     ) -> RunOutcome {
         let max_attempts = snapshot
             .config
@@ -81,20 +84,34 @@ impl Orchestrator {
 
             let Some(stage) = self.registry.get(txn.current_phase) else {
                 if txn.current_phase == Phase::Send {
+                    if let Some(hub) = observation {
+                        emit_response(hub, txn, snapshot);
+                        emit_retry(hub, txn, snapshot);
+                    }
                     break;
                 }
                 txn.current_phase = next_phase(txn.current_phase);
                 continue;
             };
 
+            let phase = txn.current_phase;
             let outcome = stage.handle(txn, snapshot);
             match outcome {
                 StageOutcome::Drop => return RunOutcome::Dropped,
                 StageOutcome::Continue(next) => {
-                    if txn.current_phase == Phase::Send {
-                        break;
+                    if phase == Phase::Parse && txn.qname.is_some() {
+                        if let Some(hub) = observation {
+                            emit_query(hub, txn, snapshot);
+                        }
                     }
                     txn.current_phase = next;
+                    if txn.current_phase == Phase::Send {
+                        if let Some(hub) = observation {
+                            emit_response(hub, txn, snapshot);
+                            emit_retry(hub, txn, snapshot);
+                        }
+                        break;
+                    }
                 }
             }
         }
@@ -228,7 +245,7 @@ mod tests {
         let mut txn = Transaction::new(1, "127.0.0.1:5353".parse().unwrap(), ClientProtocol::Udp)
             .with_query_wire(example_query());
         let orch = orchestrator_with_mock_forward();
-        let outcome = orch.run(&mut txn, &snap, &SystemClock);
+        let outcome = orch.run(&mut txn, &snap, &SystemClock, None);
         assert!(matches!(outcome, RunOutcome::Response(_)));
     }
 
@@ -240,7 +257,7 @@ mod tests {
         let mut txn = Transaction::new(2, "127.0.0.1:5353".parse().unwrap(), ClientProtocol::Udp)
             .with_query_wire(example_query());
         let orch = orchestrator_with_mock_forward();
-        let _ = orch.run(&mut txn, &snap, &SystemClock);
+        let _ = orch.run(&mut txn, &snap, &SystemClock, None);
         assert!(txn.attempts.len() >= 2);
         assert_eq!(txn.attempts[0].pool, "primary");
         assert_eq!(txn.attempts.last().unwrap().pool, "secondary");

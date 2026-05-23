@@ -129,6 +129,12 @@ pub(crate) struct YamlObservation {
     sinks: Vec<YamlObservationSink>,
 }
 
+#[derive(Debug, Deserialize, Serialize, Default)]
+pub(crate) struct YamlObservationSinkFilters {
+    #[serde(default)]
+    tag_required: Option<String>,
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 pub(crate) struct YamlObservationSink {
     #[serde(rename = "type")]
@@ -139,6 +145,8 @@ pub(crate) struct YamlObservationSink {
     destinations: Vec<String>,
     #[serde(default)]
     emit: Vec<String>,
+    #[serde(default)]
+    filters: YamlObservationSinkFilters,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -287,11 +295,19 @@ impl From<YamlObservation> for ObservationConfig {
 
 impl From<YamlObservationSink> for conduit_proto::config::ObservationSink {
     fn from(y: YamlObservationSink) -> Self {
+        let filters = if y.filters.tag_required.is_some() {
+            Some(conduit_proto::config::ObservationSinkFilters {
+                tag_required: y.filters.tag_required,
+            })
+        } else {
+            None
+        };
         conduit_proto::config::ObservationSink {
             r#type: y.sink_type,
             export_id: y.export_id,
             destinations: y.destinations,
             emit: y.emit,
+            filters,
         }
     }
 }
@@ -516,6 +532,9 @@ impl From<&conduit_proto::config::ObservationSink> for YamlObservationSink {
             export_id: s.export_id.clone(),
             destinations: s.destinations.clone(),
             emit: s.emit.clone(),
+            filters: YamlObservationSinkFilters {
+                tag_required: s.filters.as_ref().and_then(|f| f.tag_required.clone()),
+            },
         }
     }
 }

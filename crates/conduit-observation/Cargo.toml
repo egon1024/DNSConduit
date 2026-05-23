@@ -1,0 +1,17 @@
+[package]
+name = "conduit-observation"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+conduit-proto = { path = "../conduit-proto" }
+crossbeam-channel = { workspace = true }
+dnstap = { workspace = true }
+framestream = { workspace = true }
+protobuf = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3"

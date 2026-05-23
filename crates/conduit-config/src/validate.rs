@@ -53,6 +53,56 @@ pub fn validate(cfg: &Config) -> ValidationResult {
         errors.push(e.to_string());
     }
 
+    if let Some(obs) = &cfg.observation {
+        if obs.queue_depth == 0 {
+            errors.push(
+                "observation.queue_depth must be >= 1 when observation section is present".into(),
+            );
+        }
+        if !matches!(obs.drop_policy.as_str(), "drop_oldest" | "drop_newest") {
+            errors.push(format!(
+                "observation.drop_policy '{}' must be drop_oldest or drop_newest",
+                obs.drop_policy
+            ));
+        }
+        for (i, sink) in obs.sinks.iter().enumerate() {
+            if sink.r#type != "dnstap" {
+                errors.push(format!(
+                    "observation.sinks[{}].type '{}' is not supported (phase 2: dnstap only)",
+                    i, sink.r#type
+                ));
+            }
+            if sink.export_id.is_empty() {
+                errors.push(format!(
+                    "observation.sinks[{}].export_id must not be empty",
+                    i
+                ));
+            }
+            if sink.destinations.is_empty() {
+                errors.push(format!(
+                    "observation.sinks[{}].destinations must not be empty",
+                    i
+                ));
+            }
+            for dest in &sink.destinations {
+                if !dest.starts_with("unix:") && !dest.starts_with("tcp:") {
+                    errors.push(format!(
+                        "observation.sinks[{}] destination '{}' must start with unix: or tcp:",
+                        i, dest
+                    ));
+                }
+            }
+            for e in &sink.emit {
+                if e != "query" && e != "response" && e != "retry" {
+                    errors.push(format!(
+                        "observation.sinks[{}].emit '{}' must be query, response, or retry",
+                        i, e
+                    ));
+                }
+            }
+        }
+    }
+
     if let Some(rules) = &cfg.rules {
         if rules.match_mode != "first_match" {
             errors.push(format!(
@@ -146,5 +196,40 @@ mod tests {
         let cfg = load_yaml(yaml).unwrap();
         let result = validate(&cfg);
         assert!(result.ok, "errors: {:?}", result.errors);
+    }
+
+    #[test]
+    fn accept_with_dnstap_config() {
+        let yaml = include_str!("../../../tests/fixtures/config/with-dnstap.yaml");
+        let cfg = load_yaml(yaml).unwrap();
+        assert!(validate(&cfg).ok);
+    }
+
+    #[test]
+    fn accept_no_sinks_observation() {
+        let yaml = include_str!("../../../tests/fixtures/config/no-sinks.yaml");
+        let cfg = load_yaml(yaml).unwrap();
+        assert!(validate(&cfg).ok);
+    }
+
+    #[test]
+    fn reject_invalid_sink_type_and_emit() {
+        let yaml = include_str!("../../../tests/fixtures/config/minimal.yaml");
+        let mut cfg = load_yaml(yaml).unwrap();
+        cfg.observation
+            .as_mut()
+            .unwrap()
+            .sinks
+            .push(conduit_proto::config::ObservationSink {
+                r#type: "syslog".into(),
+                export_id: "x".into(),
+                destinations: vec!["unix:/tmp/x".into()],
+                emit: vec!["bogus".into()],
+                filters: None,
+            });
+        let result = validate(&cfg);
+        assert!(!result.ok);
+        assert!(result.errors.iter().any(|e| e.contains("dnstap")));
+        assert!(result.errors.iter().any(|e| e.contains("emit")));
     }
 }
