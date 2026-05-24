@@ -3,6 +3,7 @@
 use conduit_core::orchestrator::{Orchestrator, RunOutcome};
 use conduit_core::snapshot::SnapshotStore;
 use conduit_core::transaction::{ClientProtocol, Transaction};
+use conduit_observation::ObservationHub;
 use conduit_proto::config::Listener;
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpListener};
@@ -13,6 +14,7 @@ pub fn run_worker(
     listener: Listener,
     store: Arc<SnapshotStore>,
     orchestrator: Arc<Orchestrator>,
+    observation: Arc<ObservationHub>,
 ) -> std::io::Result<()> {
     let addr: SocketAddr = listener
         .address
@@ -39,9 +41,12 @@ pub fn run_worker(
         let snap = store.load();
         let mut txn = Transaction::new(next_id, peer, ClientProtocol::Tcp).with_query_wire(buf);
         next_id = next_id.wrapping_add(1);
-        if let RunOutcome::Response(wire) =
-            orchestrator.run(&mut txn, &snap, &conduit_core::SystemClock)
-        {
+        if let RunOutcome::Response(wire) = orchestrator.run(
+            &mut txn,
+            &snap,
+            &conduit_core::SystemClock,
+            Some(observation.as_ref()),
+        ) {
             let len = (wire.len() as u16).to_be_bytes();
             let _ = stream.write_all(&len);
             let _ = stream.write_all(&wire);

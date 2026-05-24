@@ -3,6 +3,7 @@
 use crate::rules::CompiledRules;
 use arc_swap::ArcSwap;
 use conduit_config::validate;
+use conduit_observation::{compile_from_config, CompiledObservation};
 use conduit_proto::config::Config;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -11,16 +12,23 @@ use std::sync::Arc;
 pub struct RuntimeSnapshot {
     pub config: Config,
     pub rules: CompiledRules,
+    pub observation: CompiledObservation,
     pub generation: u64,
 }
 
 impl RuntimeSnapshot {
     pub fn from_config(config: Config) -> Self {
+        let observation = compile_from_config(&config);
         Self {
             rules: CompiledRules::compile(config.rules.as_ref()),
+            observation,
             config,
             generation: 0,
         }
+    }
+
+    pub fn observation_enabled(&self) -> bool {
+        self.observation.enabled
     }
 }
 
@@ -105,6 +113,23 @@ mod tests {
         assert!(err.iter().any(|e| e.contains("threads")));
         assert_eq!(store.generation(), gen0);
         assert_eq!(store.load().config.listeners.as_ref().unwrap().threads, 2);
+    }
+
+    #[test]
+    fn observation_disabled_when_no_sinks() {
+        let yaml = include_str!("../../../tests/fixtures/config/no-sinks.yaml");
+        let cfg = load_yaml(yaml).unwrap();
+        let snap = RuntimeSnapshot::from_config(cfg);
+        assert!(!snap.observation_enabled());
+    }
+
+    #[test]
+    fn observation_enabled_with_dnstap_sink() {
+        let yaml = include_str!("../../../tests/fixtures/config/with-dnstap.yaml");
+        let cfg = load_yaml(yaml).unwrap();
+        let snap = RuntimeSnapshot::from_config(cfg);
+        assert!(snap.observation_enabled());
+        assert_eq!(snap.observation.sinks.len(), 1);
     }
 
     #[test]

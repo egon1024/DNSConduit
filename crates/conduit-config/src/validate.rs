@@ -1,5 +1,8 @@
 use crate::backend::effective_backend_weight;
 use crate::logging::validate_logging;
+use conduit_observation::{
+    parse_connect_retry, parse_extra_fields, parse_extra_tags, validate_sink_identity_uniqueness,
+};
 use conduit_proto::config::Config;
 
 #[derive(Debug, Clone)]
@@ -51,6 +54,95 @@ pub fn validate(cfg: &Config) -> ValidationResult {
 
     if let Err(e) = validate_logging(cfg.logging.as_ref()) {
         errors.push(e.to_string());
+    }
+
+    if let Some(obs) = &cfg.observation {
+        if obs.queue_depth == 0 {
+            errors.push(
+                "observation.queue_depth must be >= 1 when observation section is present".into(),
+            );
+        }
+        if !matches!(obs.drop_policy.as_str(), "drop_oldest" | "drop_newest") {
+            errors.push(format!(
+                "observation.drop_policy '{}' must be drop_oldest or drop_newest",
+                obs.drop_policy
+            ));
+        }
+        for (i, sink) in obs.sinks.iter().enumerate() {
+            if sink.r#type != "dnstap" {
+                errors.push(format!(
+                    "observation.sinks[{}].type '{}' is not supported (phase 2: dnstap only)",
+                    i, sink.r#type
+                ));
+            }
+
+            if let Err(e) = conduit_observation::resolve_sink_identity(sink) {
+                errors.push(format!("observation.sinks[{i}]: {e}"));
+            }
+            if sink.destinations.is_empty() {
+                errors.push(format!(
+                    "observation.sinks[{}].destinations must not be empty",
+                    i
+                ));
+            }
+            for dest in &sink.destinations {
+                if !dest.starts_with("unix:") && !dest.starts_with("tcp:") {
+                    errors.push(format!(
+                        "observation.sinks[{}] destination '{}' must start with unix: or tcp:",
+                        i, dest
+                    ));
+                }
+            }
+            for e in &sink.emit {
+                if e != "query" && e != "response" && e != "retry" {
+                    errors.push(format!(
+                        "observation.sinks[{}].emit '{}' must be query, response, or retry",
+                        i, e
+                    ));
+                }
+            }
+            if let Err(e) = parse_extra_fields(&sink.extra_fields) {
+                errors.push(format!("observation.sinks[{i}]: {e}"));
+            }
+            let has_tags = sink.extra_fields.iter().any(|f| f == "tags");
+            if let Err(e) = parse_extra_tags(&sink.extra_tags, has_tags) {
+                errors.push(format!("observation.sinks[{i}]: {e}"));
+            }
+            if let Some(ref name) = sink.name {
+                if name.is_empty() {
+                    errors.push(format!("observation.sinks[{i}].name must not be empty"));
+                }
+            }
+            if let Err(e) = parse_connect_retry(sink) {
+                errors.push(format!("observation.sinks[{i}].connect_retry: {e}"));
+            }
+            if let Some(ref filters) = sink.filters {
+                for (j, sel) in filters.selectors.iter().enumerate() {
+                    if let Err(e) = conduit_observation::validate_selector_type(sel.r#type.as_str())
+                    {
+                        errors.push(format!(
+                            "observation.sinks[{i}].filters.selectors[{j}]: {e}"
+                        ));
+                    }
+                }
+                if let Some(rate) = filters.sample_rate {
+                    if let Err(e) = conduit_observation::parse_sample_rate(Some(rate)) {
+                        errors.push(format!("observation.sinks[{i}].filters: {e}"));
+                    }
+                }
+                if filters.pool.as_ref().is_some_and(|p| p.is_empty()) {
+                    errors.push(format!(
+                        "observation.sinks[{i}].filters.pool must not be empty"
+                    ));
+                }
+                if filters.backend.as_ref().is_some_and(|b| b.is_empty()) {
+                    errors.push(format!(
+                        "observation.sinks[{i}].filters.backend must not be empty"
+                    ));
+                }
+            }
+        }
+        errors.extend(validate_sink_identity_uniqueness(&obs.sinks));
     }
 
     if let Some(rules) = &cfg.rules {
@@ -146,5 +238,169 @@ mod tests {
         let cfg = load_yaml(yaml).unwrap();
         let result = validate(&cfg);
         assert!(result.ok, "errors: {:?}", result.errors);
+    }
+
+    #[test]
+    fn accept_with_dnstap_config() {
+        let yaml = include_str!("../../../tests/fixtures/config/with-dnstap.yaml");
+        let cfg = load_yaml(yaml).unwrap();
+        assert!(validate(&cfg).ok);
+    }
+
+    #[test]
+    fn accept_no_sinks_observation() {
+        let yaml = include_str!("../../../tests/fixtures/config/no-sinks.yaml");
+        let cfg = load_yaml(yaml).unwrap();
+        assert!(validate(&cfg).ok);
+    }
+
+    #[test]
+    fn accept_with_dnstap_extra_config() {
+        let yaml = include_str!("../../../tests/fixtures/config/with-dnstap-extra.yaml");
+        let cfg = load_yaml(yaml).unwrap();
+        assert!(validate(&cfg).ok);
+        let snap = conduit_observation::compile_from_config(&cfg);
+        assert!(snap.enabled);
+        assert!(snap.sinks[0].extra_fields.len() >= 3);
+    }
+
+    #[test]
+    fn accept_with_dnstap_filters_config() {
+        let yaml = include_str!("../../../tests/fixtures/config/with-dnstap-filters.yaml");
+        let cfg = load_yaml(yaml).unwrap();
+        let result = validate(&cfg);
+        assert!(result.ok, "errors: {:?}", result.errors);
+        let snap = conduit_observation::compile_from_config(&cfg);
+        assert_eq!(snap.sinks[0].filters.selectors.len(), 2);
+        assert_eq!(snap.sinks[0].filters.tag_required.as_deref(), Some("audit"));
+    }
+
+    #[test]
+    fn accept_with_dnstap_sample_config() {
+        let yaml = include_str!("../../../tests/fixtures/config/with-dnstap-sample.yaml");
+        let cfg = load_yaml(yaml).unwrap();
+        assert!(validate(&cfg).ok);
+        let snap = conduit_observation::compile_from_config(&cfg);
+        assert!((snap.sinks[0].filters.sample_rate - 0.1).abs() < f64::EPSILON);
+        assert_eq!(snap.sinks[0].filters.pool.as_deref(), Some("default"));
+    }
+
+    #[test]
+    fn reject_invalid_sample_rate() {
+        let yaml = include_str!("../../../tests/fixtures/config/with-dnstap-sample.yaml");
+        let mut cfg = load_yaml(yaml).unwrap();
+        cfg.observation.as_mut().unwrap().sinks[0]
+            .filters
+            .as_mut()
+            .unwrap()
+            .sample_rate = Some(0.0);
+        let result = validate(&cfg);
+        assert!(!result.ok);
+        assert!(result.errors.iter().any(|e| e.contains("sample_rate")));
+    }
+
+    #[test]
+    fn reject_unknown_extra_field() {
+        let yaml = include_str!("../../../tests/fixtures/config/with-dnstap.yaml");
+        let mut cfg = load_yaml(yaml).unwrap();
+        cfg.observation.as_mut().unwrap().sinks[0]
+            .extra_fields
+            .push("upstream_pool".into());
+        let result = validate(&cfg);
+        assert!(!result.ok);
+        assert!(result.errors.iter().any(|e| e.contains("extra_fields")));
+    }
+
+    #[test]
+    fn reject_extra_tags_without_tags_field() {
+        let yaml = include_str!("../../../tests/fixtures/config/with-dnstap.yaml");
+        let mut cfg = load_yaml(yaml).unwrap();
+        let sink = &mut cfg.observation.as_mut().unwrap().sinks[0];
+        sink.extra_tags = vec!["vip".into()];
+        let result = validate(&cfg);
+        assert!(!result.ok);
+        assert!(result.errors.iter().any(|e| e.contains("extra_tags")));
+    }
+
+    #[test]
+    fn reject_invalid_sink_type_and_emit() {
+        let yaml = include_str!("../../../tests/fixtures/config/minimal.yaml");
+        let mut cfg = load_yaml(yaml).unwrap();
+        cfg.observation
+            .as_mut()
+            .unwrap()
+            .sinks
+            .push(conduit_proto::config::ObservationSink {
+                r#type: "syslog".into(),
+                export_id: "x".into(),
+                destinations: vec!["unix:/tmp/x".into()],
+                emit: vec!["bogus".into()],
+                filters: None,
+                extra_fields: vec![],
+                extra_tags: vec![],
+                name: None,
+                connect_retry: None,
+            });
+        let result = validate(&cfg);
+        assert!(!result.ok);
+        assert!(result.errors.iter().any(|e| e.contains("dnstap")));
+        assert!(result.errors.iter().any(|e| e.contains("emit")));
+    }
+
+    #[test]
+    fn reject_duplicate_sink_names() {
+        let yaml = include_str!("../../../tests/fixtures/config/with-dnstap.yaml");
+        let mut cfg = load_yaml(yaml).unwrap();
+        let second = cfg.observation.as_mut().unwrap().sinks[0].clone();
+        cfg.observation.as_mut().unwrap().sinks.push(second);
+        let result = validate(&cfg);
+        assert!(!result.ok);
+        assert!(result.errors.iter().any(|e| e.contains("duplicates")));
+    }
+
+    #[test]
+    fn reject_empty_sink_name() {
+        let yaml = include_str!("../../../tests/fixtures/config/with-dnstap.yaml");
+        let mut cfg = load_yaml(yaml).unwrap();
+        cfg.observation.as_mut().unwrap().sinks[0].name = Some(String::new());
+        let result = validate(&cfg);
+        assert!(!result.ok);
+        assert!(result.errors.iter().any(|e| e.contains("name")));
+    }
+
+    #[test]
+    fn reject_invalid_connect_retry_multiplier() {
+        let yaml = include_str!("../../../tests/fixtures/config/with-dnstap.yaml");
+        let mut cfg = load_yaml(yaml).unwrap();
+        cfg.observation.as_mut().unwrap().sinks[0].connect_retry =
+            Some(conduit_proto::config::ConnectRetry {
+                initial_ms: 1000,
+                max_ms: 30_000,
+                multiplier: 0.5,
+                max_elapsed_ms: 0,
+                jitter: true,
+            });
+        let result = validate(&cfg);
+        assert!(!result.ok);
+        assert!(result.errors.iter().any(|e| e.contains("multiplier")));
+    }
+
+    #[test]
+    fn accept_custom_connect_retry() {
+        let yaml = include_str!("../../../tests/fixtures/config/with-dnstap.yaml");
+        let mut cfg = load_yaml(yaml).unwrap();
+        cfg.observation.as_mut().unwrap().sinks[0].connect_retry =
+            Some(conduit_proto::config::ConnectRetry {
+                initial_ms: 250,
+                max_ms: 8000,
+                multiplier: 2.0,
+                max_elapsed_ms: 0,
+                jitter: false,
+            });
+        let result = validate(&cfg);
+        assert!(result.ok, "{:?}", result.errors);
+        let snap = conduit_observation::compile_from_config(&cfg);
+        assert_eq!(snap.sinks[0].connect_retry.initial_ms, 250);
+        assert!(!snap.sinks[0].connect_retry.jitter);
     }
 }

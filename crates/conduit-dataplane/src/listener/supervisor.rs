@@ -5,20 +5,32 @@ use crate::stages::UdpForwardStage;
 use conduit_core::orchestrator::Orchestrator;
 use conduit_core::phase::Phase;
 use conduit_core::snapshot::SnapshotStore;
+use conduit_observation::ObservationHub;
 use std::sync::Arc;
 use std::thread;
 
 pub struct DataplaneHandle {
     _threads: Vec<thread::JoinHandle<()>>,
+    pub observation: Arc<ObservationHub>,
 }
 
 pub fn start(store: Arc<SnapshotStore>) -> std::io::Result<DataplaneHandle> {
     let snap = store.load();
+    let observation = Arc::new(ObservationHub::from_compiled(&snap.observation));
+    if observation.enabled() {
+        tracing::info!(
+            sinks = observation.consumer_count(),
+            queue_depth = snap.observation.queue_depth,
+            drop_policy = ?snap.observation.drop_policy,
+            "observation enabled"
+        );
+    }
     let cfg = &snap.config;
     let listeners = cfg.listeners.as_ref();
     let Some(listeners) = listeners else {
         return Ok(DataplaneHandle {
             _threads: Vec::new(),
+            observation,
         });
     };
 
@@ -49,14 +61,15 @@ pub fn start(store: Arc<SnapshotStore>) -> std::io::Result<DataplaneHandle> {
             let ln = ln.clone();
             let store = store.clone();
             let orch = orchestrator.clone();
+            let obs = observation.clone();
             let reuse = listeners.reuse_port;
             let rcvbuf = listeners.rcvbuf;
             let proto = ln.protocol.to_lowercase();
             handles.push(thread::spawn(move || {
                 let result = if proto == "tcp" {
-                    crate::listener::tcp::run_worker(ln, store, orch)
+                    crate::listener::tcp::run_worker(ln, store, orch, obs)
                 } else {
-                    crate::listener::udp::run_worker(ln, store, orch, reuse, rcvbuf)
+                    crate::listener::udp::run_worker(ln, store, orch, obs, reuse, rcvbuf)
                 };
                 if let Err(e) = result {
                     tracing::error!(error = %e, "listener worker exited");
@@ -65,7 +78,10 @@ pub fn start(store: Arc<SnapshotStore>) -> std::io::Result<DataplaneHandle> {
         }
     }
 
-    Ok(DataplaneHandle { _threads: handles })
+    Ok(DataplaneHandle {
+        _threads: handles,
+        observation,
+    })
 }
 
 struct NoopWaitStage;

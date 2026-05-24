@@ -1,7 +1,8 @@
 //! Built-in selector/action rules compiled at snapshot build (spec §6).
 
 use crate::transaction::Transaction;
-use conduit_proto::config::{Action, Rule, RulesConfig, Selector};
+use conduit_observation::{compile_selectors, CompiledSelector, SelectorMatchCtx};
+use conduit_proto::config::{Action, Rule, RulesConfig};
 
 #[derive(Debug, Clone)]
 pub struct CompiledRules {
@@ -26,15 +27,6 @@ pub struct CompiledRule {
 pub enum RuleHook {
     Request,
     Response,
-}
-
-#[derive(Debug, Clone)]
-pub enum CompiledSelector {
-    QnameSuffix(String),
-    QnameExact(String),
-    Qtype(String),
-    Rcode(String),
-    Tag(String),
 }
 
 #[derive(Debug, Clone)]
@@ -91,11 +83,7 @@ impl CompiledRule {
         Self {
             id: rule.id.clone(),
             hook,
-            selectors: rule
-                .selectors
-                .iter()
-                .map(CompiledSelector::compile)
-                .collect(),
+            selectors: compile_selectors(&rule.selectors),
             actions: rule.actions.iter().map(CompiledAction::compile).collect(),
         }
     }
@@ -104,7 +92,13 @@ impl CompiledRule {
         if self.selectors.is_empty() {
             return true;
         }
-        self.selectors.iter().all(|s| s.matches(txn))
+        let ctx = SelectorMatchCtx {
+            qname: txn.qname.as_deref(),
+            qtype_label: txn.qtype_label(),
+            rcode_label: txn.rcode_label(),
+            tag_has: &|k| txn.tags.has(k),
+        };
+        self.selectors.iter().all(|s| s.matches_ctx(&ctx))
     }
 
     fn apply(&self, txn: &mut Transaction) -> RuleOutcome {
@@ -130,30 +124,6 @@ impl CompiledRule {
             RuleOutcome::Retry
         } else {
             RuleOutcome::Continue
-        }
-    }
-}
-
-impl CompiledSelector {
-    fn compile(sel: &Selector) -> Self {
-        match sel.r#type.as_str() {
-            "qname_exact" => CompiledSelector::QnameExact(sel.value.clone()),
-            "qtype" => CompiledSelector::Qtype(sel.value.clone()),
-            "rcode" => CompiledSelector::Rcode(sel.value.clone()),
-            "tag" => CompiledSelector::Tag(sel.value.clone()),
-            _ => CompiledSelector::QnameSuffix(sel.value.clone()),
-        }
-    }
-
-    fn matches(&self, txn: &Transaction) -> bool {
-        match self {
-            CompiledSelector::QnameSuffix(suffix) => {
-                txn.qname.as_deref().is_some_and(|q| q.ends_with(suffix))
-            }
-            CompiledSelector::QnameExact(name) => txn.qname.as_deref() == Some(name.as_str()),
-            CompiledSelector::Qtype(t) => txn.qtype_label().as_deref() == Some(t.as_str()),
-            CompiledSelector::Rcode(r) => txn.rcode_label().as_deref() == Some(r.as_str()),
-            CompiledSelector::Tag(key) => txn.tags.has(key),
         }
     }
 }

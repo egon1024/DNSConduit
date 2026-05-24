@@ -3,6 +3,7 @@
 use conduit_core::orchestrator::{Orchestrator, RunOutcome};
 use conduit_core::snapshot::SnapshotStore;
 use conduit_core::transaction::{ClientProtocol, Transaction};
+use conduit_observation::ObservationHub;
 use conduit_proto::config::Listener;
 use socket2::{Domain, Protocol, Socket, Type};
 use std::net::SocketAddr;
@@ -13,6 +14,7 @@ pub fn run_worker(
     listener: Listener,
     store: Arc<SnapshotStore>,
     orchestrator: Arc<Orchestrator>,
+    observation: Arc<ObservationHub>,
     reuse_port: bool,
     rcvbuf: u32,
 ) -> std::io::Result<()> {
@@ -48,9 +50,12 @@ pub fn run_worker(
                 let mut txn = Transaction::new(next_id, peer, ClientProtocol::Udp)
                     .with_query_wire(buf[..len].to_vec());
                 next_id = next_id.wrapping_add(1);
-                if let RunOutcome::Response(wire) =
-                    orchestrator.run(&mut txn, &snap, &conduit_core::SystemClock)
-                {
+                if let RunOutcome::Response(wire) = orchestrator.run(
+                    &mut txn,
+                    &snap,
+                    &conduit_core::SystemClock,
+                    Some(observation.as_ref()),
+                ) {
                     let _ = udp.send_to(&wire, peer);
                 }
             }
