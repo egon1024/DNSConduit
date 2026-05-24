@@ -32,19 +32,7 @@ jobs:
         id: pr
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          body="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/pulls" \
-            --jq '.[0].body // empty')"
-          if [[ -z "$body" ]]; then
-            echo "::error::No pull request found for merge commit ${GITHUB_SHA}. Releases require a merged PR."
-            exit 1
-          fi
-          {
-            echo "body<<EOF"
-            echo "$body"
-            echo "EOF"
-          } >>"$GITHUB_OUTPUT"
+        run: bash .github/scripts/resolve-pr-body.sh "${{ github.event.head_commit.message }}"
 
       - name: Compute next version
         id: version
