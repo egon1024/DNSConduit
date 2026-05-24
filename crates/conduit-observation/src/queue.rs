@@ -70,6 +70,7 @@ mod tests {
             protocol_udp: true,
             wire: vec![id as u8],
             attempt_count: 1,
+            extra: None,
         }
     }
 

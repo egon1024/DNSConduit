@@ -12,6 +12,9 @@ pub enum ClientProtocol {
     Tcp,
 }
 
+pub type ExportedTagBools = Vec<(String, bool)>;
+pub type ExportedTagStrings = Vec<(String, String)>;
+
 #[derive(Debug, Default, Clone)]
 pub struct TagSet {
     flags: HashMap<String, bool>,
@@ -29,6 +32,17 @@ impl TagSet {
 
     pub fn has(&self, key: &str) -> bool {
         self.flags.get(key).copied().unwrap_or(false) || self.strings.contains_key(key)
+    }
+
+    /// Export tags for observation `extra` (all bool flags with value true, all string tags).
+    pub fn export_all_tags(&self) -> (ExportedTagBools, ExportedTagStrings) {
+        let bools: ExportedTagBools = self.flags.iter().map(|(k, v)| (k.clone(), *v)).collect();
+        let strings: ExportedTagStrings = self
+            .strings
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+        (bools, strings)
     }
 }
 

@@ -85,6 +85,8 @@ message ObservationSink {
   repeated string destinations = 3;
   repeated string emit = 4;
   ObservationSinkFilters filters = 5;
+  repeated string extra_fields = 6;  // pool, backend, attempt_count, txn_id, qname, rcode, tags, client
+  repeated string extra_tags = 7;    // tag key filter when "tags" in extra_fields; omit or "*" = all
 }
 
 message RhaiConfig {

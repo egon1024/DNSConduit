@@ -193,6 +193,7 @@ dependencies = [
 name = "conduit-config"
 version = "0.2.0"
 dependencies = [
+ "conduit-observation",
  "conduit-proto",
  "prost",
  "serde",
@@ -232,13 +233,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "conduit-dnstap-tap"
+version = "0.2.0"
+dependencies = [
+ "anyhow",
+ "conduit-observation",
+ "hickory-proto",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "tempfile",
+]
+
+[[package]]
 name = "conduit-observation"
 version = "0.2.0"
 dependencies = [
  "conduit-proto",
  "crossbeam-channel",
  "dnstap",
- "framestream",
  "protobuf",
  "tempfile",
  "tracing",

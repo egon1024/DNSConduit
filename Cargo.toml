@@ -8,6 +8,7 @@ members = [
     "crates/conduit-dataplane",
     "crates/conduit-api",
     "crates/conduit",
+    "crates/conduit-dnstap-tap",
 ]
 
 [workspace.package]
@@ -37,5 +38,4 @@ hickory-proto = "0.24"
 socket2 = { version = "0.5", features = ["all"] }
 crossbeam-channel = "0.5"
 dnstap = "0.1.7"
-framestream = "0.2.5"
 protobuf = "3.7"

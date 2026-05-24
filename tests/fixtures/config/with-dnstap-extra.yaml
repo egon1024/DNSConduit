@@ -1,0 +1,41 @@
+schema_version: 1
+listeners:
+  threads: 1
+  reuse_port: true
+  listeners:
+    - address: "127.0.0.1:5353"
+      protocol: udp
+forward:
+  outstanding_per_backend: 100
+  timeout_ms: 2000
+orchestrator:
+  max_attempts: 3
+  max_txn_duration_ms: 5000
+  txn_table_capacity: 1024
+observation:
+  queue_depth: 8192
+  drop_policy: drop_oldest
+  sinks:
+    - type: dnstap
+      export_id: conduit-dev
+      destinations:
+        - "unix:/tmp/conduit-dnstap.sock"
+      emit:
+        - response
+      extra_fields:
+        - pool
+        - backend
+        - attempt_count
+        - tags
+      extra_tags:
+        - "*"
+rhai:
+  max_operations: 10000
+  max_call_depth: 32
+pools:
+  - name: default
+    backends:
+      - address: "127.0.0.1:5300"
+        weight: 100
+control:
+  listen_address: "127.0.0.1:5199"

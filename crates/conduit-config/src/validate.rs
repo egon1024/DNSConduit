@@ -1,5 +1,6 @@
 use crate::backend::effective_backend_weight;
 use crate::logging::validate_logging;
+use conduit_observation::{parse_extra_fields, parse_extra_tags};
 use conduit_proto::config::Config;
 
 #[derive(Debug, Clone)]
@@ -99,6 +100,13 @@ pub fn validate(cfg: &Config) -> ValidationResult {
                         i, e
                     ));
                 }
+            }
+            if let Err(e) = parse_extra_fields(&sink.extra_fields) {
+                errors.push(format!("observation.sinks[{i}]: {e}"));
+            }
+            let has_tags = sink.extra_fields.iter().any(|f| f == "tags");
+            if let Err(e) = parse_extra_tags(&sink.extra_tags, has_tags) {
+                errors.push(format!("observation.sinks[{i}]: {e}"));
             }
         }
     }
@@ -213,6 +221,39 @@ mod tests {
     }
 
     #[test]
+    fn accept_with_dnstap_extra_config() {
+        let yaml = include_str!("../../../tests/fixtures/config/with-dnstap-extra.yaml");
+        let cfg = load_yaml(yaml).unwrap();
+        assert!(validate(&cfg).ok);
+        let snap = conduit_observation::compile_from_config(&cfg);
+        assert!(snap.enabled);
+        assert!(snap.sinks[0].extra_fields.len() >= 3);
+    }
+
+    #[test]
+    fn reject_unknown_extra_field() {
+        let yaml = include_str!("../../../tests/fixtures/config/with-dnstap.yaml");
+        let mut cfg = load_yaml(yaml).unwrap();
+        cfg.observation.as_mut().unwrap().sinks[0]
+            .extra_fields
+            .push("upstream_pool".into());
+        let result = validate(&cfg);
+        assert!(!result.ok);
+        assert!(result.errors.iter().any(|e| e.contains("extra_fields")));
+    }
+
+    #[test]
+    fn reject_extra_tags_without_tags_field() {
+        let yaml = include_str!("../../../tests/fixtures/config/with-dnstap.yaml");
+        let mut cfg = load_yaml(yaml).unwrap();
+        let sink = &mut cfg.observation.as_mut().unwrap().sinks[0];
+        sink.extra_tags = vec!["vip".into()];
+        let result = validate(&cfg);
+        assert!(!result.ok);
+        assert!(result.errors.iter().any(|e| e.contains("extra_tags")));
+    }
+
+    #[test]
     fn reject_invalid_sink_type_and_emit() {
         let yaml = include_str!("../../../tests/fixtures/config/minimal.yaml");
         let mut cfg = load_yaml(yaml).unwrap();
@@ -226,6 +267,8 @@ mod tests {
                 destinations: vec!["unix:/tmp/x".into()],
                 emit: vec!["bogus".into()],
                 filters: None,
+                extra_fields: vec![],
+                extra_tags: vec![],
             });
         let result = validate(&cfg);
         assert!(!result.ok);

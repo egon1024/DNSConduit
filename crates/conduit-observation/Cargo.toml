@@ -9,7 +9,6 @@ rust-version.workspace = true
 conduit-proto = { path = "../conduit-proto" }
 crossbeam-channel = { workspace = true }
 dnstap = { workspace = true }
-framestream = { workspace = true }
 protobuf = { workspace = true }
 tracing = { workspace = true }
 

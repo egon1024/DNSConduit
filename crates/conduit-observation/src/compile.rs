@@ -4,6 +4,95 @@ use crate::queue::DropPolicy;
 use conduit_proto::config::{Config, ObservationConfig, ObservationSink};
 use std::path::PathBuf;
 
+/// Metadata field names allowed in `extra_fields`.
+pub const EXTRA_FIELD_NAMES: &[&str] = &[
+    "pool",
+    "backend",
+    "attempt_count",
+    "txn_id",
+    "qname",
+    "rcode",
+    "tags",
+    "client",
+];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExtraField {
+    Pool,
+    Backend,
+    AttemptCount,
+    TxnId,
+    Qname,
+    Rcode,
+    Tags,
+    Client,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TagExportMode {
+    All,
+    Keys(Vec<String>),
+}
+
+impl TagExportMode {
+    pub fn wants_tags(&self) -> bool {
+        matches!(self, TagExportMode::Keys(keys) if !keys.is_empty())
+            || matches!(self, TagExportMode::All)
+    }
+}
+
+pub fn parse_extra_field(name: &str) -> Option<ExtraField> {
+    match name {
+        "pool" => Some(ExtraField::Pool),
+        "backend" => Some(ExtraField::Backend),
+        "attempt_count" => Some(ExtraField::AttemptCount),
+        "txn_id" => Some(ExtraField::TxnId),
+        "qname" => Some(ExtraField::Qname),
+        "rcode" => Some(ExtraField::Rcode),
+        "tags" => Some(ExtraField::Tags),
+        "client" => Some(ExtraField::Client),
+        _ => None,
+    }
+}
+
+pub fn parse_extra_fields(names: &[String]) -> Result<Vec<ExtraField>, String> {
+    let mut fields = Vec::new();
+    for name in names {
+        let field = parse_extra_field(name)
+            .ok_or_else(|| format!("unknown observation extra_fields entry '{name}'"))?;
+        fields.push(field);
+    }
+    Ok(fields)
+}
+
+pub fn parse_extra_tags(
+    extra_tags: &[String],
+    has_tags_field: bool,
+) -> Result<TagExportMode, String> {
+    if extra_tags.is_empty() {
+        return if has_tags_field {
+            Ok(TagExportMode::All)
+        } else {
+            Ok(TagExportMode::Keys(Vec::new()))
+        };
+    }
+    if !has_tags_field {
+        return Err("observation extra_tags requires 'tags' in extra_fields".into());
+    }
+    if extra_tags.iter().any(|t| t == "*") {
+        if extra_tags.len() > 1 {
+            return Err("observation extra_tags cannot mix '*' with other keys".into());
+        }
+        return Ok(TagExportMode::All);
+    }
+    for tag in extra_tags {
+        if tag.is_empty() {
+            return Err("observation extra_tags entries must not be empty".into());
+        }
+    }
+    Ok(TagExportMode::Keys(extra_tags.to_vec()))
+}
+
 #[derive(Debug, Clone)]
 pub struct CompiledObservation {
     pub enabled: bool,
@@ -20,6 +109,16 @@ pub struct CompiledSinkInstance {
     pub tag_required: Option<String>,
     pub export_id: String,
     pub destinations: Vec<Destination>,
+    pub extra_fields: Vec<ExtraField>,
+    pub tag_export: TagExportMode,
+}
+
+impl CompiledObservation {
+    pub fn needs_tag_export(&self) -> bool {
+        self.sinks
+            .iter()
+            .any(|s| s.extra_fields.contains(&ExtraField::Tags))
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -81,6 +180,9 @@ pub(crate) fn compile_one_sink(s: &ObservationSink) -> Option<CompiledSinkInstan
         .as_ref()
         .and_then(|f| f.tag_required.clone())
         .filter(|t| !t.is_empty());
+    let extra_fields = parse_extra_fields(&s.extra_fields).ok()?;
+    let has_tags = extra_fields.contains(&ExtraField::Tags);
+    let tag_export = parse_extra_tags(&s.extra_tags, has_tags).ok()?;
     Some(CompiledSinkInstance {
         emit_query: emit.query,
         emit_response: emit.response,
@@ -88,6 +190,8 @@ pub(crate) fn compile_one_sink(s: &ObservationSink) -> Option<CompiledSinkInstan
         tag_required,
         export_id: s.export_id.clone(),
         destinations,
+        extra_fields,
+        tag_export,
     })
 }
 

@@ -3,6 +3,7 @@
 use crate::compile::{CompiledObservation, CompiledSinkInstance};
 use crate::dnstap::DnstapSink;
 use crate::event::{EventKind, ObservationEvent};
+use crate::extra::build_extra_json;
 use crate::queue::SinkQueue;
 use crate::sink::ObservationSink;
 use crate::view::TxnView;
@@ -148,6 +149,7 @@ impl ObservationHub {
                     continue;
                 }
             }
+            let extra = build_extra_json(instance, &view.extra);
             let event = ObservationEvent {
                 kind,
                 txn_id: view.txn_id,
@@ -155,6 +157,7 @@ impl ObservationHub {
                 protocol_udp: view.protocol_udp,
                 wire: wire.clone(),
                 attempt_count: view.attempt_count,
+                extra,
             };
             if sink_rt.queues[0].try_enqueue(event) {
                 self.drops.fetch_add(1, Ordering::Relaxed);
@@ -175,7 +178,7 @@ fn emit_allowed(instance: &CompiledSinkInstance, kind: EventKind) -> bool {
 mod tests {
     use super::*;
     use crate::compile::compile_from_config;
-    use crate::view::TxnView;
+    use crate::view::{TxnExtraSource, TxnView};
     use crate::DropPolicy;
     use conduit_proto::config::{
         Config, ObservationConfig, ObservationSink, ObservationSinkFilters,
@@ -218,6 +221,7 @@ mod tests {
                 query_wire: &[1, 2, 3],
                 response_wire: None,
                 attempt_count: 1,
+                extra: TxnExtraSource::default(),
             },
             &CompiledObservation {
                 enabled: false,
@@ -238,6 +242,8 @@ mod tests {
             destinations: vec!["unix:/nonexistent-dnstap.sock".into()],
             emit: vec!["query".into()],
             filters: None,
+            extra_fields: vec![],
+            extra_tags: vec![],
         }]);
         let compiled = compile_from_config(&cfg);
         let hub = ObservationHub::from_compiled(&compiled);
@@ -251,6 +257,7 @@ mod tests {
             query_wire: &[0u8; 8],
             response_wire: None,
             attempt_count: 1,
+            extra: TxnExtraSource::default(),
         };
         hub.try_enqueue_query(view(1), &compiled, |_| true);
         hub.try_enqueue_query(view(2), &compiled, |_| true);
@@ -269,6 +276,8 @@ mod tests {
             filters: Some(ObservationSinkFilters {
                 tag_required: Some("vip".into()),
             }),
+            extra_fields: vec![],
+            extra_tags: vec![],
         })
         .unwrap();
         assert_eq!(instance.tag_required.as_deref(), Some("vip"));

@@ -147,6 +147,10 @@ pub(crate) struct YamlObservationSink {
     emit: Vec<String>,
     #[serde(default)]
     filters: YamlObservationSinkFilters,
+    #[serde(default)]
+    extra_fields: Vec<String>,
+    #[serde(default)]
+    extra_tags: Vec<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -308,6 +312,8 @@ impl From<YamlObservationSink> for conduit_proto::config::ObservationSink {
             destinations: y.destinations,
             emit: y.emit,
             filters,
+            extra_fields: y.extra_fields,
+            extra_tags: y.extra_tags,
         }
     }
 }
@@ -535,6 +541,8 @@ impl From<&conduit_proto::config::ObservationSink> for YamlObservationSink {
             filters: YamlObservationSinkFilters {
                 tag_required: s.filters.as_ref().and_then(|f| f.tag_required.clone()),
             },
+            extra_fields: s.extra_fields.clone(),
+            extra_tags: s.extra_tags.clone(),
         }
     }
 }

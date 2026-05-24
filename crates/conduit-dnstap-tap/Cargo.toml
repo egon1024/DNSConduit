@@ -1,0 +1,23 @@
+[package]
+name = "conduit-dnstap-tap"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Dev dnstap collector: bind a socket, decode frames (including extra), stream to stdout"
+
+[[bin]]
+name = "conduit-dnstap-tap"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+conduit-observation = { path = "../conduit-observation" }
+hickory-proto = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+
+[dev-dependencies]
+conduit-observation = { path = "../conduit-observation" }
+tempfile = "3"

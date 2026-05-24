@@ -17,4 +17,5 @@ pub struct ObservationEvent {
     pub protocol_udp: bool,
     pub wire: Vec<u8>,
     pub attempt_count: u32,
+    pub extra: Option<Vec<u8>>,
 }
