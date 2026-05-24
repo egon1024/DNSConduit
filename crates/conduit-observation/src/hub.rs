@@ -4,6 +4,7 @@ use crate::compile::{CompiledObservation, CompiledSinkInstance};
 use crate::dnstap::DnstapSink;
 use crate::event::{EventKind, ObservationEvent};
 use crate::extra::build_extra_json;
+use crate::metrics::{SinkMetrics, SinkMetricsSnapshot};
 use crate::queue::SinkQueue;
 use crate::sink::ObservationSink;
 use crate::view::TxnView;
@@ -12,6 +13,7 @@ use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 
 struct SinkRuntime {
+    metrics: Arc<SinkMetrics>,
     queues: Vec<SinkQueue>,
     _thread: JoinHandle<()>,
 }
@@ -20,6 +22,7 @@ struct SinkRuntime {
 pub struct ObservationHub {
     enabled: bool,
     drops: Arc<AtomicU64>,
+    sink_metrics: Vec<Arc<SinkMetrics>>,
     sinks: Vec<SinkRuntime>,
 }
 
@@ -28,6 +31,7 @@ impl ObservationHub {
         Self {
             enabled: false,
             drops: Arc::new(AtomicU64::new(0)),
+            sink_metrics: Vec::new(),
             sinks: Vec::new(),
         }
     }
@@ -38,17 +42,21 @@ impl ObservationHub {
         }
         let drops = Arc::new(AtomicU64::new(0));
         let mut sinks = Vec::new();
+        let mut sink_metrics = Vec::new();
         for instance in &compiled.sinks {
             let queue = SinkQueue::new(compiled.queue_depth, compiled.drop_policy);
             let rx = queue.receiver();
             let compiled_instance = instance.clone();
+            let metrics = instance.metrics.clone();
             let thread = thread::Builder::new()
-                .name(format!("obs-{}", instance.export_id))
+                .name(format!("obs-{}", instance.name))
                 .spawn(move || {
                     DnstapSink::new(compiled_instance).run(rx);
                 })
                 .expect("spawn observation sink thread");
+            sink_metrics.push(metrics.clone());
             sinks.push(SinkRuntime {
+                metrics,
                 queues: vec![queue],
                 _thread: thread,
             });
@@ -56,6 +64,7 @@ impl ObservationHub {
         Self {
             enabled: true,
             drops,
+            sink_metrics,
             sinks,
         }
     }
@@ -70,6 +79,13 @@ impl ObservationHub {
 
     pub fn dropped_total(&self) -> u64 {
         self.drops.load(Ordering::Relaxed)
+    }
+
+    pub fn sink_metrics_snapshot(&self) -> Vec<SinkMetricsSnapshot> {
+        self.sink_metrics
+            .iter()
+            .map(|m| m.snapshot())
+            .collect()
     }
 
     pub fn try_enqueue_query(
@@ -160,7 +176,10 @@ impl ObservationHub {
                 extra,
             };
             if sink_rt.queues[0].try_enqueue(event) {
+                sink_rt.metrics.record_queue_dropped();
                 self.drops.fetch_add(1, Ordering::Relaxed);
+            } else {
+                sink_rt.metrics.record_enqueued(kind);
             }
         }
     }
@@ -179,7 +198,6 @@ mod tests {
     use super::*;
     use crate::compile::compile_from_config;
     use crate::view::{TxnExtraSource, TxnView};
-    use crate::DropPolicy;
     use conduit_proto::config::{
         Config, ObservationConfig, ObservationSink, ObservationSinkFilters,
     };
@@ -198,6 +216,19 @@ mod tests {
         }
     }
 
+    fn sample_view(id: u64) -> TxnView<'static> {
+        TxnView {
+            txn_id: id,
+            client_addr: SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 53),
+            protocol_udp: true,
+            qname: Some("x"),
+            query_wire: &[0u8; 8],
+            response_wire: None,
+            attempt_count: 1,
+            extra: TxnExtraSource::default(),
+        }
+    }
+
     #[test]
     fn noop_hub_does_not_allocate_consumer_threads() {
         let hub = ObservationHub::from_compiled(&compile_from_config(&Config {
@@ -211,27 +242,14 @@ mod tests {
         }));
         assert!(!hub.enabled());
         assert_eq!(hub.consumer_count(), 0);
-        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 53);
-        hub.try_enqueue_query(
-            TxnView {
-                txn_id: 1,
-                client_addr: addr,
-                protocol_udp: true,
-                qname: Some("example.com"),
-                query_wire: &[1, 2, 3],
-                response_wire: None,
-                attempt_count: 1,
-                extra: TxnExtraSource::default(),
-            },
-            &CompiledObservation {
-                enabled: false,
-                queue_depth: 0,
-                drop_policy: DropPolicy::DropOldest,
-                sinks: vec![],
-            },
-            |_| true,
-        );
+        let disabled = compile_from_config(&Config {
+            schema_version: 1,
+            observation: None,
+            ..Default::default()
+        });
+        hub.try_enqueue_query(sample_view(1), &disabled, |_| true);
         assert_eq!(hub.dropped_total(), 0);
+        assert!(hub.sink_metrics_snapshot().is_empty());
     }
 
     #[test]
@@ -244,26 +262,125 @@ mod tests {
             filters: None,
             extra_fields: vec![],
             extra_tags: vec![],
+            name: None,
+            connect_retry: None,
         }]);
         let compiled = compile_from_config(&cfg);
         let hub = ObservationHub::from_compiled(&compiled);
         assert_eq!(hub.consumer_count(), 1);
-        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 53);
-        let view = |id| TxnView {
-            txn_id: id,
-            client_addr: addr,
-            protocol_udp: true,
-            qname: Some("x"),
-            query_wire: &[0u8; 8],
-            response_wire: None,
-            attempt_count: 1,
-            extra: TxnExtraSource::default(),
-        };
-        hub.try_enqueue_query(view(1), &compiled, |_| true);
-        hub.try_enqueue_query(view(2), &compiled, |_| true);
-        hub.try_enqueue_query(view(3), &compiled, |_| true);
+        hub.try_enqueue_query(sample_view(1), &compiled, |_| true);
+        hub.try_enqueue_query(sample_view(2), &compiled, |_| true);
+        hub.try_enqueue_query(sample_view(3), &compiled, |_| true);
         std::thread::sleep(Duration::from_millis(20));
         assert!(hub.dropped_total() >= 1);
+        let snap = hub.sink_metrics_snapshot();
+        assert_eq!(snap.len(), 1);
+        assert_eq!(snap[0].name, "test");
+        assert!(snap[0].queue_dropped >= 1);
+    }
+
+    #[test]
+    fn canonical_name_when_name_and_export_id_differ() {
+        let cfg = test_config(vec![ObservationSink {
+            r#type: "dnstap".into(),
+            export_id: "wire-id".into(),
+            name: Some("tap-primary".into()),
+            destinations: vec!["unix:/nonexistent.sock".into()],
+            emit: vec!["query".into()],
+            filters: None,
+            extra_fields: vec![],
+            extra_tags: vec![],
+            connect_retry: None,
+        }]);
+        let compiled = compile_from_config(&cfg);
+        let hub = ObservationHub::from_compiled(&compiled);
+        hub.try_enqueue_query(sample_view(1), &compiled, |_| true);
+        let snap = hub.sink_metrics_snapshot();
+        assert_eq!(snap[0].name, "tap-primary");
+        assert_eq!(snap[0].enqueued_query, 1);
+    }
+
+    #[test]
+    fn fan_out_increments_both_sinks() {
+        let cfg = test_config(vec![
+            ObservationSink {
+                r#type: "dnstap".into(),
+                export_id: "a".into(),
+                destinations: vec!["unix:/nonexistent-a.sock".into()],
+                emit: vec!["query".into()],
+                filters: None,
+                extra_fields: vec![],
+                extra_tags: vec![],
+                name: None,
+                connect_retry: None,
+            },
+            ObservationSink {
+                r#type: "dnstap".into(),
+                export_id: "b".into(),
+                destinations: vec!["unix:/nonexistent-b.sock".into()],
+                emit: vec!["query".into()],
+                filters: None,
+                extra_fields: vec![],
+                extra_tags: vec![],
+                name: None,
+                connect_retry: None,
+            },
+        ]);
+        let compiled = compile_from_config(&cfg);
+        let hub = ObservationHub::from_compiled(&compiled);
+        hub.try_enqueue_query(sample_view(1), &compiled, |_| true);
+        let snap = hub.sink_metrics_snapshot();
+        assert_eq!(snap.len(), 2);
+        assert_eq!(snap[0].enqueued_query, 1);
+        assert_eq!(snap[1].enqueued_query, 1);
+    }
+
+    #[test]
+    fn partial_drop_only_hits_sink_that_receives_events() {
+        let cfg = Config {
+            schema_version: 1,
+            observation: Some(ObservationConfig {
+                queue_depth: 1,
+                drop_policy: "drop_newest".into(),
+                sinks: vec![
+                    ObservationSink {
+                        r#type: "dnstap".into(),
+                        export_id: "responses".into(),
+                        destinations: vec!["unix:/nonexistent-responses.sock".into()],
+                        emit: vec!["response".into()],
+                        filters: None,
+                        extra_fields: vec![],
+                        extra_tags: vec![],
+                        name: None,
+                        connect_retry: None,
+                    },
+                    ObservationSink {
+                        r#type: "dnstap".into(),
+                        export_id: "queries".into(),
+                        destinations: vec!["unix:/nonexistent-queries.sock".into()],
+                        emit: vec!["query".into()],
+                        filters: None,
+                        extra_fields: vec![],
+                        extra_tags: vec![],
+                        name: None,
+                        connect_retry: None,
+                    },
+                ],
+            }),
+            ..Default::default()
+        };
+        let compiled = compile_from_config(&cfg);
+        let hub = ObservationHub::from_compiled(&compiled);
+        hub.try_enqueue_query(sample_view(1), &compiled, |_| true);
+        hub.try_enqueue_query(sample_view(2), &compiled, |_| true);
+        hub.try_enqueue_query(sample_view(3), &compiled, |_| true);
+        let snap = hub.sink_metrics_snapshot();
+        let responses = snap.iter().find(|s| s.name == "responses").unwrap();
+        let queries = snap.iter().find(|s| s.name == "queries").unwrap();
+        assert_eq!(responses.enqueued_query, 0);
+        assert_eq!(responses.queue_dropped, 0);
+        assert_eq!(queries.enqueued_query, 1);
+        assert_eq!(queries.queue_dropped, 2);
     }
 
     #[test]
@@ -278,6 +395,8 @@ mod tests {
             }),
             extra_fields: vec![],
             extra_tags: vec![],
+            name: None,
+            connect_retry: None,
         })
         .unwrap();
         assert_eq!(instance.tag_required.as_deref(), Some("vip"));

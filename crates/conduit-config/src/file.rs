@@ -135,12 +135,32 @@ pub(crate) struct YamlObservationSinkFilters {
     tag_required: Option<String>,
 }
 
+#[derive(Debug, Deserialize, Serialize, Default)]
+pub(crate) struct YamlConnectRetry {
+    #[serde(default)]
+    initial_ms: u32,
+    #[serde(default)]
+    max_ms: u32,
+    #[serde(default)]
+    multiplier: f64,
+    #[serde(default)]
+    max_elapsed_ms: u32,
+    #[serde(default = "default_connect_retry_jitter")]
+    jitter: bool,
+}
+
+fn default_connect_retry_jitter() -> bool {
+    true
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 pub(crate) struct YamlObservationSink {
     #[serde(rename = "type")]
     sink_type: String,
     #[serde(default)]
     export_id: String,
+    #[serde(default)]
+    name: Option<String>,
     #[serde(default)]
     destinations: Vec<String>,
     #[serde(default)]
@@ -151,6 +171,8 @@ pub(crate) struct YamlObservationSink {
     extra_fields: Vec<String>,
     #[serde(default)]
     extra_tags: Vec<String>,
+    #[serde(default)]
+    connect_retry: Option<YamlConnectRetry>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -306,14 +328,23 @@ impl From<YamlObservationSink> for conduit_proto::config::ObservationSink {
         } else {
             None
         };
+        let connect_retry = y.connect_retry.map(|r| conduit_proto::config::ConnectRetry {
+            initial_ms: r.initial_ms,
+            max_ms: r.max_ms,
+            multiplier: r.multiplier,
+            max_elapsed_ms: r.max_elapsed_ms,
+            jitter: r.jitter,
+        });
         conduit_proto::config::ObservationSink {
             r#type: y.sink_type,
             export_id: y.export_id,
+            name: y.name,
             destinations: y.destinations,
             emit: y.emit,
             filters,
             extra_fields: y.extra_fields,
             extra_tags: y.extra_tags,
+            connect_retry,
         }
     }
 }
@@ -536,6 +567,7 @@ impl From<&conduit_proto::config::ObservationSink> for YamlObservationSink {
         YamlObservationSink {
             sink_type: s.r#type.clone(),
             export_id: s.export_id.clone(),
+            name: s.name.clone(),
             destinations: s.destinations.clone(),
             emit: s.emit.clone(),
             filters: YamlObservationSinkFilters {
@@ -543,6 +575,13 @@ impl From<&conduit_proto::config::ObservationSink> for YamlObservationSink {
             },
             extra_fields: s.extra_fields.clone(),
             extra_tags: s.extra_tags.clone(),
+            connect_retry: s.connect_retry.as_ref().map(|r| YamlConnectRetry {
+                initial_ms: r.initial_ms,
+                max_ms: r.max_ms,
+                multiplier: r.multiplier,
+                max_elapsed_ms: r.max_elapsed_ms,
+                jitter: r.jitter,
+            }),
         }
     }
 }

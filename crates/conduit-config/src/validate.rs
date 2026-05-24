@@ -1,6 +1,8 @@
 use crate::backend::effective_backend_weight;
 use crate::logging::validate_logging;
-use conduit_observation::{parse_extra_fields, parse_extra_tags};
+use conduit_observation::{
+    parse_connect_retry, parse_extra_fields, parse_extra_tags, validate_sink_identity_uniqueness,
+};
 use conduit_proto::config::Config;
 
 #[derive(Debug, Clone)]
@@ -73,11 +75,9 @@ pub fn validate(cfg: &Config) -> ValidationResult {
                     i, sink.r#type
                 ));
             }
-            if sink.export_id.is_empty() {
-                errors.push(format!(
-                    "observation.sinks[{}].export_id must not be empty",
-                    i
-                ));
+
+            if let Err(e) = conduit_observation::resolve_sink_identity(sink) {
+                errors.push(format!("observation.sinks[{i}]: {e}"));
             }
             if sink.destinations.is_empty() {
                 errors.push(format!(
@@ -108,7 +108,16 @@ pub fn validate(cfg: &Config) -> ValidationResult {
             if let Err(e) = parse_extra_tags(&sink.extra_tags, has_tags) {
                 errors.push(format!("observation.sinks[{i}]: {e}"));
             }
+            if let Some(ref name) = sink.name {
+                if name.is_empty() {
+                    errors.push(format!("observation.sinks[{i}].name must not be empty"));
+                }
+            }
+            if let Err(e) = parse_connect_retry(sink) {
+                errors.push(format!("observation.sinks[{i}].connect_retry: {e}"));
+            }
         }
+        errors.extend(validate_sink_identity_uniqueness(&obs.sinks));
     }
 
     if let Some(rules) = &cfg.rules {
@@ -269,10 +278,72 @@ mod tests {
                 filters: None,
                 extra_fields: vec![],
                 extra_tags: vec![],
+                name: None,
+                connect_retry: None,
             });
         let result = validate(&cfg);
         assert!(!result.ok);
         assert!(result.errors.iter().any(|e| e.contains("dnstap")));
         assert!(result.errors.iter().any(|e| e.contains("emit")));
+    }
+
+    #[test]
+    fn reject_duplicate_sink_names() {
+        let yaml = include_str!("../../../tests/fixtures/config/with-dnstap.yaml");
+        let mut cfg = load_yaml(yaml).unwrap();
+        let second = cfg.observation.as_mut().unwrap().sinks[0].clone();
+        cfg.observation.as_mut().unwrap().sinks.push(second);
+        let result = validate(&cfg);
+        assert!(!result.ok);
+        assert!(result.errors.iter().any(|e| e.contains("duplicates")));
+    }
+
+    #[test]
+    fn reject_empty_sink_name() {
+        let yaml = include_str!("../../../tests/fixtures/config/with-dnstap.yaml");
+        let mut cfg = load_yaml(yaml).unwrap();
+        cfg.observation.as_mut().unwrap().sinks[0].name = Some(String::new());
+        let result = validate(&cfg);
+        assert!(!result.ok);
+        assert!(result.errors.iter().any(|e| e.contains("name")));
+    }
+
+    #[test]
+    fn reject_invalid_connect_retry_multiplier() {
+        let yaml = include_str!("../../../tests/fixtures/config/with-dnstap.yaml");
+        let mut cfg = load_yaml(yaml).unwrap();
+        cfg.observation.as_mut().unwrap().sinks[0].connect_retry =
+            Some(conduit_proto::config::ConnectRetry {
+                initial_ms: 1000,
+                max_ms: 30_000,
+                multiplier: 0.5,
+                max_elapsed_ms: 0,
+                jitter: true,
+            });
+        let result = validate(&cfg);
+        assert!(!result.ok);
+        assert!(result
+            .errors
+            .iter()
+            .any(|e| e.contains("multiplier")));
+    }
+
+    #[test]
+    fn accept_custom_connect_retry() {
+        let yaml = include_str!("../../../tests/fixtures/config/with-dnstap.yaml");
+        let mut cfg = load_yaml(yaml).unwrap();
+        cfg.observation.as_mut().unwrap().sinks[0].connect_retry =
+            Some(conduit_proto::config::ConnectRetry {
+                initial_ms: 250,
+                max_ms: 8000,
+                multiplier: 2.0,
+                max_elapsed_ms: 0,
+                jitter: false,
+            });
+        let result = validate(&cfg);
+        assert!(result.ok, "{:?}", result.errors);
+        let snap = conduit_observation::compile_from_config(&cfg);
+        assert_eq!(snap.sinks[0].connect_retry.initial_ms, 250);
+        assert!(!snap.sinks[0].connect_retry.jitter);
     }
 }

@@ -1,10 +1,11 @@
 //! Dnstap protobuf + framestream writer for one sink instance.
 
 use crate::compile::{CompiledSinkInstance, Destination};
+use crate::connect_retry::BackoffState;
 use crate::event::{EventKind, ObservationEvent};
 use crate::fstrm;
 use crate::sink::ObservationSink;
-use crossbeam_channel::Receiver;
+use crossbeam_channel::{Receiver, RecvTimeoutError};
 use dnstap::{ClientQuery, ClientResponse, DNSMessage, SocketFamily, SocketProtocol};
 use protobuf::Message;
 use std::io::{self, Read, Write};
@@ -13,7 +14,84 @@ use std::path::Path;
 use std::time::{Duration, SystemTime};
 
 const CONTENT_TYPE: &str = "protobuf:dnstap.Dnstap";
-const RECONNECT_DELAY: Duration = Duration::from_secs(1);
+const RECV_TIMEOUT: Duration = Duration::from_millis(250);
+/// Throttle "still failing" retry warnings while a collector outage continues.
+const RETRY_WARN_INTERVAL: Duration = Duration::from_secs(60);
+
+/// One-shot disconnect/unreachable warn plus throttled retry warnings per outage.
+struct ConnectLogState {
+    outage_logged: bool,
+    last_retry_warn: Option<std::time::Instant>,
+}
+
+impl ConnectLogState {
+    fn new() -> Self {
+        Self {
+            outage_logged: false,
+            last_retry_warn: None,
+        }
+    }
+
+    fn mark_disconnected(&mut self, sink: &str) {
+        if self.outage_logged {
+            return;
+        }
+        tracing::warn!(
+            sink = %sink,
+            "dnstap destinations disconnected, reconnecting"
+        );
+        self.outage_logged = true;
+        // Suppress an immediate duplicate "still failing" on the same retry tick.
+        self.last_retry_warn = Some(std::time::Instant::now());
+    }
+
+    fn mark_unreachable(&mut self, sink: &str) {
+        if self.outage_logged {
+            return;
+        }
+        tracing::warn!(
+            sink = %sink,
+            "dnstap destinations unreachable, reconnecting"
+        );
+        self.outage_logged = true;
+        self.last_retry_warn = Some(std::time::Instant::now());
+    }
+
+    fn on_retry_sleep(&mut self, sink: &str, connect_attempts: u64, delay: Duration) {
+        tracing::debug!(
+            sink = %sink,
+            connect_attempts,
+            delay_ms = delay.as_millis(),
+            "dnstap connect retry sleep"
+        );
+        let now = std::time::Instant::now();
+        let due = self
+            .last_retry_warn
+            .map(|t| now.duration_since(t) >= RETRY_WARN_INTERVAL)
+            .unwrap_or(true);
+        if due && self.outage_logged {
+            tracing::warn!(
+                sink = %sink,
+                connect_attempts,
+                delay_ms = delay.as_millis(),
+                "dnstap connect retry still failing"
+            );
+            self.last_retry_warn = Some(now);
+        }
+    }
+
+    fn on_connected(&mut self, sink: &str, destinations: usize) {
+        if self.outage_logged {
+            tracing::info!(
+                sink = %sink,
+                destinations,
+                "dnstap connected"
+            );
+        }
+        self.outage_logged = false;
+        self.last_retry_warn = None;
+    }
+}
 
 pub struct DnstapSink {
     instance: CompiledSinkInstance,
@@ -28,32 +106,67 @@ impl DnstapSink {
 impl ObservationSink for DnstapSink {
     fn run(self, rx: Receiver<ObservationEvent>) {
         let identity = self.instance.export_id.as_bytes().to_vec();
+        let metrics = self.instance.metrics.clone();
         let mut writers = Vec::new();
+        let mut backoff = BackoffState::new(self.instance.connect_retry.clone());
+        let mut connect_log = ConnectLogState::new();
+        let sink = self.instance.name.as_str();
+
         loop {
             if writers.is_empty() {
+                metrics.set_connected(false);
+                metrics.record_connect_attempt();
                 writers = connect_all(&self.instance.destinations);
                 if writers.is_empty() {
-                    std::thread::sleep(RECONNECT_DELAY);
+                    if !connect_log.outage_logged {
+                        connect_log.mark_unreachable(sink);
+                    }
+                    let delay = backoff.next_delay();
+                    let attempts = metrics.snapshot().connect_attempts;
+                    connect_log.on_retry_sleep(sink, attempts, delay);
+                    std::thread::sleep(delay);
                     continue;
                 }
+                backoff.reset();
+                metrics.set_connected(true);
+                connect_log.on_connected(sink, writers.len());
             }
-            match rx.recv() {
+
+            match rx.recv_timeout(RECV_TIMEOUT) {
                 Ok(event) => {
                     let bytes = match encode_event(&identity, &event) {
                         Ok(b) => b,
                         Err(e) => {
-                            tracing::warn!(error = %e, "dnstap encode failed");
+                            metrics.record_encode_failed();
+                            tracing::warn!(
+                                sink = %self.instance.name,
+                                error = %e,
+                                "dnstap encode failed"
+                            );
                             continue;
                         }
                     };
-                    writers.retain_mut(|w| w.write_frame(&bytes).is_ok());
-                    if writers.is_empty() {
-                        tracing::warn!("dnstap destinations disconnected, reconnecting");
+                    let before = writers.len();
+                    writers.retain_mut(|w| match w.write_frame(&bytes) {
+                        Ok(()) => {
+                            metrics.record_delivered();
+                            true
+                        }
+                        Err(_) => {
+                            metrics.record_write_failed();
+                            false
+                        }
+                    });
+                    if before > 0 && writers.is_empty() {
+                        metrics.set_connected(false);
+                        connect_log.mark_disconnected(sink);
                     }
                 }
-                Err(_) => break,
+                Err(RecvTimeoutError::Timeout) => continue,
+                Err(RecvTimeoutError::Disconnected) => break,
             }
         }
+        metrics.set_connected(false);
         for w in writers {
             let _ = w.finish();
         }
@@ -181,8 +294,47 @@ fn socket_meta(addr: std::net::SocketAddr, udp: bool) -> (SocketFamily, SocketPr
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::compile::{compile_one_sink, parse_connect_retry};
+    use crate::connect_retry::ConnectRetryConfig;
     use crate::event::{EventKind, ObservationEvent};
+    use crate::sink::ObservationSink;
+    use conduit_proto::config::{ConnectRetry, ObservationSink as ObservationSinkConfig};
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+    use std::thread;
+    use std::time::Duration;
+
+    fn dnstap_sink(
+        export_id: &str,
+        destinations: Vec<&str>,
+        connect_retry: Option<ConnectRetry>,
+    ) -> CompiledSinkInstance {
+        let sink = ObservationSinkConfig {
+            r#type: "dnstap".into(),
+            export_id: export_id.into(),
+            destinations: destinations.into_iter().map(String::from).collect(),
+            emit: vec!["query".into()],
+            filters: None,
+            extra_fields: vec![],
+            extra_tags: vec![],
+            name: None,
+            connect_retry,
+        };
+        compile_one_sink(&sink).unwrap()
+    }
+
+    #[test]
+    fn connect_log_disconnect_and_unreachable_are_one_shot_per_outage() {
+        let mut log = ConnectLogState::new();
+        log.mark_disconnected("tap-a");
+        assert!(log.outage_logged);
+        log.mark_disconnected("tap-a");
+        log.mark_unreachable("tap-a");
+        assert!(log.outage_logged);
+        log.on_connected("tap-a", 1);
+        assert!(!log.outage_logged);
+        log.mark_unreachable("tap-a");
+        assert!(log.outage_logged);
+    }
 
     #[test]
     fn encode_client_query_bytes() {
@@ -222,8 +374,6 @@ mod tests {
     #[test]
     fn writes_data_through_real_fstrm_capture() {
         use std::process::{Command, Stdio};
-        use std::thread;
-        use std::time::Duration;
 
         if Command::new("fstrm_capture")
             .arg("-h")
@@ -282,7 +432,6 @@ mod tests {
         writer.write_frame(&bytes).expect("write dnstap data frame");
 
         writer.finish().expect("finish stream");
-        // fstrm_capture buffers connection data in stdio until SIGHUP or graceful exit.
         let _ = Command::new("kill")
             .args(["-HUP", &cap.id().to_string()])
             .status();
@@ -304,13 +453,11 @@ mod tests {
     fn sink_connects_with_bidirectional_handshake() {
         use std::os::unix::net::UnixListener;
         use std::sync::mpsc;
-        use std::thread;
-        use std::time::Duration;
 
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("sink.sock");
         let listener = UnixListener::bind(&path).unwrap();
-        let (tx, rx) = mpsc::sync_channel(1);
+        let (tx, rx_done) = mpsc::sync_channel(1);
 
         thread::spawn(move || {
             let (mut conn, _) = listener.accept().unwrap();
@@ -337,7 +484,96 @@ mod tests {
         };
         let bytes = encode_event(b"test-export", &event).unwrap();
         writer.write_frame(&bytes).unwrap();
-        let got = rx.recv_timeout(Duration::from_secs(2)).unwrap();
+        let got = rx_done.recv_timeout(Duration::from_secs(2)).unwrap();
         assert_eq!(got, bytes);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn reconnects_when_collector_appears_later() {
+        use crossbeam_channel::bounded;
+        use std::os::unix::net::UnixListener;
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("late.sock");
+        let missing = path.clone();
+
+        let dest = format!("unix:{}", missing.display());
+        let instance = {
+            let mut inst = dnstap_sink("reconnect-test", vec![dest.as_str()], None);
+            inst.connect_retry = ConnectRetryConfig {
+                initial_ms: 50,
+                max_ms: 200,
+                multiplier: 2.0,
+                max_elapsed_ms: 0,
+                jitter: false,
+            };
+            inst
+        };
+        let metrics = instance.metrics.clone();
+        let (tx, rx) = bounded(4);
+        let worker = thread::spawn(move || DnstapSink::new(instance).run(rx));
+
+        thread::sleep(Duration::from_millis(150));
+        assert!(metrics.snapshot().connect_attempts >= 1);
+
+        let listener = UnixListener::bind(&path).unwrap();
+        let acceptor = thread::spawn(move || {
+            let (mut conn, _) = listener.accept().unwrap();
+            let ready = fstrm::read_control_frame(&mut conn).unwrap();
+            assert_eq!(ready.frame_type, fstrm::CONTROL_READY);
+            fstrm::write_control_frame(&mut conn, fstrm::CONTROL_ACCEPT, Some(CONTENT_TYPE))
+                .unwrap();
+            let start = fstrm::read_control_frame(&mut conn).unwrap();
+            assert_eq!(start.frame_type, fstrm::CONTROL_START);
+            let _ = fstrm::read_data_frame(&mut conn).unwrap();
+        });
+
+        thread::sleep(Duration::from_millis(500));
+        assert_eq!(metrics.snapshot().connected, 1);
+
+        let event = ObservationEvent {
+            kind: EventKind::Query,
+            txn_id: 1,
+            client_addr: SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 1234),
+            protocol_udp: true,
+            wire: vec![0x01, 0x02],
+            attempt_count: 1,
+            extra: None,
+        };
+        tx.send(event).unwrap();
+        thread::sleep(Duration::from_millis(300));
+        acceptor.join().unwrap();
+        assert!(
+            metrics.snapshot().delivered >= 1,
+            "expected delivered after collector appeared"
+        );
+        drop(tx);
+        worker.join().unwrap();
+    }
+
+    #[test]
+    fn parse_custom_connect_retry_from_proto() {
+        let sink = ObservationSinkConfig {
+            r#type: "dnstap".into(),
+            export_id: "x".into(),
+            destinations: vec!["unix:/tmp/x".into()],
+            emit: vec!["query".into()],
+            filters: None,
+            extra_fields: vec![],
+            extra_tags: vec![],
+            name: None,
+            connect_retry: Some(ConnectRetry {
+                initial_ms: 250,
+                max_ms: 8000,
+                multiplier: 2.0,
+                max_elapsed_ms: 0,
+                jitter: false,
+            }),
+        };
+        let cfg = parse_connect_retry(&sink).unwrap();
+        assert_eq!(cfg.initial_ms, 250);
+        assert_eq!(cfg.max_ms, 8000);
+        assert!(!cfg.jitter);
     }
 }

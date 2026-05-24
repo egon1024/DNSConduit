@@ -67,6 +67,11 @@ pub fn build_extra_json(
                     });
                 }
             }
+            ExtraField::SinkName => {
+                append_field(&mut out, &mut first, "sink_name", |o| {
+                    write!(o, "\"{}\"", json_escape(&instance.name)).ok()
+                });
+            }
         }
     }
     out.push('}');
@@ -179,6 +184,8 @@ mod tests {
             filters: None,
             extra_fields: vec!["pool".into(), "attempt_count".into()],
             extra_tags: vec![],
+            name: None,
+            connect_retry: None,
         })
         .unwrap();
         let json =
@@ -198,6 +205,8 @@ mod tests {
             filters: None,
             extra_fields: vec!["tags".into()],
             extra_tags: vec!["*".into()],
+            name: None,
+            connect_retry: None,
         })
         .unwrap();
         let json =
@@ -217,12 +226,33 @@ mod tests {
             filters: None,
             extra_fields: vec!["tags".into()],
             extra_tags: vec!["tenant".into()],
+            name: None,
+            connect_retry: None,
         })
         .unwrap();
         let json =
             String::from_utf8(build_extra_json(&instance, &source_with_tags()).unwrap()).unwrap();
         assert!(json.contains("\"tenant\":\"acme\""));
         assert!(!json.contains("vip"));
+    }
+
+    #[test]
+    fn sink_name_extra_field() {
+        let instance = compile_one_sink(&ObservationSink {
+            r#type: "dnstap".into(),
+            name: Some("prod-tap".into()),
+            export_id: "wire-id".into(),
+            destinations: vec!["unix:/tmp/x".into()],
+            emit: vec![],
+            filters: None,
+            extra_fields: vec!["sink_name".into()],
+            extra_tags: vec![],
+            connect_retry: None,
+        })
+        .unwrap();
+        let json =
+            String::from_utf8(build_extra_json(&instance, &source_with_tags()).unwrap()).unwrap();
+        assert!(json.contains("\"sink_name\":\"prod-tap\""));
     }
 
     #[test]
@@ -235,6 +265,8 @@ mod tests {
             filters: None,
             extra_fields: vec![],
             extra_tags: vec![],
+            name: None,
+            connect_retry: None,
         })
         .unwrap();
         assert!(build_extra_json(&instance, &source_with_tags()).is_none());

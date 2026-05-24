@@ -1,8 +1,12 @@
 //! Compile observation config for runtime snapshots.
 
+use crate::connect_retry::ConnectRetryConfig;
+use crate::metrics::SinkMetrics;
 use crate::queue::DropPolicy;
 use conduit_proto::config::{Config, ObservationConfig, ObservationSink};
+use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 /// Metadata field names allowed in `extra_fields`.
 pub const EXTRA_FIELD_NAMES: &[&str] = &[
@@ -14,6 +18,7 @@ pub const EXTRA_FIELD_NAMES: &[&str] = &[
     "rcode",
     "tags",
     "client",
+    "sink_name",
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -26,6 +31,7 @@ pub enum ExtraField {
     Rcode,
     Tags,
     Client,
+    SinkName,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -41,6 +47,69 @@ impl TagExportMode {
     }
 }
 
+/// Resolved sink identifiers: `name` is the canonical operator/API id; `export_id` is dnstap wire identity.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SinkIdentity {
+    pub name: String,
+    pub export_id: String,
+}
+
+/// Resolve `name` and `export_id` with cross-defaulting and legacy compatibility.
+///
+/// - `name` only → `export_id` defaults to `name`
+/// - `export_id` only (legacy) → `name` defaults to `export_id`
+/// - both set → use both (may differ)
+pub fn resolve_sink_identity(s: &ObservationSink) -> Result<SinkIdentity, String> {
+    let name_opt = s.name.as_ref().filter(|n| !n.is_empty());
+    let export_id = s.export_id.trim();
+    let export_opt = (!export_id.is_empty()).then_some(export_id);
+
+    match (name_opt, export_opt) {
+        (Some(name), Some(export_id)) => Ok(SinkIdentity {
+            name: name.clone(),
+            export_id: export_id.to_string(),
+        }),
+        (Some(name), None) => Ok(SinkIdentity {
+            name: name.clone(),
+            export_id: name.clone(),
+        }),
+        (None, Some(export_id)) => Ok(SinkIdentity {
+            name: export_id.to_string(),
+            export_id: export_id.to_string(),
+        }),
+        (None, None) => Err("requires name or export_id".into()),
+    }
+}
+
+/// Validate resolved identities are unique across sinks (call from config validation).
+pub fn validate_sink_identity_uniqueness(sinks: &[ObservationSink]) -> Vec<String> {
+    let mut errors = Vec::new();
+    let mut names: HashMap<String, usize> = HashMap::new();
+    let mut export_ids: HashMap<String, usize> = HashMap::new();
+
+    for (i, sink) in sinks.iter().enumerate() {
+        let Ok(identity) = resolve_sink_identity(sink) else {
+            errors.push(format!(
+                "observation.sinks[{i}] requires name or export_id (canonical operator id and/or dnstap wire identity)"
+            ));
+            continue;
+        };
+        if let Some(prev) = names.insert(identity.name.clone(), i) {
+            errors.push(format!(
+                "observation.sinks[{i}].name '{}' duplicates sinks[{prev}]",
+                identity.name
+            ));
+        }
+        if let Some(prev) = export_ids.insert(identity.export_id.clone(), i) {
+            errors.push(format!(
+                "observation.sinks[{i}] export_id '{}' duplicates sinks[{prev}]",
+                identity.export_id
+            ));
+        }
+    }
+    errors
+}
+
 pub fn parse_extra_field(name: &str) -> Option<ExtraField> {
     match name {
         "pool" => Some(ExtraField::Pool),
@@ -51,6 +120,7 @@ pub fn parse_extra_field(name: &str) -> Option<ExtraField> {
         "rcode" => Some(ExtraField::Rcode),
         "tags" => Some(ExtraField::Tags),
         "client" => Some(ExtraField::Client),
+        "sink_name" => Some(ExtraField::SinkName),
         _ => None,
     }
 }
@@ -99,6 +169,8 @@ pub struct CompiledObservation {
     pub queue_depth: usize,
     pub drop_policy: DropPolicy,
     pub sinks: Vec<CompiledSinkInstance>,
+    name_to_export_id: HashMap<String, String>,
+    export_id_to_name: HashMap<String, String>,
 }
 
 #[derive(Debug, Clone)]
@@ -107,7 +179,12 @@ pub struct CompiledSinkInstance {
     pub emit_response: bool,
     pub emit_retry: bool,
     pub tag_required: Option<String>,
+    /// Canonical operator / API / metrics id.
+    pub name: String,
+    /// Dnstap protobuf `identity` on the wire (defaults to `name` when omitted in config).
     pub export_id: String,
+    pub connect_retry: ConnectRetryConfig,
+    pub metrics: Arc<SinkMetrics>,
     pub destinations: Vec<Destination>,
     pub extra_fields: Vec<ExtraField>,
     pub tag_export: TagExportMode,
@@ -118,6 +195,22 @@ impl CompiledObservation {
         self.sinks
             .iter()
             .any(|s| s.extra_fields.contains(&ExtraField::Tags))
+    }
+
+    pub fn export_id_for_name(&self, name: &str) -> Option<&str> {
+        self.name_to_export_id
+            .get(name)
+            .map(String::as_str)
+    }
+
+    pub fn name_for_export_id(&self, export_id: &str) -> Option<&str> {
+        self.export_id_to_name
+            .get(export_id)
+            .map(String::as_str)
+    }
+
+    pub fn sink_by_name(&self, name: &str) -> Option<&CompiledSinkInstance> {
+        self.sinks.iter().find(|s| s.name == name)
     }
 }
 
@@ -138,11 +231,19 @@ pub fn compile_from_config(cfg: &Config) -> CompiledObservation {
         None => (8192, DropPolicy::DropOldest, Vec::new()),
     };
     let enabled = !sinks.is_empty();
+    let mut name_to_export_id = HashMap::new();
+    let mut export_id_to_name = HashMap::new();
+    for sink in &sinks {
+        name_to_export_id.insert(sink.name.clone(), sink.export_id.clone());
+        export_id_to_name.insert(sink.export_id.clone(), sink.name.clone());
+    }
     CompiledObservation {
         enabled,
         queue_depth,
         drop_policy,
         sinks,
+        name_to_export_id,
+        export_id_to_name,
     }
 }
 
@@ -163,9 +264,10 @@ fn compile_sinks(o: &ObservationConfig) -> Vec<CompiledSinkInstance> {
 }
 
 pub(crate) fn compile_one_sink(s: &ObservationSink) -> Option<CompiledSinkInstance> {
-    if s.r#type != "dnstap" || s.export_id.is_empty() || s.destinations.is_empty() {
+    if s.r#type != "dnstap" || s.destinations.is_empty() {
         return None;
     }
+    let identity = resolve_sink_identity(s).ok()?;
     let destinations: Vec<Destination> = s
         .destinations
         .iter()
@@ -183,16 +285,27 @@ pub(crate) fn compile_one_sink(s: &ObservationSink) -> Option<CompiledSinkInstan
     let extra_fields = parse_extra_fields(&s.extra_fields).ok()?;
     let has_tags = extra_fields.contains(&ExtraField::Tags);
     let tag_export = parse_extra_tags(&s.extra_tags, has_tags).ok()?;
+    let connect_retry = parse_connect_retry(s).ok()?;
+    let metrics = SinkMetrics::new(identity.name.clone());
     Some(CompiledSinkInstance {
         emit_query: emit.query,
         emit_response: emit.response,
         emit_retry: emit.retry,
         tag_required,
-        export_id: s.export_id.clone(),
+        name: identity.name,
+        export_id: identity.export_id,
+        connect_retry,
+        metrics,
         destinations,
         extra_fields,
         tag_export,
     })
+}
+
+pub fn parse_connect_retry(s: &ObservationSink) -> Result<ConnectRetryConfig, String> {
+    let cfg = ConnectRetryConfig::resolve(s.connect_retry.as_ref());
+    cfg.validate()?;
+    Ok(cfg)
 }
 
 struct EmitFlags {
@@ -243,6 +356,7 @@ pub fn parse_destination(s: &str) -> Option<Destination> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use conduit_proto::config::ObservationSink;
 
     #[test]
     fn parse_unix_and_tcp_destinations() {
@@ -255,5 +369,131 @@ mod tests {
             Some(Destination::Tcp { .. })
         ));
         assert!(parse_destination("bad").is_none());
+    }
+
+    #[test]
+    fn resolve_name_only_defaults_export_id() {
+        let s = ObservationSink {
+            r#type: "dnstap".into(),
+            export_id: String::new(),
+            name: Some("primary-tap".into()),
+            destinations: vec!["unix:/tmp/x".into()],
+            emit: vec![],
+            filters: None,
+            extra_fields: vec![],
+            extra_tags: vec![],
+            connect_retry: None,
+        };
+        let id = resolve_sink_identity(&s).unwrap();
+        assert_eq!(id.name, "primary-tap");
+        assert_eq!(id.export_id, "primary-tap");
+    }
+
+    #[test]
+    fn resolve_export_id_only_legacy_defaults_name() {
+        let s = ObservationSink {
+            r#type: "dnstap".into(),
+            export_id: "conduit-dev".into(),
+            name: None,
+            destinations: vec!["unix:/tmp/x".into()],
+            emit: vec![],
+            filters: None,
+            extra_fields: vec![],
+            extra_tags: vec![],
+            connect_retry: None,
+        };
+        let id = resolve_sink_identity(&s).unwrap();
+        assert_eq!(id.name, "conduit-dev");
+        assert_eq!(id.export_id, "conduit-dev");
+    }
+
+    #[test]
+    fn resolve_distinct_name_and_export_id() {
+        let s = ObservationSink {
+            r#type: "dnstap".into(),
+            export_id: "wire-pod-7".into(),
+            name: Some("prod-tap".into()),
+            destinations: vec!["unix:/tmp/x".into()],
+            emit: vec![],
+            filters: None,
+            extra_fields: vec![],
+            extra_tags: vec![],
+            connect_retry: None,
+        };
+        let id = resolve_sink_identity(&s).unwrap();
+        assert_eq!(id.name, "prod-tap");
+        assert_eq!(id.export_id, "wire-pod-7");
+    }
+
+    #[test]
+    fn compiled_observation_lookup_maps() {
+        let cfg = Config {
+            schema_version: 1,
+            observation: Some(ObservationConfig {
+                queue_depth: 128,
+                drop_policy: "drop_oldest".into(),
+                sinks: vec![
+                    ObservationSink {
+                        r#type: "dnstap".into(),
+                        name: Some("tap-a".into()),
+                        export_id: "wire-a".into(),
+                        destinations: vec!["unix:/tmp/a".into()],
+                        emit: vec!["query".into()],
+                        filters: None,
+                        extra_fields: vec![],
+                        extra_tags: vec![],
+                        connect_retry: None,
+                    },
+                    ObservationSink {
+                        r#type: "dnstap".into(),
+                        name: None,
+                        export_id: "legacy-only".into(),
+                        destinations: vec!["unix:/tmp/b".into()],
+                        emit: vec!["query".into()],
+                        filters: None,
+                        extra_fields: vec![],
+                        extra_tags: vec![],
+                        connect_retry: None,
+                    },
+                ],
+            }),
+            ..Default::default()
+        };
+        let compiled = compile_from_config(&cfg);
+        assert_eq!(compiled.export_id_for_name("tap-a"), Some("wire-a"));
+        assert_eq!(compiled.name_for_export_id("wire-a"), Some("tap-a"));
+        assert_eq!(compiled.name_for_export_id("legacy-only"), Some("legacy-only"));
+        assert!(compiled.sink_by_name("tap-a").is_some());
+        assert!(compiled.sink_by_name("missing").is_none());
+    }
+
+    #[test]
+    fn validate_rejects_duplicate_names() {
+        let sinks = vec![
+            ObservationSink {
+                r#type: "dnstap".into(),
+                name: Some("same".into()),
+                export_id: "a".into(),
+                destinations: vec!["unix:/tmp/a".into()],
+                emit: vec![],
+                filters: None,
+                extra_fields: vec![],
+                extra_tags: vec![],
+                connect_retry: None,
+            },
+            ObservationSink {
+                r#type: "dnstap".into(),
+                name: Some("same".into()),
+                export_id: "b".into(),
+                destinations: vec!["unix:/tmp/b".into()],
+                emit: vec![],
+                filters: None,
+                extra_fields: vec![],
+                extra_tags: vec![],
+                connect_retry: None,
+            },
+        ];
+        let errs = validate_sink_identity_uniqueness(&sinks);
+        assert!(errs.iter().any(|e| e.contains("name 'same'")));
     }
 }

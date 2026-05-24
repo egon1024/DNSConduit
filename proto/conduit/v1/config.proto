@@ -79,14 +79,24 @@ message ObservationSinkFilters {
   optional string tag_required = 1;
 }
 
+message ConnectRetry {
+  uint32 initial_ms = 1;
+  uint32 max_ms = 2;
+  double multiplier = 3;
+  uint32 max_elapsed_ms = 4;  // 0 = unlimited
+  bool jitter = 5;
+}
+
 message ObservationSink {
   string type = 1;              // "dnstap" (Phase 2)
-  string export_id = 2;
+  string export_id = 2;         // dnstap wire identity; defaults to name when empty
   repeated string destinations = 3;
   repeated string emit = 4;
   ObservationSinkFilters filters = 5;
-  repeated string extra_fields = 6;  // pool, backend, attempt_count, txn_id, qname, rcode, tags, client
+  repeated string extra_fields = 6;  // pool, backend, ..., client, sink_name
   repeated string extra_tags = 7;    // tag key filter when "tags" in extra_fields; omit or "*" = all
+  optional string name = 8;          // canonical operator/API id; defaults to export_id when empty
+  optional ConnectRetry connect_retry = 9;
 }
 
 message RhaiConfig {

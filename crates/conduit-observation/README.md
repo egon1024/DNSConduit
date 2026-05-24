@@ -1,6 +1,37 @@
 # conduit-observation
 
-Phase 2 observation pipeline: bounded per-sink queues, `ObservationHub`, and dnstap export.
+Phase 2 observation pipeline: bounded per-sink queues, `ObservationHub`, dnstap export, per-sink metrics, and configurable connect backoff.
+
+## Sink `name`, `export_id`, and `connect_retry`
+
+```yaml
+observation:
+  sinks:
+    - type: dnstap
+      name: primary-tap          # canonical operator/API id (metrics, future RPCs)
+      export_id: conduit-prod    # optional; dnstap wire identity (defaults to name)
+      destinations: ["unix:/tmp/dnstap/conduit.sock"]
+      emit: [query, response]
+      extra_fields: [pool, sink_name]   # sink_name = canonical name in Dnstap.extra JSON
+      connect_retry:
+        initial_ms: 250
+        max_ms: 30000
+        multiplier: 2.0
+        max_elapsed_ms: 0        # 0 = retry indefinitely
+        jitter: true
+```
+
+**Identity rules:** provide `name` and/or `export_id`. If only `name` is set, wire identity defaults to `name`. If only `export_id` is set (legacy configs), canonical `name` defaults to `export_id`. Both may differ (e.g. stable `name: prod-tap`, dynamic `export_id: pod-7a3f`). Names and export ids must be unique across sinks.
+
+`CompiledObservation::export_id_for_name`, `name_for_export_id`, and `sink_by_name` resolve between the two at runtime (for metrics/API use).
+
+When the collector is down, the sink worker retries connect with exponential backoff (capped at `max_ms`) instead of a fixed 1s sleep. While disconnected, the hub still enqueues until `queue_depth` is reached; drops increment per-sink `queue_dropped`.
+
+**Logging:** a `warn` when destinations become unreachable or disconnect mid-session; `info` when connectivity is restored; per-retry detail at `debug`; an additional throttled `warn` (`still failing`, about every 60s) while an outage continues.
+
+## Per-sink metrics snapshot
+
+`ObservationHub::sink_metrics_snapshot()` returns in-process counters per sink (`enqueued_*`, `queue_dropped`, `delivered`, `write_failed`, `encode_failed`, `connect_attempts`, `connected`). `dropped_total()` remains the sum of all sinks' `queue_dropped`. Phase 4 will expose these via Prometheus.
 
 ## Dependencies (task 4.1 spike)
 
