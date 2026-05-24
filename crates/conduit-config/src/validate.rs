@@ -116,6 +116,31 @@ pub fn validate(cfg: &Config) -> ValidationResult {
             if let Err(e) = parse_connect_retry(sink) {
                 errors.push(format!("observation.sinks[{i}].connect_retry: {e}"));
             }
+            if let Some(ref filters) = sink.filters {
+                for (j, sel) in filters.selectors.iter().enumerate() {
+                    if let Err(e) = conduit_observation::validate_selector_type(sel.r#type.as_str())
+                    {
+                        errors.push(format!(
+                            "observation.sinks[{i}].filters.selectors[{j}]: {e}"
+                        ));
+                    }
+                }
+                if let Some(rate) = filters.sample_rate {
+                    if let Err(e) = conduit_observation::parse_sample_rate(Some(rate)) {
+                        errors.push(format!("observation.sinks[{i}].filters: {e}"));
+                    }
+                }
+                if filters.pool.as_ref().is_some_and(|p| p.is_empty()) {
+                    errors.push(format!(
+                        "observation.sinks[{i}].filters.pool must not be empty"
+                    ));
+                }
+                if filters.backend.as_ref().is_some_and(|b| b.is_empty()) {
+                    errors.push(format!(
+                        "observation.sinks[{i}].filters.backend must not be empty"
+                    ));
+                }
+            }
         }
         errors.extend(validate_sink_identity_uniqueness(&obs.sinks));
     }
@@ -240,6 +265,41 @@ mod tests {
     }
 
     #[test]
+    fn accept_with_dnstap_filters_config() {
+        let yaml = include_str!("../../../tests/fixtures/config/with-dnstap-filters.yaml");
+        let cfg = load_yaml(yaml).unwrap();
+        let result = validate(&cfg);
+        assert!(result.ok, "errors: {:?}", result.errors);
+        let snap = conduit_observation::compile_from_config(&cfg);
+        assert_eq!(snap.sinks[0].filters.selectors.len(), 2);
+        assert_eq!(snap.sinks[0].filters.tag_required.as_deref(), Some("audit"));
+    }
+
+    #[test]
+    fn accept_with_dnstap_sample_config() {
+        let yaml = include_str!("../../../tests/fixtures/config/with-dnstap-sample.yaml");
+        let cfg = load_yaml(yaml).unwrap();
+        assert!(validate(&cfg).ok);
+        let snap = conduit_observation::compile_from_config(&cfg);
+        assert!((snap.sinks[0].filters.sample_rate - 0.1).abs() < f64::EPSILON);
+        assert_eq!(snap.sinks[0].filters.pool.as_deref(), Some("default"));
+    }
+
+    #[test]
+    fn reject_invalid_sample_rate() {
+        let yaml = include_str!("../../../tests/fixtures/config/with-dnstap-sample.yaml");
+        let mut cfg = load_yaml(yaml).unwrap();
+        cfg.observation.as_mut().unwrap().sinks[0]
+            .filters
+            .as_mut()
+            .unwrap()
+            .sample_rate = Some(0.0);
+        let result = validate(&cfg);
+        assert!(!result.ok);
+        assert!(result.errors.iter().any(|e| e.contains("sample_rate")));
+    }
+
+    #[test]
     fn reject_unknown_extra_field() {
         let yaml = include_str!("../../../tests/fixtures/config/with-dnstap.yaml");
         let mut cfg = load_yaml(yaml).unwrap();
@@ -322,10 +382,7 @@ mod tests {
             });
         let result = validate(&cfg);
         assert!(!result.ok);
-        assert!(result
-            .errors
-            .iter()
-            .any(|e| e.contains("multiplier")));
+        assert!(result.errors.iter().any(|e| e.contains("multiplier")));
     }
 
     #[test]

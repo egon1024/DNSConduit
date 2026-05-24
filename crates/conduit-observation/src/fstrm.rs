@@ -206,7 +206,10 @@ pub fn read_frame(r: &mut impl Read) -> io::Result<IncomingFrame> {
 }
 
 /// Server: bidirectional READY → ACCEPT → START.
-pub fn accept_bidirectional(stream: &mut (impl Read + Write), content_type: &str) -> io::Result<()> {
+pub fn accept_bidirectional(
+    stream: &mut (impl Read + Write),
+    content_type: &str,
+) -> io::Result<()> {
     let ready = read_control_frame(stream)?;
     if ready.frame_type != CONTROL_READY {
         return Err(io::Error::new(
@@ -238,7 +241,10 @@ pub fn accept_bidirectional(stream: &mut (impl Read + Write), content_type: &str
 }
 
 /// Server: accept START-only clients (legacy uni-directional).
-pub fn accept_unidirectional(stream: &mut (impl Read + Write), content_type: &str) -> io::Result<()> {
+pub fn accept_unidirectional(
+    stream: &mut (impl Read + Write),
+    content_type: &str,
+) -> io::Result<()> {
     let start = read_control_frame(stream)?;
     if start.frame_type != CONTROL_START {
         return Err(io::Error::new(
@@ -331,7 +337,8 @@ mod tests {
             let mut server = server;
             let ready = read_control_frame(&mut server).unwrap();
             assert_eq!(ready.frame_type, CONTROL_READY);
-            write_control_frame(&mut server, CONTROL_ACCEPT, Some("protobuf:dnstap.Dnstap")).unwrap();
+            write_control_frame(&mut server, CONTROL_ACCEPT, Some("protobuf:dnstap.Dnstap"))
+                .unwrap();
             let start = read_control_frame(&mut server).unwrap();
             assert_eq!(start.frame_type, CONTROL_START);
             let payload = read_data_frame(&mut server).unwrap();

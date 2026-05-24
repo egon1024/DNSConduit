@@ -4,6 +4,7 @@ use crate::compile::{CompiledObservation, CompiledSinkInstance};
 use crate::dnstap::DnstapSink;
 use crate::event::{EventKind, ObservationEvent};
 use crate::extra::build_extra_json;
+use crate::filters::sink_event_matches;
 use crate::metrics::{SinkMetrics, SinkMetricsSnapshot};
 use crate::queue::SinkQueue;
 use crate::sink::ObservationSink;
@@ -82,10 +83,7 @@ impl ObservationHub {
     }
 
     pub fn sink_metrics_snapshot(&self) -> Vec<SinkMetricsSnapshot> {
-        self.sink_metrics
-            .iter()
-            .map(|m| m.snapshot())
-            .collect()
+        self.sink_metrics.iter().map(|m| m.snapshot()).collect()
     }
 
     pub fn try_enqueue_query(
@@ -97,13 +95,7 @@ impl ObservationHub {
         if !self.enabled || view.qname.is_none() || view.query_wire.is_empty() {
             return;
         }
-        self.try_enqueue_kind(
-            &view,
-            compiled,
-            &tag_has,
-            EventKind::Query,
-            view.query_wire.to_vec(),
-        );
+        self.try_enqueue_kind(&view, compiled, &tag_has, EventKind::Query, view.query_wire);
     }
 
     pub fn try_enqueue_response(
@@ -118,13 +110,7 @@ impl ObservationHub {
         if !self.enabled || wire.is_empty() {
             return;
         }
-        self.try_enqueue_kind(
-            &view,
-            compiled,
-            &tag_has,
-            EventKind::Response,
-            wire.to_vec(),
-        );
+        self.try_enqueue_kind(&view, compiled, &tag_has, EventKind::Response, wire);
     }
 
     pub fn try_enqueue_retry(
@@ -136,13 +122,7 @@ impl ObservationHub {
         if !self.enabled || view.attempt_count <= 1 {
             return;
         }
-        self.try_enqueue_kind(
-            &view,
-            compiled,
-            &tag_has,
-            EventKind::Retry,
-            view.query_wire.to_vec(),
-        );
+        self.try_enqueue_kind(&view, compiled, &tag_has, EventKind::Retry, view.query_wire);
     }
 
     fn try_enqueue_kind(
@@ -151,7 +131,7 @@ impl ObservationHub {
         compiled: &CompiledObservation,
         tag_has: &dyn Fn(&str) -> bool,
         kind: EventKind,
-        wire: Vec<u8>,
+        wire: &[u8],
     ) {
         for (idx, sink_rt) in self.sinks.iter().enumerate() {
             let Some(instance) = compiled.sinks.get(idx) else {
@@ -160,10 +140,8 @@ impl ObservationHub {
             if !emit_allowed(instance, kind) {
                 continue;
             }
-            if let Some(ref tag) = instance.tag_required {
-                if !tag_has(tag) {
-                    continue;
-                }
+            if !sink_event_matches(&instance.filters, kind, view, tag_has) {
+                continue;
             }
             let extra = build_extra_json(instance, &view.extra);
             let event = ObservationEvent {
@@ -171,7 +149,7 @@ impl ObservationHub {
                 txn_id: view.txn_id,
                 client_addr: view.client_addr,
                 protocol_udp: view.protocol_udp,
-                wire: wire.clone(),
+                wire: wire.to_vec(),
                 attempt_count: view.attempt_count,
                 extra,
             };
@@ -222,6 +200,7 @@ mod tests {
             client_addr: SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 53),
             protocol_udp: true,
             qname: Some("x"),
+            qtype_label: Some("A".into()),
             query_wire: &[0u8; 8],
             response_wire: None,
             attempt_count: 1,
@@ -392,6 +371,10 @@ mod tests {
             emit: vec!["query".into()],
             filters: Some(ObservationSinkFilters {
                 tag_required: Some("vip".into()),
+                selectors: vec![],
+                sample_rate: None,
+                pool: None,
+                backend: None,
             }),
             extra_fields: vec![],
             extra_tags: vec![],
@@ -399,6 +382,72 @@ mod tests {
             connect_retry: None,
         })
         .unwrap();
-        assert_eq!(instance.tag_required.as_deref(), Some("vip"));
+        assert_eq!(instance.filters.tag_required.as_deref(), Some("vip"));
+    }
+
+    #[test]
+    fn selector_filter_skips_enqueue() {
+        use conduit_proto::config::Selector;
+
+        let cfg = test_config(vec![ObservationSink {
+            r#type: "dnstap".into(),
+            export_id: "sel".into(),
+            destinations: vec!["unix:/nonexistent.sock".into()],
+            emit: vec!["query".into()],
+            filters: Some(ObservationSinkFilters {
+                tag_required: None,
+                selectors: vec![Selector {
+                    r#type: "qtype".into(),
+                    value: "AAAA".into(),
+                }],
+                sample_rate: None,
+                pool: None,
+                backend: None,
+            }),
+            extra_fields: vec![],
+            extra_tags: vec![],
+            name: None,
+            connect_retry: None,
+        }]);
+        let compiled = compile_from_config(&cfg);
+        let hub = ObservationHub::from_compiled(&compiled);
+        hub.try_enqueue_query(sample_view(1), &compiled, |_| true);
+        let snap = hub.sink_metrics_snapshot();
+        assert_eq!(snap[0].enqueued_query, 0);
+    }
+
+    #[test]
+    fn sample_rate_zero_enqueues_none_at_rate_zero_validation() {
+        let cfg = test_config(vec![ObservationSink {
+            r#type: "dnstap".into(),
+            export_id: "sample".into(),
+            destinations: vec!["unix:/nonexistent.sock".into()],
+            emit: vec!["query".into()],
+            filters: Some(ObservationSinkFilters {
+                tag_required: None,
+                selectors: vec![],
+                sample_rate: Some(0.01),
+                pool: None,
+                backend: None,
+            }),
+            extra_fields: vec![],
+            extra_tags: vec![],
+            name: None,
+            connect_retry: None,
+        }]);
+        let compiled = compile_from_config(&cfg);
+        let hub = ObservationHub::from_compiled(&compiled);
+        for id in 1..=200u64 {
+            let mut view = sample_view(id);
+            view.qtype_label = Some("A".into());
+            hub.try_enqueue_query(view, &compiled, |_| true);
+        }
+        let enqueued: u64 = hub
+            .sink_metrics_snapshot()
+            .iter()
+            .map(|s| s.enqueued_query)
+            .sum();
+        assert!(enqueued < 200, "expected sampling to drop most events");
+        assert!(enqueued > 0, "expected some events at 1% sample rate");
     }
 }

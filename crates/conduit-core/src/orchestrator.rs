@@ -99,7 +99,7 @@ impl Orchestrator {
             match outcome {
                 StageOutcome::Drop => return RunOutcome::Dropped,
                 StageOutcome::Continue(next) => {
-                    if phase == Phase::Parse && txn.qname.is_some() {
+                    if phase == Phase::RequestRules && txn.qname.is_some() {
                         if let Some(hub) = observation {
                             emit_query(hub, txn, snapshot);
                         }
@@ -261,5 +261,42 @@ mod tests {
         assert!(txn.attempts.len() >= 2);
         assert_eq!(txn.attempts[0].pool, "primary");
         assert_eq!(txn.attempts.last().unwrap().pool, "secondary");
+    }
+
+    #[test]
+    fn query_observation_after_request_rules_respects_tag_required() {
+        use conduit_observation::ObservationHub;
+
+        let yaml = include_str!("../../../tests/fixtures/config/with-dnstap-filters.yaml");
+        let cfg = load_yaml(yaml).unwrap();
+        let snap = Arc::new(RuntimeSnapshot::from_config(cfg));
+        let hub = ObservationHub::from_compiled(&snap.observation);
+        let orch = orchestrator_with_mock_forward();
+
+        let name = Name::from_utf8("pay.payments.corp.example.").unwrap();
+        let query = Query::query(name, RecordType::A);
+        let mut msg = Message::new();
+        msg.add_query(query);
+        let mut buf = Vec::new();
+        let mut encoder = BinEncoder::new(&mut buf);
+        msg.emit(&mut encoder).unwrap();
+
+        let mut txn = Transaction::new(10, "127.0.0.1:5353".parse().unwrap(), ClientProtocol::Udp)
+            .with_query_wire(buf);
+        let _ = orch.run(&mut txn, &snap, &SystemClock, Some(&hub));
+        let metrics = hub.sink_metrics_snapshot();
+        assert!(
+            metrics[0].enqueued_query >= 1,
+            "tag set in request rules should allow query export"
+        );
+
+        let mut txn2 = Transaction::new(11, "127.0.0.1:5353".parse().unwrap(), ClientProtocol::Udp)
+            .with_query_wire(example_query());
+        let _ = orch.run(&mut txn2, &snap, &SystemClock, Some(&hub));
+        let metrics2 = hub.sink_metrics_snapshot();
+        assert_eq!(
+            metrics2[0].enqueued_query, metrics[0].enqueued_query,
+            "query without audit tag should not enqueue"
+        );
     }
 }

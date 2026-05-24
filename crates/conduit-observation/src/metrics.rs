@@ -84,8 +84,7 @@ impl SinkMetrics {
     }
 
     pub fn set_connected(&self, connected: bool) {
-        self.connected
-            .store(u8::from(connected), Ordering::Relaxed);
+        self.connected.store(u8::from(connected), Ordering::Relaxed);
     }
 
     pub fn snapshot(&self) -> SinkMetricsSnapshot {

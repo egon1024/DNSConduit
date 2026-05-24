@@ -29,6 +29,33 @@ When the collector is down, the sink worker retries connect with exponential bac
 
 **Logging:** a `warn` when destinations become unreachable or disconnect mid-session; `info` when connectivity is restored; per-retry detail at `debug`; an additional throttled `warn` (`still failing`, about every 60s) while an outage continues.
 
+## Per-sink filters and sampling (phase 2.7)
+
+Each sink may declare `filters` so only matching transactions are enqueued (no wire copy or `extra` build when filtered out).
+
+```yaml
+observation:
+  sinks:
+    - type: dnstap
+      name: ops-tap
+      destinations: ["unix:/tmp/dnstap/ops.sock"]
+      emit: [query, response]
+      filters:
+        selectors:
+          - type: qname_suffix
+            value: ".corp.example"
+          - type: qtype
+            value: "A"
+        tag_required: audit       # optional; AND with selectors
+        sample_rate: 0.1          # optional; (0, 1]; stable per txn_id
+        pool: default             # response/retry only
+        backend: "10.0.0.1:53"    # response/retry only
+```
+
+Selector types match built-in rules: `qname_suffix`, `qname_exact`, `qtype`, `rcode`, `tag`. **Query** dnstap is emitted after **RequestRules**, so request-phase tags can gate query export.
+
+Fixtures: `tests/fixtures/config/with-dnstap-filters.yaml`, `with-dnstap-sample.yaml`.
+
 ## Per-sink metrics snapshot
 
 `ObservationHub::sink_metrics_snapshot()` returns in-process counters per sink (`enqueued_*`, `queue_dropped`, `delivered`, `write_failed`, `encode_failed`, `connect_attempts`, `connected`). `dropped_total()` remains the sum of all sinks' `queue_dropped`. Phase 4 will expose these via Prometheus.

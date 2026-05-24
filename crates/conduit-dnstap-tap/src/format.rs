@@ -50,7 +50,9 @@ fn write_log(out: &mut impl Write, f: &DecodedFrame) -> Result<()> {
             .unwrap_or(0),
         f.socket_protocol.as_deref().unwrap_or("-"),
         f.query_address.as_deref().unwrap_or("-"),
-        f.query_port.map(|p| p.to_string()).unwrap_or_else(|| "-".into()),
+        f.query_port
+            .map(|p| p.to_string())
+            .unwrap_or_else(|| "-".into()),
     )?;
 
     if let Some(d) = f.dns_response.as_ref().or(f.dns_query.as_ref()) {

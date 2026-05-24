@@ -77,6 +77,10 @@ message ObservationConfig {
 
 message ObservationSinkFilters {
   optional string tag_required = 1;
+  repeated Selector selectors = 2;
+  optional double sample_rate = 3;
+  optional string pool = 4;
+  optional string backend = 5;
 }
 
 message ConnectRetry {

@@ -10,7 +10,7 @@ use conduit_observation::fstrm::{
     accept_bidirectional, accept_unidirectional, read_frame, write_control_frame, IncomingFrame,
     CONTROL_FINISH,
 };
-use format::{OutputFormat, write_frame};
+use format::{write_frame, OutputFormat};
 use std::env;
 use std::fs;
 use std::io::{self, Write};
@@ -110,17 +110,15 @@ fn serve_connection(
 
     loop {
         match read_frame(&mut stream)? {
-            IncomingFrame::Data(payload) => {
-                match decode::decode_dnstap(&payload) {
-                    Ok(frame) => {
-                        write_frame(out, args.format, &frame)?;
-                        out.flush()?;
-                    }
-                    Err(e) => {
-                        eprintln!("decode error: {e:#}");
-                    }
+            IncomingFrame::Data(payload) => match decode::decode_dnstap(&payload) {
+                Ok(frame) => {
+                    write_frame(out, args.format, &frame)?;
+                    out.flush()?;
                 }
-            }
+                Err(e) => {
+                    eprintln!("decode error: {e:#}");
+                }
+            },
             IncomingFrame::Stop => {
                 let _ = write_control_frame(&mut stream, CONTROL_FINISH, None);
                 break;
@@ -143,8 +141,8 @@ fn run_unix(args: &Args) -> Result<()> {
             fs::create_dir_all(parent)?;
         }
     }
-    let listener = UnixListener::bind(path)
-        .with_context(|| format!("bind unix socket {}", path.display()))?;
+    let listener =
+        UnixListener::bind(path).with_context(|| format!("bind unix socket {}", path.display()))?;
     eprintln!(
         "conduit-dnstap-tap: listening on {} (format={:?}, uni={})",
         path.display(),
@@ -169,8 +167,7 @@ fn run_unix(args: &Args) -> Result<()> {
 
 fn run_tcp(args: &Args) -> Result<()> {
     let addr = args.tcp.expect("tcp addr");
-    let listener = std::net::TcpListener::bind(addr)
-        .with_context(|| format!("bind tcp {addr}"))?;
+    let listener = std::net::TcpListener::bind(addr).with_context(|| format!("bind tcp {addr}"))?;
     eprintln!(
         "conduit-dnstap-tap: listening on {addr} (format={:?}, uni={})",
         args.format, args.unidirectional

@@ -9,6 +9,7 @@ pub struct TxnView<'a> {
     pub client_addr: SocketAddr,
     pub protocol_udp: bool,
     pub qname: Option<&'a str>,
+    pub qtype_label: Option<String>,
     pub query_wire: &'a [u8],
     pub response_wire: Option<&'a [u8]>,
     pub attempt_count: u32,

@@ -2,8 +2,8 @@ use crate::backend::DEFAULT_BACKEND_WEIGHT;
 use crate::error::ConfigError;
 use conduit_proto::config::{
     Action, Backend, Config, ControlConfig, ForwardConfig, Listener, ListenersConfig,
-    LoggingConfig, ObservationConfig, OrchestratorConfig, Pool, RhaiConfig, Rule, RulesConfig,
-    Selector,
+    LoggingConfig, ObservationConfig, ObservationSinkFilters, OrchestratorConfig, Pool, RhaiConfig,
+    Rule, RulesConfig, Selector,
 };
 use serde::{Deserialize, Serialize};
 
@@ -133,6 +133,22 @@ pub(crate) struct YamlObservation {
 pub(crate) struct YamlObservationSinkFilters {
     #[serde(default)]
     tag_required: Option<String>,
+    #[serde(default)]
+    selectors: Vec<YamlSelector>,
+    #[serde(default)]
+    sample_rate: Option<f64>,
+    #[serde(default)]
+    pool: Option<String>,
+    #[serde(default)]
+    backend: Option<String>,
+}
+
+fn yaml_observation_filters_nonempty(f: &YamlObservationSinkFilters) -> bool {
+    f.tag_required.is_some()
+        || !f.selectors.is_empty()
+        || f.sample_rate.is_some()
+        || f.pool.as_ref().is_some_and(|p| !p.is_empty())
+        || f.backend.as_ref().is_some_and(|b| !b.is_empty())
 }
 
 #[derive(Debug, Deserialize, Serialize, Default)]
@@ -321,20 +337,34 @@ impl From<YamlObservation> for ObservationConfig {
 
 impl From<YamlObservationSink> for conduit_proto::config::ObservationSink {
     fn from(y: YamlObservationSink) -> Self {
-        let filters = if y.filters.tag_required.is_some() {
-            Some(conduit_proto::config::ObservationSinkFilters {
-                tag_required: y.filters.tag_required,
+        let filters = if yaml_observation_filters_nonempty(&y.filters) {
+            Some(ObservationSinkFilters {
+                tag_required: y.filters.tag_required.clone(),
+                selectors: y
+                    .filters
+                    .selectors
+                    .iter()
+                    .map(|s| Selector {
+                        r#type: s.selector_type.clone(),
+                        value: s.value.clone(),
+                    })
+                    .collect(),
+                sample_rate: y.filters.sample_rate,
+                pool: y.filters.pool.clone(),
+                backend: y.filters.backend.clone(),
             })
         } else {
             None
         };
-        let connect_retry = y.connect_retry.map(|r| conduit_proto::config::ConnectRetry {
-            initial_ms: r.initial_ms,
-            max_ms: r.max_ms,
-            multiplier: r.multiplier,
-            max_elapsed_ms: r.max_elapsed_ms,
-            jitter: r.jitter,
-        });
+        let connect_retry = y
+            .connect_retry
+            .map(|r| conduit_proto::config::ConnectRetry {
+                initial_ms: r.initial_ms,
+                max_ms: r.max_ms,
+                multiplier: r.multiplier,
+                max_elapsed_ms: r.max_elapsed_ms,
+                jitter: r.jitter,
+            });
         conduit_proto::config::ObservationSink {
             r#type: y.sink_type,
             export_id: y.export_id,
@@ -570,9 +600,17 @@ impl From<&conduit_proto::config::ObservationSink> for YamlObservationSink {
             name: s.name.clone(),
             destinations: s.destinations.clone(),
             emit: s.emit.clone(),
-            filters: YamlObservationSinkFilters {
-                tag_required: s.filters.as_ref().and_then(|f| f.tag_required.clone()),
-            },
+            filters: s
+                .filters
+                .as_ref()
+                .map(|f| YamlObservationSinkFilters {
+                    tag_required: f.tag_required.clone(),
+                    selectors: f.selectors.iter().map(YamlSelector::from).collect(),
+                    sample_rate: f.sample_rate,
+                    pool: f.pool.clone(),
+                    backend: f.backend.clone(),
+                })
+                .unwrap_or_default(),
             extra_fields: s.extra_fields.clone(),
             extra_tags: s.extra_tags.clone(),
             connect_retry: s.connect_retry.as_ref().map(|r| YamlConnectRetry {

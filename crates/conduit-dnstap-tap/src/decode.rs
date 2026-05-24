@@ -87,21 +87,13 @@ pub fn decode_dnstap(payload: &[u8]) -> Result<DecodedFrame> {
 
     if let Some(msg) = message_bytes.as_deref() {
         let parsed = ParsedMessage::parse(msg)?;
-        message_type = parsed
-            .msg_type
-            .map(|t| message_type_name(t).to_string());
+        message_type = parsed.msg_type.map(|t| message_type_name(t).to_string());
         mnemonic = parsed.msg_type.map(|t| message_mnemonic(t).to_string());
         socket_family = parsed.socket_family.map(socket_family_name);
         socket_protocol = parsed.socket_protocol.map(socket_protocol_name);
-        query_address = parsed
-            .query_address
-            .as_ref()
-            .map(|b| format_ip(b));
+        query_address = parsed.query_address.as_ref().map(|b| format_ip(b));
         query_port = parsed.query_port;
-        response_address = parsed
-            .response_address
-            .as_ref()
-            .map(|b| format_ip(b));
+        response_address = parsed.response_address.as_ref().map(|b| format_ip(b));
         response_port = parsed.response_port;
         query_time = parsed
             .query_time_sec
@@ -156,16 +148,18 @@ fn parse_extra_json(bytes: &[u8]) -> Result<Value> {
     if bytes.is_empty() {
         return Ok(Value::Null);
     }
-    serde_json::from_slice(bytes).or_else(|_| {
-        Ok(Value::String(String::from_utf8_lossy(bytes).into_owned()))
-    })
+    serde_json::from_slice(bytes)
+        .or_else(|_| Ok(Value::String(String::from_utf8_lossy(bytes).into_owned())))
 }
 
 fn format_ip(bytes: &[u8]) -> String {
     match bytes.len() {
         4 => std::net::Ipv4Addr::from(<[u8; 4]>::try_from(bytes).unwrap()).to_string(),
         16 => std::net::Ipv6Addr::from(<[u8; 16]>::try_from(bytes).unwrap()).to_string(),
-        _ => format!("0x{}", bytes.iter().map(|b| format!("{b:02x}")).collect::<String>()),
+        _ => format!(
+            "0x{}",
+            bytes.iter().map(|b| format!("{b:02x}")).collect::<String>()
+        ),
     }
 }
 
@@ -335,7 +329,10 @@ mod tests {
 
         let frame = decode_dnstap(&dnstap).unwrap();
         assert_eq!(frame.mnemonic.as_deref(), Some("CR"));
-        assert_eq!(frame.extra.as_ref().and_then(|v| v.get("pool")).unwrap(), "p1");
+        assert_eq!(
+            frame.extra.as_ref().and_then(|v| v.get("pool")).unwrap(),
+            "p1"
+        );
         assert!(frame.query_time.is_none());
         assert!(frame.response_time.is_none());
     }

@@ -30,6 +30,7 @@ pub fn txn_view<'a>(txn: &'a Transaction, snapshot: &RuntimeSnapshot) -> TxnView
         client_addr: txn.client_addr,
         protocol_udp: txn.protocol == ClientProtocol::Udp,
         qname: txn.qname.as_deref(),
+        qtype_label: txn.qtype_label(),
         query_wire: &txn.query_wire,
         response_wire: txn.response_wire.as_deref(),
         attempt_count: txn.attempt_count,

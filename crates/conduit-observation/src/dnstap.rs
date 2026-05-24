@@ -375,11 +375,7 @@ mod tests {
     fn writes_data_through_real_fstrm_capture() {
         use std::process::{Command, Stdio};
 
-        if Command::new("fstrm_capture")
-            .arg("-h")
-            .output()
-            .is_err()
-        {
+        if Command::new("fstrm_capture").arg("-h").output().is_err() {
             eprintln!("skipping: fstrm_capture not installed");
             return;
         }

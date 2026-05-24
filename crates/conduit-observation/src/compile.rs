@@ -3,7 +3,8 @@
 use crate::connect_retry::ConnectRetryConfig;
 use crate::metrics::SinkMetrics;
 use crate::queue::DropPolicy;
-use conduit_proto::config::{Config, ObservationConfig, ObservationSink};
+use crate::selectors::{compile_selectors, validate_selector_type, CompiledSelector};
+use conduit_proto::config::{Config, ObservationConfig, ObservationSink, ObservationSinkFilters};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -174,11 +175,68 @@ pub struct CompiledObservation {
 }
 
 #[derive(Debug, Clone)]
+pub struct CompiledSinkFilters {
+    pub selectors: Vec<CompiledSelector>,
+    pub tag_required: Option<String>,
+    pub sample_rate: f64,
+    pub pool: Option<String>,
+    pub backend: Option<String>,
+}
+
+impl Default for CompiledSinkFilters {
+    fn default() -> Self {
+        Self {
+            selectors: Vec::new(),
+            tag_required: None,
+            sample_rate: 1.0,
+            pool: None,
+            backend: None,
+        }
+    }
+}
+
+pub fn parse_sample_rate(rate: Option<f64>) -> Result<f64, String> {
+    match rate {
+        None => Ok(1.0),
+        Some(r) if r > 0.0 && r <= 1.0 => Ok(r),
+        Some(_) => Err("observation filters.sample_rate must be in (0, 1]".into()),
+    }
+}
+
+pub fn parse_sink_filters(
+    f: Option<&ObservationSinkFilters>,
+) -> Result<CompiledSinkFilters, String> {
+    let Some(f) = f else {
+        return Ok(CompiledSinkFilters {
+            sample_rate: 1.0,
+            ..Default::default()
+        });
+    };
+    for sel in &f.selectors {
+        validate_selector_type(sel.r#type.as_str())?;
+    }
+    if f.pool.as_ref().is_some_and(|p| p.is_empty()) {
+        return Err("observation filters.pool must not be empty".into());
+    }
+    if f.backend.as_ref().is_some_and(|b| b.is_empty()) {
+        return Err("observation filters.backend must not be empty".into());
+    }
+    let tag_required = f.tag_required.clone().filter(|t| !t.is_empty());
+    Ok(CompiledSinkFilters {
+        selectors: compile_selectors(&f.selectors),
+        tag_required,
+        sample_rate: parse_sample_rate(f.sample_rate)?,
+        pool: f.pool.clone().filter(|p| !p.is_empty()),
+        backend: f.backend.clone().filter(|b| !b.is_empty()),
+    })
+}
+
+#[derive(Debug, Clone)]
 pub struct CompiledSinkInstance {
     pub emit_query: bool,
     pub emit_response: bool,
     pub emit_retry: bool,
-    pub tag_required: Option<String>,
+    pub filters: CompiledSinkFilters,
     /// Canonical operator / API / metrics id.
     pub name: String,
     /// Dnstap protobuf `identity` on the wire (defaults to `name` when omitted in config).
@@ -198,15 +256,11 @@ impl CompiledObservation {
     }
 
     pub fn export_id_for_name(&self, name: &str) -> Option<&str> {
-        self.name_to_export_id
-            .get(name)
-            .map(String::as_str)
+        self.name_to_export_id.get(name).map(String::as_str)
     }
 
     pub fn name_for_export_id(&self, export_id: &str) -> Option<&str> {
-        self.export_id_to_name
-            .get(export_id)
-            .map(String::as_str)
+        self.export_id_to_name.get(export_id).map(String::as_str)
     }
 
     pub fn sink_by_name(&self, name: &str) -> Option<&CompiledSinkInstance> {
@@ -277,11 +331,7 @@ pub(crate) fn compile_one_sink(s: &ObservationSink) -> Option<CompiledSinkInstan
         return None;
     }
     let emit = normalize_emit(&s.emit);
-    let tag_required = s
-        .filters
-        .as_ref()
-        .and_then(|f| f.tag_required.clone())
-        .filter(|t| !t.is_empty());
+    let filters = parse_sink_filters(s.filters.as_ref()).ok()?;
     let extra_fields = parse_extra_fields(&s.extra_fields).ok()?;
     let has_tags = extra_fields.contains(&ExtraField::Tags);
     let tag_export = parse_extra_tags(&s.extra_tags, has_tags).ok()?;
@@ -291,7 +341,7 @@ pub(crate) fn compile_one_sink(s: &ObservationSink) -> Option<CompiledSinkInstan
         emit_query: emit.query,
         emit_response: emit.response,
         emit_retry: emit.retry,
-        tag_required,
+        filters,
         name: identity.name,
         export_id: identity.export_id,
         connect_retry,
@@ -462,7 +512,10 @@ mod tests {
         let compiled = compile_from_config(&cfg);
         assert_eq!(compiled.export_id_for_name("tap-a"), Some("wire-a"));
         assert_eq!(compiled.name_for_export_id("wire-a"), Some("tap-a"));
-        assert_eq!(compiled.name_for_export_id("legacy-only"), Some("legacy-only"));
+        assert_eq!(
+            compiled.name_for_export_id("legacy-only"),
+            Some("legacy-only")
+        );
         assert!(compiled.sink_by_name("tap-a").is_some());
         assert!(compiled.sink_by_name("missing").is_none());
     }
