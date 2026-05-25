@@ -50,7 +50,9 @@ fn register_host_api(engine: &mut Engine) {
         })
     });
 
-    engine.register_fn("question_qname", |txn: &mut RhaiTxn| -> String { txn.question_qname() });
+    engine.register_fn("question_qname", |txn: &mut RhaiTxn| -> String {
+        txn.question_qname()
+    });
 
     engine
         .register_type_with_name::<RhaiTxn>("Transaction")
@@ -723,17 +725,18 @@ mod tests {
             builds_after_first,
             "second run on the same snapshot generation must not rebuild the engine"
         );
-        assert!(builds_after_first > 0, "expected at least one engine build on first run");
+        assert!(
+            builds_after_first > 0,
+            "expected at least one engine build on first run"
+        );
     }
 
     #[test]
     fn table_lookup_reflects_snapshot_reload_on_same_thread() {
         reset_thread_runtime_for_tests();
 
-        let dir = std::env::temp_dir().join(format!(
-            "conduit-script-reload-{}",
-            std::process::id()
-        ));
+        let dir =
+            std::env::temp_dir().join(format!("conduit-script-reload-{}", std::process::id()));
         let _ = std::fs::create_dir_all(&dir);
         let geo_path = dir.join("geo.csv");
         std::fs::write(&geo_path, "qname,region\neu.example.,eu\n").unwrap();
