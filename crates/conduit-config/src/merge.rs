@@ -61,6 +61,9 @@ pub fn merge_file_and_overlay(file: &Config, overlay: &Config) -> Config {
     if overlay.logging.is_some() {
         merged.logging = overlay.logging.clone();
     }
+    if !overlay.data_sources.is_empty() {
+        merged.data_sources = overlay.data_sources.clone();
+    }
 
     if !overlay.pools.is_empty() {
         merge_pools(&mut merged.pools, &overlay.pools);

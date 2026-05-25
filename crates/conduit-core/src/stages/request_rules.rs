@@ -1,10 +1,11 @@
-//! RequestRules hook — built-in rule evaluation.
+//! RequestRules hook — built-in rule evaluation, then Rhai scripts.
 
 use crate::phase::Phase;
 use crate::pipeline::{PipelineStage, StageOutcome};
-use crate::rules::{RuleHook, RuleOutcome};
+use crate::rules::{RuleEvalResult, RuleHook, RuleOutcome};
 use crate::snapshot::RuntimeSnapshot;
 use crate::transaction::Transaction;
+use conduit_script::{run_scripts, ScriptPhase, ScriptRunOutcome};
 use std::sync::Arc;
 
 pub struct RequestRulesStage;
@@ -15,7 +16,27 @@ impl PipelineStage for RequestRulesStage {
     }
 
     fn handle(&self, txn: &mut Transaction, snapshot: &Arc<RuntimeSnapshot>) -> StageOutcome {
-        match snapshot.rules.eval(RuleHook::Request, txn) {
+        let RuleEvalResult {
+            outcome,
+            matched_rule_id,
+        } = snapshot.rules.eval(RuleHook::Request, txn);
+
+        if let Some(rule_id) = matched_rule_id {
+            let script_ids = snapshot
+                .scripting
+                .script_ids_for_rule(&rule_id, ScriptPhase::Request);
+            if !script_ids.is_empty() {
+                let (script_outcome, _) =
+                    run_scripts(&snapshot.scripting, &script_ids, txn, ScriptPhase::Request);
+                match script_outcome {
+                    ScriptRunOutcome::Drop => return StageOutcome::Drop,
+                    ScriptRunOutcome::Retry => {}
+                    ScriptRunOutcome::Ok | ScriptRunOutcome::Error => {}
+                }
+            }
+        }
+
+        match outcome {
             RuleOutcome::Drop => StageOutcome::Drop,
             RuleOutcome::Continue | RuleOutcome::Retry => StageOutcome::Continue(Phase::Route),
         }

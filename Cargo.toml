@@ -9,6 +9,7 @@ members = [
     "crates/conduit-api",
     "crates/conduit",
     "crates/conduit-dnstap-tap",
+    "crates/conduit-script",
 ]
 
 [workspace.package]
@@ -39,3 +40,4 @@ socket2 = { version = "0.5", features = ["all"] }
 crossbeam-channel = "0.5"
 dnstap = "0.1.7"
 protobuf = "3.7"
+rhai = { version = "1.20", features = ["sync"] }

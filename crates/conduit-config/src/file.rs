@@ -1,7 +1,7 @@
 use crate::backend::DEFAULT_BACKEND_WEIGHT;
 use crate::error::ConfigError;
 use conduit_proto::config::{
-    Action, Backend, Config, ControlConfig, ForwardConfig, Listener, ListenersConfig,
+    Action, Backend, Config, ControlConfig, DataSource, ForwardConfig, Listener, ListenersConfig,
     LoggingConfig, ObservationConfig, ObservationSinkFilters, OrchestratorConfig, Pool, RhaiConfig,
     Rule, RulesConfig, Selector,
 };
@@ -21,6 +21,8 @@ pub(crate) struct YamlConfig {
     rules: YamlRules,
     #[serde(default)]
     logging: YamlLogging,
+    #[serde(default)]
+    data_sources: Vec<YamlDataSource>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -192,9 +194,23 @@ pub(crate) struct YamlObservationSink {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
+pub(crate) struct YamlDataSource {
+    name: String,
+    #[serde(rename = "type")]
+    source_type: String,
+    path: String,
+    #[serde(default)]
+    key_column: String,
+    #[serde(default)]
+    value_column: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
 pub(crate) struct YamlRhai {
     max_operations: u64,
     max_call_depth: u32,
+    #[serde(default)]
+    hook_timeout_ms: u32,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -234,6 +250,7 @@ impl From<YamlConfig> for Config {
             control: Some(y.control.into()),
             rules: Some(y.rules.into()),
             logging: Some(y.logging.into()),
+            data_sources: y.data_sources.into_iter().map(Into::into).collect(),
         }
     }
 }
@@ -384,6 +401,19 @@ impl From<YamlRhai> for RhaiConfig {
         RhaiConfig {
             max_operations: y.max_operations,
             max_call_depth: y.max_call_depth,
+            hook_timeout_ms: y.hook_timeout_ms,
+        }
+    }
+}
+
+impl From<YamlDataSource> for DataSource {
+    fn from(y: YamlDataSource) -> Self {
+        DataSource {
+            name: y.name,
+            r#type: y.source_type,
+            path: y.path,
+            key_column: y.key_column,
+            value_column: y.value_column,
         }
     }
 }
@@ -468,6 +498,7 @@ pub(crate) fn config_to_yaml(cfg: &Config) -> Result<YamlConfig, ConfigError> {
             .as_ref()
             .map(YamlLogging::from)
             .unwrap_or_default(),
+        data_sources: cfg.data_sources.iter().map(YamlDataSource::from).collect(),
     })
 }
 
@@ -631,7 +662,20 @@ impl TryFrom<&RhaiConfig> for YamlRhai {
         Ok(YamlRhai {
             max_operations: r.max_operations,
             max_call_depth: r.max_call_depth,
+            hook_timeout_ms: r.hook_timeout_ms,
         })
+    }
+}
+
+impl From<&DataSource> for YamlDataSource {
+    fn from(d: &DataSource) -> Self {
+        YamlDataSource {
+            name: d.name.clone(),
+            source_type: d.r#type.clone(),
+            path: d.path.clone(),
+            key_column: d.key_column.clone(),
+            value_column: d.value_column.clone(),
+        }
     }
 }
 

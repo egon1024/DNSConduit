@@ -176,14 +176,48 @@ pub fn validate(cfg: &Config) -> ValidationResult {
             for act in &rule.actions {
                 if !matches!(
                     act.r#type.as_str(),
-                    "set_pool" | "set_tag" | "retry_pool" | "drop" | "set_rcode"
+                    "set_pool" | "set_tag" | "retry_pool" | "drop" | "set_rcode" | "rhai"
                 ) {
                     errors.push(format!(
                         "rule '{}' has unknown action type '{}'",
                         rule.id, act.r#type
                     ));
                 }
+                if act.r#type == "rhai" && act.value.is_empty() {
+                    errors.push(format!(
+                        "rule '{}' rhai action requires script path in value",
+                        rule.id
+                    ));
+                }
             }
+        }
+    }
+
+    let mut data_source_names = std::collections::HashSet::new();
+    for ds in &cfg.data_sources {
+        if ds.name.is_empty() {
+            errors.push("data_sources entry name must not be empty".into());
+        }
+        if !data_source_names.insert(ds.name.clone()) {
+            errors.push(format!("duplicate data_sources name '{}'", ds.name));
+        }
+        if ds.r#type != "csv" {
+            errors.push(format!(
+                "data_sources '{}' has unsupported type '{}', only csv is supported",
+                ds.name, ds.r#type
+            ));
+        }
+        if ds.path.is_empty() {
+            errors.push(format!("data_sources '{}' path must not be empty", ds.name));
+        }
+    }
+
+    if let Some(rhai) = &cfg.rhai {
+        if rhai.max_operations == 0 {
+            errors.push("rhai.max_operations must be >= 1 when set".into());
+        }
+        if rhai.max_call_depth == 0 {
+            errors.push("rhai.max_call_depth must be >= 1 when set".into());
         }
     }
 

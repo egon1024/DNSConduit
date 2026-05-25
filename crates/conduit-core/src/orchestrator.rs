@@ -105,7 +105,7 @@ impl Orchestrator {
                         }
                     }
                     txn.current_phase = next;
-                    if txn.current_phase == Phase::Send {
+                    if phase == Phase::Send {
                         if let Some(hub) = observation {
                             emit_response(hub, txn, snapshot);
                             emit_retry(hub, txn, snapshot);
@@ -184,6 +184,31 @@ mod tests {
     use hickory_proto::op::{Message, Query};
     use hickory_proto::rr::{Name, RecordType};
     use hickory_proto::serialize::binary::{BinEncodable, BinEncoder};
+    use std::path::PathBuf;
+
+    fn fixtures_config_base() -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/config")
+    }
+
+    fn snapshot_from_fixture(yaml: &str) -> Arc<RuntimeSnapshot> {
+        let cfg = load_yaml(yaml).unwrap();
+        assert!(conduit_config::validate(&cfg).ok);
+        Arc::new(RuntimeSnapshot::from_config_with_base(
+            cfg,
+            Some(&fixtures_config_base()),
+        ))
+    }
+
+    fn query_for(name: &str) -> Vec<u8> {
+        let name = Name::from_utf8(name).unwrap();
+        let query = Query::query(name, RecordType::A);
+        let mut msg = Message::new();
+        msg.add_query(query);
+        let mut buf = Vec::new();
+        let mut encoder = BinEncoder::new(&mut buf);
+        msg.emit(&mut encoder).unwrap();
+        buf
+    }
 
     struct MockForwardStage;
 
@@ -215,6 +240,46 @@ mod tests {
         fn handle(&self, _txn: &mut Transaction, _snapshot: &Arc<RuntimeSnapshot>) -> StageOutcome {
             StageOutcome::Continue(Phase::ResponseRules)
         }
+    }
+
+    struct MockForwardNoResponse;
+
+    impl PipelineStage for MockForwardNoResponse {
+        fn name(&self) -> &'static str {
+            "mock_forward_no_response"
+        }
+
+        fn handle(&self, txn: &mut Transaction, _snapshot: &Arc<RuntimeSnapshot>) -> StageOutcome {
+            txn.set_rcode_name("SERVFAIL");
+            StageOutcome::Continue(Phase::ResponseRules)
+        }
+    }
+
+    fn orchestrator_with_forward_no_response() -> Orchestrator {
+        let mut o = Orchestrator::with_default_stages();
+        o.registry
+            .register(Phase::Forward, Arc::new(MockForwardNoResponse));
+        o.registry
+            .register(Phase::WaitResponse, Arc::new(PassthroughWait));
+        o
+    }
+
+    #[test]
+    fn upstream_timeout_path_returns_servfail_wire() {
+        let yaml = include_str!("../../../tests/fixtures/config/with-rhai-vip-pool.yaml");
+        let cfg = load_yaml(yaml).unwrap();
+        let base = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/config");
+        let snap = Arc::new(RuntimeSnapshot::try_from_config_with_base(cfg, Some(&base)).unwrap());
+        let mut txn = Transaction::new(99, "127.0.0.1:15353".parse().unwrap(), ClientProtocol::Udp)
+            .with_query_wire(query_for("foo.vip.example."));
+        let orch = orchestrator_with_forward_no_response();
+        let outcome = orch.run(&mut txn, &snap, &SystemClock, None);
+        match outcome {
+            RunOutcome::Response(wire) => assert!(!wire.is_empty()),
+            RunOutcome::Dropped => panic!("expected synthesized SERVFAIL response"),
+        }
+        assert_eq!(txn.rcode_label().as_deref(), Some("SERVFAIL"));
     }
 
     fn example_query() -> Vec<u8> {
@@ -298,5 +363,86 @@ mod tests {
             metrics2[0].enqueued_query, metrics[0].enqueued_query,
             "query without audit tag should not enqueue"
         );
+    }
+
+    #[test]
+    fn rhai_blocklist_drops_blocked_name() {
+        let yaml = include_str!("../../../tests/fixtures/config/with-rhai-blocklist.yaml");
+        let snap = snapshot_from_fixture(yaml);
+        let mut txn = Transaction::new(20, "127.0.0.1:5353".parse().unwrap(), ClientProtocol::Udp)
+            .with_query_wire(query_for("bad.example."));
+        let orch = orchestrator_with_mock_forward();
+        let outcome = orch.run(&mut txn, &snap, &SystemClock, None);
+        assert!(matches!(outcome, RunOutcome::Dropped));
+        assert!(txn.tags.has("blocked"));
+    }
+
+    #[test]
+    fn rhai_servfail_retry_uses_secondary_pool() {
+        let yaml = include_str!("../../../tests/fixtures/config/with-rhai-servfail-retry.yaml");
+        let snap = snapshot_from_fixture(yaml);
+        let mut txn = Transaction::new(21, "127.0.0.1:5353".parse().unwrap(), ClientProtocol::Udp)
+            .with_query_wire(example_query());
+        let orch = orchestrator_with_mock_forward();
+        let _ = orch.run(&mut txn, &snap, &SystemClock, None);
+        assert!(
+            txn.attempts.len() >= 2,
+            "attempts={:?} count={}",
+            txn.attempts,
+            txn.attempt_count
+        );
+        assert_eq!(txn.attempts[0].pool, "primary");
+        assert_eq!(txn.attempts.last().unwrap().pool, "secondary");
+    }
+
+    #[test]
+    fn rhai_dnstap_tag_gates_query_export() {
+        use conduit_observation::ObservationHub;
+
+        let yaml = include_str!("../../../tests/fixtures/config/with-rhai-dnstap-tag.yaml");
+        let snap = snapshot_from_fixture(yaml);
+        let hub = ObservationHub::from_compiled(&snap.observation);
+        let orch = orchestrator_with_mock_forward();
+
+        let mut txn = Transaction::new(22, "127.0.0.1:5353".parse().unwrap(), ClientProtocol::Udp)
+            .with_query_wire(query_for("foo.audit.example."));
+        let _ = orch.run(&mut txn, &snap, &SystemClock, Some(&hub));
+        let metrics = hub.sink_metrics_snapshot();
+        assert!(metrics[0].enqueued_query >= 1);
+
+        let mut txn2 = Transaction::new(23, "127.0.0.1:5353".parse().unwrap(), ClientProtocol::Udp)
+            .with_query_wire(example_query());
+        let _ = orch.run(&mut txn2, &snap, &SystemClock, Some(&hub));
+        let metrics2 = hub.sink_metrics_snapshot();
+        assert_eq!(metrics2[0].enqueued_query, metrics[0].enqueued_query);
+    }
+
+    #[test]
+    fn rhai_sample_include_stable_per_txn() {
+        use conduit_observation::hash_sample;
+
+        let yaml = include_str!("../../../tests/fixtures/config/with-rhai-sample.yaml");
+        let snap = snapshot_from_fixture(yaml);
+        let txn_id = 4242_u64;
+        let rate = 0.05;
+        let expected = hash_sample(txn_id, rate);
+
+        let scripting = &snap.scripting;
+        let script_id = scripting.rules_scripts[0].script_id;
+        let mut host = crate::transaction::Transaction::new(
+            txn_id,
+            "127.0.0.1:5353".parse().unwrap(),
+            ClientProtocol::Udp,
+        );
+        host.qname = Some("test.example.".into());
+        host.qtype = Some(1);
+        let ids = vec![script_id];
+        let (_, _) = conduit_script::run_scripts(
+            scripting,
+            &ids,
+            &mut host,
+            conduit_script::ScriptPhase::Request,
+        );
+        assert_eq!(host.tags.has("sampled"), expected);
     }
 }
