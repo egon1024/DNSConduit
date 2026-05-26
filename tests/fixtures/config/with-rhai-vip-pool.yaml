@@ -15,6 +15,13 @@ orchestrator:
 observation:
   queue_depth: 4096
   drop_policy: drop_oldest
+  sinks:
+    - type: dnstap
+      name: play
+      destinations: ["unix:/tmp/dnstap/conduit.sock"]
+      emit: [query, response]
+      extra_fields: [pool, backend, tags]
+      extra_tags: ["tier"]
 rhai:
   max_operations: 10000
   max_call_depth: 32
