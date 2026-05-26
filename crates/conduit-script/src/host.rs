@@ -21,6 +21,8 @@ pub trait HostTransaction {
     fn set_retry_pool(&mut self, name: &str);
     fn drop_query(&mut self);
     fn set_rcode_name(&mut self, name: &str);
+    fn set_rd(&mut self, value: bool);
+    fn clear_rd(&mut self);
     fn attempt_count(&self) -> u32;
     fn started_at(&self) -> Instant;
     fn is_dropped(&self) -> bool;

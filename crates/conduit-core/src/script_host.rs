@@ -61,6 +61,14 @@ impl HostTransaction for Transaction {
         Transaction::set_rcode_name(self, name);
     }
 
+    fn set_rd(&mut self, value: bool) {
+        self.set_rd_override(value);
+    }
+
+    fn clear_rd(&mut self) {
+        self.clear_rd_override();
+    }
+
     fn attempt_count(&self) -> u32 {
         self.attempt_count
     }

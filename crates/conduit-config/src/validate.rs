@@ -1,5 +1,5 @@
 use crate::backend::effective_backend_weight;
-use crate::forward::{parse_sources_v4, validate_upstream_backend_addresses, RecursionDesired};
+use crate::forward::{parse_sources_v4, validate_upstream_backend_addresses};
 use crate::logging::validate_logging;
 use conduit_observation::{
     parse_connect_retry, parse_extra_fields, parse_extra_tags, validate_sink_identity_uniqueness,
@@ -46,14 +46,6 @@ pub fn validate(cfg: &Config) -> ValidationResult {
         if let Err(e) = parse_sources_v4(&f.sources_v4) {
             errors.push(format!("forward.{e}"));
         }
-        if !f.recursion_desired.is_empty()
-            && RecursionDesired::parse(&f.recursion_desired).is_none()
-        {
-            errors.push(format!(
-                "forward.recursion_desired '{}' must be preserve, clear, or set",
-                f.recursion_desired
-            ));
-        }
     }
 
     errors.extend(validate_upstream_backend_addresses(cfg));
@@ -75,14 +67,6 @@ pub fn validate(cfg: &Config) -> ValidationResult {
         }
         if let Err(e) = parse_sources_v4(&p.sources_v4) {
             errors.push(format!("pool '{}': {e}", p.name));
-        }
-        if !p.recursion_desired.is_empty()
-            && RecursionDesired::parse(&p.recursion_desired).is_none()
-        {
-            errors.push(format!(
-                "pool '{}' recursion_desired '{}' must be preserve, clear, or set",
-                p.name, p.recursion_desired
-            ));
         }
     }
 
@@ -477,19 +461,6 @@ mod tests {
         let yaml = include_str!("../../../tests/fixtures/config/forward-sources-v4.yaml");
         let cfg = load_yaml(yaml).unwrap();
         assert!(validate(&cfg).ok, "{:?}", validate(&cfg).errors);
-    }
-
-    #[test]
-    fn reject_invalid_recursion_desired() {
-        let yaml = include_str!("../../../tests/fixtures/config/minimal.yaml");
-        let mut cfg = load_yaml(yaml).unwrap();
-        cfg.forward.as_mut().unwrap().recursion_desired = "maybe".into();
-        let result = validate(&cfg);
-        assert!(!result.ok);
-        assert!(result
-            .errors
-            .iter()
-            .any(|e| e.contains("recursion_desired")));
     }
 
     #[test]
