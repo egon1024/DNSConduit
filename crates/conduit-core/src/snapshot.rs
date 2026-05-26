@@ -2,10 +2,12 @@
 
 use crate::rules::CompiledRules;
 use arc_swap::ArcSwap;
+use conduit_config::forward::{CompiledForward, CompiledPoolForward};
 use conduit_config::validate;
 use conduit_observation::{compile_from_config, CompiledObservation};
 use conduit_proto::config::Config;
 use conduit_script::{compile_from_config as compile_scripts, CompiledScripting, ScriptError};
+use std::collections::HashMap;
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -16,7 +18,55 @@ pub struct RuntimeSnapshot {
     pub rules: CompiledRules,
     pub observation: CompiledObservation,
     pub scripting: Arc<CompiledScripting>,
+    pub forward: CompiledForward,
+    pub pool_forward: HashMap<String, CompiledPoolForward>,
     pub generation: u64,
+}
+
+impl RuntimeSnapshot {
+    pub fn recursion_desired_for_pool(
+        &self,
+        pool: Option<&str>,
+    ) -> conduit_config::forward::RecursionDesired {
+        if let Some(name) = pool {
+            if let Some(pf) = self.pool_forward.get(name) {
+                if let Some(rd) = pf.recursion_desired {
+                    return rd;
+                }
+            }
+        }
+        self.forward.recursion_desired
+    }
+
+    pub fn sources_v4_for_pool(&self, pool: Option<&str>) -> &[std::net::Ipv4Addr] {
+        if let Some(name) = pool {
+            if let Some(pf) = self.pool_forward.get(name) {
+                if let Some(ref sources) = pf.sources_v4 {
+                    if !sources.is_empty() {
+                        return sources;
+                    }
+                }
+            }
+        }
+        &self.forward.sources_v4
+    }
+
+    /// Unique IPv4 addresses to bind for upstream egress (forward + all pool overrides).
+    pub fn egress_bind_addresses_v4(&self) -> Vec<std::net::Ipv4Addr> {
+        use std::collections::HashSet;
+        let mut addrs = HashSet::new();
+        for addr in &self.forward.sources_v4 {
+            addrs.insert(*addr);
+        }
+        for pf in self.pool_forward.values() {
+            if let Some(ref sources) = pf.sources_v4 {
+                for addr in sources {
+                    addrs.insert(*addr);
+                }
+            }
+        }
+        addrs.into_iter().collect()
+    }
 }
 
 impl RuntimeSnapshot {
@@ -29,10 +79,16 @@ impl RuntimeSnapshot {
         let scripting = compile_scripts(&config, base_dir).unwrap_or_else(|e| {
             panic!("script compile failed at snapshot build: {e}");
         });
+        let (forward, pool_forward) =
+            CompiledForward::compile_from_config(&config).unwrap_or_else(|e| {
+                panic!("forward compile failed at snapshot build: {e}");
+            });
         Self {
             rules: CompiledRules::compile(config.rules.as_ref()),
             observation,
             scripting: Arc::new(scripting),
+            forward,
+            pool_forward,
             config,
             generation: 0,
         }
@@ -45,10 +101,17 @@ impl RuntimeSnapshot {
     ) -> Result<Self, ScriptError> {
         let observation = compile_from_config(&config);
         let scripting = compile_scripts(&config, base_dir)?;
+        let (forward, pool_forward) =
+            CompiledForward::compile_from_config(&config).map_err(|e| ScriptError::Rule {
+                rule_id: "forward".into(),
+                message: e,
+            })?;
         Ok(Self {
             rules: CompiledRules::compile(config.rules.as_ref()),
             observation,
             scripting: Arc::new(scripting),
+            forward,
+            pool_forward,
             config,
             generation: 0,
         })

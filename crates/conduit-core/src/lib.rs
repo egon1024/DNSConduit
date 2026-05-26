@@ -13,6 +13,10 @@ pub mod stages;
 pub mod transaction;
 
 pub use clock::{Clock, SystemClock};
+pub use conduit_config::forward::{
+    CompiledForward, CompiledPoolForward, RecursionDesired, DEFAULT_SOURCE_SELECTION,
+    MAX_SOURCES_V4,
+};
 pub use orchestrator::{Orchestrator, RunOutcome, StageRegistry};
 pub use phase::Phase;
 pub use pipeline::{PipelineStage, StageOutcome};

@@ -1,7 +1,6 @@
 //! Start listener worker threads for the active snapshot.
 
-use crate::forward::TxnTable;
-use crate::stages::UdpForwardStage;
+use crate::forward::{TxnTable, UdpForwardStage};
 use conduit_core::orchestrator::Orchestrator;
 use conduit_core::phase::Phase;
 use conduit_core::snapshot::SnapshotStore;
@@ -44,15 +43,7 @@ pub fn start(store: Arc<SnapshotStore>) -> std::io::Result<DataplaneHandle> {
             .map(|f| f.outstanding_per_backend)
             .unwrap_or(100),
     ));
-    let timeout_ms = forward_cfg.map(|f| f.timeout_ms).unwrap_or(2000);
-    let forward = Arc::new(UdpForwardStage::new(table.clone(), timeout_ms)?);
-
-    let mut orchestrator = Orchestrator::with_default_stages();
-    orchestrator.registry.register(Phase::Forward, forward);
-    orchestrator
-        .registry
-        .register(Phase::WaitResponse, Arc::new(NoopWaitStage));
-    let orchestrator = Arc::new(orchestrator);
+    let timeout_ms = snap.forward.timeout_ms;
 
     let mut handles = Vec::new();
     let threads = listeners.threads.max(1);
@@ -60,16 +51,37 @@ pub fn start(store: Arc<SnapshotStore>) -> std::io::Result<DataplaneHandle> {
         for _ in 0..threads {
             let ln = ln.clone();
             let store = store.clone();
-            let orch = orchestrator.clone();
+            let table = table.clone();
+            let forward_compiled = snap.forward.clone();
+            let bind_addresses_v4 = snap.egress_bind_addresses_v4();
             let obs = observation.clone();
             let reuse = listeners.reuse_port;
             let rcvbuf = listeners.rcvbuf;
             let proto = ln.protocol.to_lowercase();
             handles.push(thread::spawn(move || {
+                let forward = match UdpForwardStage::new(
+                    table.clone(),
+                    &forward_compiled,
+                    &bind_addresses_v4,
+                    timeout_ms,
+                ) {
+                    Ok(f) => Arc::new(f),
+                    Err(e) => {
+                        tracing::error!(error = %e, "failed to build forward egress");
+                        return;
+                    }
+                };
+                let mut orchestrator = Orchestrator::with_default_stages();
+                orchestrator.registry.register(Phase::Forward, forward);
+                orchestrator
+                    .registry
+                    .register(Phase::WaitResponse, Arc::new(NoopWaitStage));
+                let orchestrator = Arc::new(orchestrator);
+
                 let result = if proto == "tcp" {
-                    crate::listener::tcp::run_worker(ln, store, orch, obs)
+                    crate::listener::tcp::run_worker(ln, store, orchestrator, obs)
                 } else {
-                    crate::listener::udp::run_worker(ln, store, orch, obs, reuse, rcvbuf)
+                    crate::listener::udp::run_worker(ln, store, orchestrator, obs, reuse, rcvbuf)
                 };
                 if let Err(e) = result {
                     tracing::error!(error = %e, "listener worker exited");

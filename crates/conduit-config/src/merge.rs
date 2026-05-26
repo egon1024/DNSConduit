@@ -44,7 +44,7 @@ pub fn merge_file_and_overlay(file: &Config, overlay: &Config) -> Config {
         merged.listeners = overlay.listeners.clone();
     }
     if overlay.forward.is_some() {
-        merged.forward = overlay.forward;
+        merged.forward = overlay.forward.clone();
     }
     if overlay.orchestrator.is_some() {
         merged.orchestrator = overlay.orchestrator;
