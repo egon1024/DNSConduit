@@ -70,6 +70,9 @@ message Listener {
 message ForwardConfig {
   uint32 outstanding_per_backend = 1;
   uint32 timeout_ms = 2;
+  repeated string sources_v4 = 3;
+  string source_selection = 4;   // "round_robin" (slice A)
+  string recursion_desired = 5;    // preserve | clear | set
 }
 
 message OrchestratorConfig {
@@ -121,6 +124,8 @@ message RhaiConfig {
 message Pool {
   string name = 1;
   repeated Backend backends = 2;
+  repeated string sources_v4 = 3;
+  string recursion_desired = 4;  // optional pool override
 }
 
 message Backend {

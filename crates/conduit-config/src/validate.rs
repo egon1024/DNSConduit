@@ -1,4 +1,5 @@
 use crate::backend::effective_backend_weight;
+use crate::forward::{parse_sources_v4, validate_upstream_backend_addresses, RecursionDesired};
 use crate::logging::validate_logging;
 use conduit_observation::{
     parse_connect_retry, parse_extra_fields, parse_extra_tags, validate_sink_identity_uniqueness,
@@ -35,6 +36,28 @@ pub fn validate(cfg: &Config) -> ValidationResult {
         }
     }
 
+    if let Some(f) = &cfg.forward {
+        if !f.source_selection.is_empty() && f.source_selection != "round_robin" {
+            errors.push(format!(
+                "forward.source_selection '{}' must be round_robin (slice A)",
+                f.source_selection
+            ));
+        }
+        if let Err(e) = parse_sources_v4(&f.sources_v4) {
+            errors.push(format!("forward.{e}"));
+        }
+        if !f.recursion_desired.is_empty()
+            && RecursionDesired::parse(&f.recursion_desired).is_none()
+        {
+            errors.push(format!(
+                "forward.recursion_desired '{}' must be preserve, clear, or set",
+                f.recursion_desired
+            ));
+        }
+    }
+
+    errors.extend(validate_upstream_backend_addresses(cfg));
+
     for p in &cfg.pools {
         if p.name.is_empty() {
             errors.push("pool name must not be empty".into());
@@ -49,6 +72,17 @@ pub fn validate(cfg: &Config) -> ValidationResult {
                     p.name, backend.address
                 ));
             }
+        }
+        if let Err(e) = parse_sources_v4(&p.sources_v4) {
+            errors.push(format!("pool '{}': {e}", p.name));
+        }
+        if !p.recursion_desired.is_empty()
+            && RecursionDesired::parse(&p.recursion_desired).is_none()
+        {
+            errors.push(format!(
+                "pool '{}' recursion_desired '{}' must be preserve, clear, or set",
+                p.name, p.recursion_desired
+            ));
         }
     }
 
@@ -436,5 +470,46 @@ mod tests {
         let snap = conduit_observation::compile_from_config(&cfg);
         assert_eq!(snap.sinks[0].connect_retry.initial_ms, 250);
         assert!(!snap.sinks[0].connect_retry.jitter);
+    }
+
+    #[test]
+    fn accept_forward_sources_v4_fixture() {
+        let yaml = include_str!("../../../tests/fixtures/config/forward-sources-v4.yaml");
+        let cfg = load_yaml(yaml).unwrap();
+        assert!(validate(&cfg).ok, "{:?}", validate(&cfg).errors);
+    }
+
+    #[test]
+    fn reject_invalid_recursion_desired() {
+        let yaml = include_str!("../../../tests/fixtures/config/minimal.yaml");
+        let mut cfg = load_yaml(yaml).unwrap();
+        cfg.forward.as_mut().unwrap().recursion_desired = "maybe".into();
+        let result = validate(&cfg);
+        assert!(!result.ok);
+        assert!(result
+            .errors
+            .iter()
+            .any(|e| e.contains("recursion_desired")));
+    }
+
+    #[test]
+    fn reject_empty_sources_v4_entry() {
+        let yaml = include_str!("../../../tests/fixtures/config/minimal.yaml");
+        let mut cfg = load_yaml(yaml).unwrap();
+        cfg.forward.as_mut().unwrap().sources_v4 = vec!["".into()];
+        let result = validate(&cfg);
+        assert!(!result.ok);
+        assert!(result.errors.iter().any(|e| e.contains("sources_v4")));
+    }
+
+    #[test]
+    fn reject_ipv6_upstream_backend_until_slice_b() {
+        let yaml = include_str!("../../../tests/fixtures/config/minimal.yaml");
+        let mut cfg = load_yaml(yaml).unwrap();
+        cfg.pools[0].backends[0].address = "[2001:db8::53]:53".into();
+        let result = validate(&cfg);
+        assert!(!result.ok);
+        assert!(result.errors.iter().any(|e| e.contains("IPv6 upstream")));
+        assert!(result.errors.iter().any(|e| e.contains("slice B")));
     }
 }

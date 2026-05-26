@@ -1,0 +1,38 @@
+schema_version: 1
+listeners:
+  threads: 1
+  reuse_port: false
+  listeners:
+    - address: "127.0.0.1:5353"
+      protocol: udp
+forward:
+  outstanding_per_backend: 50
+  timeout_ms: 2000
+  recursion_desired: preserve
+orchestrator:
+  max_attempts: 3
+  max_txn_duration_ms: 5000
+  txn_table_capacity: 1024
+observation:
+  queue_depth: 4096
+  drop_policy: drop_oldest
+rhai:
+  max_operations: 10000
+  max_call_depth: 32
+pools:
+  - name: auth
+    recursion_desired: clear
+    backends:
+      - address: "127.0.0.1:5300"
+        weight: 100
+rules:
+  match_mode: first_match
+  rules:
+    - id: auth-pool
+      hook: request
+      selectors: []
+      actions:
+        - type: set_pool
+          value: auth
+control:
+  listen_address: "127.0.0.1:5199"
