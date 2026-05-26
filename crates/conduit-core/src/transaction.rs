@@ -73,6 +73,10 @@ pub struct Transaction {
     pub dropped: bool,
     /// Rhai/script override for upstream RD bit (`set_rd` / `clear_rd`).
     pub rd_override: Option<bool>,
+    /// Rhai/script override for IPv4 egress source (`set_source_v4`).
+    pub source_override_v4: Option<std::net::Ipv4Addr>,
+    /// Rhai/script override for IPv6 egress source (`set_source_v6`).
+    pub source_override_v6: Option<std::net::Ipv6Addr>,
     rcode: Option<u16>,
 }
 
@@ -99,8 +103,18 @@ impl Transaction {
             snapshot_generation: 0,
             dropped: false,
             rd_override: None,
+            source_override_v4: None,
+            source_override_v6: None,
             rcode: None,
         }
+    }
+
+    pub fn set_source_override_v4(&mut self, addr: std::net::Ipv4Addr) {
+        self.source_override_v4 = Some(addr);
+    }
+
+    pub fn set_source_override_v6(&mut self, addr: std::net::Ipv6Addr) {
+        self.source_override_v6 = Some(addr);
     }
 
     pub fn set_rd_override(&mut self, rd: bool) {

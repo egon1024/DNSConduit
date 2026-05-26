@@ -1,0 +1,42 @@
+schema_version: 1
+
+listeners:
+  threads: 1
+  reuse_port: false
+  listeners:
+    - address: "127.0.0.1:5354"
+      protocol: udp
+
+forward:
+  timeout_ms: 2000
+  outstanding_per_backend: 100
+  sources_v6:
+    - "::1"
+
+orchestrator:
+  max_attempts: 3
+  max_txn_duration_ms: 5000
+  txn_table_capacity: 1024
+
+pools:
+  - name: default
+    backends:
+      - address: "[::1]:53"
+
+observation:
+  queue_depth: 4096
+  drop_policy: drop_oldest
+rhai:
+  max_operations: 10000
+  max_call_depth: 32
+control:
+  listen_address: "127.0.0.1:5199"
+rules:
+  match_mode: first_match
+  rules:
+    - id: default-pool
+      hook: request
+      selectors: []
+      actions:
+        - type: set_pool
+          value: default

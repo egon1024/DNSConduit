@@ -1,4 +1,4 @@
-//! Phase 1b slice A: forward sources_v4 and compiled snapshot.
+//! Phase 1b slice A: forward sources_v4, compiled snapshot, and rd.rs wire helper.
 
 use conduit_config::forward::RecursionDesired;
 use conduit_config::{load_yaml, validate};
@@ -32,6 +32,7 @@ fn forward_sources_v4_fixture_compiles() {
     assert_eq!(snap.forward.sources_v4.len(), 1);
 }
 
+/// Unit test for `forward::rd::build_upstream_wire` (not YAML RD policy; Rhai-only at runtime).
 #[test]
 fn build_upstream_wire_clear_zeros_rd() {
     let q = sample_query(true);
@@ -40,6 +41,15 @@ fn build_upstream_wire_clear_zeros_rd() {
         .unwrap()
         .header()
         .recursion_desired());
+}
+
+#[test]
+fn forward_sources_v6_fixture_compiles() {
+    let yaml = include_str!("../../../tests/fixtures/config/forward-sources-v6.yaml");
+    let cfg = load_yaml(yaml).unwrap();
+    assert!(validate(&cfg).ok);
+    let snap = RuntimeSnapshot::from_config(cfg);
+    assert_eq!(snap.forward.sources_v6.len(), 1);
 }
 
 #[test]

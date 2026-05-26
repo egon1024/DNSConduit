@@ -1,5 +1,8 @@
 use crate::backend::effective_backend_weight;
-use crate::forward::{parse_sources_v4, validate_upstream_backend_addresses};
+use crate::forward::{
+    parse_sources_v4, parse_sources_v6, parse_upstream_transport,
+    validate_upstream_backend_addresses,
+};
 use crate::logging::validate_logging;
 use conduit_observation::{
     parse_connect_retry, parse_extra_fields, parse_extra_tags, validate_sink_identity_uniqueness,
@@ -46,6 +49,12 @@ pub fn validate(cfg: &Config) -> ValidationResult {
         if let Err(e) = parse_sources_v4(&f.sources_v4) {
             errors.push(format!("forward.{e}"));
         }
+        if let Err(e) = parse_sources_v6(&f.sources_v6) {
+            errors.push(format!("forward.{e}"));
+        }
+        if let Err(e) = parse_upstream_transport(&f.upstream_transport) {
+            errors.push(e);
+        }
     }
 
     errors.extend(validate_upstream_backend_addresses(cfg));
@@ -66,6 +75,9 @@ pub fn validate(cfg: &Config) -> ValidationResult {
             }
         }
         if let Err(e) = parse_sources_v4(&p.sources_v4) {
+            errors.push(format!("pool '{}': {e}", p.name));
+        }
+        if let Err(e) = parse_sources_v6(&p.sources_v6) {
             errors.push(format!("pool '{}': {e}", p.name));
         }
     }
@@ -474,13 +486,9 @@ mod tests {
     }
 
     #[test]
-    fn reject_ipv6_upstream_backend_until_slice_b() {
-        let yaml = include_str!("../../../tests/fixtures/config/minimal.yaml");
-        let mut cfg = load_yaml(yaml).unwrap();
-        cfg.pools[0].backends[0].address = "[2001:db8::53]:53".into();
-        let result = validate(&cfg);
-        assert!(!result.ok);
-        assert!(result.errors.iter().any(|e| e.contains("IPv6 upstream")));
-        assert!(result.errors.iter().any(|e| e.contains("slice B")));
+    fn accept_ipv6_upstream_backend() {
+        let yaml = include_str!("../../../tests/fixtures/config/forward-sources-v6.yaml");
+        let cfg = load_yaml(yaml).unwrap();
+        assert!(validate(&cfg).ok, "{:?}", validate(&cfg).errors);
     }
 }

@@ -23,6 +23,8 @@ pub trait HostTransaction {
     fn set_rcode_name(&mut self, name: &str);
     fn set_rd(&mut self, value: bool);
     fn clear_rd(&mut self);
+    fn set_source_v4(&mut self, addr: &str);
+    fn set_source_v6(&mut self, addr: &str);
     fn attempt_count(&self) -> u32;
     fn started_at(&self) -> Instant;
     fn is_dropped(&self) -> bool;

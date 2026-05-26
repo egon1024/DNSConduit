@@ -67,6 +67,8 @@ fn register_host_api(engine: &mut Engine) {
         .register_fn("set_rcode", RhaiTxn::set_rcode)
         .register_fn("set_rd", RhaiTxn::set_rd)
         .register_fn("clear_rd", RhaiTxn::clear_rd)
+        .register_fn("set_source_v4", RhaiTxn::set_source_v4)
+        .register_fn("set_source_v6", RhaiTxn::set_source_v6)
         .register_fn("sample_include", RhaiTxn::sample_include)
         .register_fn("metric_inc", RhaiTxn::metric_inc)
         .register_fn("metric_inc_labels", RhaiTxn::metric_inc_labels)
@@ -130,6 +132,8 @@ struct ScriptEffects {
     dropped: bool,
     sample_decision: Option<bool>,
     rd_override: Option<bool>,
+    source_override_v4: Option<std::net::Ipv4Addr>,
+    source_override_v6: Option<std::net::Ipv6Addr>,
     user_metrics: HashMap<String, u64>,
 }
 
@@ -244,6 +248,30 @@ impl RhaiTxn {
 
     fn clear_rd(&mut self) {
         self.set_rd(false);
+    }
+
+    fn set_source_v4(&mut self, addr: &str) -> Result<(), Box<EvalAltResult>> {
+        if self.phase != ScriptPhase::Request {
+            return Err("set_source_v4() is not available in response phase".into());
+        }
+        let ip: std::net::Ipv4Addr = addr
+            .parse()
+            .map_err(|_| format!("set_source_v4: '{addr}' is not a valid IPv4 address"))?;
+        let mut fx = self.effects.lock().map_err(|e| e.to_string())?;
+        fx.source_override_v4 = Some(ip);
+        Ok(())
+    }
+
+    fn set_source_v6(&mut self, addr: &str) -> Result<(), Box<EvalAltResult>> {
+        if self.phase != ScriptPhase::Request {
+            return Err("set_source_v6() is not available in response phase".into());
+        }
+        let ip: std::net::Ipv6Addr = addr
+            .parse()
+            .map_err(|_| format!("set_source_v6: '{addr}' is not a valid IPv6 address"))?;
+        let mut fx = self.effects.lock().map_err(|e| e.to_string())?;
+        fx.source_override_v6 = Some(ip);
+        Ok(())
     }
 
     fn sample_include(&mut self, rate: f64) -> bool {
@@ -370,6 +398,12 @@ fn apply_effects(host: &mut dyn HostTransaction, fx: &ScriptEffects) {
     if let Some(rd) = fx.rd_override {
         host.set_rd(rd);
     }
+    if let Some(addr) = fx.source_override_v4 {
+        host.set_source_v4(&addr.to_string());
+    }
+    if let Some(addr) = fx.source_override_v6 {
+        host.set_source_v6(&addr.to_string());
+    }
     if fx.dropped {
         host.mark_dropped();
     }
@@ -436,6 +470,8 @@ fn run_one(
         dropped: fx.dropped,
         sample_decision: fx.sample_decision,
         rd_override: fx.rd_override,
+        source_override_v4: fx.source_override_v4,
+        source_override_v6: fx.source_override_v6,
         user_metrics: fx.user_metrics.clone(),
     })
 }
@@ -458,6 +494,8 @@ mod tests {
         retry: Option<String>,
         dropped: bool,
         rd_override: Option<bool>,
+        source_override_v4: Option<std::net::Ipv4Addr>,
+        source_override_v6: Option<std::net::Ipv6Addr>,
         tags: HashMap<String, bool>,
         attempts: u32,
         started: Instant,
@@ -505,6 +543,16 @@ mod tests {
         }
         fn clear_rd(&mut self) {
             self.rd_override = Some(false);
+        }
+        fn set_source_v4(&mut self, addr: &str) {
+            if let Ok(ip) = addr.parse() {
+                self.source_override_v4 = Some(ip);
+            }
+        }
+        fn set_source_v6(&mut self, addr: &str) {
+            if let Ok(ip) = addr.parse() {
+                self.source_override_v6 = Some(ip);
+            }
         }
         fn attempt_count(&self) -> u32 {
             self.attempts
@@ -583,6 +631,8 @@ rules:
             retry: None,
             dropped: false,
             rd_override: None,
+            source_override_v4: None,
+            source_override_v6: None,
             tags: HashMap::new(),
             attempts: 0,
             started: Instant::now(),
@@ -591,6 +641,150 @@ rules:
         let (_, stats) = run_scripts(&scripting, &[0], &mut host, ScriptPhase::Request);
         assert_eq!(stats.errors, 0);
         assert_eq!(host.rd_override, Some(false));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn set_source_v4_via_script() {
+        let script = r#"txn.set_source_v4("127.0.0.1");"#;
+        let dir = std::env::temp_dir().join(format!("conduit-script-src-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let script_path = dir.join("src.rhai");
+        std::fs::write(&script_path, script).unwrap();
+        let yaml = format!(
+            r#"
+schema_version: 1
+listeners:
+  threads: 1
+  reuse_port: false
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+forward:
+  outstanding_per_backend: 100
+  timeout_ms: 2000
+orchestrator:
+  max_attempts: 3
+  max_txn_duration_ms: 5000
+  txn_table_capacity: 1024
+observation:
+  queue_depth: 4096
+  drop_policy: drop_oldest
+rhai:
+  max_operations: 10000
+  max_call_depth: 32
+pools:
+  - name: default
+    backends:
+      - address: "127.0.0.1:5300"
+control:
+  listen_address: "127.0.0.1:5199"
+rules:
+  match_mode: first_match
+  rules:
+    - id: src
+      hook: request
+      selectors: []
+      actions:
+        - type: rhai
+          value: "{}"
+"#,
+            script_path.display()
+        );
+        let cfg = load_yaml(&yaml).unwrap();
+        let scripting = compile_from_config(&cfg, Some(&dir)).unwrap();
+        let mut host = MockHost {
+            id: 51,
+            qname: "test.example.".into(),
+            qtype: "A".into(),
+            dns_id: 1,
+            rcode: None,
+            pool: None,
+            retry: None,
+            dropped: false,
+            rd_override: None,
+            source_override_v4: None,
+            source_override_v6: None,
+            tags: HashMap::new(),
+            attempts: 0,
+            started: Instant::now(),
+            phase: ScriptPhase::Request,
+        };
+        let (_, stats) = run_scripts(&scripting, &[0], &mut host, ScriptPhase::Request);
+        assert_eq!(stats.errors, 0);
+        assert_eq!(host.source_override_v4, Some(std::net::Ipv4Addr::LOCALHOST));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn set_source_v6_via_script() {
+        let script = r#"txn.set_source_v6("::1");"#;
+        let dir = std::env::temp_dir().join(format!("conduit-script-src6-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let script_path = dir.join("src6.rhai");
+        std::fs::write(&script_path, script).unwrap();
+        let yaml = format!(
+            r#"
+schema_version: 1
+listeners:
+  threads: 1
+  reuse_port: false
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+forward:
+  outstanding_per_backend: 100
+  timeout_ms: 2000
+orchestrator:
+  max_attempts: 3
+  max_txn_duration_ms: 5000
+  txn_table_capacity: 1024
+observation:
+  queue_depth: 4096
+  drop_policy: drop_oldest
+rhai:
+  max_operations: 10000
+  max_call_depth: 32
+pools:
+  - name: default
+    backends:
+      - address: "127.0.0.1:5300"
+control:
+  listen_address: "127.0.0.1:5199"
+rules:
+  match_mode: first_match
+  rules:
+    - id: src6
+      hook: request
+      selectors: []
+      actions:
+        - type: rhai
+          value: "{}"
+"#,
+            script_path.display()
+        );
+        let cfg = load_yaml(&yaml).unwrap();
+        let scripting = compile_from_config(&cfg, Some(&dir)).unwrap();
+        let mut host = MockHost {
+            id: 52,
+            qname: "test.example.".into(),
+            qtype: "A".into(),
+            dns_id: 1,
+            rcode: None,
+            pool: None,
+            retry: None,
+            dropped: false,
+            rd_override: None,
+            source_override_v4: None,
+            source_override_v6: None,
+            tags: HashMap::new(),
+            attempts: 0,
+            started: Instant::now(),
+            phase: ScriptPhase::Request,
+        };
+        let (_, stats) = run_scripts(&scripting, &[0], &mut host, ScriptPhase::Request);
+        assert_eq!(stats.errors, 0);
+        assert_eq!(host.source_override_v6, Some(std::net::Ipv6Addr::LOCALHOST));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -636,6 +830,8 @@ rules:
             retry: None,
             dropped: false,
             rd_override: None,
+            source_override_v4: None,
+            source_override_v6: None,
             tags: HashMap::new(),
             attempts: 0,
             started: Instant::now(),
@@ -670,6 +866,8 @@ rules:
             retry: None,
             dropped: false,
             rd_override: None,
+            source_override_v4: None,
+            source_override_v6: None,
             tags: HashMap::new(),
             attempts: 1,
             started: Instant::now(),
@@ -698,6 +896,8 @@ rules:
             retry: None,
             dropped: false,
             rd_override: None,
+            source_override_v4: None,
+            source_override_v6: None,
             tags: HashMap::new(),
             attempts: 0,
             started: Instant::now(),
@@ -726,6 +926,8 @@ rules:
             retry: None,
             dropped: false,
             rd_override: None,
+            source_override_v4: None,
+            source_override_v6: None,
             tags: HashMap::new(),
             attempts: 0,
             started: Instant::now(),
@@ -754,6 +956,8 @@ rules:
             retry: None,
             dropped: false,
             rd_override: None,
+            source_override_v4: None,
+            source_override_v6: None,
             tags: HashMap::new(),
             attempts: 0,
             started: Instant::now(),
@@ -781,6 +985,8 @@ rules:
             retry: None,
             dropped: false,
             rd_override: None,
+            source_override_v4: None,
+            source_override_v6: None,
             tags: HashMap::new(),
             attempts: 0,
             started: Instant::now(),
@@ -810,6 +1016,8 @@ rules:
             retry: None,
             dropped: false,
             rd_override: None,
+            source_override_v4: None,
+            source_override_v6: None,
             tags: HashMap::new(),
             attempts: 0,
             started: Instant::now(),
@@ -910,6 +1118,8 @@ rules:
             retry: None,
             dropped: false,
             rd_override: None,
+            source_override_v4: None,
+            source_override_v6: None,
             tags: HashMap::new(),
             attempts: 0,
             started: Instant::now(),
@@ -946,6 +1156,8 @@ rules:
             retry: None,
             dropped: false,
             rd_override: None,
+            source_override_v4: None,
+            source_override_v6: None,
             tags: HashMap::new(),
             attempts: 0,
             started: Instant::now(),
@@ -994,6 +1206,8 @@ rules:
             retry: None,
             dropped: false,
             rd_override: None,
+            source_override_v4: None,
+            source_override_v6: None,
             tags: HashMap::new(),
             attempts: 0,
             started: Instant::now() - Duration::from_millis(600),

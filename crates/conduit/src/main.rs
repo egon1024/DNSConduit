@@ -9,7 +9,16 @@ async fn main() -> anyhow::Result<()> {
     let path = std::env::args()
         .nth(1)
         .unwrap_or_else(|| "conduit.yaml".into());
-    let yaml = std::fs::read_to_string(&path)?;
+    let yaml = std::fs::read_to_string(&path).map_err(|e| {
+        if e.to_string().contains("UTF-8") {
+            anyhow::anyhow!(
+                "reading config {:?}: {e} (pass the YAML path only, e.g. tests/manual/config/01-v4-only.yaml — not the conduit binary)",
+                path
+            )
+        } else {
+            anyhow::Error::from(e).context(format!("reading config {path:?}"))
+        }
+    })?;
     let base_dir = std::path::Path::new(&path)
         .parent()
         .map(|p| p.to_path_buf());

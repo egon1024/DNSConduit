@@ -1,6 +1,6 @@
 //! Start listener worker threads for the active snapshot.
 
-use crate::forward::{TxnTable, UdpForwardStage};
+use crate::forward::{ForwardTransport, TxnTable};
 use conduit_core::orchestrator::Orchestrator;
 use conduit_core::phase::Phase;
 use conduit_core::snapshot::SnapshotStore;
@@ -54,15 +54,17 @@ pub fn start(store: Arc<SnapshotStore>) -> std::io::Result<DataplaneHandle> {
             let table = table.clone();
             let forward_compiled = snap.forward.clone();
             let bind_addresses_v4 = snap.egress_bind_addresses_v4();
+            let bind_addresses_v6 = snap.egress_bind_addresses_v6();
             let obs = observation.clone();
             let reuse = listeners.reuse_port;
             let rcvbuf = listeners.rcvbuf;
             let proto = ln.protocol.to_lowercase();
             handles.push(thread::spawn(move || {
-                let forward = match UdpForwardStage::new(
+                let forward = match ForwardTransport::new(
                     table.clone(),
                     &forward_compiled,
                     &bind_addresses_v4,
+                    &bind_addresses_v6,
                     timeout_ms,
                 ) {
                     Ok(f) => Arc::new(f),
