@@ -36,6 +36,7 @@ pub enum CompiledAction {
     RetryPool(String),
     Drop,
     SetRcode(String),
+    Rhai,
 }
 
 impl CompiledRules {
@@ -53,17 +54,29 @@ impl CompiledRules {
         }
     }
 
-    pub fn eval(&self, hook: RuleHook, txn: &mut Transaction) -> RuleOutcome {
+    pub fn eval(&self, hook: RuleHook, txn: &mut Transaction) -> RuleEvalResult {
         for rule in self.rules.iter().filter(|r| r.hook == hook) {
             if rule.matches(txn) {
                 let outcome = rule.apply(txn);
                 if self.match_mode == MatchMode::FirstMatch {
-                    return outcome;
+                    return RuleEvalResult {
+                        outcome,
+                        matched_rule_id: Some(rule.id.clone()),
+                    };
                 }
             }
         }
-        RuleOutcome::Continue
+        RuleEvalResult {
+            outcome: RuleOutcome::Continue,
+            matched_rule_id: None,
+        }
     }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct RuleEvalResult {
+    pub outcome: RuleOutcome,
+    pub matched_rule_id: Option<String>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -106,6 +119,7 @@ impl CompiledRule {
         let mut drop = false;
         for action in &self.actions {
             match action {
+                CompiledAction::Rhai => {}
                 CompiledAction::SetPool(p) => txn.selected_pool = Some(p.clone()),
                 CompiledAction::SetTag { key, value } => {
                     txn.tags.set_string(key, value);
@@ -143,6 +157,7 @@ impl CompiledAction {
                     .unwrap_or((act.value.clone(), "true".into()));
                 CompiledAction::SetTag { key, value }
             }
+            "rhai" => CompiledAction::Rhai,
             _ => CompiledAction::SetPool(act.value.clone()),
         }
     }

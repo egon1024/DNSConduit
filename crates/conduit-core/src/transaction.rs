@@ -34,6 +34,10 @@ impl TagSet {
         self.flags.get(key).copied().unwrap_or(false) || self.strings.contains_key(key)
     }
 
+    pub fn bool_flags(&self) -> &HashMap<String, bool> {
+        &self.flags
+    }
+
     /// Export tags for observation `extra` (all bool flags with value true, all string tags).
     pub fn export_all_tags(&self) -> (ExportedTagBools, ExportedTagStrings) {
         let bools: ExportedTagBools = self.flags.iter().map(|(k, v)| (k.clone(), *v)).collect();
@@ -65,6 +69,7 @@ pub struct Transaction {
     pub retry_pool: Option<String>,
     pub started_at: Instant,
     pub snapshot_generation: u64,
+    pub dropped: bool,
     rcode: Option<u16>,
 }
 
@@ -89,6 +94,7 @@ impl Transaction {
             retry_pool: None,
             started_at: Instant::now(),
             snapshot_generation: 0,
+            dropped: false,
             rcode: None,
         }
     }

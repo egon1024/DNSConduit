@@ -7,6 +7,7 @@ pub mod phase;
 pub mod pipeline;
 pub mod routing;
 pub mod rules;
+pub mod script_host;
 pub mod snapshot;
 pub mod stages;
 pub mod transaction;

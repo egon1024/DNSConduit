@@ -1,0 +1,3 @@
+qname,action
+bad.example.,block
+good.example.,allow

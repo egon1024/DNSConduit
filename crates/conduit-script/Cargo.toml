@@ -1,5 +1,5 @@
 [package]
-name = "conduit-core"
+name = "conduit-script"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -7,13 +7,10 @@ rust-version.workspace = true
 
 [dependencies]
 conduit-proto = { path = "../conduit-proto" }
-conduit-config = { path = "../conduit-config" }
 conduit-observation = { path = "../conduit-observation" }
-conduit-script = { path = "../conduit-script" }
-arc-swap = { workspace = true }
+rhai = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
-hickory-proto = { workspace = true }
 
 [dev-dependencies]
 conduit-config = { path = "../conduit-config" }

@@ -15,6 +15,15 @@ message Config {
   ControlConfig control = 8;
   RulesConfig rules = 9;
   LoggingConfig logging = 10;
+  repeated DataSource data_sources = 11;
+}
+
+message DataSource {
+  string name = 1;
+  string type = 2;           // "csv" (phase 3 v1)
+  string path = 3;
+  string key_column = 4;     // default: first column
+  string value_column = 5;   // default: second column
 }
 
 // Phase 1 dev/ops logging (not full transaction trace — see design §4.3).
@@ -41,7 +50,7 @@ message Selector {
 }
 
 message Action {
-  string type = 1;   // set_pool | set_tag | retry_pool | drop | set_rcode
+  string type = 1;   // set_pool | set_tag | retry_pool | drop | set_rcode | rhai
   string value = 2;
 }
 
@@ -106,6 +115,7 @@ message ObservationSink {
 message RhaiConfig {
   uint64 max_operations = 1;
   uint32 max_call_depth = 2;
+  uint32 hook_timeout_ms = 3;  // per-hook wall time; 0 = default 50ms
 }
 
 message Pool {

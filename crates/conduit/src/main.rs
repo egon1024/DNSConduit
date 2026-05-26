@@ -10,6 +10,9 @@ async fn main() -> anyhow::Result<()> {
         .nth(1)
         .unwrap_or_else(|| "conduit.yaml".into());
     let yaml = std::fs::read_to_string(&path)?;
+    let base_dir = std::path::Path::new(&path)
+        .parent()
+        .map(|p| p.to_path_buf());
     let file_cfg = load_yaml(&yaml)?;
     let validation = validate(&file_cfg);
     if !validation.ok {
@@ -19,7 +22,8 @@ async fn main() -> anyhow::Result<()> {
 
     init_from_config(file_cfg.logging.as_ref())?;
 
-    let mut snapshot = RuntimeSnapshot::from_config(file_cfg.clone());
+    let mut snapshot =
+        RuntimeSnapshot::from_config_with_base(file_cfg.clone(), base_dir.as_deref());
     let store = Arc::new(SnapshotStore::new(snapshot.clone()));
     snapshot.generation = store.generation();
     store.swap(snapshot);

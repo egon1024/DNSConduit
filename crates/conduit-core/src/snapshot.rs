@@ -5,6 +5,8 @@ use arc_swap::ArcSwap;
 use conduit_config::validate;
 use conduit_observation::{compile_from_config, CompiledObservation};
 use conduit_proto::config::Config;
+use conduit_script::{compile_from_config as compile_scripts, CompiledScripting, ScriptError};
+use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
@@ -13,22 +15,51 @@ pub struct RuntimeSnapshot {
     pub config: Config,
     pub rules: CompiledRules,
     pub observation: CompiledObservation,
+    pub scripting: Arc<CompiledScripting>,
     pub generation: u64,
 }
 
 impl RuntimeSnapshot {
     pub fn from_config(config: Config) -> Self {
+        Self::from_config_with_base(config, None)
+    }
+
+    pub fn from_config_with_base(config: Config, base_dir: Option<&Path>) -> Self {
         let observation = compile_from_config(&config);
+        let scripting = compile_scripts(&config, base_dir).unwrap_or_else(|e| {
+            panic!("script compile failed at snapshot build: {e}");
+        });
         Self {
             rules: CompiledRules::compile(config.rules.as_ref()),
             observation,
+            scripting: Arc::new(scripting),
             config,
             generation: 0,
         }
     }
 
+    /// Build snapshot without panicking — for tests that expect compile errors.
+    pub fn try_from_config_with_base(
+        config: Config,
+        base_dir: Option<&Path>,
+    ) -> Result<Self, ScriptError> {
+        let observation = compile_from_config(&config);
+        let scripting = compile_scripts(&config, base_dir)?;
+        Ok(Self {
+            rules: CompiledRules::compile(config.rules.as_ref()),
+            observation,
+            scripting: Arc::new(scripting),
+            config,
+            generation: 0,
+        })
+    }
+
     pub fn observation_enabled(&self) -> bool {
         self.observation.enabled
+    }
+
+    pub fn scripting_enabled(&self) -> bool {
+        !self.scripting.is_empty()
     }
 }
 
@@ -67,6 +98,21 @@ impl SnapshotStore {
             return Err(result.errors);
         }
         let mut snap = RuntimeSnapshot::from_config(cfg);
+        snap.generation = self.generation() + 1;
+        self.swap(snap);
+        Ok(())
+    }
+
+    pub fn install_validated_with_base(
+        &self,
+        cfg: Config,
+        base_dir: Option<&Path>,
+    ) -> Result<(), Vec<String>> {
+        let result = validate(&cfg);
+        if !result.ok {
+            return Err(result.errors);
+        }
+        let mut snap = RuntimeSnapshot::from_config_with_base(cfg, base_dir);
         snap.generation = self.generation() + 1;
         self.swap(snap);
         Ok(())
