@@ -24,20 +24,6 @@ pub struct RuntimeSnapshot {
 }
 
 impl RuntimeSnapshot {
-    pub fn recursion_desired_for_pool(
-        &self,
-        pool: Option<&str>,
-    ) -> conduit_config::forward::RecursionDesired {
-        if let Some(name) = pool {
-            if let Some(pf) = self.pool_forward.get(name) {
-                if let Some(rd) = pf.recursion_desired {
-                    return rd;
-                }
-            }
-        }
-        self.forward.recursion_desired
-    }
-
     pub fn sources_v4_for_pool(&self, pool: Option<&str>) -> &[std::net::Ipv4Addr] {
         if let Some(name) = pool {
             if let Some(pf) = self.pool_forward.get(name) {

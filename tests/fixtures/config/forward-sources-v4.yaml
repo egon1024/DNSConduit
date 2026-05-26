@@ -11,7 +11,6 @@ forward:
   sources_v4:
     - "127.0.0.1"
   source_selection: round_robin
-  recursion_desired: preserve
 orchestrator:
   max_attempts: 3
   max_txn_duration_ms: 5000

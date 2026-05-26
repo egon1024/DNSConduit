@@ -1,23 +1,12 @@
-//! Phase 1b slice A: forward RD policy and compiled snapshot.
+//! Phase 1b slice A: forward sources_v4 and compiled snapshot.
 
 use conduit_config::forward::RecursionDesired;
 use conduit_config::{load_yaml, validate};
-use conduit_core::clock::SystemClock;
-use conduit_core::orchestrator::{Orchestrator, RunOutcome};
-use conduit_core::phase::Phase;
-use conduit_core::pipeline::{PipelineStage, StageOutcome};
 use conduit_core::snapshot::RuntimeSnapshot;
-use conduit_core::transaction::{ClientProtocol, Transaction};
 use conduit_dataplane::forward::rd::build_upstream_wire;
-use conduit_dataplane::forward::{TxnTable, UdpForwardStage};
-use hickory_proto::op::{Message, Query, ResponseCode};
+use hickory_proto::op::{Message, Query};
 use hickory_proto::rr::{Name, RecordType};
 use hickory_proto::serialize::binary::{BinEncodable, BinEncoder};
-use std::net::{SocketAddr, UdpSocket};
-use std::sync::mpsc;
-use std::sync::{Arc, Mutex};
-use std::thread;
-use std::time::Duration;
 
 fn sample_query(rd: bool) -> Vec<u8> {
     let name = Name::from_utf8("test.example.").unwrap();
@@ -34,49 +23,6 @@ fn sample_query(rd: bool) -> Vec<u8> {
     out
 }
 
-struct PassthroughWait;
-
-impl PipelineStage for PassthroughWait {
-    fn name(&self) -> &'static str {
-        "wait_response"
-    }
-
-    fn handle(&self, _txn: &mut Transaction, _snapshot: &Arc<RuntimeSnapshot>) -> StageOutcome {
-        StageOutcome::Continue(conduit_core::phase::Phase::ResponseRules)
-    }
-}
-
-fn orchestrator_with_udp_forward(snap: &RuntimeSnapshot, table: Arc<TxnTable>) -> Orchestrator {
-    let forward = UdpForwardStage::new(
-        table,
-        &snap.forward,
-        &snap.egress_bind_addresses_v4(),
-        snap.forward.timeout_ms,
-    )
-    .expect("forward egress");
-    let mut orch = Orchestrator::with_default_stages();
-    orch.registry.register(Phase::Forward, Arc::new(forward));
-    orch.registry
-        .register(Phase::WaitResponse, Arc::new(PassthroughWait));
-    orch
-}
-
-#[test]
-fn forward_rd_clear_fixture_compiles() {
-    let yaml = include_str!("../../../tests/fixtures/config/forward-rd-clear.yaml");
-    let cfg = load_yaml(yaml).unwrap();
-    assert!(validate(&cfg).ok);
-    let snap = RuntimeSnapshot::from_config(cfg);
-    assert_eq!(
-        snap.recursion_desired_for_pool(Some("auth")),
-        RecursionDesired::Clear
-    );
-    assert_eq!(
-        snap.recursion_desired_for_pool(Some("missing")),
-        RecursionDesired::Preserve
-    );
-}
-
 #[test]
 fn forward_sources_v4_fixture_compiles() {
     let yaml = include_str!("../../../tests/fixtures/config/forward-sources-v4.yaml");
@@ -87,7 +33,7 @@ fn forward_sources_v4_fixture_compiles() {
 }
 
 #[test]
-fn pool_rd_clear_on_upstream_wire() {
+fn build_upstream_wire_clear_zeros_rd() {
     let q = sample_query(true);
     let out = build_upstream_wire(&q, RecursionDesired::Clear);
     assert!(!Message::from_vec(&out)
@@ -102,57 +48,4 @@ fn minimal_config_default_forward_unchanged() {
     let cfg = load_yaml(yaml).unwrap();
     let snap = RuntimeSnapshot::from_config(cfg);
     assert!(snap.forward.sources_v4.is_empty());
-    assert_eq!(snap.forward.recursion_desired, RecursionDesired::Preserve);
-}
-
-/// Pipeline test: RequestRules → Route → real `UdpForwardStage` → mock backend checks RD on wire.
-#[test]
-fn orchestrator_forward_pool_clears_rd_on_upstream_wire() {
-    let upstream_rd = Arc::new(Mutex::new(None));
-    let upstream_rd_c = upstream_rd.clone();
-    let (port_tx, port_rx) = mpsc::channel();
-
-    let server = thread::spawn(move || {
-        let sock = UdpSocket::bind("127.0.0.1:0").unwrap();
-        port_tx.send(sock.local_addr().unwrap().port()).unwrap();
-        let mut buf = [0u8; 4096];
-        sock.set_read_timeout(Some(Duration::from_millis(2000)))
-            .unwrap();
-        let (len, peer) = sock.recv_from(&mut buf).unwrap();
-        let req = Message::from_vec(&buf[..len]).unwrap();
-        *upstream_rd_c.lock().unwrap() = Some(req.header().recursion_desired());
-
-        let mut resp = Message::new();
-        resp.set_id(req.id());
-        resp.set_response_code(ResponseCode::NoError);
-        resp.add_query(req.queries()[0].clone());
-        let mut out = Vec::new();
-        let mut enc = BinEncoder::new(&mut out);
-        resp.emit(&mut enc).unwrap();
-        sock.send_to(&out, peer).unwrap();
-    });
-
-    let backend_port = port_rx.recv().unwrap();
-    let mut cfg = load_yaml(include_str!(
-        "../../../tests/fixtures/config/forward-rd-clear.yaml"
-    ))
-    .unwrap();
-    cfg.pools[0].backends[0].address = format!("127.0.0.1:{backend_port}");
-
-    let snap = RuntimeSnapshot::from_config(cfg);
-    let table = Arc::new(TxnTable::new(64, 50));
-    let orch = orchestrator_with_udp_forward(&snap, table);
-
-    let client: SocketAddr = "127.0.0.1:15353".parse().unwrap();
-    let mut txn =
-        Transaction::new(42, client, ClientProtocol::Udp).with_query_wire(sample_query(true));
-    let outcome = orch.run(&mut txn, &Arc::new(snap), &SystemClock, None);
-    assert!(matches!(outcome, RunOutcome::Response(_)));
-
-    server.join().unwrap();
-    let rd = upstream_rd.lock().unwrap().expect("server received query");
-    assert!(
-        !rd,
-        "pool recursion_desired=clear must clear RD on upstream wire"
-    );
 }

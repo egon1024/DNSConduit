@@ -50,7 +50,7 @@ impl PipelineStage for UdpForwardTransport {
         }
 
         let pool = txn.selected_pool.as_deref();
-        let rd = snapshot.recursion_desired_for_pool(pool);
+        let rd = txn.upstream_rd_policy();
         let upstream_wire = build_upstream_wire(&txn.query_wire, rd);
         let sources = snapshot.sources_v4_for_pool(pool);
         let socket = self.egress.socket_for_pool(sources);

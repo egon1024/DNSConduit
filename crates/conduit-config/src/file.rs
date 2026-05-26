@@ -114,10 +114,6 @@ fn default_source_selection() -> String {
     "round_robin".into()
 }
 
-fn default_recursion_desired() -> String {
-    "preserve".into()
-}
-
 #[derive(Debug, Deserialize, Serialize)]
 pub(crate) struct YamlForward {
     outstanding_per_backend: u32,
@@ -126,8 +122,6 @@ pub(crate) struct YamlForward {
     sources_v4: Vec<String>,
     #[serde(default = "default_source_selection")]
     source_selection: String,
-    #[serde(default = "default_recursion_desired")]
-    recursion_desired: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -233,8 +227,6 @@ pub(crate) struct YamlPool {
     backends: Vec<YamlBackend>,
     #[serde(default)]
     sources_v4: Vec<String>,
-    #[serde(default)]
-    recursion_desired: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -348,7 +340,6 @@ impl From<YamlForward> for ForwardConfig {
             timeout_ms: y.timeout_ms,
             sources_v4: y.sources_v4,
             source_selection: y.source_selection,
-            recursion_desired: y.recursion_desired,
         }
     }
 }
@@ -445,7 +436,6 @@ impl From<YamlPool> for Pool {
             name: y.name,
             backends: y.backends.into_iter().map(Into::into).collect(),
             sources_v4: y.sources_v4,
-            recursion_desired: y.recursion_desired,
         }
     }
 }
@@ -624,11 +614,6 @@ impl TryFrom<&ForwardConfig> for YamlForward {
             } else {
                 f.source_selection.clone()
             },
-            recursion_desired: if f.recursion_desired.is_empty() {
-                default_recursion_desired()
-            } else {
-                f.recursion_desired.clone()
-            },
         })
     }
 }
@@ -721,7 +706,6 @@ impl TryFrom<&Pool> for YamlPool {
             name: p.name.clone(),
             backends: p.backends.iter().map(YamlBackend::from).collect(),
             sources_v4: p.sources_v4.clone(),
-            recursion_desired: p.recursion_desired.clone(),
         })
     }
 }

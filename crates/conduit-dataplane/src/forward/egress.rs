@@ -63,7 +63,7 @@ fn bind_source(addr: Ipv4Addr, timeout: Duration) -> std::io::Result<UdpSocket> 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use conduit_config::forward::{CompiledForward, RecursionDesired};
+    use conduit_config::forward::CompiledForward;
     use std::net::UdpSocket;
     use std::sync::mpsc;
     use std::thread;
@@ -74,7 +74,6 @@ mod tests {
         let compiled = CompiledForward {
             sources_v4: vec![Ipv4Addr::UNSPECIFIED, Ipv4Addr::LOCALHOST],
             source_selection: "round_robin".into(),
-            recursion_desired: RecursionDesired::Preserve,
             timeout_ms: 1000,
             outstanding_per_backend: 10,
         };
@@ -116,7 +115,6 @@ mod tests {
         let compiled = CompiledForward {
             sources_v4: vec![],
             source_selection: "round_robin".into(),
-            recursion_desired: RecursionDesired::Preserve,
             timeout_ms: 1000,
             outstanding_per_backend: 10,
         };

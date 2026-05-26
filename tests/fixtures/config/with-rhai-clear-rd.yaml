@@ -8,7 +8,6 @@ listeners:
 forward:
   outstanding_per_backend: 50
   timeout_ms: 2000
-  recursion_desired: preserve
 orchestrator:
   max_attempts: 3
   max_txn_duration_ms: 5000
@@ -20,19 +19,18 @@ rhai:
   max_operations: 10000
   max_call_depth: 32
 pools:
-  - name: auth
-    recursion_desired: clear
+  - name: default
     backends:
       - address: "127.0.0.1:5300"
         weight: 100
 rules:
   match_mode: first_match
   rules:
-    - id: auth-pool
+    - id: clear-rd
       hook: request
       selectors: []
       actions:
-        - type: set_pool
-          value: auth
+        - type: rhai
+          value: ../rhai/clear-rd.rhai
 control:
   listen_address: "127.0.0.1:5199"

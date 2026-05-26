@@ -7,6 +7,7 @@ use std::net::{Ipv4Addr, SocketAddr};
 pub const MAX_SOURCES_V4: usize = 32;
 pub const DEFAULT_SOURCE_SELECTION: &str = "round_robin";
 
+/// Internal wire policy for upstream RD bit (Rhai `set_rd` / `clear_rd` or preserve).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RecursionDesired {
     Preserve,
@@ -15,15 +16,6 @@ pub enum RecursionDesired {
 }
 
 impl RecursionDesired {
-    pub fn parse(s: &str) -> Option<Self> {
-        match s {
-            "preserve" => Some(Self::Preserve),
-            "clear" => Some(Self::Clear),
-            "set" => Some(Self::Set),
-            _ => None,
-        }
-    }
-
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Preserve => "preserve",
@@ -37,7 +29,6 @@ impl RecursionDesired {
 pub struct CompiledForward {
     pub sources_v4: Vec<Ipv4Addr>,
     pub source_selection: String,
-    pub recursion_desired: RecursionDesired,
     pub timeout_ms: u32,
     pub outstanding_per_backend: u32,
 }
@@ -45,7 +36,6 @@ pub struct CompiledForward {
 #[derive(Debug, Clone, Default)]
 pub struct CompiledPoolForward {
     pub sources_v4: Option<Vec<Ipv4Addr>>,
-    pub recursion_desired: Option<RecursionDesired>,
 }
 
 pub fn compile_forward_from_config(
@@ -79,35 +69,17 @@ impl CompiledForward {
                 source_selection
             ));
         }
-        let rd = if forward.recursion_desired.is_empty() {
-            RecursionDesired::Preserve
-        } else {
-            RecursionDesired::parse(&forward.recursion_desired).ok_or_else(|| {
-                format!(
-                    "forward.recursion_desired '{}' must be preserve, clear, or set",
-                    forward.recursion_desired
-                )
-            })?
-        };
 
         let mut pool_forward = HashMap::new();
         for pool in &cfg.pools {
-            let mut compiled = CompiledPoolForward::default();
             if !pool.sources_v4.is_empty() {
-                compiled.sources_v4 = Some(parse_sources_v4(&pool.sources_v4)?);
-            }
-            if !pool.recursion_desired.is_empty() {
-                compiled.recursion_desired = Some(
-                    RecursionDesired::parse(&pool.recursion_desired).ok_or_else(|| {
-                        format!(
-                            "pool '{}' recursion_desired '{}' must be preserve, clear, or set",
-                            pool.name, pool.recursion_desired
-                        )
-                    })?,
+                let sources = parse_sources_v4(&pool.sources_v4)?;
+                pool_forward.insert(
+                    pool.name.clone(),
+                    CompiledPoolForward {
+                        sources_v4: Some(sources),
+                    },
                 );
-            }
-            if compiled.sources_v4.is_some() || compiled.recursion_desired.is_some() {
-                pool_forward.insert(pool.name.clone(), compiled);
             }
         }
 
@@ -115,7 +87,6 @@ impl CompiledForward {
             CompiledForward {
                 sources_v4,
                 source_selection,
-                recursion_desired: rd,
                 timeout_ms: forward.timeout_ms,
                 outstanding_per_backend: forward.outstanding_per_backend,
             },

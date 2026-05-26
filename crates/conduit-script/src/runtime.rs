@@ -65,6 +65,8 @@ fn register_host_api(engine: &mut Engine) {
         .register_fn("set_retry_pool", RhaiTxn::retry)
         .register_fn("drop_query", RhaiTxn::drop)
         .register_fn("set_rcode", RhaiTxn::set_rcode)
+        .register_fn("set_rd", RhaiTxn::set_rd)
+        .register_fn("clear_rd", RhaiTxn::clear_rd)
         .register_fn("sample_include", RhaiTxn::sample_include)
         .register_fn("metric_inc", RhaiTxn::metric_inc)
         .register_fn("metric_inc_labels", RhaiTxn::metric_inc_labels)
@@ -127,6 +129,7 @@ struct ScriptEffects {
     rcode: Option<String>,
     dropped: bool,
     sample_decision: Option<bool>,
+    rd_override: Option<bool>,
     user_metrics: HashMap<String, u64>,
 }
 
@@ -231,6 +234,16 @@ impl RhaiTxn {
         if let Ok(mut fx) = self.effects.lock() {
             fx.rcode = Some(name.to_string());
         }
+    }
+
+    fn set_rd(&mut self, value: bool) {
+        if let Ok(mut fx) = self.effects.lock() {
+            fx.rd_override = Some(value);
+        }
+    }
+
+    fn clear_rd(&mut self) {
+        self.set_rd(false);
     }
 
     fn sample_include(&mut self, rate: f64) -> bool {
@@ -354,6 +367,9 @@ fn apply_effects(host: &mut dyn HostTransaction, fx: &ScriptEffects) {
     if let Some(ref rc) = fx.rcode {
         host.set_rcode_name(rc);
     }
+    if let Some(rd) = fx.rd_override {
+        host.set_rd(rd);
+    }
     if fx.dropped {
         host.mark_dropped();
     }
@@ -419,6 +435,7 @@ fn run_one(
         rcode: fx.rcode.clone(),
         dropped: fx.dropped,
         sample_decision: fx.sample_decision,
+        rd_override: fx.rd_override,
         user_metrics: fx.user_metrics.clone(),
     })
 }
@@ -440,6 +457,7 @@ mod tests {
         pool: Option<String>,
         retry: Option<String>,
         dropped: bool,
+        rd_override: Option<bool>,
         tags: HashMap<String, bool>,
         attempts: u32,
         started: Instant,
@@ -482,6 +500,12 @@ mod tests {
         fn set_rcode_name(&mut self, name: &str) {
             self.rcode = Some(name.to_string());
         }
+        fn set_rd(&mut self, value: bool) {
+            self.rd_override = Some(value);
+        }
+        fn clear_rd(&mut self) {
+            self.rd_override = Some(false);
+        }
         fn attempt_count(&self) -> u32 {
             self.attempts
         }
@@ -498,6 +522,76 @@ mod tests {
         fn script_tag_bools(&self) -> HashMap<String, bool> {
             self.tags.clone()
         }
+    }
+
+    #[test]
+    fn clear_rd_via_script() {
+        let script = r#"txn.clear_rd();"#;
+        let dir = std::env::temp_dir().join(format!("conduit-script-rd-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let script_path = dir.join("clear.rhai");
+        std::fs::write(&script_path, script).unwrap();
+        let yaml = format!(
+            r#"
+schema_version: 1
+listeners:
+  threads: 1
+  reuse_port: true
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+forward:
+  outstanding_per_backend: 100
+  timeout_ms: 2000
+orchestrator:
+  max_attempts: 3
+  max_txn_duration_ms: 5000
+  txn_table_capacity: 1024
+observation:
+  queue_depth: 4096
+  drop_policy: drop_oldest
+rhai:
+  max_operations: 10000
+  max_call_depth: 32
+pools:
+  - name: default
+    backends:
+      - address: "127.0.0.1:5300"
+control:
+  listen_address: "127.0.0.1:5199"
+rules:
+  match_mode: first_match
+  rules:
+    - id: rd
+      hook: request
+      selectors: []
+      actions:
+        - type: rhai
+          value: "{}"
+"#,
+            script_path.display()
+        );
+        let cfg = load_yaml(&yaml).unwrap();
+        let scripting = compile_from_config(&cfg, Some(&dir)).unwrap();
+        let mut host = MockHost {
+            id: 50,
+            qname: "test.example.".into(),
+            qtype: "A".into(),
+            dns_id: 1,
+            rcode: None,
+            pool: None,
+            retry: None,
+            dropped: false,
+            rd_override: None,
+            tags: HashMap::new(),
+            attempts: 0,
+            started: Instant::now(),
+            phase: ScriptPhase::Request,
+        };
+        let (_, stats) = run_scripts(&scripting, &[0], &mut host, ScriptPhase::Request);
+        assert_eq!(stats.errors, 0);
+        assert_eq!(host.rd_override, Some(false));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
@@ -541,6 +635,7 @@ mod tests {
             pool: None,
             retry: None,
             dropped: false,
+            rd_override: None,
             tags: HashMap::new(),
             attempts: 0,
             started: Instant::now(),
@@ -574,6 +669,7 @@ mod tests {
             pool: Some("primary".into()),
             retry: None,
             dropped: false,
+            rd_override: None,
             tags: HashMap::new(),
             attempts: 1,
             started: Instant::now(),
@@ -601,6 +697,7 @@ mod tests {
             pool: None,
             retry: None,
             dropped: false,
+            rd_override: None,
             tags: HashMap::new(),
             attempts: 0,
             started: Instant::now(),
@@ -628,6 +725,7 @@ mod tests {
             pool: Some("default".into()),
             retry: None,
             dropped: false,
+            rd_override: None,
             tags: HashMap::new(),
             attempts: 0,
             started: Instant::now(),
@@ -655,6 +753,7 @@ mod tests {
             pool: None,
             retry: None,
             dropped: false,
+            rd_override: None,
             tags: HashMap::new(),
             attempts: 0,
             started: Instant::now(),
@@ -681,6 +780,7 @@ mod tests {
             pool: None,
             retry: None,
             dropped: false,
+            rd_override: None,
             tags: HashMap::new(),
             attempts: 0,
             started: Instant::now(),
@@ -709,6 +809,7 @@ mod tests {
             pool: None,
             retry: None,
             dropped: false,
+            rd_override: None,
             tags: HashMap::new(),
             attempts: 0,
             started: Instant::now(),
@@ -808,6 +909,7 @@ rules:
             pool: None,
             retry: None,
             dropped: false,
+            rd_override: None,
             tags: HashMap::new(),
             attempts: 0,
             started: Instant::now(),
@@ -843,6 +945,7 @@ rules:
             pool: None,
             retry: None,
             dropped: false,
+            rd_override: None,
             tags: HashMap::new(),
             attempts: 0,
             started: Instant::now(),
@@ -890,6 +993,7 @@ rules:
             pool: None,
             retry: None,
             dropped: false,
+            rd_override: None,
             tags: HashMap::new(),
             attempts: 0,
             started: Instant::now() - Duration::from_millis(600),

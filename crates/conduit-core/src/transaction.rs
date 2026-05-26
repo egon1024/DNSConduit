@@ -2,6 +2,7 @@
 
 use crate::phase::Phase;
 use crate::routing::AttemptRecord;
+use conduit_config::forward::RecursionDesired;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::time::Instant;
@@ -70,6 +71,8 @@ pub struct Transaction {
     pub started_at: Instant,
     pub snapshot_generation: u64,
     pub dropped: bool,
+    /// Rhai/script override for upstream RD bit (`set_rd` / `clear_rd`).
+    pub rd_override: Option<bool>,
     rcode: Option<u16>,
 }
 
@@ -95,7 +98,25 @@ impl Transaction {
             started_at: Instant::now(),
             snapshot_generation: 0,
             dropped: false,
+            rd_override: None,
             rcode: None,
+        }
+    }
+
+    pub fn set_rd_override(&mut self, rd: bool) {
+        self.rd_override = Some(rd);
+    }
+
+    pub fn clear_rd_override(&mut self) {
+        self.rd_override = Some(false);
+    }
+
+    /// Upstream RD policy: Rhai override when set, otherwise preserve client RD.
+    pub fn upstream_rd_policy(&self) -> RecursionDesired {
+        match self.rd_override {
+            Some(true) => RecursionDesired::Set,
+            Some(false) => RecursionDesired::Clear,
+            None => RecursionDesired::Preserve,
         }
     }
 
