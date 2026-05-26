@@ -1,9 +1,9 @@
 //! Phase 1b slice A: forward sources_v4 and compiled snapshot.
 
+use conduit_config::forward::RecursionDesired;
 use conduit_config::{load_yaml, validate};
 use conduit_core::snapshot::RuntimeSnapshot;
 use conduit_dataplane::forward::rd::build_upstream_wire;
-use conduit_config::forward::RecursionDesired;
 use hickory_proto::op::{Message, Query};
 use hickory_proto::rr::{Name, RecordType};
 use hickory_proto::serialize::binary::{BinEncodable, BinEncoder};
