@@ -92,6 +92,9 @@ After Conduit starts, confirm binds:
 ss -ulnp | grep -E '15353|15354|15300|15301'
 ```
 
+Conduit logs a **dataplane startup summary** (generation, pools, egress sources, observation sinks)
+and one line per bound listener, e.g. `Starting listening on 127.0.0.1:15353 udp`.
+
 ## Three-terminal workflow
 
 ```mermaid

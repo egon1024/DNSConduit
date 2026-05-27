@@ -1,6 +1,7 @@
 //! Start listener worker threads for the active snapshot.
 
 use crate::forward::{ForwardTransport, TxnTable};
+use crate::listener::startup_log;
 use conduit_core::orchestrator::Orchestrator;
 use conduit_core::phase::Phase;
 use conduit_core::snapshot::SnapshotStore;
@@ -16,14 +17,7 @@ pub struct DataplaneHandle {
 pub fn start(store: Arc<SnapshotStore>) -> std::io::Result<DataplaneHandle> {
     let snap = store.load();
     let observation = Arc::new(ObservationHub::from_compiled(&snap.observation));
-    if observation.enabled() {
-        tracing::info!(
-            sinks = observation.consumer_count(),
-            queue_depth = snap.observation.queue_depth,
-            drop_policy = ?snap.observation.drop_policy,
-            "observation enabled"
-        );
-    }
+    startup_log::log_startup_summary(&snap, &observation);
     let cfg = &snap.config;
     let listeners = cfg.listeners.as_ref();
     let Some(listeners) = listeners else {

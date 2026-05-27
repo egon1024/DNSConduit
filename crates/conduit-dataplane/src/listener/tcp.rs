@@ -1,5 +1,6 @@
 //! TCP DNS listener (RFC 1035 length-prefixed).
 
+use crate::listener::startup_log;
 use conduit_core::orchestrator::{Orchestrator, RunOutcome};
 use conduit_core::snapshot::SnapshotStore;
 use conduit_core::transaction::{ClientProtocol, Transaction};
@@ -21,6 +22,7 @@ pub fn run_worker(
         .parse()
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, e))?;
     let tcp = TcpListener::bind(addr)?;
+    startup_log::log_listener_bound(addr, &listener.protocol);
     let mut next_id = 1u64;
     for stream in tcp.incoming() {
         let Ok(mut stream) = stream else { continue };
