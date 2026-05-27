@@ -72,6 +72,9 @@ message ForwardConfig {
   uint32 timeout_ms = 2;
   repeated string sources_v4 = 3;
   string source_selection = 4;   // "round_robin" (slice A)
+  repeated string sources_v6 = 5;
+  string upstream_transport = 6; // "udp_only" | "tcp_only" | "prefer_udp_with_tcp_fallback"
+  bool client_tcp_uses_upstream_tcp = 7;
 }
 
 message OrchestratorConfig {
@@ -124,6 +127,7 @@ message Pool {
   string name = 1;
   repeated Backend backends = 2;
   repeated string sources_v4 = 3;
+  repeated string sources_v6 = 4;
 }
 
 message Backend {

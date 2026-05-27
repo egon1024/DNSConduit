@@ -14,9 +14,10 @@ pub use error::ConfigError;
 pub use export::export_yaml;
 pub use file::load_yaml;
 pub use forward::{
-    compile_forward_from_config, parse_sources_v4, validate_upstream_backend_addresses,
-    CompiledForward, CompiledPoolForward, RecursionDesired, DEFAULT_SOURCE_SELECTION,
-    MAX_SOURCES_V4,
+    compile_forward_from_config, parse_sources_v4, parse_sources_v6, parse_upstream_transport,
+    validate_upstream_backend_addresses, CompiledForward, CompiledPoolForward, RecursionDesired,
+    UpstreamTransport, DEFAULT_SOURCE_SELECTION, DEFAULT_UPSTREAM_TRANSPORT, MAX_SOURCES_V4,
+    MAX_SOURCES_V6,
 };
 pub use logging::{init_from_config, validate_logging, DEFAULT_LOG_LEVEL, DEFAULT_LOG_OUTPUT};
 pub use merge::{clear_overlay, merge_file_and_overlay, EffectiveConfig};

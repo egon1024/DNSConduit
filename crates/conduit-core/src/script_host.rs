@@ -69,6 +69,18 @@ impl HostTransaction for Transaction {
         self.clear_rd_override();
     }
 
+    fn set_source_v4(&mut self, addr: &str) {
+        if let Ok(ip) = addr.parse() {
+            self.set_source_override_v4(ip);
+        }
+    }
+
+    fn set_source_v6(&mut self, addr: &str) {
+        if let Ok(ip) = addr.parse() {
+            self.set_source_override_v6(ip);
+        }
+    }
+
     fn attempt_count(&self) -> u32 {
         self.attempt_count
     }

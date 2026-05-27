@@ -122,6 +122,12 @@ pub(crate) struct YamlForward {
     sources_v4: Vec<String>,
     #[serde(default = "default_source_selection")]
     source_selection: String,
+    #[serde(default)]
+    sources_v6: Vec<String>,
+    #[serde(default)]
+    upstream_transport: String,
+    #[serde(default)]
+    client_tcp_uses_upstream_tcp: bool,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -227,6 +233,8 @@ pub(crate) struct YamlPool {
     backends: Vec<YamlBackend>,
     #[serde(default)]
     sources_v4: Vec<String>,
+    #[serde(default)]
+    sources_v6: Vec<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -340,6 +348,9 @@ impl From<YamlForward> for ForwardConfig {
             timeout_ms: y.timeout_ms,
             sources_v4: y.sources_v4,
             source_selection: y.source_selection,
+            sources_v6: y.sources_v6,
+            upstream_transport: y.upstream_transport,
+            client_tcp_uses_upstream_tcp: y.client_tcp_uses_upstream_tcp,
         }
     }
 }
@@ -436,6 +447,7 @@ impl From<YamlPool> for Pool {
             name: y.name,
             backends: y.backends.into_iter().map(Into::into).collect(),
             sources_v4: y.sources_v4,
+            sources_v6: y.sources_v6,
         }
     }
 }
@@ -614,6 +626,9 @@ impl TryFrom<&ForwardConfig> for YamlForward {
             } else {
                 f.source_selection.clone()
             },
+            sources_v6: f.sources_v6.clone(),
+            upstream_transport: f.upstream_transport.clone(),
+            client_tcp_uses_upstream_tcp: f.client_tcp_uses_upstream_tcp,
         })
     }
 }
@@ -706,6 +721,7 @@ impl TryFrom<&Pool> for YamlPool {
             name: p.name.clone(),
             backends: p.backends.iter().map(YamlBackend::from).collect(),
             sources_v4: p.sources_v4.clone(),
+            sources_v6: p.sources_v6.clone(),
         })
     }
 }

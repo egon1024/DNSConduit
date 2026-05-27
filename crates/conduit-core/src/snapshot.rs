@@ -29,12 +29,63 @@ impl RuntimeSnapshot {
             if let Some(pf) = self.pool_forward.get(name) {
                 if let Some(ref sources) = pf.sources_v4 {
                     if !sources.is_empty() {
-                        return sources;
+                        return sources.as_slice();
                     }
                 }
             }
         }
-        &self.forward.sources_v4
+        self.forward.sources_v4.as_slice()
+    }
+
+    pub fn sources_v6_for_pool(&self, pool: Option<&str>) -> &[std::net::Ipv6Addr] {
+        if let Some(name) = pool {
+            if let Some(pf) = self.pool_forward.get(name) {
+                if let Some(ref sources) = pf.sources_v6 {
+                    if !sources.is_empty() {
+                        return sources.as_slice();
+                    }
+                }
+            }
+        }
+        self.forward.sources_v6.as_slice()
+    }
+
+    /// Allowed IPv4 source addresses for Rhai `set_source_v4` validation (forward ∪ pool).
+    pub fn allowed_sources_v4_for_pool(&self, pool: Option<&str>) -> Vec<std::net::Ipv4Addr> {
+        use std::collections::HashSet;
+        let mut addrs = HashSet::new();
+        for a in &self.forward.sources_v4 {
+            addrs.insert(*a);
+        }
+        if let Some(name) = pool {
+            if let Some(pf) = self.pool_forward.get(name) {
+                if let Some(ref sources) = pf.sources_v4 {
+                    for a in sources {
+                        addrs.insert(*a);
+                    }
+                }
+            }
+        }
+        addrs.into_iter().collect()
+    }
+
+    /// Allowed IPv6 source addresses for Rhai `set_source_v6` validation (forward ∪ pool).
+    pub fn allowed_sources_v6_for_pool(&self, pool: Option<&str>) -> Vec<std::net::Ipv6Addr> {
+        use std::collections::HashSet;
+        let mut addrs = HashSet::new();
+        for a in &self.forward.sources_v6 {
+            addrs.insert(*a);
+        }
+        if let Some(name) = pool {
+            if let Some(pf) = self.pool_forward.get(name) {
+                if let Some(ref sources) = pf.sources_v6 {
+                    for a in sources {
+                        addrs.insert(*a);
+                    }
+                }
+            }
+        }
+        addrs.into_iter().collect()
     }
 
     /// Unique IPv4 addresses to bind for upstream egress (forward + all pool overrides).
@@ -46,6 +97,23 @@ impl RuntimeSnapshot {
         }
         for pf in self.pool_forward.values() {
             if let Some(ref sources) = pf.sources_v4 {
+                for addr in sources {
+                    addrs.insert(*addr);
+                }
+            }
+        }
+        addrs.into_iter().collect()
+    }
+
+    /// Unique IPv6 addresses to bind for upstream egress (forward + all pool overrides).
+    pub fn egress_bind_addresses_v6(&self) -> Vec<std::net::Ipv6Addr> {
+        use std::collections::HashSet;
+        let mut addrs = HashSet::new();
+        for addr in &self.forward.sources_v6 {
+            addrs.insert(*addr);
+        }
+        for pf in self.pool_forward.values() {
+            if let Some(ref sources) = pf.sources_v6 {
                 for addr in sources {
                     addrs.insert(*addr);
                 }

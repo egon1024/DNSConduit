@@ -1,5 +1,6 @@
 //! UDP DNS listener worker.
 
+use crate::listener::startup_log;
 use conduit_core::orchestrator::{Orchestrator, RunOutcome};
 use conduit_core::snapshot::SnapshotStore;
 use conduit_core::transaction::{ClientProtocol, Transaction};
@@ -38,6 +39,7 @@ pub fn run_worker(
     }
     socket.set_nonblocking(false)?;
     socket.bind(&addr.into())?;
+    startup_log::log_listener_bound(addr, &listener.protocol);
     let udp: std::net::UdpSocket = socket.into();
     udp.set_read_timeout(Some(Duration::from_secs(1)))?;
 
