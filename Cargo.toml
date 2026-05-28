@@ -5,6 +5,7 @@ members = [
     "crates/conduit-config",
     "crates/conduit-core",
     "crates/conduit-observation",
+    "crates/conduit-metrics",
     "crates/conduit-dataplane",
     "crates/conduit-api",
     "crates/conduit",
@@ -41,3 +42,7 @@ crossbeam-channel = "0.5"
 dnstap = "0.1.7"
 protobuf = "3.7"
 rhai = { version = "1.20", features = ["sync"] }
+prometheus = "0.13"
+hyper = { version = "1", features = ["server", "http1"] }
+hyper-util = { version = "0.1", features = ["tokio", "server"] }
+http-body-util = "0.1"

@@ -9,6 +9,7 @@ rust-version.workspace = true
 conduit-core = { path = "../conduit-core" }
 conduit-config = { path = "../conduit-config" }
 conduit-observation = { path = "../conduit-observation" }
+conduit-metrics = { path = "../conduit-metrics" }
 conduit-proto = { path = "../conduit-proto" }
 hickory-proto = { workspace = true }
 socket2 = { workspace = true }

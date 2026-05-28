@@ -4,6 +4,7 @@ use crate::rules::CompiledRules;
 use arc_swap::ArcSwap;
 use conduit_config::forward::{CompiledForward, CompiledPoolForward};
 use conduit_config::validate;
+use conduit_metrics::{compile_from_config as compile_metrics, CompiledMetrics, CompiledTracing};
 use conduit_observation::{compile_from_config, CompiledObservation};
 use conduit_proto::config::Config;
 use conduit_script::{compile_from_config as compile_scripts, CompiledScripting, ScriptError};
@@ -20,6 +21,8 @@ pub struct RuntimeSnapshot {
     pub scripting: Arc<CompiledScripting>,
     pub forward: CompiledForward,
     pub pool_forward: HashMap<String, CompiledPoolForward>,
+    pub metrics: CompiledMetrics,
+    pub tracing: CompiledTracing,
     pub generation: u64,
 }
 
@@ -130,6 +133,7 @@ impl RuntimeSnapshot {
 
     pub fn from_config_with_base(config: Config, base_dir: Option<&Path>) -> Self {
         let observation = compile_from_config(&config);
+        let (metrics, tracing) = compile_metrics(&config);
         let scripting = compile_scripts(&config, base_dir).unwrap_or_else(|e| {
             panic!("script compile failed at snapshot build: {e}");
         });
@@ -143,6 +147,8 @@ impl RuntimeSnapshot {
             scripting: Arc::new(scripting),
             forward,
             pool_forward,
+            metrics,
+            tracing,
             config,
             generation: 0,
         }
@@ -154,6 +160,7 @@ impl RuntimeSnapshot {
         base_dir: Option<&Path>,
     ) -> Result<Self, ScriptError> {
         let observation = compile_from_config(&config);
+        let (metrics, tracing) = compile_metrics(&config);
         let scripting = compile_scripts(&config, base_dir)?;
         let (forward, pool_forward) =
             CompiledForward::compile_from_config(&config).map_err(|e| ScriptError::Rule {
@@ -166,9 +173,19 @@ impl RuntimeSnapshot {
             scripting: Arc::new(scripting),
             forward,
             pool_forward,
+            metrics,
+            tracing,
             config,
             generation: 0,
         })
+    }
+
+    pub fn metrics_enabled(&self) -> bool {
+        self.metrics.enabled
+    }
+
+    pub fn tracing_master_enabled(&self) -> bool {
+        self.tracing.enabled
     }
 
     pub fn observation_enabled(&self) -> bool {

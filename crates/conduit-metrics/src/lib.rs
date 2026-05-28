@@ -1,0 +1,66 @@
+//! Built-in and user metrics export, pipeline tracing store (phase 4).
+
+mod builtin;
+mod compile;
+mod export;
+mod otel;
+mod prometheus_http;
+mod trace;
+mod user;
+
+pub use builtin::BuiltinRegistry;
+pub use compile::{
+    compile_from_config, trace_activation_matches, validate_metrics_tracing, BuiltinProfile,
+    CompiledMetrics, CompiledTraceActivation, CompiledTracing,
+};
+pub use export::render_prometheus;
+pub use otel::spawn_otel_push;
+pub use prometheus_http::spawn_prometheus_server;
+pub use trace::{TraceEvent, TraceLog, TraceStore};
+pub use user::{UserMetricDelta, UserRegistry};
+
+use std::sync::Arc;
+
+/// Process-wide metrics state shared by dataplane and export sinks.
+pub struct MetricsHub {
+    pub builtin: Arc<BuiltinRegistry>,
+    pub user: Arc<UserRegistry>,
+    pub compiled: CompiledMetrics,
+}
+
+impl MetricsHub {
+    pub fn from_config(config: &conduit_proto::config::Config) -> Self {
+        let (compiled, _) = compile_from_config(config);
+        let builtin = Arc::new(BuiltinRegistry::new(compiled.enabled, compiled.profile));
+        let user = Arc::new(UserRegistry::new(compiled.enabled));
+        Self {
+            builtin,
+            user,
+            compiled,
+        }
+    }
+
+    pub fn metrics_enabled(&self) -> bool {
+        self.compiled.enabled
+    }
+}
+
+/// Tracing config + in-memory store for GetTrace.
+pub struct TracingHub {
+    pub compiled: CompiledTracing,
+    pub store: Arc<TraceStore>,
+}
+
+impl TracingHub {
+    pub fn from_config(config: &conduit_proto::config::Config) -> Self {
+        let (_, compiled) = compile_from_config(config);
+        Self {
+            compiled,
+            store: Arc::new(TraceStore::new(1000, std::time::Duration::from_secs(300))),
+        }
+    }
+
+    pub fn tracing_enabled(&self) -> bool {
+        self.compiled.enabled
+    }
+}

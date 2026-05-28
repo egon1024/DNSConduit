@@ -5,10 +5,14 @@ use crate::pipeline::{PipelineStage, StageOutcome};
 use crate::rules::{RuleEvalResult, RuleHook, RuleOutcome};
 use crate::snapshot::RuntimeSnapshot;
 use crate::transaction::Transaction;
+use conduit_metrics::MetricsHub;
 use conduit_script::{run_scripts, ScriptPhase, ScriptRunOutcome};
 use std::sync::Arc;
 
-pub struct ResponseRulesStage;
+#[derive(Default)]
+pub struct ResponseRulesStage {
+    pub metrics: Option<Arc<MetricsHub>>,
+}
 
 impl PipelineStage for ResponseRulesStage {
     fn name(&self) -> &'static str {
@@ -27,8 +31,14 @@ impl PipelineStage for ResponseRulesStage {
                 .scripting
                 .script_ids_for_rule(&rule_id, ScriptPhase::Response);
             if !script_ids.is_empty() {
-                let (script_outcome, _) =
-                    run_scripts(&snapshot.scripting, &script_ids, txn, ScriptPhase::Response);
+                let user_export = self.metrics.as_ref().map(|m| m.user.as_ref());
+                let (script_outcome, _) = run_scripts(
+                    &snapshot.scripting,
+                    &script_ids,
+                    txn,
+                    ScriptPhase::Response,
+                    user_export,
+                );
                 match script_outcome {
                     ScriptRunOutcome::Drop => return StageOutcome::Drop,
                     ScriptRunOutcome::Retry => script_retry = true,

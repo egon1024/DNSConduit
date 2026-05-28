@@ -9,6 +9,7 @@ rust-version.workspace = true
 conduit-proto = { path = "../conduit-proto" }
 conduit-config = { path = "../conduit-config" }
 conduit-core = { path = "../conduit-core" }
+conduit-metrics = { path = "../conduit-metrics" }
 anyhow = { workspace = true }
 prost = { workspace = true }
 tonic = { workspace = true }

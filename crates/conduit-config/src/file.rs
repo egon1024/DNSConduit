@@ -2,8 +2,9 @@ use crate::backend::DEFAULT_BACKEND_WEIGHT;
 use crate::error::ConfigError;
 use conduit_proto::config::{
     Action, Backend, Config, ControlConfig, DataSource, ForwardConfig, Listener, ListenersConfig,
-    LoggingConfig, ObservationConfig, ObservationSinkFilters, OrchestratorConfig, Pool, RhaiConfig,
-    Rule, RulesConfig, Selector,
+    LoggingConfig, MetricsConfig, ObservationConfig, ObservationSinkFilters, OrchestratorConfig,
+    OtelMetricsConfig, Pool, PrometheusMetricsConfig, RhaiConfig, Rule, RulesConfig, Selector,
+    TracingActivation, TracingConfig, TracingOutput,
 };
 use serde::{Deserialize, Serialize};
 
@@ -23,6 +24,10 @@ pub(crate) struct YamlConfig {
     logging: YamlLogging,
     #[serde(default)]
     data_sources: Vec<YamlDataSource>,
+    #[serde(default)]
+    metrics: Option<YamlMetrics>,
+    #[serde(default)]
+    tracing: Option<YamlTracing>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -246,6 +251,72 @@ pub(crate) struct YamlBackend {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
+pub(crate) struct YamlMetrics {
+    #[serde(default)]
+    enabled: bool,
+    #[serde(default = "default_metrics_profile")]
+    profile: String,
+    #[serde(default)]
+    prometheus: Option<YamlPrometheusMetrics>,
+    #[serde(default)]
+    otel: Option<YamlOtelMetrics>,
+}
+
+fn default_metrics_profile() -> String {
+    "full".into()
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub(crate) struct YamlPrometheusMetrics {
+    listen_address: String,
+    #[serde(default = "default_metrics_path")]
+    path: String,
+}
+
+fn default_metrics_path() -> String {
+    "/metrics".into()
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub(crate) struct YamlOtelMetrics {
+    endpoint: String,
+    #[serde(default = "default_otel_interval")]
+    push_interval_ms: u32,
+    #[serde(default)]
+    resource_attributes: std::collections::HashMap<String, String>,
+}
+
+fn default_otel_interval() -> u32 {
+    15_000
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub(crate) struct YamlTracing {
+    #[serde(default)]
+    enabled: bool,
+    #[serde(default)]
+    activation: YamlTracingActivation,
+    #[serde(default)]
+    output: YamlTracingOutput,
+}
+
+#[derive(Debug, Deserialize, Serialize, Default)]
+pub(crate) struct YamlTracingActivation {
+    #[serde(default)]
+    tag: Option<String>,
+    #[serde(default)]
+    selectors: Vec<YamlSelector>,
+    #[serde(default)]
+    sample_rate: Option<f64>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Default)]
+pub(crate) struct YamlTracingOutput {
+    #[serde(default)]
+    log_json: bool,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
 pub(crate) struct YamlControl {
     listen_address: String,
 }
@@ -269,6 +340,66 @@ impl From<YamlConfig> for Config {
             rules: Some(y.rules.into()),
             logging: Some(y.logging.into()),
             data_sources: y.data_sources.into_iter().map(Into::into).collect(),
+            metrics: y.metrics.map(Into::into),
+            tracing: y.tracing.map(Into::into),
+        }
+    }
+}
+
+impl From<YamlMetrics> for MetricsConfig {
+    fn from(y: YamlMetrics) -> Self {
+        MetricsConfig {
+            enabled: y.enabled,
+            profile: y.profile,
+            prometheus: y.prometheus.map(Into::into),
+            otel: y.otel.map(Into::into),
+        }
+    }
+}
+
+impl From<YamlPrometheusMetrics> for PrometheusMetricsConfig {
+    fn from(y: YamlPrometheusMetrics) -> Self {
+        PrometheusMetricsConfig {
+            listen_address: y.listen_address,
+            path: y.path,
+        }
+    }
+}
+
+impl From<YamlOtelMetrics> for OtelMetricsConfig {
+    fn from(y: YamlOtelMetrics) -> Self {
+        OtelMetricsConfig {
+            endpoint: y.endpoint,
+            push_interval_ms: y.push_interval_ms,
+            resource_attributes: y.resource_attributes,
+        }
+    }
+}
+
+impl From<YamlTracing> for TracingConfig {
+    fn from(y: YamlTracing) -> Self {
+        TracingConfig {
+            enabled: y.enabled,
+            activation: Some(y.activation.into()),
+            output: Some(y.output.into()),
+        }
+    }
+}
+
+impl From<YamlTracingActivation> for TracingActivation {
+    fn from(y: YamlTracingActivation) -> Self {
+        TracingActivation {
+            tag: y.tag,
+            selectors: y.selectors.into_iter().map(Into::into).collect(),
+            sample_rate: y.sample_rate,
+        }
+    }
+}
+
+impl From<YamlTracingOutput> for TracingOutput {
+    fn from(y: YamlTracingOutput) -> Self {
+        TracingOutput {
+            log_json: y.log_json,
         }
     }
 }
@@ -524,7 +655,79 @@ pub(crate) fn config_to_yaml(cfg: &Config) -> Result<YamlConfig, ConfigError> {
             .map(YamlLogging::from)
             .unwrap_or_default(),
         data_sources: cfg.data_sources.iter().map(YamlDataSource::from).collect(),
+        metrics: cfg.metrics.as_ref().map(YamlMetrics::from),
+        tracing: cfg.tracing.as_ref().map(YamlTracing::from),
     })
+}
+
+impl From<&MetricsConfig> for YamlMetrics {
+    fn from(m: &MetricsConfig) -> Self {
+        YamlMetrics {
+            enabled: m.enabled,
+            profile: m.profile.clone(),
+            prometheus: m.prometheus.as_ref().map(YamlPrometheusMetrics::from),
+            otel: m.otel.as_ref().map(YamlOtelMetrics::from),
+        }
+    }
+}
+
+impl From<&PrometheusMetricsConfig> for YamlPrometheusMetrics {
+    fn from(p: &PrometheusMetricsConfig) -> Self {
+        YamlPrometheusMetrics {
+            listen_address: p.listen_address.clone(),
+            path: if p.path.is_empty() {
+                default_metrics_path()
+            } else {
+                p.path.clone()
+            },
+        }
+    }
+}
+
+impl From<&OtelMetricsConfig> for YamlOtelMetrics {
+    fn from(o: &OtelMetricsConfig) -> Self {
+        YamlOtelMetrics {
+            endpoint: o.endpoint.clone(),
+            push_interval_ms: o.push_interval_ms,
+            resource_attributes: o.resource_attributes.clone(),
+        }
+    }
+}
+
+impl From<&TracingConfig> for YamlTracing {
+    fn from(t: &TracingConfig) -> Self {
+        YamlTracing {
+            enabled: t.enabled,
+            activation: t
+                .activation
+                .as_ref()
+                .map(YamlTracingActivation::from)
+                .unwrap_or_default(),
+            output: t
+                .output
+                .as_ref()
+                .map(YamlTracingOutput::from)
+                .unwrap_or_default(),
+        }
+    }
+}
+
+impl From<&TracingActivation> for YamlTracingActivation {
+    fn from(a: &TracingActivation) -> Self {
+        YamlTracingActivation {
+            tag: a.tag.clone(),
+            selectors: a.selectors.iter().map(YamlSelector::from).collect(),
+            sample_rate: a.sample_rate,
+        }
+    }
+}
+
+impl From<&TracingOutput> for YamlTracingOutput {
+    fn from(o: &TracingOutput) -> Self {
+        YamlTracingOutput {
+            log_json: o.log_json,
+        }
+    }
 }
 
 impl From<&LoggingConfig> for YamlLogging {

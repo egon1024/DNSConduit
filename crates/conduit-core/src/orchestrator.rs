@@ -6,6 +6,7 @@ use crate::phase::Phase;
 use crate::pipeline::{PipelineStage, StageOutcome};
 use crate::snapshot::RuntimeSnapshot;
 use crate::transaction::Transaction;
+use conduit_metrics::{trace_activation_matches, MetricsHub, TracingHub};
 use conduit_observation::ObservationHub;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -45,6 +46,8 @@ impl Default for StageRegistry {
 
 pub struct Orchestrator {
     pub registry: StageRegistry,
+    pub metrics: Option<Arc<MetricsHub>>,
+    pub tracing: Option<Arc<TracingHub>>,
 }
 
 impl Orchestrator {
@@ -55,6 +58,8 @@ impl Orchestrator {
         _clock: &dyn Clock,
         observation: Option<&ObservationHub>,
     ) -> RunOutcome {
+        let metrics = self.metrics.as_deref();
+        let tracing = self.tracing.as_deref();
         let max_attempts = snapshot
             .config
             .orchestrator
@@ -70,6 +75,16 @@ impl Orchestrator {
 
         txn.snapshot_generation = snapshot.generation;
         txn.current_phase = Phase::Parse;
+
+        if let Some(hub) = metrics {
+            if hub.metrics_enabled() {
+                let protocol = match txn.protocol {
+                    crate::transaction::ClientProtocol::Udp => "udp",
+                    crate::transaction::ClientProtocol::Tcp => "tcp",
+                };
+                hub.builtin.record_query("default", protocol);
+            }
+        }
 
         loop {
             if txn.started_at.elapsed() > Duration::from_millis(max_duration as u64) {
@@ -95,13 +110,50 @@ impl Orchestrator {
             };
 
             let phase = txn.current_phase;
+            let phase_started = std::time::Instant::now();
             let outcome = stage.handle(txn, snapshot);
+            if let Some(hub) = metrics {
+                if hub.metrics_enabled() {
+                    hub.builtin
+                        .observe_phase(phase_name(phase), phase_started.elapsed().as_secs_f64());
+                }
+            }
+            txn.trace_record_phase(
+                phase_name(phase),
+                None,
+                txn.selected_pool.clone(),
+                txn.selected_backend.map(|a| a.to_string()),
+            );
             match outcome {
                 StageOutcome::Drop => return RunOutcome::Dropped,
                 StageOutcome::Continue(next) => {
                     if phase == Phase::RequestRules && txn.qname.is_some() {
+                        if txn.trace_log.is_none() {
+                            if let Some(th) = tracing {
+                                if snapshot.tracing_master_enabled() {
+                                    let tag_has = |k: &str| txn.tags.has(k);
+                                    if trace_activation_matches(
+                                        &th.compiled.activation,
+                                        txn.id,
+                                        txn.qname.as_deref(),
+                                        txn.qtype_label(),
+                                        txn.rcode_label(),
+                                        &tag_has,
+                                    ) {
+                                        txn.trace_log = Some(conduit_metrics::TraceLog::default());
+                                    }
+                                }
+                            }
+                        }
                         if let Some(hub) = observation {
                             emit_query(hub, txn, snapshot);
+                        }
+                    }
+                    if phase == Phase::ResponseRules && next == Phase::Route {
+                        if let Some(hub) = metrics {
+                            if let Some(ref pool) = txn.selected_pool {
+                                hub.builtin.record_retry(pool);
+                            }
                         }
                     }
                     txn.current_phase = next;
@@ -121,6 +173,24 @@ impl Orchestrator {
         } else {
             RunOutcome::Dropped
         };
+
+        if let Some(th) = tracing {
+            if let Some(log) = txn.trace_log.take() {
+                if !log.events.is_empty() {
+                    th.store.insert(txn.id, log.events.clone());
+                    if th.compiled.log_json {
+                        if let Ok(json) = serde_json::to_string(&log.events) {
+                            tracing::info!(
+                                target: "conduit::trace",
+                                txn_id = txn.id,
+                                events = %json,
+                                "pipeline trace"
+                            );
+                        }
+                    }
+                }
+            }
+        }
 
         match &outcome {
             RunOutcome::Response(_) => tracing::info!(
@@ -145,6 +215,19 @@ impl Orchestrator {
     }
 }
 
+fn phase_name(phase: Phase) -> &'static str {
+    match phase {
+        Phase::Receive => "receive",
+        Phase::Parse => "parse",
+        Phase::RequestRules => "request_rules",
+        Phase::Route => "route",
+        Phase::Forward => "forward",
+        Phase::WaitResponse => "wait_response",
+        Phase::ResponseRules => "response_rules",
+        Phase::Send => "send",
+    }
+}
+
 fn next_phase(phase: Phase) -> Phase {
     match phase {
         Phase::Receive => Phase::Parse,
@@ -165,11 +248,18 @@ impl Orchestrator {
         };
         let mut registry = StageRegistry::new();
         registry.register(Phase::Parse, Arc::new(ParseStage));
-        registry.register(Phase::RequestRules, Arc::new(RequestRulesStage));
+        registry.register(Phase::RequestRules, Arc::new(RequestRulesStage::default()));
         registry.register(Phase::Route, Arc::new(RouteStage));
-        registry.register(Phase::ResponseRules, Arc::new(ResponseRulesStage));
+        registry.register(
+            Phase::ResponseRules,
+            Arc::new(ResponseRulesStage::default()),
+        );
         registry.register(Phase::Send, Arc::new(SendStage));
-        Self { registry }
+        Self {
+            registry,
+            metrics: None,
+            tracing: None,
+        }
     }
 }
 
@@ -442,6 +532,7 @@ mod tests {
             &ids,
             &mut host,
             conduit_script::ScriptPhase::Request,
+            None,
         );
         assert_eq!(host.tags.has("sampled"), expected);
     }

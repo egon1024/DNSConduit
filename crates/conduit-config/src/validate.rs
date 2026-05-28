@@ -251,6 +251,8 @@ pub fn validate(cfg: &Config) -> ValidationResult {
         }
     }
 
+    errors.extend(conduit_metrics::validate_metrics_tracing(cfg));
+
     ValidationResult {
         ok: errors.is_empty(),
         errors,
@@ -355,6 +357,50 @@ mod tests {
         let mut cfg = load_yaml(yaml).unwrap();
         cfg.observation.as_mut().unwrap().sinks[0]
             .filters
+            .as_mut()
+            .unwrap()
+            .sample_rate = Some(0.0);
+        let result = validate(&cfg);
+        assert!(!result.ok);
+        assert!(result.errors.iter().any(|e| e.contains("sample_rate")));
+    }
+
+    #[test]
+    fn accept_with_metrics_prometheus_config() {
+        let yaml = include_str!("../../../tests/fixtures/config/with-metrics-prometheus.yaml");
+        let cfg = load_yaml(yaml).unwrap();
+        assert!(validate(&cfg).ok, "{:?}", validate(&cfg).errors);
+        let (m, _) = conduit_metrics::compile_from_config(&cfg);
+        assert!(m.enabled);
+        assert!(m.prometheus_listen.is_some());
+    }
+
+    #[test]
+    fn accept_metrics_disabled_config() {
+        let yaml = include_str!("../../../tests/fixtures/config/metrics-disabled.yaml");
+        let cfg = load_yaml(yaml).unwrap();
+        assert!(validate(&cfg).ok);
+        let (m, _) = conduit_metrics::compile_from_config(&cfg);
+        assert!(!m.enabled);
+    }
+
+    #[test]
+    fn accept_with_tracing_selectors_config() {
+        let yaml = include_str!("../../../tests/fixtures/config/with-tracing-selectors.yaml");
+        let cfg = load_yaml(yaml).unwrap();
+        assert!(validate(&cfg).ok);
+        let (_, t) = conduit_metrics::compile_from_config(&cfg);
+        assert!(t.enabled);
+    }
+
+    #[test]
+    fn reject_invalid_tracing_sample_rate() {
+        let yaml = include_str!("../../../tests/fixtures/config/with-tracing-selectors.yaml");
+        let mut cfg = load_yaml(yaml).unwrap();
+        cfg.tracing
+            .as_mut()
+            .unwrap()
+            .activation
             .as_mut()
             .unwrap()
             .sample_rate = Some(0.0);

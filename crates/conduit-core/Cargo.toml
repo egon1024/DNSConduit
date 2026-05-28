@@ -10,10 +10,13 @@ conduit-proto = { path = "../conduit-proto" }
 conduit-config = { path = "../conduit-config" }
 conduit-observation = { path = "../conduit-observation" }
 conduit-script = { path = "../conduit-script" }
+conduit-metrics = { path = "../conduit-metrics" }
 arc-swap = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 hickory-proto = { workspace = true }
+serde_json = { workspace = true }
 
 [dev-dependencies]
 conduit-config = { path = "../conduit-config" }
+hickory-proto = { workspace = true }

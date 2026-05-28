@@ -182,13 +182,14 @@ checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 
 [[package]]
 name = "conduit"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "anyhow",
  "conduit-api",
  "conduit-config",
  "conduit-core",
  "conduit-dataplane",
+ "conduit-metrics",
  "conduit-proto",
  "tokio",
  "tracing",
@@ -196,11 +197,12 @@ dependencies = [
 
 [[package]]
 name = "conduit-api"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "anyhow",
  "conduit-config",
  "conduit-core",
+ "conduit-metrics",
  "conduit-proto",
  "prost",
  "tokio",
@@ -211,8 +213,9 @@ dependencies = [
 
 [[package]]
 name = "conduit-config"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
+ "conduit-metrics",
  "conduit-observation",
  "conduit-proto",
  "prost",
@@ -226,25 +229,28 @@ dependencies = [
 
 [[package]]
 name = "conduit-core"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "arc-swap",
  "conduit-config",
+ "conduit-metrics",
  "conduit-observation",
  "conduit-proto",
  "conduit-script",
  "hickory-proto",
+ "serde_json",
  "thiserror 2.0.18",
  "tracing",
 ]
 
 [[package]]
 name = "conduit-dataplane"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "arc-swap",
  "conduit-config",
  "conduit-core",
+ "conduit-metrics",
  "conduit-observation",
  "conduit-proto",
  "hickory-proto",
@@ -255,7 +261,7 @@ dependencies = [
 
 [[package]]
 name = "conduit-dnstap-tap"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "anyhow",
  "conduit-observation",
@@ -267,20 +273,41 @@ dependencies = [
 ]
 
 [[package]]
+name = "conduit-metrics"
+version = "0.7.0"
+dependencies = [
+ "arc-swap",
+ "conduit-config",
+ "conduit-core",
+ "conduit-observation",
+ "conduit-proto",
+ "hickory-proto",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
+ "parking_lot",
+ "prometheus",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "conduit-observation"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "conduit-proto",
  "crossbeam-channel",
  "dnstap",
- "protobuf",
+ "protobuf 3.7.2",
  "tempfile",
  "tracing",
 ]
 
 [[package]]
 name = "conduit-proto"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "prost",
  "prost-build",
@@ -292,9 +319,10 @@ dependencies = [
 
 [[package]]
 name = "conduit-script"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "conduit-config",
+ "conduit-metrics",
  "conduit-observation",
  "conduit-proto",
  "rhai",
@@ -368,7 +396,7 @@ checksum = "ee5d74dd100d39a410bf411e829bb078a4c90222dcac22670078eee356a8890a"
 dependencies = [
  "framestream",
  "mio 0.6.23",
- "protobuf",
+ "protobuf 3.7.2",
  "protobuf-codegen",
 ]
 
@@ -945,6 +973,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "92daf443525c4cce67b150400bc2316076100ce0b3686209eb8cf3c31612e6f0"
 
 [[package]]
+name = "lock_api"
+version = "0.4.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "224399e74b87b5f3557511d98dff8b14089b3dadafcab6bb93eab67d3aace965"
+dependencies = [
+ "scopeguard",
+]
+
+[[package]]
 name = "log"
 version = "0.4.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1073,6 +1110,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "parking_lot"
+version = "0.12.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "93857453250e3077bd71ff98b6a65ea6621a19bb0f559a85248955ac12c45a1a"
+dependencies = [
+ "lock_api",
+ "parking_lot_core",
+]
+
+[[package]]
+name = "parking_lot_core"
+version = "0.9.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2621685985a2ebf1c516881c026032ac7deafcda1a2c9b7850dc81e3dfcb64c1"
+dependencies = [
+ "cfg-if 1.0.4",
+ "libc",
+ "redox_syscall",
+ "smallvec",
+ "windows-link",
+]
+
+[[package]]
 name = "percent-encoding"
 version = "2.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1158,6 +1218,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "prometheus"
+version = "0.13.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3d33c28a30771f7f96db69893f78b857f7450d7e0237e9c8fc6427a81bae7ed1"
+dependencies = [
+ "cfg-if 1.0.4",
+ "fnv",
+ "lazy_static",
+ "memchr",
+ "parking_lot",
+ "protobuf 2.28.0",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "prost"
 version = "0.13.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1211,6 +1286,12 @@ dependencies = [
 
 [[package]]
 name = "protobuf"
+version = "2.28.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "106dd99e98437432fed6519dedecfade6a06a73bb7b2a1e019fdd2bee5778d94"
+
+[[package]]
+name = "protobuf"
 version = "3.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d65a1d4ddae7d8b5de68153b48f6aa3bba8cb002b243dbdbc55a5afbc98f99f4"
@@ -1228,7 +1309,7 @@ checksum = "5d3976825c0014bbd2f3b34f0001876604fe87e0c86cd8fa54251530f1544ace"
 dependencies = [
  "anyhow",
  "once_cell",
- "protobuf",
+ "protobuf 3.7.2",
  "protobuf-parse",
  "regex",
  "tempfile",
@@ -1244,7 +1325,7 @@ dependencies = [
  "anyhow",
  "indexmap 2.14.0",
  "log",
- "protobuf",
+ "protobuf 3.7.2",
  "protobuf-support",
  "tempfile",
  "thiserror 1.0.69",
@@ -1376,6 +1457,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "redox_syscall"
+version = "0.5.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ed2bf2547551a7053d6fdfafda3f938979645c44812fbfcda098faae3f1a362d"
+dependencies = [
+ "bitflags 2.11.1",
+]
+
+[[package]]
 name = "regex"
 version = "1.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1470,6 +1560,12 @@ name = "ryu"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
+
+[[package]]
+name = "scopeguard"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
 name = "semver"

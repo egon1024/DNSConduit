@@ -11,6 +11,7 @@ service ConduitControl {
   rpc ExportConfig(ExportConfigRequest) returns (ExportConfigResponse);
   rpc ReloadFromFile(ReloadFromFileRequest) returns (ReloadFromFileResponse);
   rpc Health(HealthRequest) returns (HealthResponse);
+  rpc GetTrace(GetTraceRequest) returns (GetTraceResponse);
 }
 
 message GetConfigRequest {}
@@ -50,4 +51,21 @@ message ReloadFromFileResponse {
 message HealthRequest {}
 message HealthResponse {
   string status = 1;            // "serving"
+}
+
+message GetTraceRequest {
+  string trace_id = 1;          // transaction id as decimal string
+}
+
+message TraceEvent {
+  string phase = 1;
+  uint64 elapsed_us = 2;
+  optional string message = 3;
+  optional string pool = 4;
+  optional string backend = 5;
+}
+
+message GetTraceResponse {
+  bool found = 1;
+  repeated TraceEvent events = 2;
 }

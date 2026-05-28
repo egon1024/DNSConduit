@@ -3,6 +3,7 @@
 use crate::phase::Phase;
 use crate::routing::AttemptRecord;
 use conduit_config::forward::RecursionDesired;
+use conduit_metrics::TraceLog;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::time::Instant;
@@ -77,6 +78,8 @@ pub struct Transaction {
     pub source_override_v4: Option<std::net::Ipv4Addr>,
     /// Rhai/script override for IPv6 egress source (`set_source_v6`).
     pub source_override_v6: Option<std::net::Ipv6Addr>,
+    /// Pipeline trace buffer; `None` when tracing is off for this transaction.
+    pub trace_log: Option<TraceLog>,
     rcode: Option<u16>,
 }
 
@@ -105,7 +108,20 @@ impl Transaction {
             rd_override: None,
             source_override_v4: None,
             source_override_v6: None,
+            trace_log: None,
             rcode: None,
+        }
+    }
+
+    pub fn trace_record_phase(
+        &mut self,
+        phase: &str,
+        message: Option<String>,
+        pool: Option<String>,
+        backend: Option<String>,
+    ) {
+        if let Some(log) = self.trace_log.as_mut() {
+            log.record(phase, self.started_at, message, pool, backend);
         }
     }
 

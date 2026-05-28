@@ -1,6 +1,7 @@
 use conduit_api::serve;
 use conduit_config::{init_from_config, load_yaml, validate, EffectiveConfig};
 use conduit_core::{RuntimeSnapshot, SnapshotStore};
+use conduit_metrics::{spawn_otel_push, spawn_prometheus_server, MetricsHub, TracingHub};
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 
@@ -31,15 +32,46 @@ async fn main() -> anyhow::Result<()> {
 
     init_from_config(file_cfg.logging.as_ref())?;
 
+    let metrics_hub = Arc::new(MetricsHub::from_config(&file_cfg));
+    let tracing_hub = Arc::new(TracingHub::from_config(&file_cfg));
+
     let mut snapshot =
         RuntimeSnapshot::from_config_with_base(file_cfg.clone(), base_dir.as_deref());
     let store = Arc::new(SnapshotStore::new(snapshot.clone()));
     snapshot.generation = store.generation();
     store.swap(snapshot);
-    let effective = Arc::new(Mutex::new(EffectiveConfig::new(file_cfg)));
+    let effective = Arc::new(Mutex::new(EffectiveConfig::new(file_cfg.clone())));
 
-    let _dataplane = conduit_dataplane::supervisor::start(store.clone())?;
+    let dataplane = conduit_dataplane::supervisor::start(
+        store.clone(),
+        metrics_hub.clone(),
+        tracing_hub.clone(),
+    )?;
     tracing::info!("dataplane listeners started");
+
+    let mut _prometheus = if let Some(ref addr) = metrics_hub.compiled.prometheus_listen {
+        let listen: SocketAddr = addr.parse()?;
+        Some(spawn_prometheus_server(
+            listen,
+            metrics_hub.compiled.prometheus_path.clone(),
+            metrics_hub.clone(),
+            dataplane.observation.clone(),
+        ))
+    } else {
+        None
+    };
+
+    let mut _otel = if let Some(ref endpoint) = metrics_hub.compiled.otel_endpoint {
+        Some(spawn_otel_push(
+            endpoint.clone(),
+            metrics_hub.compiled.otel_push_interval_ms,
+            metrics_hub.compiled.otel_resource_attributes.clone(),
+            metrics_hub.clone(),
+            dataplane.observation.clone(),
+        ))
+    } else {
+        None
+    };
 
     let listen_address = store
         .load()
@@ -51,6 +83,6 @@ async fn main() -> anyhow::Result<()> {
     let addr: SocketAddr = listen_address.parse()?;
 
     tracing::info!(%addr, "starting control plane");
-    serve(addr, store, effective).await?;
+    serve(addr, store, effective, tracing_hub).await?;
     Ok(())
 }

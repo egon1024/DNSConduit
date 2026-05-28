@@ -5,6 +5,7 @@ use crate::listener::startup_log;
 use conduit_core::orchestrator::Orchestrator;
 use conduit_core::phase::Phase;
 use conduit_core::snapshot::SnapshotStore;
+use conduit_metrics::{MetricsHub, TracingHub};
 use conduit_observation::ObservationHub;
 use std::sync::Arc;
 use std::thread;
@@ -14,7 +15,11 @@ pub struct DataplaneHandle {
     pub observation: Arc<ObservationHub>,
 }
 
-pub fn start(store: Arc<SnapshotStore>) -> std::io::Result<DataplaneHandle> {
+pub fn start(
+    store: Arc<SnapshotStore>,
+    metrics: Arc<MetricsHub>,
+    tracing: Arc<TracingHub>,
+) -> std::io::Result<DataplaneHandle> {
     let snap = store.load();
     let observation = Arc::new(ObservationHub::from_compiled(&snap.observation));
     startup_log::log_startup_summary(&snap, &observation);
@@ -50,6 +55,8 @@ pub fn start(store: Arc<SnapshotStore>) -> std::io::Result<DataplaneHandle> {
             let bind_addresses_v4 = snap.egress_bind_addresses_v4();
             let bind_addresses_v6 = snap.egress_bind_addresses_v6();
             let obs = observation.clone();
+            let metrics = metrics.clone();
+            let tracing = tracing.clone();
             let reuse = listeners.reuse_port;
             let rcvbuf = listeners.rcvbuf;
             let proto = ln.protocol.to_lowercase();
@@ -68,6 +75,20 @@ pub fn start(store: Arc<SnapshotStore>) -> std::io::Result<DataplaneHandle> {
                     }
                 };
                 let mut orchestrator = Orchestrator::with_default_stages();
+                orchestrator.metrics = Some(metrics.clone());
+                orchestrator.tracing = Some(tracing.clone());
+                orchestrator.registry.register(
+                    Phase::RequestRules,
+                    Arc::new(conduit_core::stages::RequestRulesStage {
+                        metrics: Some(metrics.clone()),
+                    }),
+                );
+                orchestrator.registry.register(
+                    Phase::ResponseRules,
+                    Arc::new(conduit_core::stages::ResponseRulesStage {
+                        metrics: Some(metrics.clone()),
+                    }),
+                );
                 orchestrator.registry.register(Phase::Forward, forward);
                 orchestrator
                     .registry

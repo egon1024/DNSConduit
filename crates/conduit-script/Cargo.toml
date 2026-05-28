@@ -8,6 +8,7 @@ rust-version.workspace = true
 [dependencies]
 conduit-proto = { path = "../conduit-proto" }
 conduit-observation = { path = "../conduit-observation" }
+conduit-metrics = { path = "../conduit-metrics" }
 rhai = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }

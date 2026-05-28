@@ -15,6 +15,7 @@ conduit-config = { path = "../conduit-config" }
 conduit-core = { path = "../conduit-core" }
 conduit-dataplane = { path = "../conduit-dataplane" }
 conduit-api = { path = "../conduit-api" }
+conduit-metrics = { path = "../conduit-metrics" }
 anyhow = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
