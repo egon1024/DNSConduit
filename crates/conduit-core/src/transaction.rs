@@ -62,6 +62,8 @@ pub struct Transaction {
     pub qname: Option<String>,
     pub qtype: Option<u16>,
     pub client_addr: SocketAddr,
+    /// Configured listener bind address (used as `listener` metric label).
+    pub listener_label: Option<String>,
     pub protocol: ClientProtocol,
     pub client_udp_payload_size: Option<u16>,
     pub selected_pool: Option<String>,
@@ -95,6 +97,7 @@ impl Transaction {
             qname: None,
             qtype: None,
             client_addr,
+            listener_label: None,
             protocol,
             client_udp_payload_size: None,
             selected_pool: None,
@@ -152,6 +155,11 @@ impl Transaction {
 
     pub fn with_query_wire(mut self, wire: Vec<u8>) -> Self {
         self.query_wire = wire;
+        self
+    }
+
+    pub fn with_listener_label(mut self, label: impl Into<String>) -> Self {
+        self.listener_label = Some(label.into());
         self
     }
 

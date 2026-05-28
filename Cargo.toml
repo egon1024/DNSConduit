@@ -23,6 +23,7 @@ rust-version = "1.78"
 prost = "0.13"
 prost-types = "0.13"
 tonic = "0.12"
+tonic-reflection = "0.12"
 tonic-build = "0.12"
 prost-build = "0.13"
 protoc-bin-vendored = "3.2"
@@ -46,3 +47,9 @@ prometheus = "0.13"
 hyper = { version = "1", features = ["server", "http1"] }
 hyper-util = { version = "0.1", features = ["tokio", "server"] }
 http-body-util = "0.1"
+opentelemetry = { version = "0.27", default-features = false, features = ["metrics"] }
+opentelemetry_sdk = { version = "0.27", features = ["metrics", "rt-tokio"] }
+opentelemetry-otlp = { version = "0.27", default-features = false, features = [
+    "http-proto",
+    "metrics",
+] }

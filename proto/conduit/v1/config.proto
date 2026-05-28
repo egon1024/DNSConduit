@@ -175,4 +175,5 @@ message Backend {
 
 message ControlConfig {
   string listen_address = 1;    // gRPC, e.g. "127.0.0.1:5199"
+  bool reflection_enabled = 2;  // expose gRPC reflection service (dev/test convenience)
 }

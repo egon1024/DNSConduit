@@ -67,6 +67,7 @@ pub fn start(
                     &bind_addresses_v4,
                     &bind_addresses_v6,
                     timeout_ms,
+                    Some(metrics.clone()),
                 ) {
                     Ok(f) => Arc::new(f),
                     Err(e) => {

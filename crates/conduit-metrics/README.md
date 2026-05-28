@@ -30,6 +30,14 @@ When the `metrics` section is **omitted**, export is disabled (no scrape listene
 | `conduit_phase_duration_seconds` | `phase` | no |
 | `conduit_forward_attempts_total` | `pool`, `backend`, `outcome` | no |
 | `conduit_forward_errors_total` | `pool`, `reason` | no |
+| `conduit_forward_duration_seconds` | `pool`, `backend` | no |
+
+Histogram `le` boundaries are cumulative upper bounds in seconds (Prometheus convention). Fixed bands instead of exponential doubling:
+
+- **Phase** (`conduit_phase_duration_seconds`): 100 µs, 1 ms, 10 ms, 50 ms, 100 ms, 500 ms, 1 s, 5 s, 10 s
+- **Forward RTT** (`conduit_forward_duration_seconds`): 1 ms, 10 ms, 50 ms, 100 ms, 500 ms, 1 s, 5 s, 10 s
+
+Use `histogram_quantile()` in PromQL for percentiles; subtract adjacent `le` buckets for counts in a single band.
 | `conduit_retries_total` | `pool` | no |
 
 Per-sink event export counters (`conduit_events_*`) are included at scrape time from `EventHub` snapshots (not incremented on workers).
@@ -37,6 +45,10 @@ Per-sink event export counters (`conduit_events_*`) are included at scrape time 
 ### User metrics (Rhai)
 
 Rhai `metric_inc` / `metric_inc_labels` flush into the export registry after each successful hook. Series are prefixed `conduit_user_<name>`.
+
+Current behavior uses a shared HELP string (`"Rhai user-defined metric"`) for all Rhai user counters.
+
+Planned future enhancement: allow Rhai-defined metrics to provide per-metric HELP text so operators and dashboards can expose richer metric context.
 
 ## Tracing
 
@@ -61,4 +73,4 @@ Completed traces are stored in a bounded in-memory `TraceStore` (1000 entries, 5
 
 ## OTEL push
 
-The OTEL background task runs on `push_interval_ms` and logs push ticks. Full OTLP instrument mapping is not wired in v1; use **Prometheus scrape** as the primary export path.
+When `metrics.otel.endpoint` is set, a background task pushes **counter** series to the OTLP HTTP metrics endpoint on `push_interval_ms`. Counters are derived from the same Prometheus text as scrape (histograms are not exported to OTLP yet). Use **Prometheus scrape** for full built-in series including histograms.

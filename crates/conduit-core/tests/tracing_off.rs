@@ -14,7 +14,7 @@ fn tracing_disabled_does_not_allocate_trace_log() {
     let cfg = load_yaml(yaml).unwrap();
     let snap = Arc::new(RuntimeSnapshot::from_config(cfg));
     let orch = Orchestrator::with_default_stages();
-    let mut txn = Transaction::new(1, "127.0.0.1:5353".parse().unwrap(), ClientProtocol::Udp);
+    let mut txn = Transaction::new(1, "127.0.0.1:15353".parse().unwrap(), ClientProtocol::Udp);
     let name = Name::from_utf8("x.example.").unwrap();
     let query = Query::query(name, RecordType::A);
     let mut msg = Message::new();

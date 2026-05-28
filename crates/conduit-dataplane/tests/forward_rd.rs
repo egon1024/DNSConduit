@@ -52,6 +52,7 @@ fn orchestrator_with_udp_forward(snap: &RuntimeSnapshot, table: Arc<TxnTable>) -
         &snap.egress_bind_addresses_v4(),
         &snap.egress_bind_addresses_v6(),
         snap.forward.timeout_ms,
+        None,
     )
     .expect("forward egress");
     let mut orch = Orchestrator::with_default_stages();

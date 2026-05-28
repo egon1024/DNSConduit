@@ -41,7 +41,9 @@ pub fn run_worker(
             continue;
         }
         let snap = store.load();
-        let mut txn = Transaction::new(next_id, peer, ClientProtocol::Tcp).with_query_wire(buf);
+        let mut txn = Transaction::new(next_id, peer, ClientProtocol::Tcp)
+            .with_listener_label(listener.address.clone())
+            .with_query_wire(buf);
         next_id = next_id.wrapping_add(1);
         if let RunOutcome::Response(wire) = orchestrator.run(
             &mut txn,

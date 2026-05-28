@@ -320,6 +320,12 @@ pub(crate) struct YamlTracingOutput {
 #[derive(Debug, Deserialize, Serialize)]
 pub(crate) struct YamlControl {
     listen_address: String,
+    #[serde(default, skip_serializing_if = "is_false")]
+    reflection_enabled: bool,
+}
+
+fn is_false(v: &bool) -> bool {
+    !*v
 }
 
 pub fn load_yaml(input: &str) -> Result<Config, ConfigError> {
@@ -597,6 +603,7 @@ impl From<YamlControl> for ControlConfig {
     fn from(y: YamlControl) -> Self {
         ControlConfig {
             listen_address: y.listen_address,
+            reflection_enabled: y.reflection_enabled,
         }
     }
 }
@@ -948,6 +955,7 @@ impl TryFrom<&ControlConfig> for YamlControl {
     fn try_from(c: &ControlConfig) -> Result<Self, Self::Error> {
         Ok(YamlControl {
             listen_address: c.listen_address.clone(),
+            reflection_enabled: c.reflection_enabled,
         })
     }
 }

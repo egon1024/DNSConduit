@@ -1,3 +1,5 @@
+# Lab config: metrics (Prometheus scrape) + pipeline tracing + GetTrace.
+# Ports align with tests/manual/ (15353 listener, 15300 upstream mock, 19090 metrics).
 schema_version: 1
 listeners:
   threads: 2
@@ -18,13 +20,6 @@ events:
 rhai:
   max_operations: 10000
   max_call_depth: 32
-  hook_timeout_ms: 50
-data_sources:
-  - name: geo
-    type: csv
-    path: ../data/geo.csv
-    key_column: qname
-    value_column: region
 pools:
   - name: default
     backends:
@@ -32,20 +27,19 @@ pools:
         weight: 100
 control:
   listen_address: "127.0.0.1:5199"
+  reflection_enabled: true
 metrics:
   enabled: true
   profile: full
   prometheus:
     listen_address: "127.0.0.1:19090"
     path: /metrics
-rules:
-  match_mode: first_match
-  rules:
-    - id: geo-metrics
-      hook: request
-      selectors:
-        - type: qname_suffix
-          value: ".example."
-      actions:
-        - type: rhai
-          value: ../rhai/block-hits.rhai
+tracing:
+  enabled: true
+  activation:
+    selectors:
+      - type: qtype
+        value: A
+    sample_rate: 1.0
+  output:
+    log_json: false

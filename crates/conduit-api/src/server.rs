@@ -135,12 +135,30 @@ pub async fn serve(
     effective: Arc<Mutex<EffectiveConfig>>,
     tracing: Arc<TracingHub>,
 ) -> anyhow::Result<()> {
+    let reflection_enabled = snapshots
+        .load()
+        .config
+        .control
+        .as_ref()
+        .map(|c| c.reflection_enabled)
+        .unwrap_or(false);
     let service = ConduitControlServer::new(ControlService {
         snapshots,
         effective,
         tracing,
     });
-    Server::builder().add_service(service).serve(addr).await?;
+    if reflection_enabled {
+        let reflection = tonic_reflection::server::Builder::configure()
+            .register_encoded_file_descriptor_set(conduit_proto::FILE_DESCRIPTOR_SET)
+            .build_v1alpha()?;
+        Server::builder()
+            .add_service(reflection)
+            .add_service(service)
+            .serve(addr)
+            .await?;
+    } else {
+        Server::builder().add_service(service).serve(addr).await?;
+    }
     Ok(())
 }
 
@@ -151,6 +169,13 @@ pub async fn serve_on_listener(
     effective: Arc<Mutex<EffectiveConfig>>,
     tracing: Arc<TracingHub>,
 ) -> anyhow::Result<SocketAddr> {
+    let reflection_enabled = snapshots
+        .load()
+        .config
+        .control
+        .as_ref()
+        .map(|c| c.reflection_enabled)
+        .unwrap_or(false);
     let listener = tokio::net::TcpListener::bind(addr).await?;
     let local_addr = listener.local_addr()?;
     let service = ConduitControlServer::new(ControlService {
@@ -160,11 +185,30 @@ pub async fn serve_on_listener(
     });
     let incoming = tokio_stream::wrappers::TcpListenerStream::new(listener);
     tokio::spawn(async move {
-        if let Err(e) = Server::builder()
-            .add_service(service)
-            .serve_with_incoming(incoming)
-            .await
-        {
+        let result = if reflection_enabled {
+            match tonic_reflection::server::Builder::configure()
+                .register_encoded_file_descriptor_set(conduit_proto::FILE_DESCRIPTOR_SET)
+                .build_v1alpha()
+            {
+                Ok(reflection) => {
+                    Server::builder()
+                        .add_service(reflection)
+                        .add_service(service)
+                        .serve_with_incoming(incoming)
+                        .await
+                }
+                Err(e) => {
+                    tracing::error!("failed to build reflection service: {e}");
+                    return;
+                }
+            }
+        } else {
+            Server::builder()
+                .add_service(service)
+                .serve_with_incoming(incoming)
+                .await
+        };
+        if let Err(e) = result {
             tracing::error!("control server error: {e}");
         }
     });

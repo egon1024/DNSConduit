@@ -13,9 +13,14 @@ conduit-metrics = { path = "../conduit-metrics" }
 anyhow = { workspace = true }
 prost = { workspace = true }
 tonic = { workspace = true }
+tonic-reflection = { workspace = true }
 tokio = { workspace = true }
 tokio-stream = { workspace = true }
 tracing = { workspace = true }
 
 [dev-dependencies]
+conduit-config = { path = "../conduit-config" }
+conduit-core = { path = "../conduit-core" }
+conduit-metrics = { path = "../conduit-metrics" }
+hickory-proto = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "net"] }

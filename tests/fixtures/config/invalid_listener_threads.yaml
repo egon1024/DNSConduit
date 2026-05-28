@@ -3,7 +3,7 @@ listeners:
   threads: 0
   reuse_port: true
   listeners:
-    - address: "127.0.0.1:5353"
+    - address: "127.0.0.1:15353"
       protocol: udp
 forward:
   outstanding_per_backend: 100

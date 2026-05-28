@@ -50,6 +50,7 @@ pub fn run_worker(
             Ok((len, peer)) => {
                 let snap = store.load();
                 let mut txn = Transaction::new(next_id, peer, ClientProtocol::Udp)
+                    .with_listener_label(listener.address.clone())
                     .with_query_wire(buf[..len].to_vec());
                 next_id = next_id.wrapping_add(1);
                 if let RunOutcome::Response(wire) = orchestrator.run(

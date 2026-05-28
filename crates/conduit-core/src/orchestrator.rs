@@ -82,7 +82,8 @@ impl Orchestrator {
                     crate::transaction::ClientProtocol::Udp => "udp",
                     crate::transaction::ClientProtocol::Tcp => "tcp",
                 };
-                hub.builtin.record_query("default", protocol);
+                let listener = txn.listener_label.as_deref().unwrap_or("unknown");
+                hub.builtin.record_query(listener, protocol);
             }
         }
 
@@ -397,7 +398,7 @@ mod tests {
         let yaml = include_str!("../../../tests/fixtures/config/minimal.yaml");
         let cfg = load_yaml(yaml).unwrap();
         let snap = Arc::new(RuntimeSnapshot::from_config(cfg));
-        let mut txn = Transaction::new(1, "127.0.0.1:5353".parse().unwrap(), ClientProtocol::Udp)
+        let mut txn = Transaction::new(1, "127.0.0.1:15353".parse().unwrap(), ClientProtocol::Udp)
             .with_query_wire(example_query());
         let orch = orchestrator_with_mock_forward();
         let outcome = orch.run(&mut txn, &snap, &SystemClock, None);
@@ -409,7 +410,7 @@ mod tests {
         let yaml = include_str!("../../../tests/fixtures/config/with-rules.yaml");
         let cfg = load_yaml(yaml).unwrap();
         let snap = Arc::new(RuntimeSnapshot::from_config(cfg));
-        let mut txn = Transaction::new(2, "127.0.0.1:5353".parse().unwrap(), ClientProtocol::Udp)
+        let mut txn = Transaction::new(2, "127.0.0.1:15353".parse().unwrap(), ClientProtocol::Udp)
             .with_query_wire(example_query());
         let orch = orchestrator_with_mock_forward();
         let _ = orch.run(&mut txn, &snap, &SystemClock, None);
@@ -436,7 +437,7 @@ mod tests {
         let mut encoder = BinEncoder::new(&mut buf);
         msg.emit(&mut encoder).unwrap();
 
-        let mut txn = Transaction::new(10, "127.0.0.1:5353".parse().unwrap(), ClientProtocol::Udp)
+        let mut txn = Transaction::new(10, "127.0.0.1:15353".parse().unwrap(), ClientProtocol::Udp)
             .with_query_wire(buf);
         let _ = orch.run(&mut txn, &snap, &SystemClock, Some(&hub));
         let metrics = hub.sink_metrics_snapshot();
@@ -445,8 +446,9 @@ mod tests {
             "tag set in request rules should allow query export"
         );
 
-        let mut txn2 = Transaction::new(11, "127.0.0.1:5353".parse().unwrap(), ClientProtocol::Udp)
-            .with_query_wire(example_query());
+        let mut txn2 =
+            Transaction::new(11, "127.0.0.1:15353".parse().unwrap(), ClientProtocol::Udp)
+                .with_query_wire(example_query());
         let _ = orch.run(&mut txn2, &snap, &SystemClock, Some(&hub));
         let metrics2 = hub.sink_metrics_snapshot();
         assert_eq!(
@@ -459,7 +461,7 @@ mod tests {
     fn rhai_blocklist_drops_blocked_name() {
         let yaml = include_str!("../../../tests/fixtures/config/with-rhai-blocklist.yaml");
         let snap = snapshot_from_fixture(yaml);
-        let mut txn = Transaction::new(20, "127.0.0.1:5353".parse().unwrap(), ClientProtocol::Udp)
+        let mut txn = Transaction::new(20, "127.0.0.1:15353".parse().unwrap(), ClientProtocol::Udp)
             .with_query_wire(query_for("bad.example."));
         let orch = orchestrator_with_mock_forward();
         let outcome = orch.run(&mut txn, &snap, &SystemClock, None);
@@ -471,7 +473,7 @@ mod tests {
     fn rhai_servfail_retry_uses_secondary_pool() {
         let yaml = include_str!("../../../tests/fixtures/config/with-rhai-servfail-retry.yaml");
         let snap = snapshot_from_fixture(yaml);
-        let mut txn = Transaction::new(21, "127.0.0.1:5353".parse().unwrap(), ClientProtocol::Udp)
+        let mut txn = Transaction::new(21, "127.0.0.1:15353".parse().unwrap(), ClientProtocol::Udp)
             .with_query_wire(example_query());
         let orch = orchestrator_with_mock_forward();
         let _ = orch.run(&mut txn, &snap, &SystemClock, None);
@@ -494,14 +496,15 @@ mod tests {
         let hub = EventHub::from_compiled(&snap.events);
         let orch = orchestrator_with_mock_forward();
 
-        let mut txn = Transaction::new(22, "127.0.0.1:5353".parse().unwrap(), ClientProtocol::Udp)
+        let mut txn = Transaction::new(22, "127.0.0.1:15353".parse().unwrap(), ClientProtocol::Udp)
             .with_query_wire(query_for("foo.audit.example."));
         let _ = orch.run(&mut txn, &snap, &SystemClock, Some(&hub));
         let metrics = hub.sink_metrics_snapshot();
         assert!(metrics[0].enqueued_query >= 1);
 
-        let mut txn2 = Transaction::new(23, "127.0.0.1:5353".parse().unwrap(), ClientProtocol::Udp)
-            .with_query_wire(example_query());
+        let mut txn2 =
+            Transaction::new(23, "127.0.0.1:15353".parse().unwrap(), ClientProtocol::Udp)
+                .with_query_wire(example_query());
         let _ = orch.run(&mut txn2, &snap, &SystemClock, Some(&hub));
         let metrics2 = hub.sink_metrics_snapshot();
         assert_eq!(metrics2[0].enqueued_query, metrics[0].enqueued_query);
@@ -521,7 +524,7 @@ mod tests {
         let script_id = scripting.rules_scripts[0].script_id;
         let mut host = crate::transaction::Transaction::new(
             txn_id,
-            "127.0.0.1:5353".parse().unwrap(),
+            "127.0.0.1:15353".parse().unwrap(),
             ClientProtocol::Udp,
         );
         host.qname = Some("test.example.".into());
