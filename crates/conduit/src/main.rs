@@ -55,7 +55,7 @@ async fn main() -> anyhow::Result<()> {
             listen,
             metrics_hub.compiled.prometheus_path.clone(),
             metrics_hub.clone(),
-            dataplane.observation.clone(),
+            dataplane.events.clone(),
         ))
     } else {
         None
@@ -67,7 +67,7 @@ async fn main() -> anyhow::Result<()> {
             metrics_hub.compiled.otel_push_interval_ms,
             metrics_hub.compiled.otel_resource_attributes.clone(),
             metrics_hub.clone(),
-            dataplane.observation.clone(),
+            dataplane.events.clone(),
         ))
     } else {
         None

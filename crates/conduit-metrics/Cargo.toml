@@ -7,7 +7,7 @@ rust-version.workspace = true
 
 [dependencies]
 conduit-proto = { path = "../conduit-proto" }
-conduit-observation = { path = "../conduit-observation" }
+conduit-events = { path = "../conduit-events" }
 prometheus = { workspace = true }
 hyper = { workspace = true }
 hyper-util = { workspace = true }
@@ -22,5 +22,5 @@ parking_lot = "0.12"
 [dev-dependencies]
 conduit-config = { path = "../conduit-config" }
 conduit-core = { path = "../conduit-core" }
-conduit-observation = { path = "../conduit-observation" }
+conduit-events = { path = "../conduit-events" }
 hickory-proto = { workspace = true }

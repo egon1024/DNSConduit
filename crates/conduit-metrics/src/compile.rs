@@ -1,6 +1,6 @@
 //! Compile metrics and tracing sections from config.
 
-use conduit_observation::{
+use conduit_events::{
     compile_selectors, hash_sample, parse_sample_rate, validate_selector_type, CompiledSelector,
     SelectorMatchCtx,
 };
@@ -240,7 +240,7 @@ mod tests {
             listeners: None,
             forward: None,
             orchestrator: None,
-            observation: None,
+            events: None,
             rhai: None,
             pools: vec![],
             control: None,
@@ -273,7 +273,7 @@ mod tests {
             listeners: None,
             forward: None,
             orchestrator: None,
-            observation: None,
+            events: None,
             rhai: None,
             pools: vec![],
             control: None,

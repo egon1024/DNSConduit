@@ -1,10 +1,10 @@
-//! Compile observation config for runtime snapshots.
+//! Compile events config for runtime snapshots.
 
 use crate::connect_retry::ConnectRetryConfig;
 use crate::metrics::SinkMetrics;
 use crate::queue::DropPolicy;
 use crate::selectors::{compile_selectors, validate_selector_type, CompiledSelector};
-use conduit_proto::config::{Config, ObservationConfig, ObservationSink, ObservationSinkFilters};
+use conduit_proto::config::{Config, EventSink, EventSinkFilters, EventsConfig};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -60,7 +60,7 @@ pub struct SinkIdentity {
 /// - `name` only → `export_id` defaults to `name`
 /// - `export_id` only (legacy) → `name` defaults to `export_id`
 /// - both set → use both (may differ)
-pub fn resolve_sink_identity(s: &ObservationSink) -> Result<SinkIdentity, String> {
+pub fn resolve_sink_identity(s: &EventSink) -> Result<SinkIdentity, String> {
     let name_opt = s.name.as_ref().filter(|n| !n.is_empty());
     let export_id = s.export_id.trim();
     let export_opt = (!export_id.is_empty()).then_some(export_id);
@@ -83,7 +83,7 @@ pub fn resolve_sink_identity(s: &ObservationSink) -> Result<SinkIdentity, String
 }
 
 /// Validate resolved identities are unique across sinks (call from config validation).
-pub fn validate_sink_identity_uniqueness(sinks: &[ObservationSink]) -> Vec<String> {
+pub fn validate_sink_identity_uniqueness(sinks: &[EventSink]) -> Vec<String> {
     let mut errors = Vec::new();
     let mut names: HashMap<String, usize> = HashMap::new();
     let mut export_ids: HashMap<String, usize> = HashMap::new();
@@ -91,19 +91,19 @@ pub fn validate_sink_identity_uniqueness(sinks: &[ObservationSink]) -> Vec<Strin
     for (i, sink) in sinks.iter().enumerate() {
         let Ok(identity) = resolve_sink_identity(sink) else {
             errors.push(format!(
-                "observation.sinks[{i}] requires name or export_id (canonical operator id and/or dnstap wire identity)"
+                "events.sinks[{i}] requires name or export_id (canonical operator id and/or dnstap wire identity)"
             ));
             continue;
         };
         if let Some(prev) = names.insert(identity.name.clone(), i) {
             errors.push(format!(
-                "observation.sinks[{i}].name '{}' duplicates sinks[{prev}]",
+                "events.sinks[{i}].name '{}' duplicates sinks[{prev}]",
                 identity.name
             ));
         }
         if let Some(prev) = export_ids.insert(identity.export_id.clone(), i) {
             errors.push(format!(
-                "observation.sinks[{i}] export_id '{}' duplicates sinks[{prev}]",
+                "events.sinks[{i}] export_id '{}' duplicates sinks[{prev}]",
                 identity.export_id
             ));
         }
@@ -130,7 +130,7 @@ pub fn parse_extra_fields(names: &[String]) -> Result<Vec<ExtraField>, String> {
     let mut fields = Vec::new();
     for name in names {
         let field = parse_extra_field(name)
-            .ok_or_else(|| format!("unknown observation extra_fields entry '{name}'"))?;
+            .ok_or_else(|| format!("unknown events extra_fields entry '{name}'"))?;
         fields.push(field);
     }
     Ok(fields)
@@ -148,24 +148,24 @@ pub fn parse_extra_tags(
         };
     }
     if !has_tags_field {
-        return Err("observation extra_tags requires 'tags' in extra_fields".into());
+        return Err("events extra_tags requires 'tags' in extra_fields".into());
     }
     if extra_tags.iter().any(|t| t == "*") {
         if extra_tags.len() > 1 {
-            return Err("observation extra_tags cannot mix '*' with other keys".into());
+            return Err("events extra_tags cannot mix '*' with other keys".into());
         }
         return Ok(TagExportMode::All);
     }
     for tag in extra_tags {
         if tag.is_empty() {
-            return Err("observation extra_tags entries must not be empty".into());
+            return Err("events extra_tags entries must not be empty".into());
         }
     }
     Ok(TagExportMode::Keys(extra_tags.to_vec()))
 }
 
 #[derive(Debug, Clone)]
-pub struct CompiledObservation {
+pub struct CompiledEvents {
     pub enabled: bool,
     pub queue_depth: usize,
     pub drop_policy: DropPolicy,
@@ -199,13 +199,11 @@ pub fn parse_sample_rate(rate: Option<f64>) -> Result<f64, String> {
     match rate {
         None => Ok(1.0),
         Some(r) if r > 0.0 && r <= 1.0 => Ok(r),
-        Some(_) => Err("observation filters.sample_rate must be in (0, 1]".into()),
+        Some(_) => Err("events filters.sample_rate must be in (0, 1]".into()),
     }
 }
 
-pub fn parse_sink_filters(
-    f: Option<&ObservationSinkFilters>,
-) -> Result<CompiledSinkFilters, String> {
+pub fn parse_sink_filters(f: Option<&EventSinkFilters>) -> Result<CompiledSinkFilters, String> {
     let Some(f) = f else {
         return Ok(CompiledSinkFilters {
             sample_rate: 1.0,
@@ -216,10 +214,10 @@ pub fn parse_sink_filters(
         validate_selector_type(sel.r#type.as_str())?;
     }
     if f.pool.as_ref().is_some_and(|p| p.is_empty()) {
-        return Err("observation filters.pool must not be empty".into());
+        return Err("events filters.pool must not be empty".into());
     }
     if f.backend.as_ref().is_some_and(|b| b.is_empty()) {
-        return Err("observation filters.backend must not be empty".into());
+        return Err("events filters.backend must not be empty".into());
     }
     let tag_required = f.tag_required.clone().filter(|t| !t.is_empty());
     Ok(CompiledSinkFilters {
@@ -248,7 +246,7 @@ pub struct CompiledSinkInstance {
     pub tag_export: TagExportMode,
 }
 
-impl CompiledObservation {
+impl CompiledEvents {
     pub fn needs_tag_export(&self) -> bool {
         self.sinks
             .iter()
@@ -274,8 +272,8 @@ pub enum Destination {
     Tcp { host: String, port: u16 },
 }
 
-pub fn compile_from_config(cfg: &Config) -> CompiledObservation {
-    let obs = cfg.observation.as_ref();
+pub fn compile_from_config(cfg: &Config) -> CompiledEvents {
+    let obs = cfg.events.as_ref();
     let (queue_depth, drop_policy, sinks) = match obs {
         Some(o) => (
             default_queue_depth(o),
@@ -291,7 +289,7 @@ pub fn compile_from_config(cfg: &Config) -> CompiledObservation {
         name_to_export_id.insert(sink.name.clone(), sink.export_id.clone());
         export_id_to_name.insert(sink.export_id.clone(), sink.name.clone());
     }
-    CompiledObservation {
+    CompiledEvents {
         enabled,
         queue_depth,
         drop_policy,
@@ -301,7 +299,7 @@ pub fn compile_from_config(cfg: &Config) -> CompiledObservation {
     }
 }
 
-fn default_queue_depth(o: &ObservationConfig) -> usize {
+fn default_queue_depth(o: &EventsConfig) -> usize {
     if o.queue_depth == 0 {
         8192
     } else {
@@ -309,15 +307,15 @@ fn default_queue_depth(o: &ObservationConfig) -> usize {
     }
 }
 
-fn parse_drop_policy(o: &ObservationConfig) -> DropPolicy {
+fn parse_drop_policy(o: &EventsConfig) -> DropPolicy {
     DropPolicy::parse(o.drop_policy.as_str()).unwrap_or(DropPolicy::DropOldest)
 }
 
-fn compile_sinks(o: &ObservationConfig) -> Vec<CompiledSinkInstance> {
+fn compile_sinks(o: &EventsConfig) -> Vec<CompiledSinkInstance> {
     o.sinks.iter().filter_map(compile_one_sink).collect()
 }
 
-pub(crate) fn compile_one_sink(s: &ObservationSink) -> Option<CompiledSinkInstance> {
+pub(crate) fn compile_one_sink(s: &EventSink) -> Option<CompiledSinkInstance> {
     if s.r#type != "dnstap" || s.destinations.is_empty() {
         return None;
     }
@@ -352,7 +350,7 @@ pub(crate) fn compile_one_sink(s: &ObservationSink) -> Option<CompiledSinkInstan
     })
 }
 
-pub fn parse_connect_retry(s: &ObservationSink) -> Result<ConnectRetryConfig, String> {
+pub fn parse_connect_retry(s: &EventSink) -> Result<ConnectRetryConfig, String> {
     let cfg = ConnectRetryConfig::resolve(s.connect_retry.as_ref());
     cfg.validate()?;
     Ok(cfg)
@@ -406,7 +404,7 @@ pub fn parse_destination(s: &str) -> Option<Destination> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use conduit_proto::config::ObservationSink;
+    use conduit_proto::config::EventSink;
 
     #[test]
     fn parse_unix_and_tcp_destinations() {
@@ -423,7 +421,7 @@ mod tests {
 
     #[test]
     fn resolve_name_only_defaults_export_id() {
-        let s = ObservationSink {
+        let s = EventSink {
             r#type: "dnstap".into(),
             export_id: String::new(),
             name: Some("primary-tap".into()),
@@ -441,7 +439,7 @@ mod tests {
 
     #[test]
     fn resolve_export_id_only_legacy_defaults_name() {
-        let s = ObservationSink {
+        let s = EventSink {
             r#type: "dnstap".into(),
             export_id: "conduit-dev".into(),
             name: None,
@@ -459,7 +457,7 @@ mod tests {
 
     #[test]
     fn resolve_distinct_name_and_export_id() {
-        let s = ObservationSink {
+        let s = EventSink {
             r#type: "dnstap".into(),
             export_id: "wire-pod-7".into(),
             name: Some("prod-tap".into()),
@@ -476,14 +474,14 @@ mod tests {
     }
 
     #[test]
-    fn compiled_observation_lookup_maps() {
+    fn compiled_events_lookup_maps() {
         let cfg = Config {
             schema_version: 1,
-            observation: Some(ObservationConfig {
+            events: Some(EventsConfig {
                 queue_depth: 128,
                 drop_policy: "drop_oldest".into(),
                 sinks: vec![
-                    ObservationSink {
+                    EventSink {
                         r#type: "dnstap".into(),
                         name: Some("tap-a".into()),
                         export_id: "wire-a".into(),
@@ -494,7 +492,7 @@ mod tests {
                         extra_tags: vec![],
                         connect_retry: None,
                     },
-                    ObservationSink {
+                    EventSink {
                         r#type: "dnstap".into(),
                         name: None,
                         export_id: "legacy-only".into(),
@@ -523,7 +521,7 @@ mod tests {
     #[test]
     fn validate_rejects_duplicate_names() {
         let sinks = vec![
-            ObservationSink {
+            EventSink {
                 r#type: "dnstap".into(),
                 name: Some("same".into()),
                 export_id: "a".into(),
@@ -534,7 +532,7 @@ mod tests {
                 extra_tags: vec![],
                 connect_retry: None,
             },
-            ObservationSink {
+            EventSink {
                 r#type: "dnstap".into(),
                 name: Some("same".into()),
                 export_id: "b".into(),

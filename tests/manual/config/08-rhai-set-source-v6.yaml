@@ -15,7 +15,7 @@ orchestrator:
   max_attempts: 3
   max_txn_duration_ms: 8000
   txn_table_capacity: 1024
-observation:
+events:
   queue_depth: 8192
   drop_policy: drop_oldest
   sinks:

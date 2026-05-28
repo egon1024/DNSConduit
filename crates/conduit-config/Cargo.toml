@@ -7,7 +7,7 @@ rust-version.workspace = true
 
 [dependencies]
 conduit-proto = { path = "../conduit-proto" }
-conduit-observation = { path = "../conduit-observation" }
+conduit-events = { path = "../conduit-events" }
 conduit-metrics = { path = "../conduit-metrics" }
 serde = { workspace = true }
 serde_yaml = { workspace = true }

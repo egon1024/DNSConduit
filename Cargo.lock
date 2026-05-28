@@ -215,8 +215,8 @@ dependencies = [
 name = "conduit-config"
 version = "0.7.0"
 dependencies = [
+ "conduit-events",
  "conduit-metrics",
- "conduit-observation",
  "conduit-proto",
  "prost",
  "serde",
@@ -233,8 +233,8 @@ version = "0.7.0"
 dependencies = [
  "arc-swap",
  "conduit-config",
+ "conduit-events",
  "conduit-metrics",
- "conduit-observation",
  "conduit-proto",
  "conduit-script",
  "hickory-proto",
@@ -250,8 +250,8 @@ dependencies = [
  "arc-swap",
  "conduit-config",
  "conduit-core",
+ "conduit-events",
  "conduit-metrics",
- "conduit-observation",
  "conduit-proto",
  "hickory-proto",
  "socket2 0.5.10",
@@ -264,12 +264,24 @@ name = "conduit-dnstap-tap"
 version = "0.7.0"
 dependencies = [
  "anyhow",
- "conduit-observation",
+ "conduit-events",
  "hickory-proto",
  "serde",
  "serde_json",
  "serde_yaml",
  "tempfile",
+]
+
+[[package]]
+name = "conduit-events"
+version = "0.7.0"
+dependencies = [
+ "conduit-proto",
+ "crossbeam-channel",
+ "dnstap",
+ "protobuf 3.7.2",
+ "tempfile",
+ "tracing",
 ]
 
 [[package]]
@@ -279,7 +291,7 @@ dependencies = [
  "arc-swap",
  "conduit-config",
  "conduit-core",
- "conduit-observation",
+ "conduit-events",
  "conduit-proto",
  "hickory-proto",
  "http-body-util",
@@ -290,18 +302,6 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
- "tracing",
-]
-
-[[package]]
-name = "conduit-observation"
-version = "0.7.0"
-dependencies = [
- "conduit-proto",
- "crossbeam-channel",
- "dnstap",
- "protobuf 3.7.2",
- "tempfile",
  "tracing",
 ]
 
@@ -322,8 +322,8 @@ name = "conduit-script"
 version = "0.7.0"
 dependencies = [
  "conduit-config",
+ "conduit-events",
  "conduit-metrics",
- "conduit-observation",
  "conduit-proto",
  "rhai",
  "thiserror 2.0.18",

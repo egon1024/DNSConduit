@@ -15,6 +15,6 @@ fn no_sinks_observation_has_zero_consumer_threads() {
     let metrics = Arc::new(MetricsHub::from_config(&cfg));
     let tracing = Arc::new(TracingHub::from_config(&cfg));
     let handle = supervisor::start(store, metrics, tracing).unwrap();
-    assert!(!handle.observation.enabled());
-    assert_eq!(handle.observation.consumer_count(), 0);
+    assert!(!handle.events.enabled());
+    assert_eq!(handle.events.consumer_count(), 0);
 }

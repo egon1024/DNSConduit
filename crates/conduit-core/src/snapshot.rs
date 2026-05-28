@@ -4,8 +4,8 @@ use crate::rules::CompiledRules;
 use arc_swap::ArcSwap;
 use conduit_config::forward::{CompiledForward, CompiledPoolForward};
 use conduit_config::validate;
+use conduit_events::{compile_from_config as compile_events, CompiledEvents};
 use conduit_metrics::{compile_from_config as compile_metrics, CompiledMetrics, CompiledTracing};
-use conduit_observation::{compile_from_config, CompiledObservation};
 use conduit_proto::config::Config;
 use conduit_script::{compile_from_config as compile_scripts, CompiledScripting, ScriptError};
 use std::collections::HashMap;
@@ -17,7 +17,7 @@ use std::sync::Arc;
 pub struct RuntimeSnapshot {
     pub config: Config,
     pub rules: CompiledRules,
-    pub observation: CompiledObservation,
+    pub events: CompiledEvents,
     pub scripting: Arc<CompiledScripting>,
     pub forward: CompiledForward,
     pub pool_forward: HashMap<String, CompiledPoolForward>,
@@ -132,7 +132,7 @@ impl RuntimeSnapshot {
     }
 
     pub fn from_config_with_base(config: Config, base_dir: Option<&Path>) -> Self {
-        let observation = compile_from_config(&config);
+        let events = compile_events(&config);
         let (metrics, tracing) = compile_metrics(&config);
         let scripting = compile_scripts(&config, base_dir).unwrap_or_else(|e| {
             panic!("script compile failed at snapshot build: {e}");
@@ -143,7 +143,7 @@ impl RuntimeSnapshot {
             });
         Self {
             rules: CompiledRules::compile(config.rules.as_ref()),
-            observation,
+            events,
             scripting: Arc::new(scripting),
             forward,
             pool_forward,
@@ -159,7 +159,7 @@ impl RuntimeSnapshot {
         config: Config,
         base_dir: Option<&Path>,
     ) -> Result<Self, ScriptError> {
-        let observation = compile_from_config(&config);
+        let events = compile_events(&config);
         let (metrics, tracing) = compile_metrics(&config);
         let scripting = compile_scripts(&config, base_dir)?;
         let (forward, pool_forward) =
@@ -169,7 +169,7 @@ impl RuntimeSnapshot {
             })?;
         Ok(Self {
             rules: CompiledRules::compile(config.rules.as_ref()),
-            observation,
+            events,
             scripting: Arc::new(scripting),
             forward,
             pool_forward,
@@ -188,8 +188,8 @@ impl RuntimeSnapshot {
         self.tracing.enabled
     }
 
-    pub fn observation_enabled(&self) -> bool {
-        self.observation.enabled
+    pub fn events_enabled(&self) -> bool {
+        self.events.enabled
     }
 
     pub fn scripting_enabled(&self) -> bool {
@@ -300,16 +300,16 @@ mod tests {
         let yaml = include_str!("../../../tests/fixtures/config/no-sinks.yaml");
         let cfg = load_yaml(yaml).unwrap();
         let snap = RuntimeSnapshot::from_config(cfg);
-        assert!(!snap.observation_enabled());
+        assert!(!snap.events_enabled());
     }
 
     #[test]
-    fn observation_enabled_with_dnstap_sink() {
+    fn events_enabled_with_dnstap_sink() {
         let yaml = include_str!("../../../tests/fixtures/config/with-dnstap.yaml");
         let cfg = load_yaml(yaml).unwrap();
         let snap = RuntimeSnapshot::from_config(cfg);
-        assert!(snap.observation_enabled());
-        assert_eq!(snap.observation.sinks.len(), 1);
+        assert!(snap.events_enabled());
+        assert_eq!(snap.events.sinks.len(), 1);
     }
 
     #[test]

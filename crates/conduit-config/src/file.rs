@@ -1,20 +1,21 @@
 use crate::backend::DEFAULT_BACKEND_WEIGHT;
 use crate::error::ConfigError;
 use conduit_proto::config::{
-    Action, Backend, Config, ControlConfig, DataSource, ForwardConfig, Listener, ListenersConfig,
-    LoggingConfig, MetricsConfig, ObservationConfig, ObservationSinkFilters, OrchestratorConfig,
+    Action, Backend, Config, ControlConfig, DataSource, EventSinkFilters, EventsConfig,
+    ForwardConfig, Listener, ListenersConfig, LoggingConfig, MetricsConfig, OrchestratorConfig,
     OtelMetricsConfig, Pool, PrometheusMetricsConfig, RhaiConfig, Rule, RulesConfig, Selector,
     TracingActivation, TracingConfig, TracingOutput,
 };
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct YamlConfig {
     schema_version: u32,
     listeners: YamlListeners,
     forward: YamlForward,
     orchestrator: YamlOrchestrator,
-    observation: YamlObservation,
+    events: YamlEvents,
     rhai: YamlRhai,
     pools: Vec<YamlPool>,
     control: YamlControl,
@@ -143,15 +144,15 @@ pub(crate) struct YamlOrchestrator {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub(crate) struct YamlObservation {
+pub(crate) struct YamlEvents {
     queue_depth: u32,
     drop_policy: String,
     #[serde(default)]
-    sinks: Vec<YamlObservationSink>,
+    sinks: Vec<YamlEventSink>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Default)]
-pub(crate) struct YamlObservationSinkFilters {
+pub(crate) struct YamlEventSinkFilters {
     #[serde(default)]
     tag_required: Option<String>,
     #[serde(default)]
@@ -164,7 +165,7 @@ pub(crate) struct YamlObservationSinkFilters {
     backend: Option<String>,
 }
 
-fn yaml_observation_filters_nonempty(f: &YamlObservationSinkFilters) -> bool {
+fn yaml_event_filters_nonempty(f: &YamlEventSinkFilters) -> bool {
     f.tag_required.is_some()
         || !f.selectors.is_empty()
         || f.sample_rate.is_some()
@@ -191,7 +192,7 @@ fn default_connect_retry_jitter() -> bool {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub(crate) struct YamlObservationSink {
+pub(crate) struct YamlEventSink {
     #[serde(rename = "type")]
     sink_type: String,
     #[serde(default)]
@@ -203,7 +204,7 @@ pub(crate) struct YamlObservationSink {
     #[serde(default)]
     emit: Vec<String>,
     #[serde(default)]
-    filters: YamlObservationSinkFilters,
+    filters: YamlEventSinkFilters,
     #[serde(default)]
     extra_fields: Vec<String>,
     #[serde(default)]
@@ -333,7 +334,7 @@ impl From<YamlConfig> for Config {
             listeners: Some(y.listeners.into()),
             forward: Some(y.forward.into()),
             orchestrator: Some(y.orchestrator.into()),
-            observation: Some(y.observation.into()),
+            events: Some(y.events.into()),
             rhai: Some(y.rhai.into()),
             pools: y.pools.into_iter().map(Into::into).collect(),
             control: Some(y.control.into()),
@@ -496,9 +497,9 @@ impl From<YamlOrchestrator> for OrchestratorConfig {
     }
 }
 
-impl From<YamlObservation> for ObservationConfig {
-    fn from(y: YamlObservation) -> Self {
-        ObservationConfig {
+impl From<YamlEvents> for EventsConfig {
+    fn from(y: YamlEvents) -> Self {
+        EventsConfig {
             queue_depth: y.queue_depth,
             drop_policy: y.drop_policy,
             sinks: y.sinks.into_iter().map(Into::into).collect(),
@@ -506,10 +507,10 @@ impl From<YamlObservation> for ObservationConfig {
     }
 }
 
-impl From<YamlObservationSink> for conduit_proto::config::ObservationSink {
-    fn from(y: YamlObservationSink) -> Self {
-        let filters = if yaml_observation_filters_nonempty(&y.filters) {
-            Some(ObservationSinkFilters {
+impl From<YamlEventSink> for conduit_proto::config::EventSink {
+    fn from(y: YamlEventSink) -> Self {
+        let filters = if yaml_event_filters_nonempty(&y.filters) {
+            Some(EventSinkFilters {
                 tag_required: y.filters.tag_required.clone(),
                 selectors: y
                     .filters
@@ -536,7 +537,7 @@ impl From<YamlObservationSink> for conduit_proto::config::ObservationSink {
                 max_elapsed_ms: r.max_elapsed_ms,
                 jitter: r.jitter,
             });
-        conduit_proto::config::ObservationSink {
+        conduit_proto::config::EventSink {
             r#type: y.sink_type,
             export_id: y.export_id,
             name: y.name,
@@ -623,10 +624,10 @@ pub(crate) fn config_to_yaml(cfg: &Config) -> Result<YamlConfig, ConfigError> {
             .as_ref()
             .ok_or_else(|| missing_section("orchestrator"))?
             .try_into()?,
-        observation: cfg
-            .observation
+        events: cfg
+            .events
             .as_ref()
-            .ok_or_else(|| missing_section("observation"))?
+            .ok_or_else(|| missing_section("events"))?
             .try_into()?,
         rhai: cfg
             .rhai
@@ -848,21 +849,21 @@ impl TryFrom<&OrchestratorConfig> for YamlOrchestrator {
     }
 }
 
-impl TryFrom<&ObservationConfig> for YamlObservation {
+impl TryFrom<&EventsConfig> for YamlEvents {
     type Error = ConfigError;
 
-    fn try_from(o: &ObservationConfig) -> Result<Self, Self::Error> {
-        Ok(YamlObservation {
+    fn try_from(o: &EventsConfig) -> Result<Self, Self::Error> {
+        Ok(YamlEvents {
             queue_depth: o.queue_depth,
             drop_policy: o.drop_policy.clone(),
-            sinks: o.sinks.iter().map(YamlObservationSink::from).collect(),
+            sinks: o.sinks.iter().map(YamlEventSink::from).collect(),
         })
     }
 }
 
-impl From<&conduit_proto::config::ObservationSink> for YamlObservationSink {
-    fn from(s: &conduit_proto::config::ObservationSink) -> Self {
-        YamlObservationSink {
+impl From<&conduit_proto::config::EventSink> for YamlEventSink {
+    fn from(s: &conduit_proto::config::EventSink) -> Self {
+        YamlEventSink {
             sink_type: s.r#type.clone(),
             export_id: s.export_id.clone(),
             name: s.name.clone(),
@@ -871,7 +872,7 @@ impl From<&conduit_proto::config::ObservationSink> for YamlObservationSink {
             filters: s
                 .filters
                 .as_ref()
-                .map(|f| YamlObservationSinkFilters {
+                .map(|f| YamlEventSinkFilters {
                     tag_required: f.tag_required.clone(),
                     selectors: f.selectors.iter().map(YamlSelector::from).collect(),
                     sample_rate: f.sample_rate,

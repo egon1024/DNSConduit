@@ -2,7 +2,7 @@
 
 use crate::export::render_prometheus;
 use crate::MetricsHub;
-use conduit_observation::ObservationHub;
+use conduit_events::EventHub;
 use http_body_util::Full;
 use hyper::body::Bytes;
 use hyper::server::conn::http1;
@@ -18,7 +18,7 @@ pub fn spawn_prometheus_server(
     listen: SocketAddr,
     path: String,
     hub: Arc<MetricsHub>,
-    observation: Arc<ObservationHub>,
+    observation: Arc<EventHub>,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         let listener = match TcpListener::bind(listen).await {
@@ -58,7 +58,7 @@ fn handle_metrics(
     req: Request<hyper::body::Incoming>,
     path: &str,
     hub: &MetricsHub,
-    observation: &ObservationHub,
+    observation: &EventHub,
 ) -> Response<Full<Bytes>> {
     if req.method() != hyper::Method::GET {
         return Response::builder()

@@ -3,8 +3,8 @@ use conduit_core::{
     orchestrator::Orchestrator, snapshot::RuntimeSnapshot, transaction::ClientProtocol,
     SystemClock, Transaction,
 };
+use conduit_events::EventHub;
 use conduit_metrics::{render_prometheus, MetricsHub};
-use conduit_observation::ObservationHub;
 use hickory_proto::op::{Message, Query};
 use hickory_proto::rr::{Name, RecordType};
 use hickory_proto::serialize::binary::{BinEncodable, BinEncoder};
@@ -30,7 +30,7 @@ fn prometheus_text_includes_conduit_queries_after_traffic() {
     assert!(hub.metrics_enabled());
 
     let snap = Arc::new(RuntimeSnapshot::from_config(cfg));
-    let obs = ObservationHub::from_compiled(&snap.observation);
+    let obs = EventHub::from_compiled(&snap.events);
     let mut orch = Orchestrator::with_default_stages();
     orch.metrics = Some(hub.clone());
 

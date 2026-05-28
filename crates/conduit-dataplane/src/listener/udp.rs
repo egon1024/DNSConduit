@@ -4,7 +4,7 @@ use crate::listener::startup_log;
 use conduit_core::orchestrator::{Orchestrator, RunOutcome};
 use conduit_core::snapshot::SnapshotStore;
 use conduit_core::transaction::{ClientProtocol, Transaction};
-use conduit_observation::ObservationHub;
+use conduit_events::EventHub;
 use conduit_proto::config::Listener;
 use socket2::{Domain, Protocol, Socket, Type};
 use std::net::SocketAddr;
@@ -15,7 +15,7 @@ pub fn run_worker(
     listener: Listener,
     store: Arc<SnapshotStore>,
     orchestrator: Arc<Orchestrator>,
-    observation: Arc<ObservationHub>,
+    observation: Arc<EventHub>,
     reuse_port: bool,
     rcvbuf: u32,
 ) -> std::io::Result<()> {

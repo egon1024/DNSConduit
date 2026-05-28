@@ -2,7 +2,7 @@ use crate::compile::{CompiledScript, CompiledScripting, ScriptLimits};
 use crate::data_sources::DataSourceStore;
 use crate::host::{HostTransaction, ScriptPhase};
 use crate::metrics::MetricRegistry;
-use conduit_observation::hash_sample;
+use conduit_events::hash_sample;
 use rhai::{Dynamic, Engine, EvalAltResult, Scope};
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -616,7 +616,7 @@ orchestrator:
   max_attempts: 3
   max_txn_duration_ms: 5000
   txn_table_capacity: 1024
-observation:
+events:
   queue_depth: 4096
   drop_policy: drop_oldest
 rhai:
@@ -688,7 +688,7 @@ orchestrator:
   max_attempts: 3
   max_txn_duration_ms: 5000
   txn_table_capacity: 1024
-observation:
+events:
   queue_depth: 4096
   drop_policy: drop_oldest
 rhai:
@@ -760,7 +760,7 @@ orchestrator:
   max_attempts: 3
   max_txn_duration_ms: 5000
   txn_table_capacity: 1024
-observation:
+events:
   queue_depth: 4096
   drop_policy: drop_oldest
 rhai:
@@ -1105,7 +1105,7 @@ orchestrator:
   max_attempts: 3
   max_txn_duration_ms: 5000
   txn_table_capacity: 1024
-observation:
+events:
   queue_depth: 4096
   drop_policy: drop_oldest
 rhai:

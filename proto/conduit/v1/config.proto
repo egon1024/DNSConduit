@@ -9,7 +9,7 @@ message Config {
   ListenersConfig listeners = 2;
   ForwardConfig forward = 3;
   OrchestratorConfig orchestrator = 4;
-  ObservationConfig observation = 5;
+  EventsConfig events = 5;
   RhaiConfig rhai = 6;
   repeated Pool pools = 7;
   ControlConfig control = 8;
@@ -121,13 +121,13 @@ message OrchestratorConfig {
   uint32 txn_table_capacity = 3;
 }
 
-message ObservationConfig {
+message EventsConfig {
   uint32 queue_depth = 1;
   string drop_policy = 2;       // "drop_oldest" | "drop_newest"
-  repeated ObservationSink sinks = 3;
+  repeated EventSink sinks = 3;
 }
 
-message ObservationSinkFilters {
+message EventSinkFilters {
   optional string tag_required = 1;
   repeated Selector selectors = 2;
   optional double sample_rate = 3;
@@ -143,12 +143,12 @@ message ConnectRetry {
   bool jitter = 5;
 }
 
-message ObservationSink {
+message EventSink {
   string type = 1;              // "dnstap" (Phase 2)
   string export_id = 2;         // dnstap wire identity; defaults to name when empty
   repeated string destinations = 3;
   repeated string emit = 4;
-  ObservationSinkFilters filters = 5;
+  EventSinkFilters filters = 5;
   repeated string extra_fields = 6;  // pool, backend, ..., client, sink_name
   repeated string extra_tags = 7;    // tag key filter when "tags" in extra_fields; omit or "*" = all
   optional string name = 8;          // canonical operator/API id; defaults to export_id when empty

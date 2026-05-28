@@ -10,7 +10,7 @@ pub enum EventKind {
 }
 
 #[derive(Debug, Clone)]
-pub struct ObservationEvent {
+pub struct ExportEvent {
     pub kind: EventKind,
     pub txn_id: u64,
     pub client_addr: SocketAddr,

@@ -5,14 +5,14 @@ use crate::listener::startup_log;
 use conduit_core::orchestrator::Orchestrator;
 use conduit_core::phase::Phase;
 use conduit_core::snapshot::SnapshotStore;
+use conduit_events::EventHub;
 use conduit_metrics::{MetricsHub, TracingHub};
-use conduit_observation::ObservationHub;
 use std::sync::Arc;
 use std::thread;
 
 pub struct DataplaneHandle {
     _threads: Vec<thread::JoinHandle<()>>,
-    pub observation: Arc<ObservationHub>,
+    pub events: Arc<EventHub>,
 }
 
 pub fn start(
@@ -21,14 +21,14 @@ pub fn start(
     tracing: Arc<TracingHub>,
 ) -> std::io::Result<DataplaneHandle> {
     let snap = store.load();
-    let observation = Arc::new(ObservationHub::from_compiled(&snap.observation));
-    startup_log::log_startup_summary(&snap, &observation);
+    let events_hub = Arc::new(EventHub::from_compiled(&snap.events));
+    startup_log::log_startup_summary(&snap, &events_hub);
     let cfg = &snap.config;
     let listeners = cfg.listeners.as_ref();
     let Some(listeners) = listeners else {
         return Ok(DataplaneHandle {
             _threads: Vec::new(),
-            observation,
+            events: events_hub,
         });
     };
 
@@ -54,7 +54,7 @@ pub fn start(
             let forward_compiled = snap.forward.clone();
             let bind_addresses_v4 = snap.egress_bind_addresses_v4();
             let bind_addresses_v6 = snap.egress_bind_addresses_v6();
-            let obs = observation.clone();
+            let obs = events_hub.clone();
             let metrics = metrics.clone();
             let tracing = tracing.clone();
             let reuse = listeners.reuse_port;
@@ -109,7 +109,7 @@ pub fn start(
 
     Ok(DataplaneHandle {
         _threads: handles,
-        observation,
+        events: events_hub,
     })
 }
 

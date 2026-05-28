@@ -2,14 +2,14 @@
 
 use crate::builtin::encode_builtin;
 use crate::MetricsHub;
-use conduit_observation::SinkMetricsSnapshot;
+use conduit_events::SinkMetricsSnapshot;
 use prometheus::{Encoder, IntCounterVec, Opts, Registry, TextEncoder};
 
-pub fn render_prometheus(hub: &MetricsHub, observation: &[SinkMetricsSnapshot]) -> String {
+pub fn render_prometheus(hub: &MetricsHub, event_sinks: &[SinkMetricsSnapshot]) -> String {
     [
         encode_builtin(hub.builtin.gather()),
         encode_families(hub.user.gather()),
-        encode_observation(observation),
+        encode_event_sinks(event_sinks),
     ]
     .join("\n")
 }
@@ -21,39 +21,39 @@ fn encode_families(families: Vec<prometheus::proto::MetricFamily>) -> String {
     String::from_utf8(buf).expect("utf8")
 }
 
-fn encode_observation(snapshots: &[SinkMetricsSnapshot]) -> String {
+fn encode_event_sinks(snapshots: &[SinkMetricsSnapshot]) -> String {
     if snapshots.is_empty() {
         return String::new();
     }
     let registry = Registry::new();
     let enqueued_query = IntCounterVec::new(
         Opts::new(
-            "conduit_observation_enqueued_query_total",
-            "Observation events enqueued (query)",
+            "conduit_events_enqueued_query_total",
+            "DNS export events enqueued (query)",
         ),
         &["sink"],
     )
     .expect("metric");
     let enqueued_response = IntCounterVec::new(
         Opts::new(
-            "conduit_observation_enqueued_response_total",
-            "Observation events enqueued (response)",
+            "conduit_events_enqueued_response_total",
+            "DNS export events enqueued (response)",
         ),
         &["sink"],
     )
     .expect("metric");
     let queue_dropped = IntCounterVec::new(
         Opts::new(
-            "conduit_observation_queue_dropped_total",
-            "Observation queue drops",
+            "conduit_events_queue_dropped_total",
+            "Event sink queue drops",
         ),
         &["sink"],
     )
     .expect("metric");
     let delivered = IntCounterVec::new(
         Opts::new(
-            "conduit_observation_delivered_total",
-            "Observation frames delivered",
+            "conduit_events_delivered_total",
+            "Event sink frames delivered",
         ),
         &["sink"],
     )

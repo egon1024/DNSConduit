@@ -1,8 +1,8 @@
-//! Dataplane hook helpers for observation enqueue.
+//! Dataplane hook helpers for event enqueue.
 
 use crate::snapshot::RuntimeSnapshot;
 use crate::transaction::{ClientProtocol, Transaction};
-use conduit_observation::{ObservationHub, TxnExtraSource, TxnView};
+use conduit_events::{EventHub, TxnExtraSource, TxnView};
 use std::sync::Arc;
 
 fn extra_source(txn: &Transaction, include_tags: bool) -> TxnExtraSource {
@@ -34,21 +34,21 @@ pub fn txn_view<'a>(txn: &'a Transaction, snapshot: &RuntimeSnapshot) -> TxnView
         query_wire: &txn.query_wire,
         response_wire: txn.response_wire.as_deref(),
         attempt_count: txn.attempt_count,
-        extra: extra_source(txn, snapshot.observation.needs_tag_export()),
+        extra: extra_source(txn, snapshot.events.needs_tag_export()),
     }
 }
 
-pub fn emit_query(hub: &ObservationHub, txn: &Transaction, snapshot: &Arc<RuntimeSnapshot>) {
+pub fn emit_query(hub: &EventHub, txn: &Transaction, snapshot: &Arc<RuntimeSnapshot>) {
     let view = txn_view(txn, snapshot);
-    hub.try_enqueue_query(view, &snapshot.observation, |k| txn.tags.has(k));
+    hub.try_enqueue_query(view, &snapshot.events, |k| txn.tags.has(k));
 }
 
-pub fn emit_response(hub: &ObservationHub, txn: &Transaction, snapshot: &Arc<RuntimeSnapshot>) {
+pub fn emit_response(hub: &EventHub, txn: &Transaction, snapshot: &Arc<RuntimeSnapshot>) {
     let view = txn_view(txn, snapshot);
-    hub.try_enqueue_response(view, &snapshot.observation, |k| txn.tags.has(k));
+    hub.try_enqueue_response(view, &snapshot.events, |k| txn.tags.has(k));
 }
 
-pub fn emit_retry(hub: &ObservationHub, txn: &Transaction, snapshot: &Arc<RuntimeSnapshot>) {
+pub fn emit_retry(hub: &EventHub, txn: &Transaction, snapshot: &Arc<RuntimeSnapshot>) {
     let view = txn_view(txn, snapshot);
-    hub.try_enqueue_retry(view, &snapshot.observation, |k| txn.tags.has(k));
+    hub.try_enqueue_retry(view, &snapshot.events, |k| txn.tags.has(k));
 }

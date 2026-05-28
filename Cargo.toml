@@ -4,7 +4,7 @@ members = [
     "crates/conduit-proto",
     "crates/conduit-config",
     "crates/conduit-core",
-    "crates/conduit-observation",
+    "crates/conduit-events",
     "crates/conduit-metrics",
     "crates/conduit-dataplane",
     "crates/conduit-api",

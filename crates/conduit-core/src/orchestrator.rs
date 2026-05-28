@@ -1,13 +1,13 @@
 //! Phase state machine driving pipeline stages (spec §3.1).
 
 use crate::clock::Clock;
-use crate::observation_emit::{emit_query, emit_response, emit_retry};
+use crate::event_emit::{emit_query, emit_response, emit_retry};
 use crate::phase::Phase;
 use crate::pipeline::{PipelineStage, StageOutcome};
 use crate::snapshot::RuntimeSnapshot;
 use crate::transaction::Transaction;
+use conduit_events::EventHub;
 use conduit_metrics::{trace_activation_matches, MetricsHub, TracingHub};
-use conduit_observation::ObservationHub;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -56,7 +56,7 @@ impl Orchestrator {
         txn: &mut Transaction,
         snapshot: &Arc<RuntimeSnapshot>,
         _clock: &dyn Clock,
-        observation: Option<&ObservationHub>,
+        events: Option<&EventHub>,
     ) -> RunOutcome {
         let metrics = self.metrics.as_deref();
         let tracing = self.tracing.as_deref();
@@ -99,7 +99,7 @@ impl Orchestrator {
 
             let Some(stage) = self.registry.get(txn.current_phase) else {
                 if txn.current_phase == Phase::Send {
-                    if let Some(hub) = observation {
+                    if let Some(hub) = events {
                         emit_response(hub, txn, snapshot);
                         emit_retry(hub, txn, snapshot);
                     }
@@ -145,7 +145,7 @@ impl Orchestrator {
                                 }
                             }
                         }
-                        if let Some(hub) = observation {
+                        if let Some(hub) = events {
                             emit_query(hub, txn, snapshot);
                         }
                     }
@@ -158,7 +158,7 @@ impl Orchestrator {
                     }
                     txn.current_phase = next;
                     if phase == Phase::Send {
-                        if let Some(hub) = observation {
+                        if let Some(hub) = events {
                             emit_response(hub, txn, snapshot);
                             emit_retry(hub, txn, snapshot);
                         }
@@ -420,12 +420,12 @@ mod tests {
 
     #[test]
     fn query_observation_after_request_rules_respects_tag_required() {
-        use conduit_observation::ObservationHub;
+        use conduit_events::EventHub;
 
         let yaml = include_str!("../../../tests/fixtures/config/with-dnstap-filters.yaml");
         let cfg = load_yaml(yaml).unwrap();
         let snap = Arc::new(RuntimeSnapshot::from_config(cfg));
-        let hub = ObservationHub::from_compiled(&snap.observation);
+        let hub = EventHub::from_compiled(&snap.events);
         let orch = orchestrator_with_mock_forward();
 
         let name = Name::from_utf8("pay.payments.corp.example.").unwrap();
@@ -487,11 +487,11 @@ mod tests {
 
     #[test]
     fn rhai_dnstap_tag_gates_query_export() {
-        use conduit_observation::ObservationHub;
+        use conduit_events::EventHub;
 
         let yaml = include_str!("../../../tests/fixtures/config/with-rhai-dnstap-tag.yaml");
         let snap = snapshot_from_fixture(yaml);
-        let hub = ObservationHub::from_compiled(&snap.observation);
+        let hub = EventHub::from_compiled(&snap.events);
         let orch = orchestrator_with_mock_forward();
 
         let mut txn = Transaction::new(22, "127.0.0.1:5353".parse().unwrap(), ClientProtocol::Udp)
@@ -509,7 +509,7 @@ mod tests {
 
     #[test]
     fn rhai_sample_include_stable_per_txn() {
-        use conduit_observation::hash_sample;
+        use conduit_events::hash_sample;
 
         let yaml = include_str!("../../../tests/fixtures/config/with-rhai-sample.yaml");
         let snap = snapshot_from_fixture(yaml);

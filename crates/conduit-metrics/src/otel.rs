@@ -4,7 +4,7 @@
 //! Prometheus series is deferred; operators should use Prometheus scrape as the primary path.
 
 use crate::MetricsHub;
-use conduit_observation::ObservationHub;
+use conduit_events::EventHub;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -13,7 +13,7 @@ pub fn spawn_otel_push(
     interval_ms: u32,
     resource_attributes: Vec<(String, String)>,
     hub: Arc<MetricsHub>,
-    observation: Arc<ObservationHub>,
+    observation: Arc<EventHub>,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         let interval = Duration::from_millis(interval_ms.max(1000) as u64);

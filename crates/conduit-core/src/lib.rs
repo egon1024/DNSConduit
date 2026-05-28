@@ -1,7 +1,7 @@
 //! Core runtime: snapshots, transactions, pipeline traits.
 
 pub mod clock;
-pub mod observation_emit;
+pub mod event_emit;
 pub mod orchestrator;
 pub mod phase;
 pub mod pipeline;

@@ -12,12 +12,12 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow = { workspace = true }
-conduit-observation = { path = "../conduit-observation" }
+conduit-events = { path = "../conduit-events" }
 hickory-proto = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 serde_yaml = { workspace = true }
 
 [dev-dependencies]
-conduit-observation = { path = "../conduit-observation" }
+conduit-events = { path = "../conduit-events" }
 tempfile = "3"

@@ -32,7 +32,7 @@ When the `metrics` section is **omitted**, export is disabled (no scrape listene
 | `conduit_forward_errors_total` | `pool`, `reason` | no |
 | `conduit_retries_total` | `pool` | no |
 
-Observation per-sink counters are exported at scrape time from `ObservationHub` snapshots (not incremented on workers).
+Per-sink event export counters (`conduit_events_*`) are included at scrape time from `EventHub` snapshots (not incremented on workers).
 
 ### User metrics (Rhai)
 
@@ -55,7 +55,7 @@ tracing:
 
 Default: **off** — no `TraceLog` allocation on the hot path.
 
-Activation uses the same selector types and `hash_sample(txn_id, rate)` as observation sink filters (phase 2.7). Evaluated after **RequestRules**.
+Activation uses the same selector types and `hash_sample(txn_id, rate)` as event sink filters (phase 2.7). Evaluated after **RequestRules**.
 
 Completed traces are stored in a bounded in-memory `TraceStore` (1000 entries, 5 minute TTL) for gRPC `GetTrace`.
 
