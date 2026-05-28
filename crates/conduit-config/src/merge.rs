@@ -2,7 +2,7 @@
 //!
 //! # Phase 0 merge strategy
 //!
-//! - **Top-level sections** (`listeners`, `forward`, `orchestrator`, `observation`,
+//! - **Top-level sections** (`listeners`, `forward`, `orchestrator`, `events`,
 //!   `rhai`, `control`): if the overlay has the section set (`Option::is_some`), replace
 //!   the entire sub-message on the effective config.
 //! - **`schema_version`**: overlay value wins.
@@ -49,8 +49,8 @@ pub fn merge_file_and_overlay(file: &Config, overlay: &Config) -> Config {
     if overlay.orchestrator.is_some() {
         merged.orchestrator = overlay.orchestrator;
     }
-    if overlay.observation.is_some() {
-        merged.observation = overlay.observation.clone();
+    if overlay.events.is_some() {
+        merged.events = overlay.events.clone();
     }
     if overlay.rhai.is_some() {
         merged.rhai = overlay.rhai;

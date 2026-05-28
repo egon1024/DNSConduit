@@ -1,6 +1,6 @@
 //! Tap accepts Conduit-style bidirectional sessions and decodes extras.
 
-use conduit_observation::fstrm::connect_bidirectional;
+use conduit_events::fstrm::connect_bidirectional;
 use std::os::unix::net::UnixStream;
 use std::process::{Command, Stdio};
 use std::thread;

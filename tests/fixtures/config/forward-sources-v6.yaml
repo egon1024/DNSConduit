@@ -23,7 +23,7 @@ pools:
     backends:
       - address: "[::1]:53"
 
-observation:
+events:
   queue_depth: 4096
   drop_policy: drop_oldest
 rhai:

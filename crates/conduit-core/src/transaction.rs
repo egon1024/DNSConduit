@@ -3,6 +3,7 @@
 use crate::phase::Phase;
 use crate::routing::AttemptRecord;
 use conduit_config::forward::RecursionDesired;
+use conduit_metrics::TraceLog;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::time::Instant;
@@ -61,6 +62,8 @@ pub struct Transaction {
     pub qname: Option<String>,
     pub qtype: Option<u16>,
     pub client_addr: SocketAddr,
+    /// Configured listener bind address (used as `listener` metric label).
+    pub listener_label: Option<String>,
     pub protocol: ClientProtocol,
     pub client_udp_payload_size: Option<u16>,
     pub selected_pool: Option<String>,
@@ -77,6 +80,8 @@ pub struct Transaction {
     pub source_override_v4: Option<std::net::Ipv4Addr>,
     /// Rhai/script override for IPv6 egress source (`set_source_v6`).
     pub source_override_v6: Option<std::net::Ipv6Addr>,
+    /// Pipeline trace buffer; `None` when tracing is off for this transaction.
+    pub trace_log: Option<TraceLog>,
     rcode: Option<u16>,
 }
 
@@ -92,6 +97,7 @@ impl Transaction {
             qname: None,
             qtype: None,
             client_addr,
+            listener_label: None,
             protocol,
             client_udp_payload_size: None,
             selected_pool: None,
@@ -105,7 +111,20 @@ impl Transaction {
             rd_override: None,
             source_override_v4: None,
             source_override_v6: None,
+            trace_log: None,
             rcode: None,
+        }
+    }
+
+    pub fn trace_record_phase(
+        &mut self,
+        phase: &str,
+        message: Option<String>,
+        pool: Option<String>,
+        backend: Option<String>,
+    ) {
+        if let Some(log) = self.trace_log.as_mut() {
+            log.record(phase, self.started_at, message, pool, backend);
         }
     }
 
@@ -136,6 +155,11 @@ impl Transaction {
 
     pub fn with_query_wire(mut self, wire: Vec<u8>) -> Self {
         self.query_wire = wire;
+        self
+    }
+
+    pub fn with_listener_label(mut self, label: impl Into<String>) -> Self {
+        self.listener_label = Some(label.into());
         self
     }
 

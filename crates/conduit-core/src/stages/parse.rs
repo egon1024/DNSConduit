@@ -82,7 +82,7 @@ mod tests {
         let snap = Arc::new(RuntimeSnapshot::from_config(cfg));
         let mut txn = Transaction::new(
             1,
-            "127.0.0.1:5353".parse::<SocketAddr>().unwrap(),
+            "127.0.0.1:15353".parse::<SocketAddr>().unwrap(),
             ClientProtocol::Udp,
         )
         .with_query_wire(example_query());
@@ -100,7 +100,7 @@ mod tests {
         let yaml = include_str!("../../../../tests/fixtures/config/minimal.yaml");
         let cfg = load_yaml(yaml).unwrap();
         let snap = Arc::new(RuntimeSnapshot::from_config(cfg));
-        let mut txn = Transaction::new(1, "127.0.0.1:5353".parse().unwrap(), ClientProtocol::Udp);
+        let mut txn = Transaction::new(1, "127.0.0.1:15353".parse().unwrap(), ClientProtocol::Udp);
         assert_eq!(ParseStage.handle(&mut txn, &snap), StageOutcome::Drop);
     }
 }

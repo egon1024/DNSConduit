@@ -9,9 +9,10 @@ use conduit_core::phase::Phase;
 use conduit_core::pipeline::{PipelineStage, StageOutcome};
 use conduit_core::snapshot::RuntimeSnapshot;
 use conduit_core::transaction::{ClientProtocol, Transaction};
+use conduit_metrics::MetricsHub;
 use hickory_proto::op::Message;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 pub struct ForwardTransport {
     egress: WorkerForwardEgress,
@@ -19,6 +20,7 @@ pub struct ForwardTransport {
     upstream_transport: UpstreamTransport,
     client_tcp_uses_upstream_tcp: bool,
     timeout_ms: u32,
+    metrics: Option<Arc<MetricsHub>>,
 }
 
 impl ForwardTransport {
@@ -28,6 +30,7 @@ impl ForwardTransport {
         bind_addresses_v4: &[std::net::Ipv4Addr],
         bind_addresses_v6: &[std::net::Ipv6Addr],
         timeout_ms: u32,
+        metrics: Option<Arc<MetricsHub>>,
     ) -> std::io::Result<Self> {
         Ok(Self {
             egress: WorkerForwardEgress::new(
@@ -40,7 +43,35 @@ impl ForwardTransport {
             upstream_transport: compiled.upstream_transport,
             client_tcp_uses_upstream_tcp: compiled.client_tcp_uses_upstream_tcp,
             timeout_ms,
+            metrics,
         })
+    }
+
+    fn record_forward(
+        &self,
+        txn: &Transaction,
+        backend: Option<std::net::SocketAddr>,
+        outcome: &str,
+        error_reason: Option<&str>,
+        started: Instant,
+    ) {
+        let Some(hub) = self.metrics.as_ref() else {
+            return;
+        };
+        if !hub.metrics_enabled() {
+            return;
+        }
+        let pool = txn.selected_pool.as_deref().unwrap_or("unknown");
+        let backend_label = backend
+            .map(|a| a.to_string())
+            .unwrap_or_else(|| "unknown".into());
+        hub.builtin
+            .record_forward_attempt(pool, &backend_label, outcome);
+        if let Some(reason) = error_reason {
+            hub.builtin.record_forward_error(pool, reason);
+        }
+        hub.builtin
+            .record_forward_duration(pool, &backend_label, started.elapsed().as_secs_f64());
     }
 
     fn timeout(&self) -> Duration {
@@ -62,7 +93,9 @@ impl ForwardTransport {
         txn: &mut Transaction,
         key: ForwardKey,
         wire: Vec<u8>,
+        started: Instant,
     ) -> StageOutcome {
+        self.record_forward(txn, Some(key.backend), "success", None, started);
         self.table.remove(key);
         if let Ok(msg) = Message::from_vec(&wire) {
             txn.set_rcode(msg.response_code().low() as u16);
@@ -71,7 +104,15 @@ impl ForwardTransport {
         StageOutcome::Continue(Phase::ResponseRules)
     }
 
-    fn servfail(&self, txn: &mut Transaction, key: Option<ForwardKey>) -> StageOutcome {
+    fn servfail(
+        &self,
+        txn: &mut Transaction,
+        key: Option<ForwardKey>,
+        reason: &str,
+        started: Instant,
+    ) -> StageOutcome {
+        let backend = key.map(|k| k.backend);
+        self.record_forward(txn, backend, "error", Some(reason), started);
         if let Some(k) = key {
             self.table.remove(k);
         }
@@ -86,7 +127,9 @@ impl PipelineStage for ForwardTransport {
     }
 
     fn handle(&self, txn: &mut Transaction, snapshot: &Arc<RuntimeSnapshot>) -> StageOutcome {
+        let started = Instant::now();
         let Some(backend) = txn.selected_backend else {
+            self.record_forward(txn, None, "error", Some("no_backend"), started);
             txn.set_rcode_name("SERVFAIL");
             return StageOutcome::Continue(Phase::Send);
         };
@@ -96,6 +139,7 @@ impl PipelineStage for ForwardTransport {
             dns_id: txn.dns_id,
         };
         if !self.table.register(key, txn.id) {
+            self.record_forward(txn, Some(backend), "error", Some("table_full"), started);
             txn.set_rcode_name("SERVFAIL");
             return StageOutcome::Continue(Phase::Send);
         }
@@ -128,10 +172,10 @@ impl PipelineStage for ForwardTransport {
 
         if try_tcp {
             match forward_tcp(backend, &upstream_wire, self.timeout(), bind_v4, bind_v6) {
-                Ok(wire) => return self.finish_response(txn, key, wire),
+                Ok(wire) => return self.finish_response(txn, key, wire, started),
                 Err(e) => {
                     tracing::warn!(txn_id = txn.id, %backend, error = %e, "tcp forward failed");
-                    return self.servfail(txn, Some(key));
+                    return self.servfail(txn, Some(key), "tcp_error", started);
                 }
             }
         }
@@ -158,7 +202,7 @@ impl PipelineStage for ForwardTransport {
 
         if socket.send_to(&upstream_wire, backend).is_err() {
             tracing::warn!(txn_id = txn.id, dns_id = txn.dns_id, %backend, "forward send failed");
-            return self.servfail(txn, Some(key));
+            return self.servfail(txn, Some(key), "send_error", started);
         }
 
         let mut buf = [0u8; 4096];
@@ -185,7 +229,7 @@ impl PipelineStage for ForwardTransport {
                                 bind_v6,
                             ) {
                                 Ok(tcp_wire) => {
-                                    return self.finish_response(txn, key, tcp_wire);
+                                    return self.finish_response(txn, key, tcp_wire, started);
                                 }
                                 Err(e) => {
                                     tracing::warn!(
@@ -199,7 +243,7 @@ impl PipelineStage for ForwardTransport {
                         }
                     }
                 }
-                self.finish_response(txn, key, wire)
+                self.finish_response(txn, key, wire, started)
             }
             Err(_) => {
                 tracing::warn!(
@@ -208,6 +252,7 @@ impl PipelineStage for ForwardTransport {
                     %backend,
                     "forward recv timeout"
                 );
+                self.record_forward(txn, Some(backend), "error", Some("timeout"), started);
                 self.table.remove(key);
                 txn.set_rcode_name("SERVFAIL");
                 StageOutcome::Continue(Phase::ResponseRules)

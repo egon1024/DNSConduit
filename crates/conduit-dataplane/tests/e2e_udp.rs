@@ -4,5 +4,5 @@
 #[ignore = "requires external mock DNS backend"]
 fn loopback_udp_query() {
     // Manual: cargo run -p conduit -- tests/fixtures/config/dataplane-minimal.yaml
-    // dig @127.0.0.1 -p 5353 example.com A
+    // dig @127.0.0.1 -p 15353 example.com A
 }

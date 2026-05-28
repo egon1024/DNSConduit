@@ -4,4 +4,5 @@ pub mod config {
 pub mod control {
     tonic::include_proto!("conduit.v1");
 }
+pub const FILE_DESCRIPTOR_SET: &[u8] = tonic::include_file_descriptor_set!("conduit_descriptor");
 pub use config::*;

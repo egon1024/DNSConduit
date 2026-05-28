@@ -1,10 +1,10 @@
 //! Operator-facing startup summary for the active snapshot.
 
 use conduit_core::snapshot::RuntimeSnapshot;
-use conduit_observation::ObservationHub;
+use conduit_events::EventHub;
 
-/// Log a concise summary of dataplane-related config (generation, listeners, egress, observation).
-pub fn log_startup_summary(snap: &RuntimeSnapshot, observation: &ObservationHub) {
+/// Log a concise summary of dataplane-related config (generation, listeners, egress, event sinks).
+pub fn log_startup_summary(snap: &RuntimeSnapshot, events_hub: &EventHub) {
     let cfg = &snap.config;
     let listener_count = cfg
         .listeners
@@ -24,8 +24,8 @@ pub fn log_startup_summary(snap: &RuntimeSnapshot, observation: &ObservationHub)
         forward_timeout_ms = snap.forward.timeout_ms,
         egress_sources_v4 = ?egress_v4,
         egress_sources_v6 = ?egress_v6,
-        observation_sinks = observation.consumer_count(),
-        observation_enabled = observation.enabled(),
+        event_sinks = events_hub.consumer_count(),
+        events_enabled = events_hub.enabled(),
         "dataplane startup summary"
     );
 

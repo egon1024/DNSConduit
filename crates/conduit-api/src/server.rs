@@ -2,13 +2,15 @@
 
 use conduit_config::{export_yaml, validate, EffectiveConfig};
 use conduit_core::snapshot::SnapshotStore;
+use conduit_metrics::TracingHub;
 use conduit_proto::config::Config as RuntimeConfig;
 use conduit_proto::control::conduit_control_server::{ConduitControl, ConduitControlServer};
 use conduit_proto::control::Config as ControlConfig;
 use conduit_proto::control::{
     ApplyConfigRequest, ApplyConfigResponse, ExportConfigRequest, ExportConfigResponse,
-    GetConfigRequest, GetConfigResponse, HealthRequest, HealthResponse, ReloadFromFileRequest,
-    ReloadFromFileResponse, ValidateConfigRequest, ValidateConfigResponse,
+    GetConfigRequest, GetConfigResponse, GetTraceRequest, GetTraceResponse, HealthRequest,
+    HealthResponse, ReloadFromFileRequest, ReloadFromFileResponse, TraceEvent as TraceEventProto,
+    ValidateConfigRequest, ValidateConfigResponse,
 };
 use prost::Message;
 use std::net::SocketAddr;
@@ -20,6 +22,7 @@ use tonic::{Request, Response, Status};
 pub struct ControlService {
     pub snapshots: Arc<SnapshotStore>,
     pub effective: Arc<Mutex<EffectiveConfig>>,
+    pub tracing: Arc<TracingHub>,
 }
 
 /// Map `config` module types to `control` module types (same protobuf schema, separate Rust paths).
@@ -101,6 +104,28 @@ impl ConduitControl for ControlService {
             status: "serving".into(),
         }))
     }
+
+    async fn get_trace(
+        &self,
+        request: Request<GetTraceRequest>,
+    ) -> Result<Response<GetTraceResponse>, Status> {
+        let trace_id = request.into_inner().trace_id;
+        let events = self.tracing.store.get(&trace_id);
+        Ok(Response::new(GetTraceResponse {
+            found: events.is_some(),
+            events: events
+                .unwrap_or_default()
+                .into_iter()
+                .map(|e| TraceEventProto {
+                    phase: e.phase,
+                    elapsed_us: e.elapsed_us,
+                    message: e.message,
+                    pool: e.pool,
+                    backend: e.backend,
+                })
+                .collect(),
+        }))
+    }
 }
 
 /// Run the gRPC control server until shutdown.
@@ -108,12 +133,32 @@ pub async fn serve(
     addr: SocketAddr,
     snapshots: Arc<SnapshotStore>,
     effective: Arc<Mutex<EffectiveConfig>>,
+    tracing: Arc<TracingHub>,
 ) -> anyhow::Result<()> {
+    let reflection_enabled = snapshots
+        .load()
+        .config
+        .control
+        .as_ref()
+        .map(|c| c.reflection_enabled)
+        .unwrap_or(false);
     let service = ConduitControlServer::new(ControlService {
         snapshots,
         effective,
+        tracing,
     });
-    Server::builder().add_service(service).serve(addr).await?;
+    if reflection_enabled {
+        let reflection = tonic_reflection::server::Builder::configure()
+            .register_encoded_file_descriptor_set(conduit_proto::FILE_DESCRIPTOR_SET)
+            .build_v1alpha()?;
+        Server::builder()
+            .add_service(reflection)
+            .add_service(service)
+            .serve(addr)
+            .await?;
+    } else {
+        Server::builder().add_service(service).serve(addr).await?;
+    }
     Ok(())
 }
 
@@ -122,20 +167,48 @@ pub async fn serve_on_listener(
     addr: SocketAddr,
     snapshots: Arc<SnapshotStore>,
     effective: Arc<Mutex<EffectiveConfig>>,
+    tracing: Arc<TracingHub>,
 ) -> anyhow::Result<SocketAddr> {
+    let reflection_enabled = snapshots
+        .load()
+        .config
+        .control
+        .as_ref()
+        .map(|c| c.reflection_enabled)
+        .unwrap_or(false);
     let listener = tokio::net::TcpListener::bind(addr).await?;
     let local_addr = listener.local_addr()?;
     let service = ConduitControlServer::new(ControlService {
         snapshots,
         effective,
+        tracing,
     });
     let incoming = tokio_stream::wrappers::TcpListenerStream::new(listener);
     tokio::spawn(async move {
-        if let Err(e) = Server::builder()
-            .add_service(service)
-            .serve_with_incoming(incoming)
-            .await
-        {
+        let result = if reflection_enabled {
+            match tonic_reflection::server::Builder::configure()
+                .register_encoded_file_descriptor_set(conduit_proto::FILE_DESCRIPTOR_SET)
+                .build_v1alpha()
+            {
+                Ok(reflection) => {
+                    Server::builder()
+                        .add_service(reflection)
+                        .add_service(service)
+                        .serve_with_incoming(incoming)
+                        .await
+                }
+                Err(e) => {
+                    tracing::error!("failed to build reflection service: {e}");
+                    return;
+                }
+            }
+        } else {
+            Server::builder()
+                .add_service(service)
+                .serve_with_incoming(incoming)
+                .await
+        };
+        if let Err(e) = result {
             tracing::error!("control server error: {e}");
         }
     });

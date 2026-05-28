@@ -1,6 +1,6 @@
 //! Bounded per-sink queue with drop policy.
 
-use crate::event::ObservationEvent;
+use crate::event::ExportEvent;
 use crossbeam_channel::{bounded, Receiver, Sender, TrySendError};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -20,8 +20,8 @@ impl DropPolicy {
 }
 
 pub struct SinkQueue {
-    tx: Sender<ObservationEvent>,
-    rx: Receiver<ObservationEvent>,
+    tx: Sender<ExportEvent>,
+    rx: Receiver<ExportEvent>,
     policy: DropPolicy,
 }
 
@@ -31,16 +31,16 @@ impl SinkQueue {
         Self { tx, rx, policy }
     }
 
-    pub fn sender(&self) -> Sender<ObservationEvent> {
+    pub fn sender(&self) -> Sender<ExportEvent> {
         self.tx.clone()
     }
 
-    pub fn receiver(&self) -> Receiver<ObservationEvent> {
+    pub fn receiver(&self) -> Receiver<ExportEvent> {
         self.rx.clone()
     }
 
     /// Enqueue without blocking. Returns `true` if an event was dropped.
-    pub fn try_enqueue(&self, event: ObservationEvent) -> bool {
+    pub fn try_enqueue(&self, event: ExportEvent) -> bool {
         match self.tx.try_send(event) {
             Ok(()) => false,
             Err(TrySendError::Full(event)) => match self.policy {
@@ -59,11 +59,11 @@ impl SinkQueue {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::event::{EventKind, ObservationEvent};
+    use crate::event::{EventKind, ExportEvent};
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
-    fn sample_event(id: u64) -> ObservationEvent {
-        ObservationEvent {
+    fn sample_event(id: u64) -> ExportEvent {
+        ExportEvent {
             kind: EventKind::Query,
             txn_id: id,
             client_addr: SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 53),

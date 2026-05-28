@@ -41,7 +41,7 @@ mod tests {
     fn fake_stage_sets_tag() {
         let mut txn = Transaction::new(
             1,
-            "127.0.0.1:5353".parse::<SocketAddr>().unwrap(),
+            "127.0.0.1:15353".parse::<SocketAddr>().unwrap(),
             ClientProtocol::Udp,
         );
         let stage = SetTagStage;

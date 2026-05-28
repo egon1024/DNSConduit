@@ -1,0 +1,29 @@
+[package]
+name = "conduit-metrics"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+conduit-proto = { path = "../conduit-proto" }
+conduit-events = { path = "../conduit-events" }
+prometheus = { workspace = true }
+hyper = { workspace = true }
+hyper-util = { workspace = true }
+http-body-util = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+arc-swap = { workspace = true }
+parking_lot = "0.12"
+opentelemetry = { workspace = true }
+opentelemetry_sdk = { workspace = true }
+opentelemetry-otlp = { workspace = true }
+
+[dev-dependencies]
+conduit-config = { path = "../conduit-config" }
+conduit-core = { path = "../conduit-core" }
+conduit-events = { path = "../conduit-events" }
+hickory-proto = { workspace = true }

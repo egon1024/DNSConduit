@@ -1,13 +1,13 @@
 //! Observation hub: fan-out enqueue and per-sink consumer threads.
 
-use crate::compile::{CompiledObservation, CompiledSinkInstance};
+use crate::compile::{CompiledEvents, CompiledSinkInstance};
 use crate::dnstap::DnstapSink;
-use crate::event::{EventKind, ObservationEvent};
+use crate::event::{EventKind, ExportEvent};
 use crate::extra::build_extra_json;
 use crate::filters::sink_event_matches;
 use crate::metrics::{SinkMetrics, SinkMetricsSnapshot};
 use crate::queue::SinkQueue;
-use crate::sink::ObservationSink;
+use crate::sink::EventSink;
 use crate::view::TxnView;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -20,14 +20,14 @@ struct SinkRuntime {
 }
 
 /// Shared hub for dataplane workers.
-pub struct ObservationHub {
+pub struct EventHub {
     enabled: bool,
     drops: Arc<AtomicU64>,
     sink_metrics: Vec<Arc<SinkMetrics>>,
     sinks: Vec<SinkRuntime>,
 }
 
-impl ObservationHub {
+impl EventHub {
     pub fn disabled() -> Self {
         Self {
             enabled: false,
@@ -37,7 +37,7 @@ impl ObservationHub {
         }
     }
 
-    pub fn from_compiled(compiled: &CompiledObservation) -> Self {
+    pub fn from_compiled(compiled: &CompiledEvents) -> Self {
         if !compiled.enabled {
             return Self::disabled();
         }
@@ -89,7 +89,7 @@ impl ObservationHub {
     pub fn try_enqueue_query(
         &self,
         view: TxnView<'_>,
-        compiled: &CompiledObservation,
+        compiled: &CompiledEvents,
         tag_has: impl Fn(&str) -> bool,
     ) {
         if !self.enabled || view.qname.is_none() || view.query_wire.is_empty() {
@@ -101,7 +101,7 @@ impl ObservationHub {
     pub fn try_enqueue_response(
         &self,
         view: TxnView<'_>,
-        compiled: &CompiledObservation,
+        compiled: &CompiledEvents,
         tag_has: impl Fn(&str) -> bool,
     ) {
         let Some(wire) = view.response_wire else {
@@ -116,7 +116,7 @@ impl ObservationHub {
     pub fn try_enqueue_retry(
         &self,
         view: TxnView<'_>,
-        compiled: &CompiledObservation,
+        compiled: &CompiledEvents,
         tag_has: impl Fn(&str) -> bool,
     ) {
         if !self.enabled || view.attempt_count <= 1 {
@@ -128,7 +128,7 @@ impl ObservationHub {
     fn try_enqueue_kind(
         &self,
         view: &TxnView<'_>,
-        compiled: &CompiledObservation,
+        compiled: &CompiledEvents,
         tag_has: &dyn Fn(&str) -> bool,
         kind: EventKind,
         wire: &[u8],
@@ -144,7 +144,7 @@ impl ObservationHub {
                 continue;
             }
             let extra = build_extra_json(instance, &view.extra);
-            let event = ObservationEvent {
+            let event = ExportEvent {
                 kind,
                 txn_id: view.txn_id,
                 client_addr: view.client_addr,
@@ -176,16 +176,14 @@ mod tests {
     use super::*;
     use crate::compile::compile_from_config;
     use crate::view::{TxnExtraSource, TxnView};
-    use conduit_proto::config::{
-        Config, ObservationConfig, ObservationSink, ObservationSinkFilters,
-    };
+    use conduit_proto::config::{Config, EventSink, EventSinkFilters, EventsConfig};
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
     use std::time::Duration;
 
-    fn test_config(sinks: Vec<ObservationSink>) -> Config {
+    fn test_config(sinks: Vec<EventSink>) -> Config {
         Config {
             schema_version: 1,
-            observation: Some(ObservationConfig {
+            events: Some(EventsConfig {
                 queue_depth: 2,
                 drop_policy: "drop_newest".into(),
                 sinks,
@@ -210,9 +208,9 @@ mod tests {
 
     #[test]
     fn noop_hub_does_not_allocate_consumer_threads() {
-        let hub = ObservationHub::from_compiled(&compile_from_config(&Config {
+        let hub = EventHub::from_compiled(&compile_from_config(&Config {
             schema_version: 1,
-            observation: Some(ObservationConfig {
+            events: Some(EventsConfig {
                 queue_depth: 4096,
                 drop_policy: "drop_oldest".into(),
                 sinks: vec![],
@@ -223,7 +221,7 @@ mod tests {
         assert_eq!(hub.consumer_count(), 0);
         let disabled = compile_from_config(&Config {
             schema_version: 1,
-            observation: None,
+            events: None,
             ..Default::default()
         });
         hub.try_enqueue_query(sample_view(1), &disabled, |_| true);
@@ -233,7 +231,7 @@ mod tests {
 
     #[test]
     fn drop_counter_increments_on_full_queue() {
-        let cfg = test_config(vec![ObservationSink {
+        let cfg = test_config(vec![EventSink {
             r#type: "dnstap".into(),
             export_id: "test".into(),
             destinations: vec!["unix:/nonexistent-dnstap.sock".into()],
@@ -245,7 +243,7 @@ mod tests {
             connect_retry: None,
         }]);
         let compiled = compile_from_config(&cfg);
-        let hub = ObservationHub::from_compiled(&compiled);
+        let hub = EventHub::from_compiled(&compiled);
         assert_eq!(hub.consumer_count(), 1);
         hub.try_enqueue_query(sample_view(1), &compiled, |_| true);
         hub.try_enqueue_query(sample_view(2), &compiled, |_| true);
@@ -260,7 +258,7 @@ mod tests {
 
     #[test]
     fn canonical_name_when_name_and_export_id_differ() {
-        let cfg = test_config(vec![ObservationSink {
+        let cfg = test_config(vec![EventSink {
             r#type: "dnstap".into(),
             export_id: "wire-id".into(),
             name: Some("tap-primary".into()),
@@ -272,7 +270,7 @@ mod tests {
             connect_retry: None,
         }]);
         let compiled = compile_from_config(&cfg);
-        let hub = ObservationHub::from_compiled(&compiled);
+        let hub = EventHub::from_compiled(&compiled);
         hub.try_enqueue_query(sample_view(1), &compiled, |_| true);
         let snap = hub.sink_metrics_snapshot();
         assert_eq!(snap[0].name, "tap-primary");
@@ -282,7 +280,7 @@ mod tests {
     #[test]
     fn fan_out_increments_both_sinks() {
         let cfg = test_config(vec![
-            ObservationSink {
+            EventSink {
                 r#type: "dnstap".into(),
                 export_id: "a".into(),
                 destinations: vec!["unix:/nonexistent-a.sock".into()],
@@ -293,7 +291,7 @@ mod tests {
                 name: None,
                 connect_retry: None,
             },
-            ObservationSink {
+            EventSink {
                 r#type: "dnstap".into(),
                 export_id: "b".into(),
                 destinations: vec!["unix:/nonexistent-b.sock".into()],
@@ -306,7 +304,7 @@ mod tests {
             },
         ]);
         let compiled = compile_from_config(&cfg);
-        let hub = ObservationHub::from_compiled(&compiled);
+        let hub = EventHub::from_compiled(&compiled);
         hub.try_enqueue_query(sample_view(1), &compiled, |_| true);
         let snap = hub.sink_metrics_snapshot();
         assert_eq!(snap.len(), 2);
@@ -318,11 +316,11 @@ mod tests {
     fn partial_drop_only_hits_sink_that_receives_events() {
         let cfg = Config {
             schema_version: 1,
-            observation: Some(ObservationConfig {
+            events: Some(EventsConfig {
                 queue_depth: 1,
                 drop_policy: "drop_newest".into(),
                 sinks: vec![
-                    ObservationSink {
+                    EventSink {
                         r#type: "dnstap".into(),
                         export_id: "responses".into(),
                         destinations: vec!["unix:/nonexistent-responses.sock".into()],
@@ -333,7 +331,7 @@ mod tests {
                         name: None,
                         connect_retry: None,
                     },
-                    ObservationSink {
+                    EventSink {
                         r#type: "dnstap".into(),
                         export_id: "queries".into(),
                         destinations: vec!["unix:/nonexistent-queries.sock".into()],
@@ -349,7 +347,7 @@ mod tests {
             ..Default::default()
         };
         let compiled = compile_from_config(&cfg);
-        let hub = ObservationHub::from_compiled(&compiled);
+        let hub = EventHub::from_compiled(&compiled);
         hub.try_enqueue_query(sample_view(1), &compiled, |_| true);
         hub.try_enqueue_query(sample_view(2), &compiled, |_| true);
         hub.try_enqueue_query(sample_view(3), &compiled, |_| true);
@@ -364,12 +362,12 @@ mod tests {
 
     #[test]
     fn tag_required_compiled_from_filters() {
-        let instance = crate::compile::compile_one_sink(&ObservationSink {
+        let instance = crate::compile::compile_one_sink(&EventSink {
             r#type: "dnstap".into(),
             export_id: "x".into(),
             destinations: vec!["unix:/tmp/x".into()],
             emit: vec!["query".into()],
-            filters: Some(ObservationSinkFilters {
+            filters: Some(EventSinkFilters {
                 tag_required: Some("vip".into()),
                 selectors: vec![],
                 sample_rate: None,
@@ -389,12 +387,12 @@ mod tests {
     fn selector_filter_skips_enqueue() {
         use conduit_proto::config::Selector;
 
-        let cfg = test_config(vec![ObservationSink {
+        let cfg = test_config(vec![EventSink {
             r#type: "dnstap".into(),
             export_id: "sel".into(),
             destinations: vec!["unix:/nonexistent.sock".into()],
             emit: vec!["query".into()],
-            filters: Some(ObservationSinkFilters {
+            filters: Some(EventSinkFilters {
                 tag_required: None,
                 selectors: vec![Selector {
                     r#type: "qtype".into(),
@@ -410,7 +408,7 @@ mod tests {
             connect_retry: None,
         }]);
         let compiled = compile_from_config(&cfg);
-        let hub = ObservationHub::from_compiled(&compiled);
+        let hub = EventHub::from_compiled(&compiled);
         hub.try_enqueue_query(sample_view(1), &compiled, |_| true);
         let snap = hub.sink_metrics_snapshot();
         assert_eq!(snap[0].enqueued_query, 0);
@@ -418,12 +416,12 @@ mod tests {
 
     #[test]
     fn sample_rate_zero_enqueues_none_at_rate_zero_validation() {
-        let cfg = test_config(vec![ObservationSink {
+        let cfg = test_config(vec![EventSink {
             r#type: "dnstap".into(),
             export_id: "sample".into(),
             destinations: vec!["unix:/nonexistent.sock".into()],
             emit: vec!["query".into()],
-            filters: Some(ObservationSinkFilters {
+            filters: Some(EventSinkFilters {
                 tag_required: None,
                 selectors: vec![],
                 sample_rate: Some(0.01),
@@ -436,7 +434,7 @@ mod tests {
             connect_retry: None,
         }]);
         let compiled = compile_from_config(&cfg);
-        let hub = ObservationHub::from_compiled(&compiled);
+        let hub = EventHub::from_compiled(&compiled);
         for id in 1..=200u64 {
             let mut view = sample_view(id);
             view.qtype_label = Some("A".into());

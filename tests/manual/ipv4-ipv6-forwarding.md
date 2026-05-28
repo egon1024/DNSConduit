@@ -92,7 +92,7 @@ After Conduit starts, confirm binds:
 ss -ulnp | grep -E '15353|15354|15300|15301'
 ```
 
-Conduit logs a **dataplane startup summary** (generation, pools, egress sources, observation sinks)
+Conduit logs a **dataplane startup summary** (generation, pools, egress sources, event sinks)
 and one line per bound listener, e.g. `Starting listening on 127.0.0.1:15353 udp`.
 
 ## Three-terminal workflow
@@ -152,7 +152,7 @@ Use a **unique QNAME** per test so dnstap lines are easy to find.
 Every file under `tests/manual/config/` includes:
 
 ```yaml
-observation:
+events:
   queue_depth: 8192
   drop_policy: drop_oldest
   sinks:

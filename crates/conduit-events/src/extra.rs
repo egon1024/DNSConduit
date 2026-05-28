@@ -158,7 +158,7 @@ fn json_escape(s: &str) -> String {
 mod tests {
     use super::*;
     use crate::compile::compile_one_sink;
-    use conduit_proto::config::ObservationSink;
+    use conduit_proto::config::EventSink;
 
     fn source_with_tags() -> TxnExtraSource {
         TxnExtraSource {
@@ -176,7 +176,7 @@ mod tests {
 
     #[test]
     fn builds_pool_and_attempt_count() {
-        let instance = compile_one_sink(&ObservationSink {
+        let instance = compile_one_sink(&EventSink {
             r#type: "dnstap".into(),
             export_id: "x".into(),
             destinations: vec!["unix:/tmp/x".into()],
@@ -197,7 +197,7 @@ mod tests {
 
     #[test]
     fn all_tags_when_star() {
-        let instance = compile_one_sink(&ObservationSink {
+        let instance = compile_one_sink(&EventSink {
             r#type: "dnstap".into(),
             export_id: "x".into(),
             destinations: vec!["unix:/tmp/x".into()],
@@ -218,7 +218,7 @@ mod tests {
 
     #[test]
     fn filtered_tags() {
-        let instance = compile_one_sink(&ObservationSink {
+        let instance = compile_one_sink(&EventSink {
             r#type: "dnstap".into(),
             export_id: "x".into(),
             destinations: vec!["unix:/tmp/x".into()],
@@ -238,7 +238,7 @@ mod tests {
 
     #[test]
     fn sink_name_extra_field() {
-        let instance = compile_one_sink(&ObservationSink {
+        let instance = compile_one_sink(&EventSink {
             r#type: "dnstap".into(),
             name: Some("prod-tap".into()),
             export_id: "wire-id".into(),
@@ -257,7 +257,7 @@ mod tests {
 
     #[test]
     fn empty_extra_fields_omits_bytes() {
-        let instance = compile_one_sink(&ObservationSink {
+        let instance = compile_one_sink(&EventSink {
             r#type: "dnstap".into(),
             export_id: "x".into(),
             destinations: vec!["unix:/tmp/x".into()],

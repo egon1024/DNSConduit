@@ -9,13 +9,51 @@ message Config {
   ListenersConfig listeners = 2;
   ForwardConfig forward = 3;
   OrchestratorConfig orchestrator = 4;
-  ObservationConfig observation = 5;
+  EventsConfig events = 5;
   RhaiConfig rhai = 6;
   repeated Pool pools = 7;
   ControlConfig control = 8;
   RulesConfig rules = 9;
   LoggingConfig logging = 10;
   repeated DataSource data_sources = 11;
+  optional MetricsConfig metrics = 12;
+  optional TracingConfig tracing = 13;
+}
+
+// Phase 4: Prometheus scrape + OTEL push (design §7.1).
+message MetricsConfig {
+  bool enabled = 1;
+  string profile = 2;              // "full" | "minimal" | "off"; default full when enabled
+  optional PrometheusMetricsConfig prometheus = 3;
+  optional OtelMetricsConfig otel = 4;
+}
+
+message PrometheusMetricsConfig {
+  string listen_address = 1;       // e.g. "127.0.0.1:9090"
+  string path = 2;                 // default "/metrics"
+}
+
+message OtelMetricsConfig {
+  string endpoint = 1;             // OTLP HTTP endpoint
+  uint32 push_interval_ms = 2;
+  map<string, string> resource_attributes = 3;
+}
+
+// Phase 4: per-transaction pipeline trace (design §4.3); off by default.
+message TracingConfig {
+  bool enabled = 1;
+  optional TracingActivation activation = 2;
+  optional TracingOutput output = 3;
+}
+
+message TracingActivation {
+  optional string tag = 1;
+  repeated Selector selectors = 2;
+  optional double sample_rate = 3;
+}
+
+message TracingOutput {
+  bool log_json = 1;
 }
 
 message DataSource {
@@ -83,13 +121,13 @@ message OrchestratorConfig {
   uint32 txn_table_capacity = 3;
 }
 
-message ObservationConfig {
+message EventsConfig {
   uint32 queue_depth = 1;
   string drop_policy = 2;       // "drop_oldest" | "drop_newest"
-  repeated ObservationSink sinks = 3;
+  repeated EventSink sinks = 3;
 }
 
-message ObservationSinkFilters {
+message EventSinkFilters {
   optional string tag_required = 1;
   repeated Selector selectors = 2;
   optional double sample_rate = 3;
@@ -105,12 +143,12 @@ message ConnectRetry {
   bool jitter = 5;
 }
 
-message ObservationSink {
+message EventSink {
   string type = 1;              // "dnstap" (Phase 2)
   string export_id = 2;         // dnstap wire identity; defaults to name when empty
   repeated string destinations = 3;
   repeated string emit = 4;
-  ObservationSinkFilters filters = 5;
+  EventSinkFilters filters = 5;
   repeated string extra_fields = 6;  // pool, backend, ..., client, sink_name
   repeated string extra_tags = 7;    // tag key filter when "tags" in extra_fields; omit or "*" = all
   optional string name = 8;          // canonical operator/API id; defaults to export_id when empty
@@ -137,4 +175,5 @@ message Backend {
 
 message ControlConfig {
   string listen_address = 1;    // gRPC, e.g. "127.0.0.1:5199"
+  bool reflection_enabled = 2;  // expose gRPC reflection service (dev/test convenience)
 }

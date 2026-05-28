@@ -6,7 +6,7 @@ mod format;
 mod message_meta;
 
 use anyhow::{bail, Context, Result};
-use conduit_observation::fstrm::{
+use conduit_events::fstrm::{
     accept_bidirectional, accept_unidirectional, read_frame, write_control_frame, IncomingFrame,
     CONTROL_FINISH,
 };

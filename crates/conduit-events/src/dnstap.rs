@@ -2,9 +2,9 @@
 
 use crate::compile::{CompiledSinkInstance, Destination};
 use crate::connect_retry::BackoffState;
-use crate::event::{EventKind, ObservationEvent};
+use crate::event::{EventKind, ExportEvent};
 use crate::fstrm;
-use crate::sink::ObservationSink;
+use crate::sink::EventSink;
 use crossbeam_channel::{Receiver, RecvTimeoutError};
 use dnstap::{ClientQuery, ClientResponse, DNSMessage, SocketFamily, SocketProtocol};
 use protobuf::Message;
@@ -103,8 +103,8 @@ impl DnstapSink {
     }
 }
 
-impl ObservationSink for DnstapSink {
-    fn run(self, rx: Receiver<ObservationEvent>) {
+impl EventSink for DnstapSink {
+    fn run(self, rx: Receiver<ExportEvent>) {
         let identity = self.instance.export_id.as_bytes().to_vec();
         let metrics = self.instance.metrics.clone();
         let mut writers = Vec::new();
@@ -225,7 +225,7 @@ fn unix_connect(_path: &Path) -> io::Result<Box<dyn ReadWrite>> {
     ))
 }
 
-fn encode_event(identity: &[u8], event: &ObservationEvent) -> io::Result<Vec<u8>> {
+fn encode_event(identity: &[u8], event: &ExportEvent) -> io::Result<Vec<u8>> {
     let now = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap_or_default();
@@ -296,9 +296,9 @@ mod tests {
     use super::*;
     use crate::compile::{compile_one_sink, parse_connect_retry};
     use crate::connect_retry::ConnectRetryConfig;
-    use crate::event::{EventKind, ObservationEvent};
-    use crate::sink::ObservationSink;
-    use conduit_proto::config::{ConnectRetry, ObservationSink as ObservationSinkConfig};
+    use crate::event::{EventKind, ExportEvent};
+    use crate::sink::EventSink;
+    use conduit_proto::config::{ConnectRetry, EventSink as EventSinkConfig};
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
     use std::thread;
     use std::time::Duration;
@@ -308,7 +308,7 @@ mod tests {
         destinations: Vec<&str>,
         connect_retry: Option<ConnectRetry>,
     ) -> CompiledSinkInstance {
-        let sink = ObservationSinkConfig {
+        let sink = EventSinkConfig {
             r#type: "dnstap".into(),
             export_id: export_id.into(),
             destinations: destinations.into_iter().map(String::from).collect(),
@@ -338,7 +338,7 @@ mod tests {
 
     #[test]
     fn encode_client_query_bytes() {
-        let event = ObservationEvent {
+        let event = ExportEvent {
             kind: EventKind::Query,
             txn_id: 1,
             client_addr: SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 1234),
@@ -354,7 +354,7 @@ mod tests {
     #[test]
     fn encode_includes_extra_in_dnstap_protobuf() {
         let extra_json = br#"{"pool":"default","backend":"192.168.1.21:53","attempt_count":1}"#;
-        let event = ObservationEvent {
+        let event = ExportEvent {
             kind: EventKind::Response,
             txn_id: 1,
             client_addr: SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 1234),
@@ -411,7 +411,7 @@ mod tests {
 
         let dest = Destination::Unix(sock);
         let mut writer = connect_one(&dest).expect("connect");
-        let event = ObservationEvent {
+        let event = ExportEvent {
             kind: EventKind::Response,
             txn_id: 1,
             client_addr: SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 1234),
@@ -469,7 +469,7 @@ mod tests {
 
         let dest = Destination::Unix(path.clone());
         let mut writer = connect_one(&dest).unwrap();
-        let event = ObservationEvent {
+        let event = ExportEvent {
             kind: EventKind::Query,
             txn_id: 1,
             client_addr: SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 1234),
@@ -528,7 +528,7 @@ mod tests {
         thread::sleep(Duration::from_millis(500));
         assert_eq!(metrics.snapshot().connected, 1);
 
-        let event = ObservationEvent {
+        let event = ExportEvent {
             kind: EventKind::Query,
             txn_id: 1,
             client_addr: SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 1234),
@@ -550,7 +550,7 @@ mod tests {
 
     #[test]
     fn parse_custom_connect_retry_from_proto() {
-        let sink = ObservationSinkConfig {
+        let sink = EventSinkConfig {
             r#type: "dnstap".into(),
             export_id: "x".into(),
             destinations: vec!["unix:/tmp/x".into()],

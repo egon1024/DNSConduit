@@ -1,7 +1,7 @@
 //! Built-in selector/action rules compiled at snapshot build (spec §6).
 
 use crate::transaction::Transaction;
-use conduit_observation::{compile_selectors, CompiledSelector, SelectorMatchCtx};
+use conduit_events::{compile_selectors, CompiledSelector, SelectorMatchCtx};
 use conduit_proto::config::{Action, Rule, RulesConfig};
 
 #[derive(Debug, Clone)]

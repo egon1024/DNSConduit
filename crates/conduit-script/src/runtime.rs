@@ -2,7 +2,7 @@ use crate::compile::{CompiledScript, CompiledScripting, ScriptLimits};
 use crate::data_sources::DataSourceStore;
 use crate::host::{HostTransaction, ScriptPhase};
 use crate::metrics::MetricRegistry;
-use conduit_observation::hash_sample;
+use conduit_events::hash_sample;
 use rhai::{Dynamic, Engine, EvalAltResult, Scope};
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -109,9 +109,16 @@ pub fn rhai_script_errors_total() -> u64 {
 }
 
 #[derive(Debug, Default, Clone)]
+pub struct UserMetricFlush {
+    pub name: String,
+    pub labels: HashMap<String, String>,
+    pub delta: u64,
+}
+
+#[derive(Debug, Default, Clone)]
 pub struct ScriptRunStats {
     pub errors: u32,
-    pub user_metrics: HashMap<String, u64>,
+    pub user_metrics: Vec<UserMetricFlush>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -134,7 +141,7 @@ struct ScriptEffects {
     rd_override: Option<bool>,
     source_override_v4: Option<std::net::Ipv4Addr>,
     source_override_v6: Option<std::net::Ipv6Addr>,
-    user_metrics: HashMap<String, u64>,
+    user_metric_flushes: Vec<UserMetricFlush>,
 }
 
 #[derive(Clone)]
@@ -307,7 +314,11 @@ impl RhaiTxn {
             .validate_runtime_labels(name, &label_map)
             .map_err(|e| e.to_string())?;
         let mut fx = self.effects.lock().map_err(|e| e.to_string())?;
-        *fx.user_metrics.entry(name.to_string()).or_insert(0) += delta.max(0) as u64;
+        fx.user_metric_flushes.push(UserMetricFlush {
+            name: name.to_string(),
+            labels: label_map,
+            delta: delta.max(0) as u64,
+        });
         Ok(())
     }
 
@@ -325,6 +336,7 @@ pub fn run_scripts(
     script_ids: &[usize],
     host: &mut dyn HostTransaction,
     phase: ScriptPhase,
+    user_export: Option<&conduit_metrics::UserRegistry>,
 ) -> (ScriptRunOutcome, ScriptRunStats) {
     if script_ids.is_empty() {
         return (ScriptRunOutcome::Ok, ScriptRunStats::default());
@@ -355,7 +367,16 @@ pub fn run_scripts(
         match run_result {
             Ok(fx) => {
                 apply_effects(host, &fx);
-                stats.user_metrics.extend(fx.user_metrics);
+                stats.user_metrics.extend(fx.user_metric_flushes.clone());
+                if let Some(export) = user_export {
+                    for m in &fx.user_metric_flushes {
+                        export.add_delta(conduit_metrics::UserMetricDelta {
+                            name: m.name.clone(),
+                            labels: m.labels.clone(),
+                            delta: m.delta,
+                        });
+                    }
+                }
                 if fx.dropped {
                     return (ScriptRunOutcome::Drop, stats);
                 }
@@ -472,7 +493,7 @@ fn run_one(
         rd_override: fx.rd_override,
         source_override_v4: fx.source_override_v4,
         source_override_v6: fx.source_override_v6,
-        user_metrics: fx.user_metrics.clone(),
+        user_metric_flushes: fx.user_metric_flushes.clone(),
     })
 }
 
@@ -595,7 +616,7 @@ orchestrator:
   max_attempts: 3
   max_txn_duration_ms: 5000
   txn_table_capacity: 1024
-observation:
+events:
   queue_depth: 4096
   drop_policy: drop_oldest
 rhai:
@@ -638,7 +659,7 @@ rules:
             started: Instant::now(),
             phase: ScriptPhase::Request,
         };
-        let (_, stats) = run_scripts(&scripting, &[0], &mut host, ScriptPhase::Request);
+        let (_, stats) = run_scripts(&scripting, &[0], &mut host, ScriptPhase::Request, None);
         assert_eq!(stats.errors, 0);
         assert_eq!(host.rd_override, Some(false));
         let _ = std::fs::remove_dir_all(&dir);
@@ -667,7 +688,7 @@ orchestrator:
   max_attempts: 3
   max_txn_duration_ms: 5000
   txn_table_capacity: 1024
-observation:
+events:
   queue_depth: 4096
   drop_policy: drop_oldest
 rhai:
@@ -710,7 +731,7 @@ rules:
             started: Instant::now(),
             phase: ScriptPhase::Request,
         };
-        let (_, stats) = run_scripts(&scripting, &[0], &mut host, ScriptPhase::Request);
+        let (_, stats) = run_scripts(&scripting, &[0], &mut host, ScriptPhase::Request, None);
         assert_eq!(stats.errors, 0);
         assert_eq!(host.source_override_v4, Some(std::net::Ipv4Addr::LOCALHOST));
         let _ = std::fs::remove_dir_all(&dir);
@@ -739,7 +760,7 @@ orchestrator:
   max_attempts: 3
   max_txn_duration_ms: 5000
   txn_table_capacity: 1024
-observation:
+events:
   queue_depth: 4096
   drop_policy: drop_oldest
 rhai:
@@ -782,7 +803,7 @@ rules:
             started: Instant::now(),
             phase: ScriptPhase::Request,
         };
-        let (_, stats) = run_scripts(&scripting, &[0], &mut host, ScriptPhase::Request);
+        let (_, stats) = run_scripts(&scripting, &[0], &mut host, ScriptPhase::Request, None);
         assert_eq!(stats.errors, 0);
         assert_eq!(host.source_override_v6, Some(std::net::Ipv6Addr::LOCALHOST));
         let _ = std::fs::remove_dir_all(&dir);
@@ -837,8 +858,13 @@ rules:
             started: Instant::now(),
             phase: ScriptPhase::Request,
         };
-        let (outcome, stats) =
-            run_scripts(&scripting, &[script_id], &mut host, ScriptPhase::Request);
+        let (outcome, stats) = run_scripts(
+            &scripting,
+            &[script_id],
+            &mut host,
+            ScriptPhase::Request,
+            None,
+        );
         assert_eq!(stats.errors, 0, "script should not error");
         assert_eq!(outcome, ScriptRunOutcome::Drop);
         assert!(host.dropped);
@@ -873,8 +899,13 @@ rules:
             started: Instant::now(),
             phase: ScriptPhase::Response,
         };
-        let (outcome, stats) =
-            run_scripts(&scripting, &[script_id], &mut host, ScriptPhase::Response);
+        let (outcome, stats) = run_scripts(
+            &scripting,
+            &[script_id],
+            &mut host,
+            ScriptPhase::Response,
+            None,
+        );
         assert_eq!(stats.errors, 0, "script should not error");
         assert_eq!(outcome, ScriptRunOutcome::Retry);
         assert_eq!(host.retry.as_deref(), Some("secondary"));
@@ -904,7 +935,7 @@ rules:
             phase: ScriptPhase::Request,
         };
         let ids = vec![0];
-        let (outcome, _) = run_scripts(&scripting, &ids, &mut host, ScriptPhase::Request);
+        let (outcome, _) = run_scripts(&scripting, &ids, &mut host, ScriptPhase::Request, None);
         assert_eq!(outcome, ScriptRunOutcome::Ok);
         assert_eq!(host.pool.as_deref(), Some("vip"));
     }
@@ -933,7 +964,7 @@ rules:
             started: Instant::now(),
             phase: ScriptPhase::Request,
         };
-        let (outcome, stats) = run_scripts(&scripting, &[0], &mut host, ScriptPhase::Request);
+        let (outcome, stats) = run_scripts(&scripting, &[0], &mut host, ScriptPhase::Request, None);
         assert_eq!(stats.errors, 1);
         assert_eq!(outcome, ScriptRunOutcome::Ok);
         assert!(!host.dropped);
@@ -963,7 +994,7 @@ rules:
             started: Instant::now(),
             phase: ScriptPhase::Request,
         };
-        let (outcome, stats) = run_scripts(&scripting, &[0], &mut host, ScriptPhase::Request);
+        let (outcome, stats) = run_scripts(&scripting, &[0], &mut host, ScriptPhase::Request, None);
         assert_eq!(stats.errors, 1);
         assert_eq!(outcome, ScriptRunOutcome::Ok);
         assert!(!host.dropped);
@@ -992,9 +1023,17 @@ rules:
             started: Instant::now(),
             phase: ScriptPhase::Request,
         };
-        let (_, stats) = run_scripts(&scripting, &[0], &mut host, ScriptPhase::Request);
+        let (_, stats) = run_scripts(&scripting, &[0], &mut host, ScriptPhase::Request, None);
         assert_eq!(stats.errors, 0);
-        assert_eq!(stats.user_metrics.get("block_hits"), Some(&1));
+        assert_eq!(
+            stats
+                .user_metrics
+                .iter()
+                .filter(|m| m.name == "block_hits")
+                .map(|m| m.delta)
+                .sum::<u64>(),
+            1
+        );
     }
 
     #[test]
@@ -1024,10 +1063,10 @@ rules:
             phase: ScriptPhase::Request,
         };
 
-        let (_, _) = run_scripts(&scripting, &[0], &mut host, ScriptPhase::Request);
+        let (_, _) = run_scripts(&scripting, &[0], &mut host, ScriptPhase::Request, None);
         let builds_after_first = thread_runtime_engine_builds();
         host.pool = None;
-        let (_, _) = run_scripts(&scripting, &[0], &mut host, ScriptPhase::Request);
+        let (_, _) = run_scripts(&scripting, &[0], &mut host, ScriptPhase::Request, None);
 
         assert_eq!(
             thread_runtime_engine_builds(),
@@ -1066,7 +1105,7 @@ orchestrator:
   max_attempts: 3
   max_txn_duration_ms: 5000
   txn_table_capacity: 1024
-observation:
+events:
   queue_depth: 4096
   drop_policy: drop_oldest
 rhai:
@@ -1125,16 +1164,32 @@ rules:
             started: Instant::now(),
             phase: ScriptPhase::Request,
         };
-        let (_, stats1) = run_scripts(&snap1, &[0], &mut host, ScriptPhase::Request);
-        assert_eq!(stats1.user_metrics.get("block_hits"), Some(&1));
+        let (_, stats1) = run_scripts(&snap1, &[0], &mut host, ScriptPhase::Request, None);
+        assert_eq!(
+            stats1
+                .user_metrics
+                .iter()
+                .filter(|m| m.name == "block_hits")
+                .map(|m| m.delta)
+                .sum::<u64>(),
+            1
+        );
 
         std::fs::write(&geo_path, "qname,region\neu.example.,us\n").unwrap();
         let snap2 = compile_from_config(&cfg, Some(&dir)).unwrap();
         assert_ne!(snap1.snapshot_generation, snap2.snapshot_generation);
 
-        let (_, stats2) = run_scripts(&snap2, &[0], &mut host, ScriptPhase::Request);
+        let (_, stats2) = run_scripts(&snap2, &[0], &mut host, ScriptPhase::Request, None);
         assert_eq!(stats2.errors, 0);
-        assert_eq!(stats2.user_metrics.get("block_hits"), Some(&1));
+        assert_eq!(
+            stats2
+                .user_metrics
+                .iter()
+                .filter(|m| m.name == "block_hits")
+                .map(|m| m.delta)
+                .sum::<u64>(),
+            1
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -1166,7 +1221,7 @@ rules:
         let n = 10_000u32;
         let start = Instant::now();
         for _ in 0..n {
-            let _ = run_scripts(&scripting, &[0], &mut host, ScriptPhase::Request);
+            let _ = run_scripts(&scripting, &[0], &mut host, ScriptPhase::Request, None);
             host.pool = None;
         }
         let elapsed = start.elapsed();
@@ -1213,12 +1268,32 @@ rules:
             started: Instant::now() - Duration::from_millis(600),
             phase: ScriptPhase::Request,
         };
-        let (_, _) = run_scripts(&scripting, &[request_id], &mut host, ScriptPhase::Request);
+        let (_, _) = run_scripts(
+            &scripting,
+            &[request_id],
+            &mut host,
+            ScriptPhase::Request,
+            None,
+        );
         assert!(host.tags.get("suspicious").copied().unwrap_or(false));
 
         host.phase = ScriptPhase::Response;
-        let (_, stats) = run_scripts(&scripting, &[response_id], &mut host, ScriptPhase::Response);
+        let (_, stats) = run_scripts(
+            &scripting,
+            &[response_id],
+            &mut host,
+            ScriptPhase::Response,
+            None,
+        );
         assert_eq!(stats.errors, 0, "response script should succeed");
-        assert_eq!(stats.user_metrics.get("slow_login"), Some(&1));
+        assert_eq!(
+            stats
+                .user_metrics
+                .iter()
+                .filter(|m| m.name == "slow_login")
+                .map(|m| m.delta)
+                .sum::<u64>(),
+            1
+        );
     }
 }

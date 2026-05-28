@@ -1,5 +1,5 @@
 [package]
-name = "conduit-observation"
+name = "conduit-events"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

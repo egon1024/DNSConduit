@@ -4,7 +4,7 @@ use crate::listener::startup_log;
 use conduit_core::orchestrator::{Orchestrator, RunOutcome};
 use conduit_core::snapshot::SnapshotStore;
 use conduit_core::transaction::{ClientProtocol, Transaction};
-use conduit_observation::ObservationHub;
+use conduit_events::EventHub;
 use conduit_proto::config::Listener;
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpListener};
@@ -15,7 +15,7 @@ pub fn run_worker(
     listener: Listener,
     store: Arc<SnapshotStore>,
     orchestrator: Arc<Orchestrator>,
-    observation: Arc<ObservationHub>,
+    observation: Arc<EventHub>,
 ) -> std::io::Result<()> {
     let addr: SocketAddr = listener
         .address
@@ -41,7 +41,9 @@ pub fn run_worker(
             continue;
         }
         let snap = store.load();
-        let mut txn = Transaction::new(next_id, peer, ClientProtocol::Tcp).with_query_wire(buf);
+        let mut txn = Transaction::new(next_id, peer, ClientProtocol::Tcp)
+            .with_listener_label(listener.address.clone())
+            .with_query_wire(buf);
         next_id = next_id.wrapping_add(1);
         if let RunOutcome::Response(wire) = orchestrator.run(
             &mut txn,

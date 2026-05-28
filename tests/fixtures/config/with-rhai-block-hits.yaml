@@ -12,7 +12,7 @@ orchestrator:
   max_attempts: 3
   max_txn_duration_ms: 5000
   txn_table_capacity: 1024
-observation:
+events:
   queue_depth: 4096
   drop_policy: drop_oldest
 rhai:
@@ -28,10 +28,16 @@ data_sources:
 pools:
   - name: default
     backends:
-      - address: "127.0.0.1:5300"
+      - address: "127.0.0.1:15300"
         weight: 100
 control:
   listen_address: "127.0.0.1:5199"
+metrics:
+  enabled: true
+  profile: full
+  prometheus:
+    listen_address: "127.0.0.1:19090"
+    path: /metrics
 rules:
   match_mode: first_match
   rules:
