@@ -3,17 +3,19 @@
 mod builtin;
 mod compile;
 mod export;
+mod labels;
 mod otel;
 mod prometheus_http;
 mod trace;
 mod user;
 
-pub use builtin::BuiltinRegistry;
+pub use builtin::{BuiltinRegistry, ScrapeGaugeSnapshot, ScrapeSnapshotFn};
 pub use compile::{
     compile_from_config, trace_activation_matches, validate_metrics_tracing, BuiltinProfile,
     CompiledMetrics, CompiledTraceActivation, CompiledTracing,
 };
 pub use export::render_prometheus;
+pub use labels::{ip_family_label, qclass_label, qtype_label, rcode_class_label};
 pub use otel::spawn_otel_push;
 pub use prometheus_http::spawn_prometheus_server;
 pub use trace::{TraceEvent, TraceLog, TraceStore};
@@ -29,6 +31,10 @@ pub struct MetricsHub {
 }
 
 impl MetricsHub {
+    pub fn set_scrape_snapshot_fn(&self, f: ScrapeSnapshotFn) {
+        self.builtin.set_scrape_snapshot_fn(f);
+    }
+
     pub fn from_config(config: &conduit_proto::config::Config) -> Self {
         let (compiled, _) = compile_from_config(config);
         let builtin = Arc::new(BuiltinRegistry::new(compiled.enabled, compiled.profile));

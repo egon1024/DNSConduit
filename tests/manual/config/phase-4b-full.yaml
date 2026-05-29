@@ -1,0 +1,38 @@
+# Phase 4b manual lab: profile full, Prometheus scrape, two backends in default pool.
+# Both backends target 127.0.0.1:15300 (single dnsmasq is enough for forwarding).
+schema_version: 1
+listeners:
+  threads: 2
+  reuse_port: true
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+forward:
+  outstanding_per_backend: 100
+  timeout_ms: 2000
+orchestrator:
+  max_attempts: 3
+  max_txn_duration_ms: 5000
+  txn_table_capacity: 1024
+events:
+  queue_depth: 4096
+  drop_policy: drop_oldest
+rhai:
+  max_operations: 10000
+  max_call_depth: 32
+pools:
+  - name: default
+    backends:
+      - address: "127.0.0.1:15300"
+        weight: 50
+      - address: "127.0.0.1:15300"
+        weight: 50
+control:
+  listen_address: "127.0.0.1:5199"
+  reflection_enabled: true
+metrics:
+  enabled: true
+  profile: full
+  prometheus:
+    listen_address: "127.0.0.1:19090"
+    path: /metrics

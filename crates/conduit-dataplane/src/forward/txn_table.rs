@@ -55,6 +55,17 @@ impl TxnTable {
     pub fn lookup(&self, key: ForwardKey) -> Option<u64> {
         self.entries.lock().unwrap().get(&key).copied()
     }
+
+    /// Current outstanding forward count per backend address (for metrics scrape).
+    pub fn outstanding_per_backend(&self) -> Vec<(SocketAddr, u32)> {
+        self.per_backend
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(_, c)| **c > 0)
+            .map(|(addr, c)| (*addr, *c))
+            .collect()
+    }
 }
 
 #[cfg(test)]

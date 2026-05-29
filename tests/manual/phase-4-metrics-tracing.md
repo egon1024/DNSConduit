@@ -21,6 +21,8 @@ Configs:
 | Metrics disabled | `tests/fixtures/config/metrics-disabled.yaml` |
 | Rhai user metrics | `tests/fixtures/config/with-rhai-block-hits.yaml` |
 
+Phase **4b** operator metrics (extended built-ins, parse rejects, scrape gauges): [`phase-4b-operator-metrics.md`](phase-4b-operator-metrics.md) and `tests/manual/config/phase-4b-*.yaml`.
+
 ## Prerequisites
 
 ```bash
@@ -212,7 +214,7 @@ curl -sS http://127.0.0.1:19090/metrics
 
 ## 7. profile: minimal
 
-Copy `with-metrics-prometheus.yaml` and set `metrics.profile: minimal`, or edit in place temporarily. Restart Conduit and scrape after traffic.
+Use [`config/phase-4b-minimal.yaml`](config/phase-4b-minimal.yaml) or copy `with-metrics-prometheus.yaml` with `metrics.profile: minimal`. For full 4b coverage see [`phase-4b-operator-metrics.md`](phase-4b-operator-metrics.md) §7.
 
 **Expect:** `conduit_queries_total` updates; forward/phase histogram series do not increment on the hot path (see `crates/conduit-metrics/README.md`).
 
@@ -231,7 +233,7 @@ metrics:
       service.name: conduit
 ```
 
-Run an OpenTelemetry Collector listening on `:4318`, start Conduit, and watch logs for `otel metrics push ok` or `push failed`. Only **counter** series are exported to OTLP; histograms remain Prometheus-only.
+Run an OpenTelemetry Collector listening on `:4318`, start Conduit (e.g. [`config/phase-4b-otel.yaml`](config/phase-4b-otel.yaml)), and watch logs for `otel metrics push ok` or `push failed`. Phase **4b** exports counters, gauges, and histogram summaries from the same Prometheus text as scrape (see `crates/conduit-metrics/README.md`).
 
 ---
 

@@ -13,6 +13,7 @@ use std::thread;
 pub struct DataplaneHandle {
     _threads: Vec<thread::JoinHandle<()>>,
     pub events: Arc<EventHub>,
+    pub txn_table: Arc<TxnTable>,
 }
 
 pub fn start(
@@ -25,13 +26,6 @@ pub fn start(
     startup_log::log_startup_summary(&snap, &events_hub);
     let cfg = &snap.config;
     let listeners = cfg.listeners.as_ref();
-    let Some(listeners) = listeners else {
-        return Ok(DataplaneHandle {
-            _threads: Vec::new(),
-            events: events_hub,
-        });
-    };
-
     let forward_cfg = cfg.forward.as_ref();
     let orch_cfg = cfg.orchestrator.as_ref();
     let table = Arc::new(TxnTable::new(
@@ -42,6 +36,15 @@ pub fn start(
             .map(|f| f.outstanding_per_backend)
             .unwrap_or(100),
     ));
+
+    let Some(listeners) = listeners else {
+        return Ok(DataplaneHandle {
+            _threads: Vec::new(),
+            events: events_hub,
+            txn_table: table,
+        });
+    };
+
     let timeout_ms = snap.forward.timeout_ms;
 
     let mut handles = Vec::new();
@@ -111,6 +114,7 @@ pub fn start(
     Ok(DataplaneHandle {
         _threads: handles,
         events: events_hub,
+        txn_table: table,
     })
 }
 
