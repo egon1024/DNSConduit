@@ -13,8 +13,8 @@ pub fn log_startup_summary(snap: &RuntimeSnapshot, events_hub: &EventHub) {
         .unwrap_or(0);
     let pool_count = cfg.pools.len();
     let rule_count = cfg.rules.as_ref().map(|r| r.rules.len()).unwrap_or(0);
-    let egress_v4 = snap.egress_bind_addresses_v4();
-    let egress_v6 = snap.egress_bind_addresses_v6();
+    let egress_v4 = format_ip_list(&snap.egress_bind_addresses_v4());
+    let egress_v6 = format_ip_list(&snap.egress_bind_addresses_v6());
 
     tracing::info!(
         generation = snap.generation,
@@ -22,8 +22,8 @@ pub fn log_startup_summary(snap: &RuntimeSnapshot, events_hub: &EventHub) {
         pools = pool_count,
         rules = rule_count,
         forward_timeout_ms = snap.forward.timeout_ms,
-        egress_sources_v4 = ?egress_v4,
-        egress_sources_v6 = ?egress_v6,
+        egress_sources_v4 = %egress_v4,
+        egress_sources_v6 = %egress_v6,
         event_sinks = events_hub.consumer_count(),
         events_enabled = events_hub.enabled(),
         "dataplane startup summary"
@@ -45,6 +45,17 @@ pub fn log_startup_summary(snap: &RuntimeSnapshot, events_hub: &EventHub) {
 pub fn log_listener_bound(addr: std::net::SocketAddr, protocol: &str) {
     let proto = normalize_protocol(protocol);
     tracing::info!("Starting listening on {addr} {proto}");
+}
+
+fn format_ip_list<T: std::fmt::Display>(addrs: &[T]) -> String {
+    if addrs.is_empty() {
+        return "-".into();
+    }
+    addrs
+        .iter()
+        .map(|a| a.to_string())
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 fn normalize_protocol(protocol: &str) -> &str {
