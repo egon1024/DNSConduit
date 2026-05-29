@@ -61,7 +61,5 @@ fn git_metadata(repo_root: &Path) -> (String, String) {
 
 /// Reject values that would break `cargo:rustc-env` or Prometheus label syntax.
 fn revision_is_safe(s: &str) -> bool {
-    !s.is_empty()
-        && s.len() <= 40
-        && s.bytes().all(|b| b.is_ascii_alphanumeric())
+    !s.is_empty() && s.len() <= 40 && s.bytes().all(|b| b.is_ascii_alphanumeric())
 }
