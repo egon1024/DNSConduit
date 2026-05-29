@@ -186,6 +186,45 @@ fn metrics_disabled_leaves_builtin_counters_at_zero() {
 }
 
 #[test]
+fn parse_rejected_metric_after_drop() {
+    let yaml = include_str!("../../../tests/fixtures/config/with-metrics-prometheus.yaml");
+    let cfg = load_yaml(yaml).unwrap();
+    let hub = Arc::new(MetricsHub::from_config(&cfg));
+    let snap = Arc::new(RuntimeSnapshot::from_config(cfg));
+    let orch = Orchestrator::with_default_stages();
+    let mut orch = orch;
+    orch.metrics = Some(hub.clone());
+
+    let mut txn = Transaction::new(20, "127.0.0.1:15353".parse().unwrap(), ClientProtocol::Udp)
+        .with_listener_label("127.0.0.1:15353");
+    let _ = orch.run(&mut txn, &snap, &SystemClock, None);
+
+    let body = render_prometheus(hub.as_ref(), &[]);
+    assert!(
+        body.contains("conduit_parse_rejected_total"),
+        "body:\n{body}"
+    );
+    assert!(body.contains(r#"reason="empty""#), "body:\n{body}");
+}
+
+#[test]
+fn full_profile_includes_qtype_on_queries() {
+    let yaml = include_str!("../../../tests/fixtures/config/with-metrics-prometheus.yaml");
+    let cfg = load_yaml(yaml).unwrap();
+    let hub = Arc::new(MetricsHub::from_config(&cfg));
+    let snap = Arc::new(RuntimeSnapshot::from_config(cfg));
+    let orch = orchestrator_with_mock_forward(hub.clone());
+
+    let mut txn = Transaction::new(21, "127.0.0.1:15353".parse().unwrap(), ClientProtocol::Udp)
+        .with_listener_label("127.0.0.1:15353")
+        .with_query_wire(sample_query());
+    let _ = orch.run(&mut txn, &snap, &SystemClock, None);
+
+    let body = render_prometheus(hub.as_ref(), &[]);
+    assert!(body.contains(r#"qtype="A""#), "body:\n{body}");
+}
+
+#[test]
 fn rhai_user_metric_accumulates_across_queries() {
     let yaml = include_str!("../../../tests/fixtures/config/with-rhai-block-hits.yaml");
     let cfg = load_yaml(yaml).unwrap();

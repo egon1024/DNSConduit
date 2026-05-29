@@ -1,5 +1,6 @@
 //! Per-query state carried through pipeline phases (spec §4.1).
 
+use crate::parse_reject::ParseRejectReason;
 use crate::phase::Phase;
 use crate::routing::AttemptRecord;
 use conduit_config::forward::RecursionDesired;
@@ -61,7 +62,10 @@ pub struct Transaction {
     pub dns_id: u16,
     pub qname: Option<String>,
     pub qtype: Option<u16>,
+    pub qclass: Option<u16>,
     pub client_addr: SocketAddr,
+    /// Set when parse stage drops the query (for metrics).
+    pub parse_reject_reason: Option<ParseRejectReason>,
     /// Configured listener bind address (used as `listener` metric label).
     pub listener_label: Option<String>,
     pub protocol: ClientProtocol,
@@ -96,7 +100,9 @@ impl Transaction {
             dns_id: 0,
             qname: None,
             qtype: None,
+            qclass: None,
             client_addr,
+            parse_reject_reason: None,
             listener_label: None,
             protocol,
             client_udp_payload_size: None,

@@ -3,6 +3,7 @@
 pub mod clock;
 pub mod event_emit;
 pub mod orchestrator;
+pub mod parse_reject;
 pub mod phase;
 pub mod pipeline;
 pub mod routing;
@@ -18,6 +19,7 @@ pub use conduit_config::forward::{
     MAX_SOURCES_V4,
 };
 pub use orchestrator::{Orchestrator, RunOutcome, StageRegistry};
+pub use parse_reject::ParseRejectReason;
 pub use phase::Phase;
 pub use pipeline::{PipelineStage, StageOutcome};
 pub use routing::{select_backend, AttemptRecord};

@@ -47,6 +47,10 @@ async fn main() -> anyhow::Result<()> {
         metrics_hub.clone(),
         tracing_hub.clone(),
     )?;
+    metrics_hub.set_scrape_snapshot_fn(conduit_dataplane::metrics_scrape::scrape_snapshot_fn(
+        store.clone(),
+        dataplane.txn_table.clone(),
+    ));
     tracing::info!("dataplane listeners started");
 
     let mut _prometheus = if let Some(ref addr) = metrics_hub.compiled.prometheus_listen {

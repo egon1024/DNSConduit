@@ -76,17 +76,6 @@ impl Orchestrator {
         txn.snapshot_generation = snapshot.generation;
         txn.current_phase = Phase::Parse;
 
-        if let Some(hub) = metrics {
-            if hub.metrics_enabled() {
-                let protocol = match txn.protocol {
-                    crate::transaction::ClientProtocol::Udp => "udp",
-                    crate::transaction::ClientProtocol::Tcp => "tcp",
-                };
-                let listener = txn.listener_label.as_deref().unwrap_or("unknown");
-                hub.builtin.record_query(listener, protocol);
-            }
-        }
-
         loop {
             if txn.started_at.elapsed() > Duration::from_millis(max_duration as u64) {
                 txn.set_rcode_name("SERVFAIL");
@@ -100,6 +89,21 @@ impl Orchestrator {
 
             let Some(stage) = self.registry.get(txn.current_phase) else {
                 if txn.current_phase == Phase::Send {
+                    if let Some(hub) = metrics {
+                        if hub.metrics_enabled() {
+                            let protocol = match txn.protocol {
+                                crate::transaction::ClientProtocol::Udp => "udp",
+                                crate::transaction::ClientProtocol::Tcp => "tcp",
+                            };
+                            let listener = txn.listener_label.as_deref().unwrap_or("unknown");
+                            hub.builtin.record_response(
+                                listener,
+                                protocol,
+                                txn.rcode(),
+                                &txn.client_addr,
+                            );
+                        }
+                    }
                     if let Some(hub) = events {
                         emit_response(hub, txn, snapshot);
                         emit_retry(hub, txn, snapshot);
@@ -126,8 +130,44 @@ impl Orchestrator {
                 txn.selected_backend.map(|a| a.to_string()),
             );
             match outcome {
-                StageOutcome::Drop => return RunOutcome::Dropped,
+                StageOutcome::Drop => {
+                    if let Some(hub) = metrics {
+                        if hub.metrics_enabled() && phase == Phase::Parse {
+                            if let Some(reason) = txn.parse_reject_reason {
+                                hub.builtin.record_parse_rejected(reason.as_str());
+                            }
+                        }
+                    }
+                    return RunOutcome::Dropped;
+                }
                 StageOutcome::Continue(next) => {
+                    if phase == Phase::Parse && next == Phase::RequestRules {
+                        if let Some(hub) = metrics {
+                            if hub.metrics_enabled() {
+                                let protocol = match txn.protocol {
+                                    crate::transaction::ClientProtocol::Udp => "udp",
+                                    crate::transaction::ClientProtocol::Tcp => "tcp",
+                                };
+                                let listener = txn.listener_label.as_deref().unwrap_or("unknown");
+                                hub.builtin.record_query(
+                                    listener,
+                                    protocol,
+                                    txn.qtype,
+                                    txn.qclass,
+                                    &txn.client_addr,
+                                );
+                            }
+                        }
+                    }
+                    if phase == Phase::Route && next == Phase::Forward {
+                        if let Some(hub) = metrics {
+                            if hub.metrics_enabled() {
+                                if let Some(ref pool) = txn.selected_pool {
+                                    hub.builtin.record_query_by_pool(pool);
+                                }
+                            }
+                        }
+                    }
                     if phase == Phase::RequestRules && txn.qname.is_some() {
                         if txn.trace_log.is_none() {
                             if let Some(th) = tracing {
@@ -159,6 +199,21 @@ impl Orchestrator {
                     }
                     txn.current_phase = next;
                     if phase == Phase::Send {
+                        if let Some(hub) = metrics {
+                            if hub.metrics_enabled() {
+                                let protocol = match txn.protocol {
+                                    crate::transaction::ClientProtocol::Udp => "udp",
+                                    crate::transaction::ClientProtocol::Tcp => "tcp",
+                                };
+                                let listener = txn.listener_label.as_deref().unwrap_or("unknown");
+                                hub.builtin.record_response(
+                                    listener,
+                                    protocol,
+                                    txn.rcode(),
+                                    &txn.client_addr,
+                                );
+                            }
+                        }
                         if let Some(hub) = events {
                             emit_response(hub, txn, snapshot);
                             emit_retry(hub, txn, snapshot);
