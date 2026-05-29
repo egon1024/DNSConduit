@@ -39,16 +39,51 @@ pub fn txn_view<'a>(txn: &'a Transaction, snapshot: &RuntimeSnapshot) -> TxnView
 }
 
 pub fn emit_query(hub: &EventHub, txn: &Transaction, snapshot: &Arc<RuntimeSnapshot>) {
+    if !hub.enabled() {
+        return;
+    }
     let view = txn_view(txn, snapshot);
     hub.try_enqueue_query(view, &snapshot.events, |k| txn.tags.has(k));
 }
 
 pub fn emit_response(hub: &EventHub, txn: &Transaction, snapshot: &Arc<RuntimeSnapshot>) {
+    if !hub.enabled() {
+        return;
+    }
     let view = txn_view(txn, snapshot);
     hub.try_enqueue_response(view, &snapshot.events, |k| txn.tags.has(k));
 }
 
 pub fn emit_retry(hub: &EventHub, txn: &Transaction, snapshot: &Arc<RuntimeSnapshot>) {
+    if !hub.enabled() {
+        return;
+    }
     let view = txn_view(txn, snapshot);
     hub.try_enqueue_retry(view, &snapshot.events, |k| txn.tags.has(k));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use conduit_events::EventHub;
+    use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+
+    #[test]
+    fn emit_helpers_skip_when_hub_disabled() {
+        let hub = EventHub::disabled();
+        let snap = Arc::new(RuntimeSnapshot::from_config(
+            conduit_config::load_yaml(include_str!("../../../tests/fixtures/config/minimal.yaml"))
+                .unwrap(),
+        ));
+        let peer = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 12345);
+        let mut txn = Transaction::new(1, peer, ClientProtocol::Udp);
+        txn.qname = Some("example.com.".into());
+        txn.query_wire = vec![0x00, 0x01];
+
+        emit_query(&hub, &txn, &snap);
+        emit_response(&hub, &txn, &snap);
+        emit_retry(&hub, &txn, &snap);
+
+        assert_eq!(hub.dropped_total(), 0);
+    }
 }

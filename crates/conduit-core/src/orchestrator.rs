@@ -252,17 +252,20 @@ impl Orchestrator {
             RunOutcome::Response(_) => tracing::info!(
                 txn_id = txn.id,
                 dns_id = txn.dns_id,
-                qname = ?txn.qname,
-                rcode = ?txn.rcode_label(),
-                pool = ?txn.selected_pool,
-                backend = ?txn.selected_backend,
+                qname = txn.qname.as_deref().unwrap_or("-"),
+                rcode = txn.rcode_label().as_deref().unwrap_or("-"),
+                pool = txn.selected_pool.as_deref().unwrap_or("-"),
+                backend = %txn
+                    .selected_backend
+                    .map(|a| a.to_string())
+                    .unwrap_or_else(|| "-".into()),
                 attempts = txn.attempt_count,
                 "query complete"
             ),
             RunOutcome::Dropped => tracing::warn!(
                 txn_id = txn.id,
                 dns_id = txn.dns_id,
-                qname = ?txn.qname,
+                qname = txn.qname.as_deref().unwrap_or("-"),
                 "query dropped"
             ),
         }
