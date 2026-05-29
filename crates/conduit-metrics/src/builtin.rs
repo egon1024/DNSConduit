@@ -173,11 +173,11 @@ impl BuiltinRegistry {
         )
         .expect("metric");
 
-        let version = env!("CARGO_PKG_VERSION");
-        let build_info = IntGauge::with_opts(
-            Opts::new("conduit_build_info", "Build information").const_label("version", version),
-        )
-        .expect("metric");
+        let mut build_info_opts = Opts::new("conduit_build_info", "Build information");
+        for (name, value) in crate::build_metadata::label_pairs() {
+            build_info_opts = build_info_opts.const_label(name, value);
+        }
+        let build_info = IntGauge::with_opts(build_info_opts).expect("metric");
         build_info.set(1);
 
         let start_time_seconds = Gauge::with_opts(Opts::new(
@@ -561,5 +561,17 @@ mod tests {
         assert!(body.contains("conduit_build_info"));
         assert!(body.contains("conduit_start_time_seconds"));
         assert!(body.contains("conduit_config_generation"));
+    }
+
+    #[test]
+    fn build_info_includes_compile_time_metadata_labels() {
+        let reg = BuiltinRegistry::new(true, BuiltinProfile::Full);
+        let body = encode_builtin(reg.gather());
+        for (name, value) in crate::build_metadata::label_pairs() {
+            assert!(
+                body.contains(&format!(r#"{name}="{value}""#)),
+                "missing label {name}={value} in:\n{body}"
+            );
+        }
     }
 }

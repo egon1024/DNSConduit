@@ -1,5 +1,6 @@
 //! Built-in and user metrics export, pipeline tracing store (phase 4).
 
+mod build_metadata;
 mod builtin;
 mod compile;
 mod export;
@@ -9,6 +10,7 @@ mod prometheus_http;
 mod trace;
 mod user;
 
+pub use build_metadata::{label_pairs as build_info_label_pairs, BUILD_PROFILE, DIRTY, REVISION, VERSION};
 pub use builtin::{BuiltinRegistry, ScrapeGaugeSnapshot, ScrapeSnapshotFn};
 pub use compile::{
     compile_from_config, trace_activation_matches, validate_metrics_tracing, BuiltinProfile,

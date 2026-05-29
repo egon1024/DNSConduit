@@ -151,7 +151,7 @@ curl -sS http://127.0.0.1:19090/metrics | rg \
 
 | Metric | Expect |
 |--------|--------|
-| `conduit_build_info` | `version="..."`, value `1` |
+| `conduit_build_info` | `version`, `revision`, `dirty`, `profile` labels; value `1` (see `crates/conduit-metrics/README.md` § Build metadata) |
 | `conduit_start_time_seconds` | Unix time ≈ `date +%s` |
 | `conduit_config_generation` | `1` on first start |
 | `conduit_pool_backends_configured{pool="default"}` | `2` (`phase-4b-full.yaml`) |

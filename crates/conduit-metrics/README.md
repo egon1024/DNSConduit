@@ -48,6 +48,9 @@ When the `metrics` section is **omitted**, export is disabled (no scrape listene
 | `conduit_responses_total` | `listener`, `protocol`, `rcode_class`, `ip_family` | `rcode_class`: NOERROR, NXDOMAIN, SERVFAIL, OTHER |
 | `conduit_phase_duration_seconds` | `phase` | `full` profile only |
 | `conduit_forward_*`, `conduit_retries_total` | (phase 4) | `full` profile only |
+| `conduit_build_info` | `version`, `revision`, `dirty`, `profile` | Scrape-only; value `1`. See [Build metadata](#build-metadata). |
+| `conduit_start_time_seconds` | — | Unix timestamp when the process started |
+| `conduit_config_generation` | — | Active config generation (from scrape snapshot) |
 
 Histogram `le` boundaries are cumulative upper bounds in seconds (Prometheus convention):
 
@@ -65,7 +68,21 @@ sum(rate(conduit_parse_rejected_total[5m])) by (reason)
 sum(rate(conduit_responses_total[5m])) by (rcode_class)
 time() - conduit_start_time_seconds
 conduit_config_generation
+conduit_build_info{revision="abc1234",dirty="true",profile="debug"}
 ```
+
+### Build metadata
+
+`conduit_build_info` is set at **compile time** via `build.rs` (not at runtime):
+
+| Label | Meaning |
+|-------|---------|
+| `version` | Workspace semver from `Cargo.toml` (`CARGO_PKG_VERSION`) |
+| `revision` | Short git commit (`git rev-parse --short HEAD`), or `unknown` when not built from a git checkout |
+| `dirty` | `true` if the working tree had uncommitted changes at build time (`git status --porcelain`); otherwise `false` |
+| `profile` | Cargo profile for this binary (`debug` or `release`) |
+
+Rebuild after pulling or editing sources so `revision` and `dirty` reflect the binary you are running. Release CI builds typically show `dirty="false"` and `profile="release"`.
 
 Per-sink event export counters (`conduit_events_*`) are included at scrape time from `EventHub` snapshots (not incremented on workers).
 
