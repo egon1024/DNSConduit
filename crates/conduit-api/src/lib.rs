@@ -1,5 +1,6 @@
 //! gRPC control plane server.
 
+pub mod access_log;
 pub mod auth;
 pub mod server;
 pub mod tls;

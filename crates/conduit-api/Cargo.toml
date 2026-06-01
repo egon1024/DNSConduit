@@ -11,7 +11,10 @@ conduit-config = { path = "../conduit-config" }
 conduit-core = { path = "../conduit-core" }
 conduit-metrics = { path = "../conduit-metrics" }
 anyhow = { workspace = true }
+http = "1"
+pin-project = "1"
 prost = { workspace = true }
+tower = "0.5"
 tonic = { workspace = true }
 tonic-reflection = { workspace = true }
 tokio = { workspace = true }

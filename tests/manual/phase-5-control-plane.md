@@ -107,6 +107,32 @@ dig @127.0.0.1 -p 15353 +time=3 +tries=1 phase5.example.com A
 
 - Health: `"status": "serving"`
 - `dig` returns an answer (NOERROR) when dnsmasq is up
+- **Terminal B** includes an access log line, for example:
+  `control rpc rpc=conduit.v1.ConduitControl/Health peer=127.0.0.1:… requestor=anonymous grpc_code=Ok latency_ms=…`
+
+---
+
+## 1b. Control RPC access log (no payloads)
+
+Phase **5** logs every `ConduitControl` RPC at `info` as `control rpc` with:
+
+| Field | Meaning |
+|-------|---------|
+| `rpc` | gRPC method, e.g. `conduit.v1.ConduitControl/Health` |
+| `peer` | Client socket address, or `unknown` |
+| `requestor` | `anonymous`, `api_key`, `api_key_rejected`, `mtls`, or `unauthenticated` (never the raw API key) |
+| `grpc_code` | gRPC status code |
+| `latency_ms` | Round-trip time |
+
+Request/response bodies are **not** logged. Config changes also emit `config applied` (see section 3).
+
+**Terminal C** — trigger and watch **Terminal B**:
+
+```bash
+grpcurl -plaintext 127.0.0.1:5199 conduit.v1.ConduitControl/Health
+```
+
+**Expect:** one `control rpc` line with `requestor=anonymous` when `api_keys` are unset in the active config.
 
 ---
 
@@ -216,7 +242,7 @@ grpcurl -plaintext 127.0.0.1:5199 conduit.v1.ConduitControl/GetConfig | rg '"wei
 ctl export | rg 'weight'
 ```
 
-**Expect:** weight **100** everywhere.
+**Expect:** `GetConfig` shows weight **100**. `ctl export` may omit `weight:` when the value is the default (**100**) — that is normal export normalization, not a failed reload.
 
 ---
 
@@ -297,7 +323,7 @@ Unauthenticated call should fail:
 grpcurl -plaintext 127.0.0.1:5199 conduit.v1.ConduitControl/Health ; echo exit=$?
 ```
 
-**Expect:** `Unauthenticated` / non-zero exit.
+**Expect:** `Unauthenticated` / non-zero exit. **Terminal B:** `control rpc` with `requestor=api_key_rejected` or `unauthenticated` and `grpc_code=Unauthenticated`.
 
 With key:
 

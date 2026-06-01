@@ -1,6 +1,7 @@
 //! gRPC control plane service (spec §8).
 
-use crate::auth::ApiKeyInterceptor;
+use crate::access_log::{AccessLogLayer, AccessLogService};
+use crate::auth::ControlInterceptor;
 use crate::tls::server_tls_config;
 use conduit_config::{export_yaml, validate, EffectiveConfig};
 use conduit_core::configurator::{ConfiguratorHandle, ProposalSource};
@@ -20,6 +21,7 @@ use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 use tonic::transport::Server;
 use tonic::{Request, Response, Status};
+use tower::Layer;
 
 #[derive(Clone)]
 pub struct ControlService {
@@ -148,9 +150,11 @@ impl ConduitControl for ControlService {
     }
 }
 
-type InterceptedControlService = tonic::service::interceptor::InterceptedService<
-    ConduitControlServer<ControlService>,
-    ApiKeyInterceptor,
+type InterceptedControlService = AccessLogService<
+    tonic::service::interceptor::InterceptedService<
+        ConduitControlServer<ControlService>,
+        ControlInterceptor,
+    >,
 >;
 
 fn build_server(
@@ -159,16 +163,16 @@ fn build_server(
     configurator: ConfiguratorHandle,
     tracing: Arc<TracingHub>,
 ) -> InterceptedControlService {
-    let interceptor = ApiKeyInterceptor::new(snapshots.clone());
-    ConduitControlServer::with_interceptor(
+    let inner = ConduitControlServer::with_interceptor(
         ControlService {
-            snapshots,
+            snapshots: snapshots.clone(),
             effective,
             configurator,
             tracing,
         },
-        interceptor,
-    )
+        ControlInterceptor::new(snapshots.clone()),
+    );
+    AccessLogLayer::new(snapshots).layer(inner)
 }
 
 fn apply_tls(

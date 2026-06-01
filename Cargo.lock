@@ -311,11 +311,14 @@ dependencies = [
  "conduit-metrics",
  "conduit-proto",
  "hickory-proto",
+ "http",
+ "pin-project",
  "prost",
  "tokio",
  "tokio-stream",
  "tonic",
  "tonic-reflection",
+ "tower 0.5.3",
  "tracing",
 ]
 
