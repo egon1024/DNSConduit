@@ -2,6 +2,12 @@
 
 use conduit_config::effective_backend_weight;
 use conduit_proto::config::{Backend, Config, Pool};
+
+/// Effective weight for pool selection (phase 5 hook for hot overrides in 5b).
+#[inline]
+pub fn resolve_backend_weight(backend: &Backend) -> u32 {
+    effective_backend_weight(backend)
+}
 use std::net::SocketAddr;
 
 #[derive(Debug, Clone)]
@@ -25,12 +31,12 @@ pub fn select_backend(
     let total: u64 = pool
         .backends
         .iter()
-        .map(|b| effective_backend_weight(b) as u64)
+        .map(|b| resolve_backend_weight(b) as u64)
         .sum();
     let pick = (txn_id.wrapping_add(snapshot_generation)) % total;
     let mut acc = 0u64;
     for backend in &pool.backends {
-        acc += effective_backend_weight(backend) as u64;
+        acc += resolve_backend_weight(backend) as u64;
         if pick < acc {
             return parse_backend(pool_name, backend);
         }

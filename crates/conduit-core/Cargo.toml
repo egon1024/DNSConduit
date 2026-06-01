@@ -13,6 +13,7 @@ conduit-script = { path = "../conduit-script" }
 conduit-metrics = { path = "../conduit-metrics" }
 arc-swap = { workspace = true }
 thiserror = { workspace = true }
+tokio = { workspace = true, features = ["sync", "rt", "macros"] }
 tracing = { workspace = true }
 hickory-proto = { workspace = true }
 serde_json = { workspace = true }

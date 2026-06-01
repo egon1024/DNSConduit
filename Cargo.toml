@@ -9,6 +9,7 @@ members = [
     "crates/conduit-dataplane",
     "crates/conduit-api",
     "crates/conduit",
+    "crates/conduitctl",
     "crates/conduit-dnstap-tap",
     "crates/conduit-script",
 ]
@@ -22,7 +23,7 @@ rust-version = "1.78"
 [workspace.dependencies]
 prost = "0.13"
 prost-types = "0.13"
-tonic = "0.12"
+tonic = { version = "0.12", features = ["transport", "tls", "tls-roots"] }
 tonic-reflection = "0.12"
 tonic-build = "0.12"
 prost-build = "0.13"

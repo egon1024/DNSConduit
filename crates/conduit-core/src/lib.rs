@@ -1,6 +1,7 @@
 //! Core runtime: snapshots, transactions, pipeline traits.
 
 pub mod clock;
+pub mod configurator;
 pub mod event_emit;
 pub mod orchestrator;
 pub mod parse_reject;
@@ -17,6 +18,10 @@ pub use clock::{Clock, SystemClock};
 pub use conduit_config::forward::{
     CompiledForward, CompiledPoolForward, RecursionDesired, DEFAULT_SOURCE_SELECTION,
     MAX_SOURCES_V4,
+};
+pub use configurator::{
+    spawn as spawn_configurator, ApplyResult, ConfiguratorHandle, ConfiguratorState,
+    PolicyProposal, ProposalSource,
 };
 pub use orchestrator::{Orchestrator, RunOutcome, StageRegistry};
 pub use parse_reject::ParseRejectReason;

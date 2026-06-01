@@ -226,7 +226,10 @@ impl SnapshotStore {
     }
 
     /// Validate `cfg` and swap only if valid; on failure returns errors and leaves the store unchanged.
-    pub fn install_validated(&self, cfg: Config) -> Result<(), Vec<String>> {
+    ///
+    /// Production applies must go through [`crate::configurator::ConfiguratorHandle`]; tests may call this directly.
+    #[allow(dead_code)]
+    pub(crate) fn install_validated(&self, cfg: Config) -> Result<(), Vec<String>> {
         let result = validate(&cfg);
         if !result.ok {
             return Err(result.errors);
@@ -237,7 +240,7 @@ impl SnapshotStore {
         Ok(())
     }
 
-    pub fn install_validated_with_base(
+    pub(crate) fn install_validated_with_base(
         &self,
         cfg: Config,
         base_dir: Option<&Path>,

@@ -173,7 +173,15 @@ message Backend {
   optional uint32 weight = 2;   // load-balancing weight; default 100 when unset
 }
 
+message ControlTlsConfig {
+  string cert_path = 1;
+  string key_path = 2;
+  string client_ca_path = 3;   // when set, require client certificates (mTLS)
+}
+
 message ControlConfig {
   string listen_address = 1;    // gRPC, e.g. "127.0.0.1:5199"
   bool reflection_enabled = 2;  // expose gRPC reflection service (dev/test convenience)
+  repeated string api_keys = 3; // when non-empty, require matching key on control RPCs
+  ControlTlsConfig tls = 4;     // when set, serve gRPC over TLS (optional mTLS)
 }
