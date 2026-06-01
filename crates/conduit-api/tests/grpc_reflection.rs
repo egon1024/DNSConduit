@@ -1,8 +1,7 @@
-use conduit_config::{load_yaml, EffectiveConfig};
-use conduit_core::{RuntimeSnapshot, SnapshotStore};
-use conduit_metrics::TracingHub;
+mod support;
+
+use conduit_config::load_yaml;
 use std::net::SocketAddr;
-use std::sync::{Arc, Mutex};
 use tokio_stream::StreamExt;
 use tonic::Request;
 use tonic_reflection::pb::v1alpha::{
@@ -45,16 +44,17 @@ async fn reflection_enabled_lists_conduit_service() {
             .unwrap_or(false),
         "fixture should enable reflection"
     );
-    let snapshots = Arc::new(SnapshotStore::new(RuntimeSnapshot::from_config(
-        file_cfg.clone(),
-    )));
-    let tracing = Arc::new(TracingHub::from_config(&file_cfg));
-    let effective = Arc::new(Mutex::new(EffectiveConfig::new(file_cfg)));
+    let (snapshots, effective, configurator, tracing) = support::control_setup(
+        file_cfg,
+        support::workspace_fixture("tests/fixtures/config/with-metrics-tracing-prometheus.yaml"),
+        Some(support::workspace_fixture("tests/fixtures/config")),
+    );
 
     let addr: SocketAddr = "127.0.0.1:0".parse().expect("parse");
-    let local_addr = conduit_api::serve_on_listener(addr, snapshots, effective, tracing)
-        .await
-        .expect("start server");
+    let local_addr =
+        conduit_api::serve_on_listener(addr, snapshots, effective, configurator, tracing)
+            .await
+            .expect("start server");
 
     let services = list_services(local_addr).await.expect("reflection list");
     assert!(
@@ -75,16 +75,13 @@ async fn reflection_disabled_rejects_reflection_requests() {
             .unwrap_or(false),
         "minimal fixture should not enable reflection"
     );
-    let snapshots = Arc::new(SnapshotStore::new(RuntimeSnapshot::from_config(
-        file_cfg.clone(),
-    )));
-    let tracing = Arc::new(TracingHub::from_config(&file_cfg));
-    let effective = Arc::new(Mutex::new(EffectiveConfig::new(file_cfg)));
+    let (snapshots, effective, configurator, tracing) = support::minimal_control_setup();
 
     let addr: SocketAddr = "127.0.0.1:0".parse().expect("parse");
-    let local_addr = conduit_api::serve_on_listener(addr, snapshots, effective, tracing)
-        .await
-        .expect("start server");
+    let local_addr =
+        conduit_api::serve_on_listener(addr, snapshots, effective, configurator, tracing)
+            .await
+            .expect("start server");
 
     let err = list_services(local_addr)
         .await

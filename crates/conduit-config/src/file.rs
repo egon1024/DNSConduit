@@ -1,10 +1,10 @@
 use crate::backend::DEFAULT_BACKEND_WEIGHT;
 use crate::error::ConfigError;
 use conduit_proto::config::{
-    Action, Backend, Config, ControlConfig, DataSource, EventSinkFilters, EventsConfig,
-    ForwardConfig, Listener, ListenersConfig, LoggingConfig, MetricsConfig, OrchestratorConfig,
-    OtelMetricsConfig, Pool, PrometheusMetricsConfig, RhaiConfig, Rule, RulesConfig, Selector,
-    TracingActivation, TracingConfig, TracingOutput,
+    Action, Backend, Config, ControlConfig, ControlTlsConfig, DataSource, EventSinkFilters,
+    EventsConfig, ForwardConfig, Listener, ListenersConfig, LoggingConfig, MetricsConfig,
+    OrchestratorConfig, OtelMetricsConfig, Pool, PrometheusMetricsConfig, RhaiConfig, Rule,
+    RulesConfig, Selector, TracingActivation, TracingConfig, TracingOutput,
 };
 use serde::{Deserialize, Serialize};
 
@@ -318,10 +318,22 @@ pub(crate) struct YamlTracingOutput {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
+pub(crate) struct YamlControlTls {
+    cert_path: String,
+    key_path: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    client_ca_path: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
 pub(crate) struct YamlControl {
     listen_address: String,
     #[serde(default, skip_serializing_if = "is_false")]
     reflection_enabled: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    api_keys: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    tls: Option<YamlControlTls>,
 }
 
 fn is_false(v: &bool) -> bool {
@@ -599,11 +611,23 @@ impl From<YamlBackend> for Backend {
     }
 }
 
+impl From<YamlControlTls> for ControlTlsConfig {
+    fn from(y: YamlControlTls) -> Self {
+        ControlTlsConfig {
+            cert_path: y.cert_path,
+            key_path: y.key_path,
+            client_ca_path: y.client_ca_path.unwrap_or_default(),
+        }
+    }
+}
+
 impl From<YamlControl> for ControlConfig {
     fn from(y: YamlControl) -> Self {
         ControlConfig {
             listen_address: y.listen_address,
             reflection_enabled: y.reflection_enabled,
+            api_keys: y.api_keys,
+            tls: y.tls.map(Into::into),
         }
     }
 }
@@ -956,6 +980,16 @@ impl TryFrom<&ControlConfig> for YamlControl {
         Ok(YamlControl {
             listen_address: c.listen_address.clone(),
             reflection_enabled: c.reflection_enabled,
+            api_keys: c.api_keys.clone(),
+            tls: c.tls.as_ref().map(|t| YamlControlTls {
+                cert_path: t.cert_path.clone(),
+                key_path: t.key_path.clone(),
+                client_ca_path: if t.client_ca_path.is_empty() {
+                    None
+                } else {
+                    Some(t.client_ca_path.clone())
+                },
+            }),
         })
     }
 }

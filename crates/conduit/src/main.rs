@@ -1,8 +1,11 @@
 use conduit_api::serve;
 use conduit_config::{init_from_config, load_yaml, validate, EffectiveConfig};
-use conduit_core::{RuntimeSnapshot, SnapshotStore};
+use conduit_core::{
+    spawn_configurator, ConfiguratorState, ProposalSource, RuntimeSnapshot, SnapshotStore,
+};
 use conduit_metrics::{spawn_otel_push, spawn_prometheus_server, MetricsHub, TracingHub};
 use std::net::SocketAddr;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 #[tokio::main]
@@ -41,6 +44,15 @@ async fn main() -> anyhow::Result<()> {
     snapshot.generation = store.generation();
     store.swap(snapshot);
     let effective = Arc::new(Mutex::new(EffectiveConfig::new(file_cfg.clone())));
+
+    let configurator_state = ConfiguratorState {
+        config_path: PathBuf::from(&path),
+        base_dir,
+    };
+    let configurator = spawn_configurator(store.clone(), effective.clone(), configurator_state);
+
+    #[cfg(unix)]
+    spawn_sighup_handler(configurator.clone());
 
     let dataplane = conduit_dataplane::supervisor::start(
         store.clone(),
@@ -87,6 +99,26 @@ async fn main() -> anyhow::Result<()> {
     let addr: SocketAddr = listen_address.parse()?;
 
     tracing::info!(%addr, "starting control plane");
-    serve(addr, store, effective, tracing_hub).await?;
+    serve(addr, store, effective, configurator, tracing_hub).await?;
     Ok(())
+}
+
+#[cfg(unix)]
+fn spawn_sighup_handler(configurator: conduit_core::ConfiguratorHandle) {
+    tokio::spawn(async move {
+        use tokio::signal::unix::{signal, SignalKind};
+        let mut sighup = match signal(SignalKind::hangup()) {
+            Ok(s) => s,
+            Err(e) => {
+                tracing::warn!("SIGHUP handler not installed: {e}");
+                return;
+            }
+        };
+        while sighup.recv().await.is_some() {
+            let result = configurator.reload_from_file(ProposalSource::Sighup).await;
+            if !result.ok {
+                tracing::error!(errors = ?result.errors, "SIGHUP config reload failed");
+            }
+        }
+    });
 }

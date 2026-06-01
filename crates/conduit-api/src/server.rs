@@ -1,6 +1,10 @@
 //! gRPC control plane service (spec §8).
 
+use crate::access_log::{AccessLogLayer, AccessLogService};
+use crate::auth::ControlInterceptor;
+use crate::tls::server_tls_config;
 use conduit_config::{export_yaml, validate, EffectiveConfig};
+use conduit_core::configurator::{ConfiguratorHandle, ProposalSource};
 use conduit_core::snapshot::SnapshotStore;
 use conduit_metrics::TracingHub;
 use conduit_proto::config::Config as RuntimeConfig;
@@ -17,11 +21,13 @@ use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 use tonic::transport::Server;
 use tonic::{Request, Response, Status};
+use tower::Layer;
 
 #[derive(Clone)]
 pub struct ControlService {
     pub snapshots: Arc<SnapshotStore>,
     pub effective: Arc<Mutex<EffectiveConfig>>,
+    pub configurator: ConfiguratorHandle,
     pub tracing: Arc<TracingHub>,
 }
 
@@ -65,9 +71,20 @@ impl ConduitControl for ControlService {
 
     async fn apply_config(
         &self,
-        _: Request<ApplyConfigRequest>,
+        request: Request<ApplyConfigRequest>,
     ) -> Result<Response<ApplyConfigResponse>, Status> {
-        Err(Status::unimplemented("ApplyConfig is planned for Phase 5"))
+        let overlay = request
+            .into_inner()
+            .overlay
+            .ok_or_else(|| Status::invalid_argument("missing overlay"))?;
+        let result = self
+            .configurator
+            .apply_overlay(control_to_runtime(overlay), None)
+            .await;
+        Ok(Response::new(ApplyConfigResponse {
+            ok: result.ok,
+            errors: result.errors,
+        }))
     }
 
     async fn export_config(
@@ -94,9 +111,14 @@ impl ConduitControl for ControlService {
         &self,
         _: Request<ReloadFromFileRequest>,
     ) -> Result<Response<ReloadFromFileResponse>, Status> {
-        Err(Status::unimplemented(
-            "ReloadFromFile is planned for Phase 5",
-        ))
+        let result = self
+            .configurator
+            .reload_from_file(ProposalSource::File)
+            .await;
+        Ok(Response::new(ReloadFromFileResponse {
+            ok: result.ok,
+            errors: result.errors,
+        }))
     }
 
     async fn health(&self, _: Request<HealthRequest>) -> Result<Response<HealthResponse>, Status> {
@@ -128,11 +150,54 @@ impl ConduitControl for ControlService {
     }
 }
 
+type InterceptedControlService = AccessLogService<
+    tonic::service::interceptor::InterceptedService<
+        ConduitControlServer<ControlService>,
+        ControlInterceptor,
+    >,
+>;
+
+fn build_server(
+    snapshots: Arc<SnapshotStore>,
+    effective: Arc<Mutex<EffectiveConfig>>,
+    configurator: ConfiguratorHandle,
+    tracing: Arc<TracingHub>,
+) -> InterceptedControlService {
+    let inner = ConduitControlServer::with_interceptor(
+        ControlService {
+            snapshots: snapshots.clone(),
+            effective,
+            configurator,
+            tracing,
+        },
+        ControlInterceptor::new(snapshots.clone()),
+    );
+    AccessLogLayer::new(snapshots).layer(inner)
+}
+
+fn apply_tls(
+    builder: tonic::transport::server::Server,
+    snapshots: &SnapshotStore,
+) -> anyhow::Result<tonic::transport::server::Server> {
+    let snap = snapshots.load();
+    let tls = snap.config.control.as_ref().and_then(|c| c.tls.as_ref());
+    if let Some(tls) = tls {
+        if tls.cert_path.is_empty() || tls.key_path.is_empty() {
+            anyhow::bail!("control.tls requires cert_path and key_path");
+        }
+        let tls_config = server_tls_config(tls)?;
+        Ok(builder.tls_config(tls_config)?)
+    } else {
+        Ok(builder)
+    }
+}
+
 /// Run the gRPC control server until shutdown.
 pub async fn serve(
     addr: SocketAddr,
     snapshots: Arc<SnapshotStore>,
     effective: Arc<Mutex<EffectiveConfig>>,
+    configurator: ConfiguratorHandle,
     tracing: Arc<TracingHub>,
 ) -> anyhow::Result<()> {
     let reflection_enabled = snapshots
@@ -142,22 +207,19 @@ pub async fn serve(
         .as_ref()
         .map(|c| c.reflection_enabled)
         .unwrap_or(false);
-    let service = ConduitControlServer::new(ControlService {
-        snapshots,
-        effective,
-        tracing,
-    });
+    let service = build_server(snapshots.clone(), effective, configurator, tracing);
+    let mut builder = apply_tls(Server::builder(), &snapshots)?;
     if reflection_enabled {
         let reflection = tonic_reflection::server::Builder::configure()
             .register_encoded_file_descriptor_set(conduit_proto::FILE_DESCRIPTOR_SET)
             .build_v1alpha()?;
-        Server::builder()
+        builder
             .add_service(reflection)
             .add_service(service)
             .serve(addr)
             .await?;
     } else {
-        Server::builder().add_service(service).serve(addr).await?;
+        builder.add_service(service).serve(addr).await?;
     }
     Ok(())
 }
@@ -167,6 +229,7 @@ pub async fn serve_on_listener(
     addr: SocketAddr,
     snapshots: Arc<SnapshotStore>,
     effective: Arc<Mutex<EffectiveConfig>>,
+    configurator: ConfiguratorHandle,
     tracing: Arc<TracingHub>,
 ) -> anyhow::Result<SocketAddr> {
     let reflection_enabled = snapshots
@@ -178,11 +241,7 @@ pub async fn serve_on_listener(
         .unwrap_or(false);
     let listener = tokio::net::TcpListener::bind(addr).await?;
     let local_addr = listener.local_addr()?;
-    let service = ConduitControlServer::new(ControlService {
-        snapshots,
-        effective,
-        tracing,
-    });
+    let service = build_server(snapshots.clone(), effective, configurator, tracing);
     let incoming = tokio_stream::wrappers::TcpListenerStream::new(listener);
     tokio::spawn(async move {
         let result = if reflection_enabled {
@@ -190,23 +249,37 @@ pub async fn serve_on_listener(
                 .register_encoded_file_descriptor_set(conduit_proto::FILE_DESCRIPTOR_SET)
                 .build_v1alpha()
             {
-                Ok(reflection) => {
-                    Server::builder()
-                        .add_service(reflection)
-                        .add_service(service)
-                        .serve_with_incoming(incoming)
-                        .await
-                }
+                Ok(reflection) => match apply_tls(Server::builder(), &snapshots) {
+                    Ok(mut builder) => {
+                        builder
+                            .add_service(reflection)
+                            .add_service(service)
+                            .serve_with_incoming(incoming)
+                            .await
+                    }
+                    Err(e) => {
+                        tracing::error!("control TLS config: {e}");
+                        return;
+                    }
+                },
                 Err(e) => {
                     tracing::error!("failed to build reflection service: {e}");
                     return;
                 }
             }
         } else {
-            Server::builder()
-                .add_service(service)
-                .serve_with_incoming(incoming)
-                .await
+            match apply_tls(Server::builder(), &snapshots) {
+                Ok(mut builder) => {
+                    builder
+                        .add_service(service)
+                        .serve_with_incoming(incoming)
+                        .await
+                }
+                Err(e) => {
+                    tracing::error!("control TLS config: {e}");
+                    return;
+                }
+            }
         };
         if let Err(e) = result {
             tracing::error!("control server error: {e}");
