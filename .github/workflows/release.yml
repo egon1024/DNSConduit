@@ -71,8 +71,14 @@ jobs:
         if: steps.exists.outputs.skip != 'true'
         env:
           NEXT_VERSION: ${{ steps.version.outputs.next_version }}
+          # Admin PAT bypasses branch rules; GITHUB_TOKEN cannot push chore: release to main.
+          RELEASE_PUSH_TOKEN: ${{ secrets.RELEASE_PUSH_TOKEN }}
         run: |
           set -euo pipefail
+          if [[ -z "${RELEASE_PUSH_TOKEN}" ]]; then
+            echo "::error::RELEASE_PUSH_TOKEN secret is not configured (required to push version bump to protected main)."
+            exit 1
+          fi
           if git diff --quiet Cargo.toml; then
             echo "Cargo.toml already at ${NEXT_VERSION}; nothing to commit."
             exit 0
@@ -81,7 +87,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add Cargo.toml
           git commit -m "chore: release ${NEXT_VERSION}"
-          git push origin HEAD:main
+          git push "https://x-access-token:${RELEASE_PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:main
 
       - name: Create GitHub Release
         if: steps.exists.outputs.skip != 'true'
