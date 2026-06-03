@@ -1,0 +1,77 @@
+# Publish versioned operator documentation to gh-pages (mike) on product tags.
+
+name: Docs deploy
+
+on:
+  push:
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]+"
+      - "[0-9]+.[0-9]+.[0-9]+-dev.[0-9]+"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: docs-deploy-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy docs (${{ github.ref_name }})
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout tag
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install documentation dependencies
+        run: pip install -r requirements.txt
+
+      - name: Fetch gh-pages for versions.json
+        run: |
+          set -euo pipefail
+          git fetch origin gh-pages:gh-pages 2>/dev/null || echo "No gh-pages branch yet (first deploy)."
+
+      - name: Generate versions index
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          VERSIONS_ARG=(--stub)
+          if git show gh-pages:versions.json > /tmp/versions.json 2>/dev/null; then
+            VERSIONS_ARG=(--versions-json /tmp/versions.json)
+          fi
+          python operator-docs/scripts/gen_versions_index.py \
+            "${VERSIONS_ARG[@]}" \
+            --output operator-docs/docs/versions.md \
+            --current-version "${TAG}"
+
+      - name: Configure git for mike
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Resolve mike alias flags
+        id: aliases
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          bash .github/scripts/docs-deploy-aliases.sh "${TAG}" >> "$GITHUB_ENV"
+
+      - name: Deploy with mike
+        env:
+          TAG: ${{ github.ref_name }}
+          DOCS_PRODUCT_VERSION: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          cd operator-docs
+          # shellcheck disable=SC2086
+          mike deploy --push "${TAG}" ${MIKE_ALIAS_ARGS:-} ${MIKE_STABLE_1_ARGS:-}
