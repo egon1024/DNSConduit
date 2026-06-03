@@ -18,7 +18,7 @@ def _resolve_doc_version() -> str:
 
 
 def on_config(config, **kwargs):
-    """Expose docs product version in __config (read by overrides/…/doc-version.js)."""
+    """Expose docs product version in __config (read by docs/assets/javascripts/doc-version.js)."""
     version = _resolve_doc_version()
     extra = dict(config.extra)
     version_extra = dict(extra.get("version", {}))
