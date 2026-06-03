@@ -7,6 +7,14 @@ name: Release
 on:
   push:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: >-
+          Publish this version (e.g. 0.12.0). Use when main already has the Cargo bump
+          but the GitHub release failed. Leave empty to compute from tags and PR bump rules.
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -20,8 +28,10 @@ jobs:
   release:
     name: Tag and release
     runs-on: ubuntu-latest
-    # Skip the version-bump commit this workflow creates (avoids infinite loop).
-    if: "${{ !startsWith(github.event.head_commit.message, 'chore: release ') }}"
+    # Skip the chore:release bump commit (avoids loop). workflow_dispatch always runs.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      !startsWith(github.event.head_commit.message, 'chore: release ')
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -29,17 +39,43 @@ jobs:
           fetch-depth: 0
 
       - name: Resolve merged pull request body
+        if: github.event_name != 'workflow_dispatch'
         id: pr
         env:
           GH_TOKEN: ${{ github.token }}
         run: bash .github/scripts/resolve-pr-body.sh "${{ github.event.head_commit.message }}"
 
+      - name: Use manual release version
+        if: github.event_name == 'workflow_dispatch' && inputs.release_version != ''
+        id: manual_version
+        env:
+          RELEASE_VERSION: ${{ inputs.release_version }}
+        run: |
+          set -euo pipefail
+          ver="${RELEASE_VERSION#v}"
+          if [[ ! "$ver" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::release_version must be MAJOR.MINOR.PATCH (got: ${RELEASE_VERSION})"
+            exit 1
+          fi
+          echo "next_version=${ver}" >>"$GITHUB_OUTPUT"
+
       - name: Compute next version
         id: version
+        if: steps.manual_version.outputs.next_version == ''
         uses: ./.github/actions/version-bump
         with:
-          pr_body: ${{ steps.pr.outputs.body }}
+          pr_body: ${{ steps.pr.outputs.body || '' }}
           default_bump: minor
+
+      - name: Select release version
+        id: release_version
+        run: |
+          set -euo pipefail
+          if [[ -n "${{ steps.manual_version.outputs.next_version }}" ]]; then
+            echo "next_version=${{ steps.manual_version.outputs.next_version }}" >>"$GITHUB_OUTPUT"
+          else
+            echo "next_version=${{ steps.version.outputs.next_version }}" >>"$GITHUB_OUTPUT"
+          fi
 
       - name: Validate version bump
         if: steps.version.outputs.error != ''
@@ -51,7 +87,7 @@ jobs:
         id: exists
         env:
           GH_TOKEN: ${{ github.token }}
-          NEXT_VERSION: ${{ steps.version.outputs.next_version }}
+          NEXT_VERSION: ${{ steps.release_version.outputs.next_version }}
         run: |
           set -euo pipefail
           if gh release view "$NEXT_VERSION" >/dev/null 2>&1; then
@@ -64,13 +100,13 @@ jobs:
       - name: Bump Cargo.toml workspace version
         if: steps.exists.outputs.skip != 'true'
         env:
-          NEXT_VERSION: ${{ steps.version.outputs.next_version }}
+          NEXT_VERSION: ${{ steps.release_version.outputs.next_version }}
         run: bash .github/scripts/bump-cargo-versions.sh
 
       - name: Commit version bump
         if: steps.exists.outputs.skip != 'true'
         env:
-          NEXT_VERSION: ${{ steps.version.outputs.next_version }}
+          NEXT_VERSION: ${{ steps.release_version.outputs.next_version }}
           # Admin PAT (repo owner): push release branch + gh pr merge --admin.
           # Direct pushes to main are blocked by rulesets even with a PAT unless bypass mode is Always.
           GH_TOKEN: ${{ secrets.RELEASE_PUSH_TOKEN }}
@@ -89,7 +125,11 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add Cargo.toml
           git commit -m "chore: release ${NEXT_VERSION}"
-          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:"${release_branch}"
+          # Ephemeral branch; replace prior failed run (non-fast-forward).
+          gh api -X DELETE "repos/${GITHUB_REPOSITORY}/git/refs/heads/${release_branch}" 2>/dev/null || true
+          git push --force-with-lease \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            HEAD:"${release_branch}"
 
           pr_number="$(gh pr list --head "${release_branch}" --base main --state open --json number --jq '.[0].number // empty')"
           if [[ -z "${pr_number}" ]]; then
@@ -104,12 +144,12 @@ jobs:
         if: steps.exists.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-          NEXT_VERSION: ${{ steps.version.outputs.next_version }}
+          NEXT_VERSION: ${{ steps.release_version.outputs.next_version }}
         run: |
           set -euo pipefail
           git fetch origin main
           gh release create "$NEXT_VERSION" \
-            --target origin/main \
+            --target main \
             --title "$NEXT_VERSION" \
             --generate-notes
 
