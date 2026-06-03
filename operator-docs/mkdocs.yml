@@ -31,7 +31,9 @@ theme:
     - search.suggest
     - content.code.copy
 
-# Header shows extra.version.default (set in hooks.py) — no mike version dropdown.
+# Docs product version: hooks.py sets extra.version.default; doc-version.js shows it in the header.
+# (Material only renders .md-version itself when provider: mike + versions.json loads.)
+# The repo card “latest release” badge is hidden in overrides/…/version-label.css.
 
 extra:
   version:
@@ -39,6 +41,9 @@ extra:
 
 extra_css:
   - overrides/assets/stylesheets/version-label.css
+
+extra_javascript:
+  - overrides/assets/javascripts/doc-version.js
 
 markdown_extensions:
   - admonition

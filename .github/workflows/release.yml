@@ -19,6 +19,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  actions: write
 
 concurrency:
   group: release-main
@@ -152,6 +153,19 @@ jobs:
             --target main \
             --title "$NEXT_VERSION" \
             --generate-notes
+
+      # GITHUB_TOKEN release/tag does not trigger tag-push workflows; dispatch explicitly.
+      - name: Trigger docs deploy
+        if: steps.exists.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEXT_VERSION: ${{ steps.release_version.outputs.next_version }}
+        run: |
+          set -euo pipefail
+          gh workflow run docs-deploy.yml \
+            --ref "${NEXT_VERSION}" \
+            -f "version=${NEXT_VERSION}"
+          echo "Dispatched Docs deploy for ${NEXT_VERSION}."
 
       # --- Future: attach build artifacts ---
       # - name: Build release binaries
