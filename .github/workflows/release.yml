@@ -10,7 +10,7 @@ on:
 
 permissions:
   contents: write
-  pull-requests: read
+  pull-requests: write
 
 concurrency:
   group: release-main
@@ -71,23 +71,34 @@ jobs:
         if: steps.exists.outputs.skip != 'true'
         env:
           NEXT_VERSION: ${{ steps.version.outputs.next_version }}
-          # Admin PAT bypasses branch rules; GITHUB_TOKEN cannot push chore: release to main.
-          RELEASE_PUSH_TOKEN: ${{ secrets.RELEASE_PUSH_TOKEN }}
+          # Admin PAT (repo owner): push release branch + gh pr merge --admin.
+          # Direct pushes to main are blocked by rulesets even with a PAT unless bypass mode is Always.
+          GH_TOKEN: ${{ secrets.RELEASE_PUSH_TOKEN }}
         run: |
           set -euo pipefail
-          if [[ -z "${RELEASE_PUSH_TOKEN}" ]]; then
-            echo "::error::RELEASE_PUSH_TOKEN secret is not configured (required to push version bump to protected main)."
+          if [[ -z "${GH_TOKEN}" ]]; then
+            echo "::error::RELEASE_PUSH_TOKEN secret is not configured (admin PAT for release bump PR)."
             exit 1
           fi
           if git diff --quiet Cargo.toml; then
             echo "Cargo.toml already at ${NEXT_VERSION}; nothing to commit."
             exit 0
           fi
+          release_branch="chore/release-${NEXT_VERSION}"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add Cargo.toml
           git commit -m "chore: release ${NEXT_VERSION}"
-          git push "https://x-access-token:${RELEASE_PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:main
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:"${release_branch}"
+
+          pr_number="$(gh pr list --head "${release_branch}" --base main --state open --json number --jq '.[0].number // empty')"
+          if [[ -z "${pr_number}" ]]; then
+            gh pr create --base main --head "${release_branch}" \
+              --title "chore: release ${NEXT_VERSION}" \
+              --body "Automated version bump after release ${NEXT_VERSION}. #no-docs"
+            pr_number="$(gh pr view "${release_branch}" --json number --jq .number)"
+          fi
+          gh pr merge "${pr_number}" --rebase --admin --delete-branch
 
       - name: Create GitHub Release
         if: steps.exists.outputs.skip != 'true'
@@ -96,7 +107,9 @@ jobs:
           NEXT_VERSION: ${{ steps.version.outputs.next_version }}
         run: |
           set -euo pipefail
+          git fetch origin main
           gh release create "$NEXT_VERSION" \
+            --target origin/main \
             --title "$NEXT_VERSION" \
             --generate-notes
 
