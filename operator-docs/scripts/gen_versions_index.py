@@ -37,6 +37,11 @@ def parse_args() -> argparse.Namespace:
         help="Version being built (tag name); shown in banner partial",
     )
     parser.add_argument(
+        "--current-aliases",
+        default="",
+        help="Comma-separated mike aliases for the version being built (e.g. latest)",
+    )
+    parser.add_argument(
         "--stub",
         action="store_true",
         help="Write placeholder when versions.json is missing",
@@ -63,6 +68,12 @@ def version_href(site_url: str, version: str) -> str:
     return f"{base}{version}/"
 
 
+def format_aliases(aliases: list[str] | None) -> str:
+    if not aliases:
+        return "—"
+    return ", ".join(f"`{alias}`" for alias in sorted(aliases))
+
+
 def render_versions_md(
     entries: list[dict[str, Any]], site_url: str, current_version: str
 ) -> str:
@@ -82,12 +93,23 @@ def render_versions_md(
             ]
         )
     else:
-        lines.extend(["## Releases", "", "| Version | Open |", "| --- | --- |"])
+        lines.extend(
+            [
+                "## Releases",
+                "",
+                "| Version | Aliases | Open |",
+                "| --- | --- | --- |",
+            ]
+        )
         for entry in sorted(entries, key=lambda e: e.get("version", "")):
             version = entry.get("version") or entry.get("title", "")
             if not version:
                 continue
-            lines.append(f"| `{version}` | [View]({version_href(site_url, version)}) |")
+            aliases = entry.get("aliases") or []
+            lines.append(
+                f"| `{version}` | {format_aliases(aliases)} | "
+                f"[View]({version_href(site_url, version)}) |"
+            )
         lines.append("")
 
         alias_rows: list[tuple[str, str]] = []
@@ -123,22 +145,32 @@ def main() -> None:
     args = parse_args()
     entries = load_versions(args.versions_json, args.stub)
 
-    # Include the version currently being built if not yet in versions.json.
-    if args.current_version and not any(
-        (e.get("version") or e.get("title")) == args.current_version for e in entries
-    ):
-        aliases: list[str] = []
-        if STABLE_RE.match(args.current_version):
-            aliases = []  # alias assignment happens in deploy workflow
-        elif "-dev." in args.current_version:
-            aliases = ["dev"]
-        entries.append(
-            {
-                "version": args.current_version,
-                "title": args.current_version,
-                "aliases": aliases,
-            }
-        )
+    current_aliases = [
+        a.strip()
+        for a in args.current_aliases.split(",")
+        if a.strip()
+    ]
+
+    # Include or refresh the version currently being built if not yet in versions.json.
+    if args.current_version:
+        found = False
+        for entry in entries:
+            if (entry.get("version") or entry.get("title")) == args.current_version:
+                found = True
+                if current_aliases:
+                    entry["aliases"] = current_aliases
+                break
+        if not found:
+            aliases: list[str] = list(current_aliases)
+            if not aliases and "-dev." in args.current_version:
+                aliases = ["dev"]
+            entries.append(
+                {
+                    "version": args.current_version,
+                    "title": args.current_version,
+                    "aliases": aliases,
+                }
+            )
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(

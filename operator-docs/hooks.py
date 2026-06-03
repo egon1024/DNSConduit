@@ -1,4 +1,4 @@
-"""MkDocs hooks — set Material header version label from env or .doc-version file."""
+"""MkDocs hooks — set extra.version.default for doc-version.js and outdated-banner logic."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ def _resolve_doc_version() -> str:
 
 
 def on_config(config, **kwargs):
-    """Expose version in header via Material extra.version.default (no dropdown)."""
+    """Expose docs product version in __config (read by overrides/…/doc-version.js)."""
     version = _resolve_doc_version()
     extra = dict(config.extra)
     version_extra = dict(extra.get("version", {}))
