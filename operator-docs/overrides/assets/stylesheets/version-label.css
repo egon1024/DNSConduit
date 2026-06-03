@@ -1,0 +1,11 @@
+/* Subtle product version in header (Material extra.version.default, no dropdown). */
+.md-version {
+  font-size: 0.7rem;
+  font-weight: 400;
+  opacity: 0.85;
+  margin-right: 0.5rem;
+}
+
+.md-version__current {
+  font-weight: 500;
+}

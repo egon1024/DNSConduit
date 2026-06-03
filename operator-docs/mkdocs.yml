@@ -1,0 +1,50 @@
+# Operator documentation — MkDocs Material (preview: make docs-serve).
+site_name: DNS Conduit
+site_description: Operator documentation for DNS Conduit
+site_url: https://egon1024.github.io/DNSConduit/
+
+repo_url: https://github.com/egon1024/DNSConduit
+repo_name: egon1024/DNSConduit
+
+docs_dir: docs
+strict: true
+
+hooks:
+  - hooks.py
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - search.suggest
+    - content.code.copy
+
+# Header shows extra.version.default (set in hooks.py) — no mike version dropdown.
+
+extra:
+  version:
+    default: development
+
+extra_css:
+  - overrides/assets/stylesheets/version-label.css
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+
+nav:
+  - Home: index.md
+  - Versions: versions.md

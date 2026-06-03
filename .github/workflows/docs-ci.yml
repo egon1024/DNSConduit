@@ -1,0 +1,42 @@
+# Build operator documentation on pull requests (strict MkDocs).
+# Future: add 1.x and 2.x to branches: when those lines exist post–1.0.0.
+
+name: Docs CI
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+concurrency:
+  group: docs-ci-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  docs-ci:
+    name: Build operator docs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install documentation dependencies
+        run: pip install -r requirements.txt
+
+      - name: Forbid internal doc links in operator-docs
+        run: |
+          set -euo pipefail
+          if grep -rEn 'docs/superpowers|openspec/|\.cursor/' operator-docs/docs --include='*.md'; then
+            echo "::error::operator-docs must not link to internal planning paths"
+            exit 1
+          fi
+          echo "No forbidden internal doc paths in operator-docs."
+
+      - name: Build documentation
+        run: make docs-build

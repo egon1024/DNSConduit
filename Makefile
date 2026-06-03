@@ -10,7 +10,11 @@
 CARGO ?= cargo
 CLIPPY_FLAGS := --workspace --all-targets -- -D warnings
 
-.PHONY: help test fmt fmt-check clippy unit build
+PYTHON ?= python3
+DOCS_DIR := operator-docs
+DOCS_PORT ?= 8000
+
+.PHONY: help test fmt fmt-check clippy unit build docs-serve docs-build docs-gen
 
 help:
 	@echo "DNSConduit Makefile targets:"
@@ -20,6 +24,20 @@ help:
 	@echo "  make clippy     Run clippy (-D warnings)"
 	@echo "  make unit       Run cargo test --workspace"
 	@echo "  make build      Build all workspace crates"
+	@echo "  make docs-serve Serve operator-docs/ at http://127.0.0.1:$(DOCS_PORT) (live reload)"
+	@echo "  make docs-build Build operator-docs/ (mkdocs --strict)"
+
+docs-gen:
+	@ver=$$(awk -F'"' '/^version = / {print $$2; exit}' Cargo.toml); \
+		echo "$${ver:-development}" > $(DOCS_DIR)/.doc-version
+	$(PYTHON) $(DOCS_DIR)/scripts/gen_versions_index.py --stub \
+		--output $(DOCS_DIR)/docs/versions.md
+
+docs-build: docs-gen
+	cd $(DOCS_DIR) && $(PYTHON) -m mkdocs build --strict
+
+docs-serve: docs-gen
+	cd $(DOCS_DIR) && $(PYTHON) -m mkdocs serve -a 127.0.0.1:$(DOCS_PORT)
 
 test: fmt-check clippy unit
 
