@@ -6,6 +6,7 @@ use crate::phase::Phase;
 use crate::pipeline::{PipelineStage, StageOutcome};
 use crate::snapshot::RuntimeSnapshot;
 use crate::transaction::Transaction;
+use conduit_config::logging::log_text;
 use conduit_events::EventHub;
 use conduit_metrics::{trace_activation_matches, MetricsHub, TracingHub};
 use std::collections::HashMap;
@@ -252,20 +253,22 @@ impl Orchestrator {
             RunOutcome::Response(_) => tracing::info!(
                 txn_id = txn.id,
                 dns_id = txn.dns_id,
-                qname = txn.qname.as_deref().unwrap_or("-"),
-                rcode = txn.rcode_label().as_deref().unwrap_or("-"),
-                pool = txn.selected_pool.as_deref().unwrap_or("-"),
-                backend = %txn
-                    .selected_backend
-                    .map(|a| a.to_string())
-                    .unwrap_or_else(|| "-".into()),
+                qname = %log_text(txn.qname.as_deref().unwrap_or("-")),
+                rcode = %log_text(txn.rcode_label().as_deref().unwrap_or("-")),
+                pool = %log_text(txn.selected_pool.as_deref().unwrap_or("-")),
+                backend = %log_text(
+                    &txn
+                        .selected_backend
+                        .map(|a| a.to_string())
+                        .unwrap_or_else(|| "-".into())
+                ),
                 attempts = txn.attempt_count,
                 "query complete"
             ),
             RunOutcome::Dropped => tracing::warn!(
                 txn_id = txn.id,
                 dns_id = txn.dns_id,
-                qname = txn.qname.as_deref().unwrap_or("-"),
+                qname = %log_text(txn.qname.as_deref().unwrap_or("-")),
                 "query dropped"
             ),
         }

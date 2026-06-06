@@ -15,4 +15,4 @@ serde_json = { workspace = true }
 thiserror = { workspace = true }
 prost = { workspace = true }
 tracing = { workspace = true }
-tracing-subscriber = { workspace = true, features = ["env-filter", "fmt", "ansi"] }
+tracing-subscriber = { workspace = true, features = ["env-filter", "fmt"] }
