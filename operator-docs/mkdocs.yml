@@ -9,6 +9,12 @@ repo_name: egon1024/DNSConduit
 docs_dir: docs
 strict: true
 
+# Docs-root paths like /glossary/index.md#backend are validated and rewritten to
+# relative URLs in output (works under mike version dirs on GitHub Pages).
+validation:
+  links:
+    absolute_links: relative_to_docs
+
 hooks:
   - hooks.py
 
@@ -48,7 +54,11 @@ extra_javascript:
 markdown_extensions:
   - admonition
   - pymdownx.details
-  - pymdownx.superfences
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
 
 nav:
   - Home: index.md
