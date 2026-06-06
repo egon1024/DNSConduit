@@ -115,3 +115,16 @@ jobs:
           export DOCS_PRODUCT_VERSION="${TAG}"
           # shellcheck disable=SC2086
           mike deploy --push "${TAG}" ${MIKE_ALIAS_ARGS:-} ${MIKE_STABLE_1_ARGS:-}
+
+      - name: Set site root redirect
+        run: |
+          set -euo pipefail
+          cd operator-docs
+          # Without this, https://egon1024.github.io/DNSConduit/ 404s while /latest/ works.
+          if mike list | grep -qE '\blatest\b'; then
+            mike set-default --push latest
+          elif mike list | grep -qE '\bdev\b'; then
+            mike set-default --push dev
+          else
+            echo "::warning::No latest or dev alias; skipping root redirect."
+          fi
