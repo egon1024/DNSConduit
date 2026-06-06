@@ -1,8 +1,8 @@
 # Glossary
 
-Operator vocabulary for DNS Conduit. Each entry is a **short definition**; longer explanations live on the linked topic pages.
+Brief definitions of terminology used in this documentation. Each entry links to the canonical topic page for detail.
 
-When writing other pages, link here for jargon (`[overlay](glossary/#overlay)`) or link straight to a topic section when the reader needs the full guide (`[Rhai](rhai/index.md)`).
+When writing other pages, link here often — for example `[overlay](/glossary/index.md#overlay)` or `[Rhai](/rhai/index.md)`.
 
 Entries are added as documentation grows. Keep one-line glosses in sync when linked pages change.
 
@@ -80,15 +80,15 @@ Entries are added as documentation grows. Keep one-line glosses in sync when lin
 
 ### Pool
 
-<!-- one-line definition -->
+Named group of [backends](/glossary/index.md#backend); [rules](/glossary/index.md#selector) and scripts select a pool by name before Conduit picks a backend to forward to.
 
-→ [Pools and backends](../policy-routing/pools-and-backends.md)
+→ [Pools and backends](/policy-routing/pools-and-backends.md)
 
 ### Backend
 
-<!-- one-line definition -->
+Configured upstream destination Conduit forwards DNS queries to; settings control how Conduit reaches and uses that destination (for example address and weight in current releases).
 
-→ [Pools and backends](../policy-routing/pools-and-backends.md)
+→ [Pools and backends](/policy-routing/pools-and-backends.md)
 
 ### Selector
 
