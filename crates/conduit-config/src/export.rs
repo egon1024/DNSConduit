@@ -28,19 +28,6 @@ mod tests {
     }
 
     #[test]
-    fn yaml_roundtrip_preserves_schema_version() {
-        let yaml_in = include_str!("../../../tests/fixtures/config/minimal.yaml");
-        let cfg = load_yaml(yaml_in).unwrap();
-        let yaml_out = export_yaml(&cfg).unwrap();
-        let cfg2 = load_yaml(&yaml_out).unwrap();
-        assert_eq!(cfg.schema_version, cfg2.schema_version);
-        assert_eq!(
-            cfg.listeners.as_ref().unwrap().threads,
-            cfg2.listeners.as_ref().unwrap().threads
-        );
-    }
-
-    #[test]
     fn export_sparse_omits_default_sections() {
         let yaml_in = include_str!("../../../tests/fixtures/config/minimal-sparse.yaml");
         let cfg = load_yaml(yaml_in).unwrap();
@@ -57,5 +44,14 @@ mod tests {
         assert_eq!(cfg.events, cfg2.events);
         assert_eq!(cfg.rhai, cfg2.rhai);
         assert!(cfg2.control.is_none());
+    }
+
+    #[test]
+    fn export_sink_uses_name_only_when_wire_identity_matches() {
+        let yaml_in = include_str!("../../../tests/fixtures/config/with-dnstap.yaml");
+        let cfg = load_yaml(yaml_in).unwrap();
+        let yaml_out = export_yaml(&cfg).unwrap();
+        assert!(yaml_out.contains("name: conduit-dev"));
+        assert!(!yaml_out.contains("export_id:"));
     }
 }

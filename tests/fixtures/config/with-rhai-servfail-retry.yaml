@@ -33,13 +33,13 @@ control:
 rules:
   match_mode: first_match
   rules:
-    - id: route-primary
+    - name: route-primary
       hook: request
       selectors: []
       actions:
         - type: set_pool
           value: primary
-    - id: servfail-retry
+    - name: servfail-retry
       hook: response
       selectors:
         - type: rcode

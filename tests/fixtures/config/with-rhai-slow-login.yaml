@@ -29,7 +29,7 @@ control:
 rules:
   match_mode: first_match
   rules:
-    - id: tag-suspicious-login
+    - name: tag-suspicious-login
       hook: request
       selectors:
         - type: qname_exact
@@ -37,7 +37,7 @@ rules:
       actions:
         - type: rhai
           value: ../rhai/tag-suspicious.rhai
-    - id: slow-login-alert
+    - name: slow-login-alert
       hook: response
       selectors: []
       actions:

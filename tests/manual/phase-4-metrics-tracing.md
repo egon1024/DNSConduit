@@ -143,18 +143,18 @@ grpcurl -plaintext 127.0.0.1:5199 conduit.v1.ConduitControl/Health
 
 ```bash
 grpcurl -plaintext \
-  -d '{"trace_id":"1"}' \
+  -d '{"txn_id":"1"}' \
   127.0.0.1:5199 \
   conduit.v1.ConduitControl/GetTrace
 ```
 
 **Expect:** `"found": true` and `events` including phases such as `route`, `forward`, `send`.
 
-**Unknown trace id:**
+**Unknown transaction id:**
 
 ```bash
 grpcurl -plaintext \
-  -d '{"trace_id":"999999"}' \
+  -d '{"txn_id":"999999"}' \
   127.0.0.1:5199 \
   conduit.v1.ConduitControl/GetTrace
 ```
@@ -245,7 +245,7 @@ Run an OpenTelemetry Collector listening on `:4318`, start Conduit (e.g. [`confi
 | `curl :19090` fails | Config must include `metrics.prometheus.listen_address` |
 | No forward success metrics | dnsmasq on **15300** running; `UPSTREAM_DNS` set |
 | `listener="unknown"` in metrics | Traffic must hit real listener workers (not unit-test orchestrator only) |
-| GetTrace `found: false` | Use numeric `trace_id` matching first query (`1`, `2`, …); tracing enabled and qtype A |
+| GetTrace `found: false` | Use numeric `txn_id` matching first query (`1`, `2`, …); tracing enabled and qtype A |
 | SERVFAIL from dig | Backend down or timeout; forward **error** metrics should still increment |
 
 If reflection is disabled (`control.reflection_enabled: false`), call grpcurl with proto files:

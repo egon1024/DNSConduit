@@ -17,7 +17,7 @@ events:
   drop_policy: drop_oldest
   sinks:
     - type: dnstap
-      export_id: sampled
+      name: sampled
       destinations:
         - "unix:/tmp/dnstap.sock"
       emit:
@@ -38,7 +38,7 @@ control:
 rules:
   match_mode: first_match
   rules:
-    - id: smart-sample
+    - name: smart-sample
       hook: request
       selectors: []
       actions:

@@ -53,7 +53,7 @@ impl ScriptLimits {
 
 #[derive(Debug, Clone)]
 pub struct ScriptRef {
-    pub rule_id: String,
+    pub rule_name: String,
     pub hook: ScriptPhase,
     pub path: String,
     pub script_id: usize,
@@ -62,7 +62,7 @@ pub struct ScriptRef {
 #[derive(Debug)]
 pub struct CompiledScript {
     pub path: String,
-    pub rule_id: String,
+    pub rule_name: String,
     pub hook: ScriptPhase,
     pub ast: AST,
 }
@@ -79,10 +79,10 @@ pub struct CompiledScripting {
 }
 
 impl CompiledScripting {
-    pub fn script_ids_for_rule(&self, rule_id: &str, hook: ScriptPhase) -> Vec<usize> {
+    pub fn script_ids_for_rule(&self, rule_name: &str, hook: ScriptPhase) -> Vec<usize> {
         self.rules_scripts
             .iter()
-            .filter(|r| r.rule_id == rule_id && r.hook == hook)
+            .filter(|r| r.rule_name == rule_name && r.hook == hook)
             .map(|r| r.script_id)
             .collect()
     }
@@ -138,7 +138,7 @@ fn compile_rule_scripts(
         }
         if action.value.is_empty() {
             return Err(ScriptError::Rule {
-                rule_id: rule.id.clone(),
+                rule_name: rule.name.clone(),
                 message: "rhai action requires script path in value".into(),
             });
         }
@@ -146,7 +146,7 @@ fn compile_rule_scripts(
         let path_key = resolved.display().to_string();
         let script_id = if let Some(&id) = scripting
             .script_index
-            .get(&(rule.id.clone(), path_key.clone()))
+            .get(&(rule.name.clone(), path_key.clone()))
         {
             id
         } else {
@@ -165,17 +165,17 @@ fn compile_rule_scripts(
             let id = scripting.scripts.len();
             scripting.scripts.push(CompiledScript {
                 path: path_key.clone(),
-                rule_id: rule.id.clone(),
+                rule_name: rule.name.clone(),
                 hook,
                 ast,
             });
             scripting
                 .script_index
-                .insert((rule.id.clone(), path_key), id);
+                .insert((rule.name.clone(), path_key), id);
             id
         };
         scripting.rules_scripts.push(ScriptRef {
-            rule_id: rule.id.clone(),
+            rule_name: rule.name.clone(),
             hook,
             path: action.value.clone(),
             script_id,

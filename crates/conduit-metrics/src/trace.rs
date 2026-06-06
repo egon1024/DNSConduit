@@ -58,11 +58,11 @@ impl TraceStore {
         }
     }
 
-    pub fn insert(&self, trace_id: u64, events: Vec<TraceEvent>) {
+    pub fn insert(&self, txn_id: u64, events: Vec<TraceEvent>) {
         if events.is_empty() {
             return;
         }
-        let key = trace_id.to_string();
+        let key = txn_id.to_string();
         let mut q = self.entries.lock();
         q.retain(|(_, t)| t.inserted_at.elapsed() < self.ttl);
         while q.len() >= self.max_entries {
@@ -77,11 +77,11 @@ impl TraceStore {
         ));
     }
 
-    pub fn get(&self, trace_id: &str) -> Option<Vec<TraceEvent>> {
+    pub fn get(&self, txn_id: &str) -> Option<Vec<TraceEvent>> {
         let mut q = self.entries.lock();
         q.retain(|(_, t)| t.inserted_at.elapsed() < self.ttl);
         q.iter()
-            .find(|(k, _)| k == trace_id)
+            .find(|(k, _)| k == txn_id)
             .map(|(_, t)| t.events.clone())
     }
 }

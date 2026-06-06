@@ -26,7 +26,7 @@ pools:
 rules:
   match_mode: first_match
   rules:
-    - id: clear-rd
+    - name: clear-rd
       hook: request
       selectors: []
       actions:

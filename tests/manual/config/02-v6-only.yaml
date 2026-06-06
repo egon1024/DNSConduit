@@ -42,7 +42,7 @@ pools:
 rules:
   match_mode: first_match
   rules:
-    - id: v6-pool
+    - name: v6-pool
       hook: request
       selectors: []
       actions:

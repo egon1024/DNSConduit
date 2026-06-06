@@ -17,7 +17,7 @@ events:
   drop_policy: drop_oldest
   sinks:
     - type: dnstap
-      export_id: conduit-dev
+      name: conduit-dev
       destinations:
         - "unix:/tmp/conduit-dnstap.sock"
       emit:

@@ -17,7 +17,7 @@ pub enum MatchMode {
 
 #[derive(Debug, Clone)]
 pub struct CompiledRule {
-    pub id: String,
+    pub name: String,
     pub hook: RuleHook,
     pub selectors: Vec<CompiledSelector>,
     pub actions: Vec<CompiledAction>,
@@ -61,14 +61,14 @@ impl CompiledRules {
                 if self.match_mode == MatchMode::FirstMatch {
                     return RuleEvalResult {
                         outcome,
-                        matched_rule_id: Some(rule.id.clone()),
+                        matched_rule_name: Some(rule.name.clone()),
                     };
                 }
             }
         }
         RuleEvalResult {
             outcome: RuleOutcome::Continue,
-            matched_rule_id: None,
+            matched_rule_name: None,
         }
     }
 }
@@ -76,7 +76,7 @@ impl CompiledRules {
 #[derive(Debug, PartialEq, Eq)]
 pub struct RuleEvalResult {
     pub outcome: RuleOutcome,
-    pub matched_rule_id: Option<String>,
+    pub matched_rule_name: Option<String>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -94,7 +94,7 @@ impl CompiledRule {
             RuleHook::Request
         };
         Self {
-            id: rule.id.clone(),
+            name: rule.name.clone(),
             hook,
             selectors: compile_selectors(&rule.selectors),
             actions: rule.actions.iter().map(CompiledAction::compile).collect(),

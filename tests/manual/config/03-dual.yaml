@@ -50,7 +50,7 @@ pools:
 rules:
   match_mode: first_match
   rules:
-    - id: v4-suffix
+    - name: v4-suffix
       hook: request
       selectors:
         - type: qname_suffix
@@ -58,7 +58,7 @@ rules:
       actions:
         - type: set_pool
           value: v4
-    - id: v6-suffix
+    - name: v6-suffix
       hook: request
       selectors:
         - type: qname_suffix

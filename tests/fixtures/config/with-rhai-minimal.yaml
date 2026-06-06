@@ -33,7 +33,7 @@ control:
 rules:
   match_mode: first_match
   rules:
-    - id: vip-routing
+    - name: vip-routing
       hook: request
       selectors:
         - type: qname_suffix

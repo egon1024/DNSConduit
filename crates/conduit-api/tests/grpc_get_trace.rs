@@ -113,7 +113,7 @@ async fn get_trace_returns_events_after_traced_query() {
 
     let trace = client
         .get_trace(GetTraceRequest {
-            trace_id: txn_id.to_string(),
+            txn_id: txn_id.to_string(),
         })
         .await
         .expect("get_trace")
@@ -158,7 +158,7 @@ async fn get_trace_unknown_id_not_found() {
 
     let trace = client
         .get_trace(GetTraceRequest {
-            trace_id: "999999".into(),
+            txn_id: "999999".into(),
         })
         .await
         .expect("get_trace")

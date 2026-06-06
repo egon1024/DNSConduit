@@ -35,7 +35,7 @@ control:
 rules:
   match_mode: first_match
   rules:
-    - id: blocklist-check
+    - name: blocklist-check
       hook: request
       selectors:
         - type: qname_suffix

@@ -29,7 +29,7 @@ control:
 rules:
   match_mode: first_match
   rules:
-    - id: bad-phase-demo
+    - name: bad-phase-demo
       hook: request
       selectors: []
       actions:

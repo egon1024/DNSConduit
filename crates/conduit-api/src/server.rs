@@ -131,8 +131,8 @@ impl ConduitControl for ControlService {
         &self,
         request: Request<GetTraceRequest>,
     ) -> Result<Response<GetTraceResponse>, Status> {
-        let trace_id = request.into_inner().trace_id;
-        let events = self.tracing.store.get(&trace_id);
+        let txn_id = request.into_inner().txn_id;
+        let events = self.tracing.store.get(&txn_id);
         Ok(Response::new(GetTraceResponse {
             found: events.is_some(),
             events: events

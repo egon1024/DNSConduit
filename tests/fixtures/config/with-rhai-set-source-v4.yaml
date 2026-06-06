@@ -29,7 +29,7 @@ pools:
 rules:
   match_mode: first_match
   rules:
-    - id: set-source
+    - name: set-source
       hook: request
       selectors: []
       actions:

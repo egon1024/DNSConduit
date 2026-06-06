@@ -22,14 +22,14 @@ impl PipelineStage for ResponseRulesStage {
     fn handle(&self, txn: &mut Transaction, snapshot: &Arc<RuntimeSnapshot>) -> StageOutcome {
         let RuleEvalResult {
             outcome,
-            matched_rule_id,
+            matched_rule_name,
         } = snapshot.rules.eval(RuleHook::Response, txn);
 
         let mut script_retry = false;
-        if let Some(rule_id) = matched_rule_id {
+        if let Some(rule_name) = matched_rule_name {
             let script_ids = snapshot
                 .scripting
-                .script_ids_for_rule(&rule_id, ScriptPhase::Response);
+                .script_ids_for_rule(&rule_name, ScriptPhase::Response);
             if !script_ids.is_empty() {
                 let user_export = self.metrics.as_ref().map(|m| m.user.as_ref());
                 let (script_outcome, _) = run_scripts(
