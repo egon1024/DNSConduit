@@ -78,7 +78,7 @@ pools:
 rules:
   match_mode: first_match
   rules:
-    - id: internal-zones
+    - name: internal-zones
       hook: request
       selectors:
         - type: qname_suffix

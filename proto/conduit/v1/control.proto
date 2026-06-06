@@ -54,7 +54,7 @@ message HealthResponse {
 }
 
 message GetTraceRequest {
-  string trace_id = 1;          // transaction id as decimal string
+  string txn_id = 1;            // transaction id as decimal string
 }
 
 message TraceEvent {

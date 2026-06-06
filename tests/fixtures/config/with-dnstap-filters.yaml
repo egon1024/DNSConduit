@@ -37,7 +37,7 @@ events:
 rules:
   match_mode: first_match
   rules:
-    - id: tag-audit
+    - name: tag-audit
       hook: request
       selectors:
         - type: qname_suffix

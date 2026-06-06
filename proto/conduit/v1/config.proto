@@ -76,7 +76,7 @@ message RulesConfig {
 }
 
 message Rule {
-  string id = 1;
+  string name = 1;
   string hook = 2;           // "request" | "response"
   repeated Selector selectors = 3;
   repeated Action actions = 4;

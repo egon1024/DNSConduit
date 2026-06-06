@@ -41,7 +41,7 @@ metrics:
 rules:
   match_mode: first_match
   rules:
-    - id: geo-metrics
+    - name: geo-metrics
       hook: request
       selectors:
         - type: qname_suffix

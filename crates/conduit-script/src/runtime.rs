@@ -395,7 +395,7 @@ pub fn run_scripts(
                 SCRIPT_ERRORS.fetch_add(1, Ordering::Relaxed);
                 tracing::warn!(
                     script = %script.path,
-                    rule = %script.rule_id,
+                    rule = %script.rule_name,
                     error = %e,
                     "rhai script error"
                 );
@@ -550,7 +550,7 @@ control:
 rules:
   match_mode: first_match
   rules:
-    - id: rd
+    - name: rd
       hook: request
       selectors: []
       actions:
@@ -622,7 +622,7 @@ control:
 rules:
   match_mode: first_match
   rules:
-    - id: src
+    - name: src
       hook: request
       selectors: []
       actions:
@@ -694,7 +694,7 @@ control:
 rules:
   match_mode: first_match
   rules:
-    - id: src6
+    - name: src6
       hook: request
       selectors: []
       actions:
@@ -798,7 +798,7 @@ rules:
         let script_id = scripting
             .rules_scripts
             .iter()
-            .find(|r| r.rule_id == "servfail-retry")
+            .find(|r| r.rule_name == "servfail-retry")
             .unwrap()
             .script_id;
         let mut host = MockHost {
@@ -1047,7 +1047,7 @@ control:
 rules:
   match_mode: first_match
   rules:
-    - id: geo-metrics
+    - name: geo-metrics
       hook: request
       selectors:
         - type: qname_suffix
@@ -1121,13 +1121,13 @@ rules:
         let request_id = scripting
             .rules_scripts
             .iter()
-            .find(|r| r.rule_id == "tag-suspicious-login")
+            .find(|r| r.rule_name == "tag-suspicious-login")
             .unwrap()
             .script_id;
         let response_id = scripting
             .rules_scripts
             .iter()
-            .find(|r| r.rule_id == "slow-login-alert")
+            .find(|r| r.rule_name == "slow-login-alert")
             .unwrap()
             .script_id;
 

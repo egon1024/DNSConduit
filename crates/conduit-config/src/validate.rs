@@ -59,9 +59,12 @@ pub fn validate(cfg: &Config) -> ValidationResult {
 
     errors.extend(validate_upstream_backend_addresses(cfg));
 
+    let mut pool_names = std::collections::HashSet::new();
     for p in &cfg.pools {
         if p.name.is_empty() {
             errors.push("pool name must not be empty".into());
+        } else if !pool_names.insert(p.name.clone()) {
+            errors.push(format!("duplicate pool name '{}'", p.name));
         }
         if p.backends.is_empty() {
             errors.push(format!("pool '{}' has no backends", p.name));
@@ -175,14 +178,17 @@ pub fn validate(cfg: &Config) -> ValidationResult {
                 rules.match_mode
             ));
         }
+        let mut rule_names = std::collections::HashSet::new();
         for rule in &rules.rules {
-            if rule.id.is_empty() {
-                errors.push("rule id must not be empty".into());
+            if rule.name.is_empty() {
+                errors.push("rule name must not be empty".into());
+            } else if !rule_names.insert(rule.name.clone()) {
+                errors.push(format!("duplicate rule name '{}'", rule.name));
             }
             if rule.hook != "request" && rule.hook != "response" {
                 errors.push(format!(
                     "rule '{}' has invalid hook '{}'",
-                    rule.id, rule.hook
+                    rule.name, rule.hook
                 ));
             }
             for sel in &rule.selectors {
@@ -192,7 +198,7 @@ pub fn validate(cfg: &Config) -> ValidationResult {
                 ) {
                     errors.push(format!(
                         "rule '{}' has unknown selector type '{}'",
-                        rule.id, sel.r#type
+                        rule.name, sel.r#type
                     ));
                 }
             }
@@ -203,13 +209,13 @@ pub fn validate(cfg: &Config) -> ValidationResult {
                 ) {
                     errors.push(format!(
                         "rule '{}' has unknown action type '{}'",
-                        rule.id, act.r#type
+                        rule.name, act.r#type
                     ));
                 }
                 if act.r#type == "rhai" && act.value.is_empty() {
                     errors.push(format!(
                         "rule '{}' rhai action requires script path in value",
-                        rule.id
+                        rule.name
                     ));
                 }
             }
@@ -578,5 +584,27 @@ control:
         let yaml = include_str!("../../../tests/fixtures/config/forward-sources-v6.yaml");
         let cfg = load_yaml(yaml).unwrap();
         assert!(validate(&cfg).ok, "{:?}", validate(&cfg).errors);
+    }
+
+    #[test]
+    fn reject_duplicate_pool_names() {
+        let yaml = include_str!("../../../tests/fixtures/config/minimal.yaml");
+        let mut cfg = load_yaml(yaml).unwrap();
+        let second = cfg.pools[0].clone();
+        cfg.pools.push(second);
+        let result = validate(&cfg);
+        assert!(!result.ok);
+        assert!(result.errors.iter().any(|e| e.contains("duplicate pool")));
+    }
+
+    #[test]
+    fn reject_duplicate_rule_names() {
+        let yaml = include_str!("../../../tests/fixtures/config/with-rules.yaml");
+        let mut cfg = load_yaml(yaml).unwrap();
+        let second = cfg.rules.as_ref().unwrap().rules[0].clone();
+        cfg.rules.as_mut().unwrap().rules.push(second);
+        let result = validate(&cfg);
+        assert!(!result.ok);
+        assert!(result.errors.iter().any(|e| e.contains("duplicate rule")));
     }
 }

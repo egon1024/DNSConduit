@@ -8,6 +8,6 @@ pub enum ScriptError {
     Script { path: String, message: String },
     #[error("metric '{name}': {message}")]
     Metric { name: String, message: String },
-    #[error("rule '{rule_id}': {message}")]
-    Rule { rule_id: String, message: String },
+    #[error("rule '{rule_name}': {message}")]
+    Rule { rule_name: String, message: String },
 }

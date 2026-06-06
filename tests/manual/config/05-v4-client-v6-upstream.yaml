@@ -41,7 +41,7 @@ pools:
 rules:
   match_mode: first_match
   rules:
-    - id: all-v6-up
+    - name: all-v6-up
       hook: request
       selectors: []
       actions:

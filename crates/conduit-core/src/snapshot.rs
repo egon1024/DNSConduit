@@ -164,7 +164,7 @@ impl RuntimeSnapshot {
         let scripting = compile_scripts(&config, base_dir)?;
         let (forward, pool_forward) =
             CompiledForward::compile_from_config(&config).map_err(|e| ScriptError::Rule {
-                rule_id: "forward".into(),
+                rule_name: "forward".into(),
                 message: e,
             })?;
         Ok(Self {

@@ -31,7 +31,7 @@ pools:
 rules:
   match_mode: first_match
   rules:
-    - id: set-source-v6
+    - name: set-source-v6
       hook: request
       selectors: []
       actions:

@@ -44,7 +44,7 @@ pools:
 rules:
   match_mode: first_match
   rules:
-    - id: rhai-v6
+    - name: rhai-v6
       hook: request
       selectors: []
       actions:

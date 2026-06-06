@@ -92,7 +92,7 @@ impl Default for YamlRules {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub(crate) struct YamlRule {
-    id: String,
+    name: String,
     hook: String,
     selectors: Vec<YamlSelector>,
     actions: Vec<YamlAction>,
@@ -349,7 +349,7 @@ fn default_connect_retry_jitter() -> bool {
 pub(crate) struct YamlEventSink {
     #[serde(rename = "type")]
     sink_type: String,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     export_id: String,
     #[serde(default)]
     name: Option<String>,
@@ -648,7 +648,7 @@ impl From<YamlRules> for RulesConfig {
 impl From<YamlRule> for Rule {
     fn from(y: YamlRule) -> Self {
         Rule {
-            id: y.id,
+            name: y.name,
             hook: y.hook,
             selectors: y.selectors.into_iter().map(Into::into).collect(),
             actions: y.actions.into_iter().map(Into::into).collect(),
@@ -1000,7 +1000,7 @@ impl TryFrom<&Rule> for YamlRule {
 
     fn try_from(rule: &Rule) -> Result<Self, Self::Error> {
         Ok(YamlRule {
-            id: rule.id.clone(),
+            name: rule.name.clone(),
             hook: rule.hook.clone(),
             selectors: rule.selectors.iter().map(YamlSelector::from).collect(),
             actions: rule.actions.iter().map(YamlAction::from).collect(),
@@ -1095,10 +1095,17 @@ impl TryFrom<&EventsConfig> for YamlEvents {
 
 impl From<&conduit_proto::config::EventSink> for YamlEventSink {
     fn from(s: &conduit_proto::config::EventSink) -> Self {
+        let (name, export_id) = match conduit_events::resolve_sink_identity(s) {
+            Ok(identity) if identity.name == identity.export_id => {
+                (Some(identity.name), String::new())
+            }
+            Ok(identity) => (Some(identity.name), identity.export_id),
+            Err(_) => (s.name.clone(), s.export_id.clone()),
+        };
         YamlEventSink {
             sink_type: s.r#type.clone(),
-            export_id: s.export_id.clone(),
-            name: s.name.clone(),
+            export_id,
+            name,
             destinations: s.destinations.clone(),
             emit: s.emit.clone(),
             filters: s
@@ -1312,6 +1319,6 @@ pools:
         let cfg: Config = load_yaml(yaml).expect("parse");
         let rules = cfg.rules.as_ref().expect("rules");
         assert_eq!(rules.rules.len(), 2);
-        assert_eq!(rules.rules[0].id, "use-primary");
+        assert_eq!(rules.rules[0].name, "use-primary");
     }
 }

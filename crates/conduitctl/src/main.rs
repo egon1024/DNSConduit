@@ -47,7 +47,7 @@ enum Commands {
     /// Reload configuration from the server's startup file (clears API overlay)
     Reload,
     /// Fetch trace events for a transaction id
-    Trace { trace_id: String },
+    Trace { txn_id: String },
 }
 
 fn runtime_to_control(cfg: RuntimeConfig) -> ControlConfig {
@@ -150,13 +150,13 @@ async fn main() -> anyhow::Result<()> {
             }
             println!("ok");
         }
-        Commands::Trace { ref trace_id } => {
+        Commands::Trace { ref txn_id } => {
             let mut client = client(&cli).await?;
             let resp = client
                 .get_trace(with_auth(
                     &cli,
                     tonic::Request::new(GetTraceRequest {
-                        trace_id: trace_id.clone(),
+                        txn_id: txn_id.clone(),
                     }),
                 )?)
                 .await?

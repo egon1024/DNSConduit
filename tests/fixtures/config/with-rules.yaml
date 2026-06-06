@@ -30,7 +30,7 @@ pools:
 rules:
   match_mode: first_match
   rules:
-    - id: use-primary
+    - name: use-primary
       hook: request
       selectors:
         - type: qname_suffix
@@ -38,7 +38,7 @@ rules:
       actions:
         - type: set_pool
           value: primary
-    - id: servfail-retry
+    - name: servfail-retry
       hook: response
       selectors:
         - type: rcode

@@ -29,7 +29,7 @@ control:
 rules:
   match_mode: first_match
   rules:
-    - id: infinite-loop
+    - name: infinite-loop
       hook: request
       selectors: []
       actions:

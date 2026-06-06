@@ -34,7 +34,7 @@ control:
 rules:
   match_mode: first_match
   rules:
-    - id: default-pool
+    - name: default-pool
       hook: request
       selectors: []
       actions:
