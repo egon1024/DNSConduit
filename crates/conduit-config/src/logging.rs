@@ -11,6 +11,17 @@ pub const DEFAULT_LOG_LEVEL: &str = "info";
 /// stderr keeps stdout free and matches common daemon conventions; use `stdout` in config if preferred.
 pub const DEFAULT_LOG_OUTPUT: &str = "stderr";
 
+/// Strip ASCII C0 control characters from text destined for log fields or messages.
+///
+/// Tracing output must be plain text for operators, log shippers, and terminals.
+/// DNS names and other dynamic values may contain bytes that decode to controls.
+pub fn log_text(input: &str) -> String {
+    if !input.chars().any(|c| c.is_control()) {
+        return input.to_string();
+    }
+    input.chars().filter(|c| !c.is_control()).collect()
+}
+
 /// Build the filter string from config. `RUST_LOG` wins when set in the environment.
 pub fn env_filter_from_config(cfg: Option<&LoggingConfig>) -> Result<EnvFilter, ConfigError> {
     let level = cfg
@@ -31,6 +42,7 @@ pub fn init_from_config(cfg: Option<&LoggingConfig>) -> Result<(), ConfigError> 
         .with_env_filter(filter)
         .with_writer(writer)
         .with_target(true)
+        .with_ansi(false)
         .try_init()
         .map_err(|e| ConfigError::Invalid(format!("logging init failed: {e}")))?;
     Ok(())
@@ -102,5 +114,12 @@ mod tests {
             output: "stdout".into(),
         };
         assert!(validate_logging(Some(&cfg)).is_ok());
+    }
+
+    #[test]
+    fn log_text_strips_control_characters() {
+        assert_eq!(log_text("example.com"), "example.com");
+        assert_eq!(log_text("a\u{1b}b"), "ab");
+        assert_eq!(log_text("no\u{7f}ise"), "noise");
     }
 }
