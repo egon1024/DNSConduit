@@ -49,9 +49,9 @@ Upstream path for every scenario: **dig → Conduit → dnsmasq (loopback mock) 
 Build binaries:
 
 ```bash
-cargo build -p conduit -p conduit-dnstap-tap --release
+cargo build -p conduit -p conduit-dnstap-tracer --release
 # target/release/conduit
-# target/release/conduit-dnstap-tap
+# target/release/conduit-dnstap-tracer
 ```
 
 Loopback IPv6:
@@ -114,7 +114,7 @@ flowchart LR
 
 ```bash
 rm -f /tmp/conduit-manual-dnstap.sock
-target/release/conduit-dnstap-tap -u /tmp/conduit-manual-dnstap.sock -f json
+target/release/conduit-dnstap-tracer -u /tmp/conduit-manual-dnstap.sock -f json
 ```
 
 **Terminal B — dnsmasq** (see each scenario; v4 and/or v6):
@@ -375,7 +375,7 @@ With Terminal A on `-f json`, each frame is one JSON object per line. Example fi
 
 ```bash
 # In another terminal, if you re-run tap with tee:
-# target/release/conduit-dnstap-tap -u /tmp/conduit-manual-dnstap.sock -f json | tee /tmp/dnstap.jsonl
+# target/release/conduit-dnstap-tracer -u /tmp/conduit-manual-dnstap.sock -f json | tee /tmp/dnstap.jsonl
 
 jq -c 'select(.qname | test("manual")) | {
   qname,
@@ -406,7 +406,7 @@ Re-run `tests/manual/scripts/check-ports.sh` if you stop processes mid-session.
 | `stream did not contain valid UTF-8` | Config path is wrong — often the **binary** was passed as the first arg instead of the `.yaml` file. Use `target/release/conduit tests/manual/config/01-v4-only.yaml` (one path after `conduit`). |
 | `config invalid` on start | YAML typo; fix paths or run validation (see below). |
 | Conduit exits on bind | Port in use — run `check-ports.sh`; stop Chrome mDNS only if you switched back to 5353. |
-| No dnstap output | Start **conduit-dnstap-tap** before Conduit; socket path must match configs. |
+| No dnstap output | Start **conduit-dnstap-tracer** before Conduit; socket path must match configs. |
 | dig times out | Wrong listener/port; Conduit not running; dnsmasq not running for that backend family. |
 | dig OK, dnsmasq silent | Wrong pool (check `extra.pool` / QNAME suffix in scenario 3–4), or logs in syslog if `--log-facility=-` was omitted (`journalctl -f \| grep dnsmasq`). |
 | `dig @::1` fails | IPv6 disabled on host (`ping ::1` first). |

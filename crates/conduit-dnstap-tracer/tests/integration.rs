@@ -1,4 +1,4 @@
-//! Tap accepts Conduit-style bidirectional sessions and decodes extras.
+//! Tracer accepts Conduit-style bidirectional sessions and decodes extras.
 
 use conduit_events::fstrm::connect_bidirectional;
 use std::os::unix::net::UnixStream;
@@ -7,17 +7,17 @@ use std::thread;
 use std::time::Duration;
 
 #[test]
-fn tap_prints_extra_json_on_stdout() {
+fn tracer_prints_extra_json_on_stdout() {
     let dir = tempfile::tempdir().unwrap();
-    let sock = dir.path().join("tap.sock");
-    let tap_bin = env!("CARGO_BIN_EXE_conduit-dnstap-tap");
+    let sock = dir.path().join("tracer.sock");
+    let tracer_bin = env!("CARGO_BIN_EXE_conduit-dnstap-tracer");
 
-    let child = Command::new(tap_bin)
+    let child = Command::new(tracer_bin)
         .args(["-u", sock.to_str().unwrap(), "-f", "json", "--once"])
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
         .spawn()
-        .expect("spawn tap");
+        .expect("spawn tracer");
 
     thread::sleep(Duration::from_millis(200));
 

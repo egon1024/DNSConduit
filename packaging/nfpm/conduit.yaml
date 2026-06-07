@@ -1,0 +1,36 @@
+# nfpm spec for production conduit package (stripped binaries).
+# VERSION is substituted by the release build script.
+name: conduit
+arch: amd64
+platform: linux
+version: "${VERSION}"
+section: net
+priority: optional
+maintainer: "DNS Conduit Maintainers <cole@tuininga.org>"
+description: |
+  DNS Conduit — policy-aware DNS forwarding proxy.
+  Production package with stripped binaries.
+license: Apache-2.0
+homepage: https://github.com/egon1024/DNSConduit
+depends:
+  - adduser
+contents:
+  - src: packaging/staging/usr/bin/conduit
+    dst: /usr/bin/conduit
+  - src: packaging/staging/usr/bin/conduitctl
+    dst: /usr/bin/conduitctl
+  - src: packaging/staging/usr/bin/conduit-dnstap-tracer
+    dst: /usr/bin/conduit-dnstap-tracer
+  - src: packaging/conduit.service
+    dst: /lib/systemd/system/conduit.service
+  - src: LICENSE
+    dst: /usr/share/doc/conduit/copyright
+  - src: packaging/examples/conduit.minimal.yaml
+    dst: /usr/share/doc/conduit/examples/conduit.minimal.yaml
+  - src: packaging/examples/conduit.reference.yaml
+    dst: /usr/share/doc/conduit/examples/conduit.reference.yaml
+  - src: packaging/examples/conduit.minimal.yaml
+    dst: /etc/conduit/conduit.yaml
+    type: config
+scripts:
+  postinstall: packaging/debian/postinst

@@ -1,0 +1,21 @@
+#!/bin/sh
+# postinst for production conduit Debian package
+set -e
+
+if ! getent group conduit >/dev/null 2>&1; then
+  addgroup --system conduit
+fi
+if ! getent passwd conduit >/dev/null 2>&1; then
+  adduser --system --group --no-create-home --home /nonexistent \
+    --shell /usr/sbin/nologin conduit
+fi
+
+if command -v deb-systemd-helper >/dev/null 2>&1; then
+  deb-systemd-helper enable conduit.service >/dev/null 2>&1 || true
+elif command -v systemctl >/dev/null 2>&1; then
+  systemctl enable conduit.service >/dev/null 2>&1 || true
+fi
+
+# Do not auto-start; operator edits /etc/conduit/conduit.yaml then: systemctl start conduit
+
+exit 0
