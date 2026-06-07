@@ -10,7 +10,7 @@ A [backend](/glossary/index.md#backend) is a configured upstream destination Con
 
 A [pool](/glossary/index.md#pool) is a named group of [backends](/glossary/index.md#backend). [Rules](/policy-routing/rules-and-actions.md) and scripts select a pool by name; Conduit then picks one backend inside that pool (see [Backend weights](#backend-weights)) and forwards the query.
 
-Conduit selects the [pool](/glossary/index.md#pool) and [backend](/glossary/index.md#backend) during the **Route** phase of each [transaction](/glossary/index.md#transaction), after [request rules](/policy-routing/rules-and-actions.md) run. For the full query pipeline, see [Architecture and packet path](/concepts/architecture-and-packet-path.md). If nothing sets a pool, Conduit uses the pool named `default`, or the first pool in configuration. If the selected pool is missing or has no backends, Conduit responds with **SERVFAIL**. A [retry](/glossary/index.md#retry) may target a different pool ([Retries and transactions](/policy-routing/retries-and-transactions.md)).
+On the [dataplane](/glossary/index.md#dataplane), Conduit selects the [pool](/glossary/index.md#pool) and [backend](/glossary/index.md#backend) during the **Route** phase of each [transaction](/glossary/index.md#transaction), after [request rules](/policy-routing/rules-and-actions.md) run. For the full query pipeline, see [Architecture and packet path](/concepts/architecture-and-packet-path.md). If nothing sets a pool, Conduit uses the pool named `default`, or the first pool in configuration. If the selected pool is missing or has no backends, Conduit responds with **SERVFAIL**. A [retry](/glossary/index.md#retry) may target a different pool ([Retries and transactions](/policy-routing/retries-and-transactions.md)).
 
 ## Configuration
 
@@ -57,7 +57,7 @@ pools:
 
 Over many queries, traffic approximates the configured weight ratio.
 
-Pool weights can be changed at runtime through the [control plane](/control-plane/index.md) (for example via `ApplyConfig`); see [Control plane workflows](/guides/control-plane-workflows.md).
+Pool weights can be changed at runtime through the [control plane](/glossary/index.md#control-plane) (for example via `ApplyConfig`); see [Control plane workflows](/guides/control-plane-workflows.md).
 
 ## Multiple pools
 
