@@ -1,8 +1,8 @@
 # Minimal configuration
 
-This page shows the smallest [config file](/control-plane/config-file.md) that can start Conduit, accept DNS queries, and forward them to an upstream resolver. Use it when standing up a lab or following [Install and run](/getting-started/install-and-run.md).
+This page shows the smallest [config file](/control-plane/config-file.md) that can start the [dataplane](/glossary/index.md#dataplane), accept DNS queries, and forward them to an upstream resolver. Use it when standing up a lab or following [Install and run](/getting-started/install-and-run.md).
 
-The [control plane](/control-plane/index.md) (gRPC and `conduitctl`) is **opt-in**: it is **not** started unless you add an explicit `control:` block. The minimal example below does not enable it.
+The [control plane](/glossary/index.md#control-plane) (gRPC and `conduitctl`) is **opt-in**: it is **not** started unless you add an explicit `control:` block. The minimal example below does not enable it.
 
 **Minimal** means the fewest blocks you must author. Conduit fills in safe defaults for everything else at load time. This page covers only the three required blocks; field-level reference and tuning live in [Reference: config schema](/reference/config-schema/index.md) and the linked topic pages below.
 
@@ -32,7 +32,7 @@ Required top-level key. The only supported value today is **`1`**. Omitting the 
 
 ### `listeners`
 
-Datapath **ingress**: where clients send DNS queries. You need at least one entry under `listeners.listeners` with an `address` (`ip:port`) and `protocol` (`udp` or `tcp`).
+[Dataplane](/glossary/index.md#dataplane) **ingress**: where clients send DNS queries. You need at least one entry under `listeners.listeners` with an `address` (`ip:port`) and `protocol` (`udp` or `tcp`).
 
 When you omit `listeners.threads` and `listeners.reuse_port`, Conduit uses **1** thread and **`reuse_port: false`**. For every listener field, default, and validation rule, see [Reference: listeners](/reference/config-schema/listeners.md).
 
@@ -46,7 +46,7 @@ Omitted `weight` on a backend defaults to **100** for load balancing. For select
 
 Conduit still loads and applies these blocks when they are absent from your file. You can add them later when you need to tune behavior.
 
-| Block | What Conduit applies when omitted | Learn more |
+| Block {: .column-no-wrap } | What Conduit applies when omitted | Learn more |
 |-------|-----------------------------------|------------|
 | `forward` | Upstream timeout **2000** ms, **100** outstanding queries per backend, UDP-only transport | [Dual-stack forwarding](/guides/dual-stack-forwarding.md), [Config schema](/reference/config-schema/index.md) |
 | `orchestrator` | **3** max attempts, **5000** ms max [transaction](/glossary/index.md#transaction) duration, **1024** transaction table capacity | [Retries and transactions](/policy-routing/retries-and-transactions.md) |
@@ -65,7 +65,7 @@ You can add these once the baseline works — none are required to start Conduit
 - **[Event export](/observability/event-export.md)** (dnstap sinks) — requires `events.sinks`
 - **[API keys](/security/api-keys.md)** and **[mTLS](/security/mtls.md)** — control-plane security (requires an explicit `control:` block)
 
-To enable the control plane, add for example:
+To enable the [control plane](/glossary/index.md#control-plane), add for example:
 
 ```yaml
 control:
@@ -98,7 +98,7 @@ For the full query path (listen → policy → route → forward), see [Architec
    dig @127.0.0.1 -p 15353 example.com
    ```
 
-For file format, load behavior, and reload via the control plane, see [Config file](/control-plane/config-file.md).
+For file format, load behavior, and reload via the [control plane](/glossary/index.md#control-plane), see [Config file](/control-plane/config-file.md).
 
 ## Related topics
 

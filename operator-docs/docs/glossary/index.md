@@ -60,6 +60,12 @@ Entries are added as documentation grows. Keep one-line glosses in sync when lin
 
 ## Datapath
 
+### Dataplane
+
+The `conduit` service and query-processing runtime: configured listeners accept client DNS traffic, each query runs through the pipeline as a [transaction](/glossary/index.md#transaction), and responses come from upstream [backends](/glossary/index.md#backend). Distinct from the optional [control plane](/glossary/index.md#control-plane), which exposes gRPC and `conduitctl` when enabled.
+
+→ [Architecture and packet path](../concepts/architecture-and-packet-path.md)
+
 ### Transaction
 
 <!-- one-line definition -->
@@ -126,7 +132,7 @@ Configured upstream destination Conduit forwards DNS queries to; settings contro
 
 ### Control plane
 
-<!-- one-line definition -->
+Optional gRPC API and operator surface (`conduitctl`, reload, export). Separate from the DNS [dataplane](/glossary/index.md#dataplane), which serves queries whether or not control is enabled.
 
 → [Control plane](../control-plane/index.md)
 
