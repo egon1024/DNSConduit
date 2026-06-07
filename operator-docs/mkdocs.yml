@@ -47,11 +47,13 @@ extra:
 
 extra_css:
   - assets/stylesheets/version-label.css
+  - assets/stylesheets/column-no-wrap.css
 
 extra_javascript:
   - assets/javascripts/doc-version.js
 
 markdown_extensions:
+  - attr_list
   - admonition
   - pymdownx.details
   - pymdownx.superfences:
