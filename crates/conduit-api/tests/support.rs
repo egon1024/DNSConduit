@@ -30,7 +30,7 @@ pub fn control_setup(
         config_path,
         base_dir,
     };
-    let configurator = spawn_configurator(snapshots.clone(), effective.clone(), state);
+    let configurator = spawn_configurator(snapshots.clone(), effective.clone(), state).handle();
     (snapshots, effective, configurator, tracing)
 }
 

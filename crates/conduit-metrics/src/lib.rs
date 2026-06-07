@@ -7,6 +7,7 @@ mod export;
 mod labels;
 mod otel;
 mod prometheus_http;
+mod task;
 mod trace;
 mod user;
 
@@ -22,6 +23,7 @@ pub use export::render_prometheus;
 pub use labels::{ip_family_label, qclass_label, qtype_label, rcode_class_label};
 pub use otel::spawn_otel_push;
 pub use prometheus_http::spawn_prometheus_server;
+pub use task::{OtelPushHandle, PrometheusServerHandle};
 pub use trace::{TraceEvent, TraceLog, TraceStore};
 pub use user::{UserMetricDelta, UserRegistry};
 

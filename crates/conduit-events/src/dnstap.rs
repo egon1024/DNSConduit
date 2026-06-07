@@ -11,6 +11,8 @@ use protobuf::Message;
 use std::io::{self, Read, Write};
 use std::net::TcpStream;
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
 const CONTENT_TYPE: &str = "protobuf:dnstap.Dnstap";
@@ -101,10 +103,20 @@ impl DnstapSink {
     pub fn new(instance: CompiledSinkInstance) -> Self {
         Self { instance }
     }
+
+    pub fn run_with_shutdown(self, rx: Receiver<ExportEvent>, shutdown: Arc<AtomicBool>) {
+        self.run_inner(rx, Some(shutdown));
+    }
 }
 
 impl EventSink for DnstapSink {
     fn run(self, rx: Receiver<ExportEvent>) {
+        self.run_inner(rx, None);
+    }
+}
+
+impl DnstapSink {
+    fn run_inner(self, rx: Receiver<ExportEvent>, shutdown: Option<Arc<AtomicBool>>) {
         let identity = self.instance.export_id.as_bytes().to_vec();
         let metrics = self.instance.metrics.clone();
         let mut writers = Vec::new();
@@ -113,6 +125,12 @@ impl EventSink for DnstapSink {
         let sink = self.instance.name.as_str();
 
         loop {
+            if shutdown
+                .as_ref()
+                .is_some_and(|flag| flag.load(Ordering::Relaxed))
+            {
+                break;
+            }
             if writers.is_empty() {
                 metrics.set_connected(false);
                 metrics.record_connect_attempt();
@@ -124,7 +142,9 @@ impl EventSink for DnstapSink {
                     let delay = backoff.next_delay();
                     let attempts = metrics.snapshot().connect_attempts;
                     connect_log.on_retry_sleep(sink, attempts, delay);
-                    std::thread::sleep(delay);
+                    if !sleep_with_shutdown(shutdown.as_ref(), delay) {
+                        break;
+                    }
                     continue;
                 }
                 backoff.reset();
@@ -171,6 +191,20 @@ impl EventSink for DnstapSink {
             let _ = w.finish();
         }
     }
+}
+
+fn sleep_with_shutdown(shutdown: Option<&Arc<AtomicBool>>, delay: Duration) -> bool {
+    let step = Duration::from_millis(50);
+    let mut remaining = delay;
+    while remaining > Duration::ZERO {
+        if shutdown.is_some_and(|flag| flag.load(Ordering::Relaxed)) {
+            return false;
+        }
+        let sleep = remaining.min(step);
+        std::thread::sleep(sleep);
+        remaining = remaining.saturating_sub(sleep);
+    }
+    true
 }
 
 trait ReadWrite: Read + Write + Send {}

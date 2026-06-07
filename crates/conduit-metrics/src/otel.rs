@@ -1,6 +1,7 @@
 //! OTEL metrics periodic push (OTLP HTTP) — Prometheus text parity for counters, gauges, histograms.
 
 use crate::export::render_prometheus;
+use crate::task::OtelPushHandle;
 use crate::MetricsHub;
 use conduit_events::EventHub;
 use opentelemetry::KeyValue;
@@ -21,8 +22,9 @@ pub fn spawn_otel_push(
     resource_attributes: Vec<(String, String)>,
     hub: Arc<MetricsHub>,
     observation: Arc<EventHub>,
-) -> tokio::task::JoinHandle<()> {
-    tokio::spawn(async move {
+) -> OtelPushHandle {
+    let (shutdown_tx, mut shutdown_rx) = tokio::sync::oneshot::channel();
+    let join = tokio::spawn(async move {
         let exporter = match opentelemetry_otlp::MetricExporter::builder()
             .with_http()
             .with_endpoint(endpoint.clone())
@@ -43,20 +45,26 @@ pub fn spawn_otel_push(
 
         let interval = Duration::from_millis(interval_ms.max(1000) as u64);
         loop {
-            if hub.metrics_enabled() {
-                let obs = observation.sink_metrics_snapshot();
-                let prom_text = render_prometheus(hub.as_ref(), &obs);
-                let mut resource_metrics =
-                    prometheus_text_to_resource_metrics(&prom_text, resource_kv.clone());
-                if let Err(e) = exporter.export(&mut resource_metrics).await {
-                    tracing::warn!(error = %e, endpoint = %endpoint, "otel metrics push failed");
-                } else {
-                    tracing::debug!(endpoint = %endpoint, "otel metrics push ok");
+            tokio::select! {
+                _ = &mut shutdown_rx => break,
+                _ = tokio::time::sleep(interval) => {
+                    if hub.metrics_enabled() {
+                        let obs = observation.sink_metrics_snapshot();
+                        let prom_text = render_prometheus(hub.as_ref(), &obs);
+                        let mut resource_metrics =
+                            prometheus_text_to_resource_metrics(&prom_text, resource_kv.clone());
+                        if let Err(e) = exporter.export(&mut resource_metrics).await {
+                            tracing::warn!(error = %e, endpoint = %endpoint, "otel metrics push failed");
+                        } else {
+                            tracing::debug!(endpoint = %endpoint, "otel metrics push ok");
+                        }
+                    }
                 }
             }
-            tokio::time::sleep(interval).await;
         }
-    })
+        tracing::debug!(endpoint = %endpoint, "otel metrics push stopped");
+    });
+    OtelPushHandle::new(shutdown_tx, join)
 }
 
 /// Map Prometheus text exposition into OTEL `ResourceMetrics` for OTLP export.

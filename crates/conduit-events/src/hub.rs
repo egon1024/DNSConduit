@@ -7,16 +7,15 @@ use crate::extra::build_extra_json;
 use crate::filters::sink_event_matches;
 use crate::metrics::{SinkMetrics, SinkMetricsSnapshot};
 use crate::queue::SinkQueue;
-use crate::sink::EventSink;
 use crate::view::TxnView;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 
 struct SinkRuntime {
     metrics: Arc<SinkMetrics>,
     queues: Vec<SinkQueue>,
-    _thread: JoinHandle<()>,
+    thread: JoinHandle<()>,
 }
 
 /// Shared hub for dataplane workers.
@@ -24,6 +23,7 @@ pub struct EventHub {
     enabled: bool,
     drops: Arc<AtomicU64>,
     sink_metrics: Vec<Arc<SinkMetrics>>,
+    sink_shutdown: Arc<AtomicBool>,
     sinks: Vec<SinkRuntime>,
 }
 
@@ -33,6 +33,7 @@ impl EventHub {
             enabled: false,
             drops: Arc::new(AtomicU64::new(0)),
             sink_metrics: Vec::new(),
+            sink_shutdown: Arc::new(AtomicBool::new(false)),
             sinks: Vec::new(),
         }
     }
@@ -42,6 +43,7 @@ impl EventHub {
             return Self::disabled();
         }
         let drops = Arc::new(AtomicU64::new(0));
+        let sink_shutdown = Arc::new(AtomicBool::new(false));
         let mut sinks = Vec::new();
         let mut sink_metrics = Vec::new();
         for instance in &compiled.sinks {
@@ -49,24 +51,37 @@ impl EventHub {
             let rx = queue.receiver();
             let compiled_instance = instance.clone();
             let metrics = instance.metrics.clone();
+            let worker_shutdown = sink_shutdown.clone();
             let thread = thread::Builder::new()
                 .name(format!("obs-{}", instance.name))
                 .spawn(move || {
-                    DnstapSink::new(compiled_instance).run(rx);
+                    DnstapSink::new(compiled_instance).run_with_shutdown(rx, worker_shutdown);
                 })
                 .expect("spawn observation sink thread");
             sink_metrics.push(metrics.clone());
             sinks.push(SinkRuntime {
                 metrics,
                 queues: vec![queue],
-                _thread: thread,
+                thread,
             });
         }
         Self {
             enabled: true,
             drops,
             sink_metrics,
+            sink_shutdown,
             sinks,
+        }
+    }
+
+    /// Stop sink consumer threads: signal workers, drop queue senders, join threads.
+    pub fn shutdown(mut self) {
+        self.sink_shutdown.store(true, Ordering::Relaxed);
+        for sink in self.sinks.drain(..) {
+            drop(sink.queues);
+            if let Err(e) = sink.thread.join() {
+                std::panic::resume_unwind(e);
+            }
         }
     }
 
@@ -204,6 +219,30 @@ mod tests {
             attempt_count: 1,
             extra: TxnExtraSource::default(),
         }
+    }
+
+    #[test]
+    fn disabled_hub_shutdown_is_noop() {
+        EventHub::disabled().shutdown();
+    }
+
+    #[test]
+    fn shutdown_joins_sink_threads() {
+        let cfg = test_config(vec![EventSink {
+            r#type: "dnstap".into(),
+            export_id: "shutdown-test".into(),
+            destinations: vec!["unix:/nonexistent-dnstap-shutdown.sock".into()],
+            emit: vec!["query".into()],
+            filters: None,
+            extra_fields: vec![],
+            extra_tags: vec![],
+            name: None,
+            connect_retry: None,
+        }]);
+        let compiled = compile_from_config(&cfg);
+        let hub = EventHub::from_compiled(&compiled);
+        assert_eq!(hub.consumer_count(), 1);
+        hub.shutdown();
     }
 
     #[test]

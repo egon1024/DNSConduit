@@ -1,6 +1,7 @@
 //! Prometheus HTTP scrape listener (off worker threads).
 
 use crate::export::render_prometheus;
+use crate::task::PrometheusServerHandle;
 use crate::MetricsHub;
 use conduit_events::EventHub;
 use http_body_util::Full;
@@ -19,8 +20,9 @@ pub fn spawn_prometheus_server(
     path: String,
     hub: Arc<MetricsHub>,
     observation: Arc<EventHub>,
-) -> tokio::task::JoinHandle<()> {
-    tokio::spawn(async move {
+) -> PrometheusServerHandle {
+    let (shutdown_tx, mut shutdown_rx) = tokio::sync::oneshot::channel();
+    let join = tokio::spawn(async move {
         let listener = match TcpListener::bind(listen).await {
             Ok(l) => l,
             Err(e) => {
@@ -30,28 +32,37 @@ pub fn spawn_prometheus_server(
         };
         tracing::info!(%listen, %path, "prometheus metrics listening");
         loop {
-            let Ok((stream, _)) = listener.accept().await else {
-                continue;
-            };
-            let hub = hub.clone();
-            let observation = observation.clone();
-            let path = path.clone();
-            tokio::spawn(async move {
-                let io = TokioIo::new(stream);
-                let svc = service_fn(move |req: Request<hyper::body::Incoming>| {
+            tokio::select! {
+                _ = &mut shutdown_rx => break,
+                accept = listener.accept() => {
+                    let Ok((stream, _)) = accept else {
+                        continue;
+                    };
                     let hub = hub.clone();
                     let observation = observation.clone();
                     let path = path.clone();
-                    async move { Ok::<_, Infallible>(handle_metrics(req, &path, &hub, &observation)) }
-                });
-                if http1::Builder::new()
-                    .serve_connection(io, svc)
-                    .await
-                    .is_err()
-                {}
-            });
+                    tokio::spawn(async move {
+                        let io = TokioIo::new(stream);
+                        let svc = service_fn(move |req: Request<hyper::body::Incoming>| {
+                            let hub = hub.clone();
+                            let observation = observation.clone();
+                            let path = path.clone();
+                            async move {
+                                Ok::<_, Infallible>(handle_metrics(req, &path, &hub, &observation))
+                            }
+                        });
+                        if http1::Builder::new()
+                            .serve_connection(io, svc)
+                            .await
+                            .is_err()
+                        {}
+                    });
+                }
+            }
         }
-    })
+        tracing::debug!(%listen, "prometheus metrics stopped");
+    });
+    PrometheusServerHandle::new(shutdown_tx, join)
 }
 
 fn handle_metrics(

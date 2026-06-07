@@ -1,10 +1,10 @@
 mod runtime;
 
 use conduit_config::{init_from_config, load_yaml, validate, EffectiveConfig};
-use conduit_core::{
-    spawn_configurator, ConfiguratorState, ProposalSource, RuntimeSnapshot, SnapshotStore,
-};
+use conduit_core::{spawn_configurator, ConfiguratorState, RuntimeSnapshot, SnapshotStore};
 use conduit_metrics::{MetricsHub, TracingHub};
+#[cfg(unix)]
+use runtime::SighupReloadTask;
 use runtime::{wait_for_shutdown_signal, RuntimeSupervisor, RuntimeSupervisorArgs};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -53,7 +53,7 @@ async fn main() -> anyhow::Result<()> {
     let configurator = spawn_configurator(store.clone(), effective.clone(), configurator_state);
 
     #[cfg(unix)]
-    spawn_sighup_handler(configurator.clone());
+    let sighup = Some(SighupReloadTask::spawn(configurator.handle()));
 
     let supervisor = RuntimeSupervisor::start(RuntimeSupervisorArgs {
         store,
@@ -62,6 +62,8 @@ async fn main() -> anyhow::Result<()> {
         metrics_hub,
         tracing_hub,
         file_cfg,
+        #[cfg(unix)]
+        sighup,
     })
     .await?;
 
@@ -69,27 +71,4 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("shutdown signal received");
     supervisor.shutdown().await;
     Ok(())
-}
-
-#[cfg(unix)]
-fn spawn_sighup_handler(configurator: conduit_core::ConfiguratorHandle) {
-    tokio::spawn(async move {
-        use tokio::signal::unix::{signal, SignalKind};
-        let mut sighup = match signal(SignalKind::hangup()) {
-            Ok(s) => s,
-            Err(e) => {
-                tracing::warn!("SIGHUP handler not installed: {e}");
-                return;
-            }
-        };
-        while sighup.recv().await.is_some() {
-            let result = configurator.reload_from_file(ProposalSource::Sighup).await;
-            if !result.ok {
-                tracing::error!(
-                    errors = %result.errors.join("; "),
-                    "SIGHUP config reload failed"
-                );
-            }
-        }
-    });
 }
