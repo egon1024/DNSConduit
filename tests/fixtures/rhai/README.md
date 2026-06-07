@@ -29,7 +29,7 @@ dig @127.0.0.1 -p 15353 foo.vip.example A
 
 With both dnsmasq instances, expect **192.0.2.99** and logs showing backend `127.0.0.1:5301` / pool `vip`.
 
-Optional: `cargo run -p conduit-dnstap-tap -- -u /tmp/dnstap.sock` for dnstap examples.
+Optional: `cargo run -p conduit-dnstap-tracer -- -u /tmp/dnstap.sock` for dnstap examples.
 
 Paths in configs are relative to `tests/fixtures/config/`.
 

@@ -1,4 +1,6 @@
-//! Dev dnstap collector: bind unix socket, decode frames (including `extra`), stream to stdout.
+//! Development dnstap tracer: bind a socket, decode frames (including `extra`), stream to stdout.
+//!
+//! **Not for production.** Use only for development and troubleshooting dnstap export from Conduit.
 
 mod decode;
 mod dns;
@@ -20,11 +22,14 @@ use std::path::PathBuf;
 const DEFAULT_CONTENT_TYPE: &str = "protobuf:dnstap.Dnstap";
 
 fn usage() -> &'static str {
-    "conduit-dnstap-tap — dev dnstap listener with extra field support\n\
+    "conduit-dnstap-tracer — development/troubleshooting dnstap listener (not for production)\n\
+     \n\
+     Listens on a unix or TCP socket, decodes dnstap Frame Streams (including Conduit `extra`),\n\
+     and writes each frame to stdout. Not part of the Conduit dataplane service.\n\
      \n\
      Usage:\n\
-       conduit-dnstap-tap -u <unix-socket-path> [-f log|json|yaml] [--unidirectional]\n\
-       conduit-dnstap-tap -a <host:port> [-f log|json|yaml] [--unidirectional]\n\
+       conduit-dnstap-tracer -u <unix-socket-path> [-f log|json|yaml] [--unidirectional]\n\
+       conduit-dnstap-tracer -a <host:port> [-f log|json|yaml] [--unidirectional]\n\
      \n\
      Options:\n\
        -u, --unix PATH       Unix socket path to bind (removes existing socket file)\n\
@@ -144,7 +149,7 @@ fn run_unix(args: &Args) -> Result<()> {
     let listener =
         UnixListener::bind(path).with_context(|| format!("bind unix socket {}", path.display()))?;
     eprintln!(
-        "conduit-dnstap-tap: listening on {} (format={:?}, uni={})",
+        "conduit-dnstap-tracer: listening on {} (format={:?}, uni={})",
         path.display(),
         args.format,
         args.unidirectional
@@ -154,9 +159,9 @@ fn run_unix(args: &Args) -> Result<()> {
     let mut out = stdout.lock();
     for conn in listener.incoming() {
         let mut stream = conn.context("accept")?;
-        eprintln!("conduit-dnstap-tap: connection accepted");
+        eprintln!("conduit-dnstap-tracer: connection accepted");
         if let Err(e) = serve_connection(&mut stream, args, &mut out) {
-            eprintln!("conduit-dnstap-tap: connection error: {e:#}");
+            eprintln!("conduit-dnstap-tracer: connection error: {e:#}");
         }
         if args.once {
             break;
@@ -169,7 +174,7 @@ fn run_tcp(args: &Args) -> Result<()> {
     let addr = args.tcp.expect("tcp addr");
     let listener = std::net::TcpListener::bind(addr).with_context(|| format!("bind tcp {addr}"))?;
     eprintln!(
-        "conduit-dnstap-tap: listening on {addr} (format={:?}, uni={})",
+        "conduit-dnstap-tracer: listening on {addr} (format={:?}, uni={})",
         args.format, args.unidirectional
     );
 
@@ -177,9 +182,9 @@ fn run_tcp(args: &Args) -> Result<()> {
     let mut out = stdout.lock();
     for conn in listener.incoming() {
         let mut stream = conn.context("accept")?;
-        eprintln!("conduit-dnstap-tap: connection accepted");
+        eprintln!("conduit-dnstap-tracer: connection accepted");
         if let Err(e) = serve_connection(&mut stream, args, &mut out) {
-            eprintln!("conduit-dnstap-tap: connection error: {e:#}");
+            eprintln!("conduit-dnstap-tracer: connection error: {e:#}");
         }
         if args.once {
             break;

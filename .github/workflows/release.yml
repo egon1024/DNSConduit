@@ -1,6 +1,4 @@
-# Creates a semver tag and GitHub Release on merge to main.
-# Phase 0: tag + generated notes only (no binary assets).
-# Future: add a job that builds conduit and uploads release assets.
+# Creates a semver tag and GitHub Release on merge to main, then dispatches docs and release artifacts.
 
 name: Release
 
@@ -167,8 +165,14 @@ jobs:
             -f "version=${NEXT_VERSION}"
           echo "Dispatched Docs deploy for ${NEXT_VERSION}."
 
-      # --- Future: attach build artifacts ---
-      # - name: Build release binaries
-      #   run: cargo build --release -p conduit
-      # - name: Upload release assets
-      #   run: gh release upload "${NEXT_VERSION}" target/release/conduit ...
+      - name: Trigger release artifacts build
+        if: steps.exists.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEXT_VERSION: ${{ steps.release_version.outputs.next_version }}
+        run: |
+          set -euo pipefail
+          gh workflow run build-release-artifacts.yml \
+            --ref "${NEXT_VERSION}" \
+            -f "version=${NEXT_VERSION}"
+          echo "Dispatched release artifacts build for ${NEXT_VERSION}."

@@ -1,0 +1,20 @@
+# nfpm spec for conduit-dbg package (unstripped binaries).
+name: conduit-dbg
+arch: amd64
+platform: linux
+version: "${VERSION}"
+section: debug
+priority: optional
+maintainer: "DNS Conduit Maintainers <cole@tuininga.org>"
+description: |
+  DNS Conduit debug binaries (unstripped) for troubleshooting.
+  Includes conduit, conduitctl, and conduit-dnstap-tracer.
+license: Apache-2.0
+homepage: https://github.com/egon1024/DNSConduit
+contents:
+  - src: packaging/staging-dbg/usr/bin/conduit
+    dst: /usr/bin/conduit
+  - src: packaging/staging-dbg/usr/bin/conduitctl
+    dst: /usr/bin/conduitctl
+  - src: packaging/staging-dbg/usr/bin/conduit-dnstap-tracer
+    dst: /usr/bin/conduit-dnstap-tracer

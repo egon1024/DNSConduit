@@ -28,7 +28,7 @@ Phase **4b** operator metrics (extended built-ins, parse rejects, scrape gauges)
 ```bash
 cd /path/to/DNSConduit
 cargo build -p conduit --release
-# optional: cargo build -p conduit-dnstap-tap --release
+# optional: cargo build -p conduit-dnstap-tracer --release
 ```
 
 Tools: `dig`, `curl`, `grpcurl` (for `GetTrace`), `dnsmasq`, `ss`.
@@ -265,5 +265,4 @@ grpcurl -plaintext \
 
 ## Future documentation note
 
-- Add an explicit operator-facing explanation of how `conduit_*_duration_seconds` Prometheus histograms map to latency distributions (bucket/cumulative semantics, plus `_sum` and `_count` interpretation).
-- Frame that explanation for users coming from dnsdist so the behavior and terminology differences are clear, including why Conduit uses this histogram model.
+- Add an explicit operator-facing explanation of how `conduit_*_duration_seconds` Prometheus histograms map to latency distributions (bucket/cumulative semantics, plus `_sum` and `_count` interpretation), including why Conduit uses this histogram model.

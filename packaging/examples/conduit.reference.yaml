@@ -1,0 +1,82 @@
+# Reference configuration — documents major blocks and common fields.
+# Edit addresses, remove unused blocks, and validate before use in production.
+# Not intended to run unchanged (multiple listeners/sinks may conflict on ports).
+
+schema_version: 1
+
+# --- Listeners (datapath ingress) ---
+listeners:
+  threads: 2
+  reuse_port: true
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+    # - address: "127.0.0.1:15353"
+    #   protocol: tcp
+
+# --- Forwarding defaults ---
+forward:
+  outstanding_per_backend: 100
+  timeout_ms: 2000
+  # sources: []  # optional explicit bind addresses for upstream queries
+
+# --- Transaction / retry orchestrator ---
+orchestrator:
+  max_attempts: 3
+  max_txn_duration_ms: 5000
+  txn_table_capacity: 1024
+
+# --- Backend pools ---
+pools:
+  - name: default
+    backends:
+      - address: "127.0.0.1:5300"
+        weight: 100
+
+# --- Policy rules (optional) ---
+# rules:
+#   - name: example
+#     selectors: []
+#     actions: []
+
+# --- Event export (optional; requires sinks) ---
+events:
+  queue_depth: 4096
+  drop_policy: drop_oldest
+  # sinks:
+  #   - type: dnstap
+  #     name: primary
+  #     destinations: ["unix:/var/run/conduit/dnstap.sock"]
+  #     emit: [query, response]
+
+# --- Rhai scripting (optional) ---
+rhai:
+  max_operations: 10000
+  max_call_depth: 32
+  # scripts: []
+
+# --- Control plane (optional; omit to disable gRPC / conduitctl) ---
+# control:
+#   listen_address: "127.0.0.1:5199"
+#   reflection_enabled: true
+
+# --- Metrics (optional) ---
+# metrics:
+#   enabled: true
+#   profile: full
+#   prometheus:
+#     listen_address: "127.0.0.1:9090"
+#     path: /metrics
+
+# --- Pipeline tracing (optional) ---
+# tracing:
+#   enabled: true
+#   activation:
+#     selectors:
+#       - type: qtype
+#         value: A
+#     sample_rate: 1.0
+
+# --- Logging (optional) ---
+# logging:
+#   level: info

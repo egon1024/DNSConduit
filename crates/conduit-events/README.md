@@ -91,11 +91,11 @@ Stopping `fstrm_capture` with **SIGTERM** (Ctrl+C) also flushes. `kill -9` or re
 
 For **live** console output, do not use `fstrm_capture -w - | dnstap-ldns`. `fstrm_capture` only pushes connection data to its output after a large read batch (default 256 KiB on the socket) or on flush/exit, so a long-lived Conduit session produces no pipe output per query.
 
-For live decode **including `extra`**, use the in-repo dev tool `conduit-dnstap-tap` (streams each frame to stdout as it arrives):
+For live decode **including `extra`**, use the in-repo development tool `conduit-dnstap-tracer` (streams each frame to stdout as it arrives):
 
 ```bash
-cargo build -p conduit-dnstap-tap
-./target/debug/conduit-dnstap-tap -u /tmp/dnstap/conduit.sock -f yaml
+cargo build -p conduit-dnstap-tracer
+./target/debug/conduit-dnstap-tracer -u /tmp/dnstap/conduit.sock -f yaml
 # formats: log (default), json, yaml; add --unidirectional for START-only clients
 # decodes DNS header, question (type/class), RR sections, socket metadata, timestamps, and extra JSON
 ```

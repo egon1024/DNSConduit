@@ -10,7 +10,7 @@ members = [
     "crates/conduit-api",
     "crates/conduit",
     "crates/conduitctl",
-    "crates/conduit-dnstap-tap",
+    "crates/conduit-dnstap-tracer",
     "crates/conduit-script",
 ]
 
