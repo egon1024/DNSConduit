@@ -122,3 +122,4 @@ nav:
       - Metrics catalog: reference/metrics-catalog.md
       - gRPC and CLI: reference/grpc-and-cli.md
   - Versions: versions.md
+  - License: license.md
