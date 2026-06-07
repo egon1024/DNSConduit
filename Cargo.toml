@@ -17,7 +17,8 @@ members = [
 [workspace.package]
 version = "0.13.0"
 edition = "2021"
-license = "MIT"
+authors = ["Cole Tuininga <cole@tuininga.org>"]
+license = "Apache-2.0"
 rust-version = "1.78"
 
 [workspace.dependencies]
