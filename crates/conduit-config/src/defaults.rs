@@ -1,0 +1,19 @@
+//! Centralized configuration defaults for sparse YAML load and export.
+
+pub const DEFAULT_LISTENER_THREADS: u32 = 1;
+pub const DEFAULT_LISTENER_REUSE_PORT: bool = false;
+
+pub const DEFAULT_FORWARD_OUTSTANDING_PER_BACKEND: u32 = 100;
+pub const DEFAULT_FORWARD_TIMEOUT_MS: u32 = 2000;
+
+pub const DEFAULT_ORCHESTRATOR_MAX_ATTEMPTS: u32 = 3;
+pub const DEFAULT_ORCHESTRATOR_MAX_TXN_DURATION_MS: u32 = 5000;
+pub const DEFAULT_ORCHESTRATOR_TXN_TABLE_CAPACITY: u32 = 1024;
+
+pub const DEFAULT_EVENTS_QUEUE_DEPTH: u32 = 4096;
+pub const DEFAULT_EVENTS_DROP_POLICY: &str = "drop_oldest";
+
+pub const DEFAULT_RHAI_MAX_OPERATIONS: u64 = 10_000;
+pub const DEFAULT_RHAI_MAX_CALL_DEPTH: u32 = 32;
+
+pub const DEFAULT_CONTROL_LISTEN_ADDRESS: &str = "127.0.0.1:5199";

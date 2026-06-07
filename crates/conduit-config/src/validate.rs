@@ -244,6 +244,21 @@ pub fn validate(cfg: &Config) -> ValidationResult {
         }
     }
 
+    if let Some(control) = &cfg.control {
+        if control.listen_address.is_empty() {
+            errors.push("control.listen_address must not be empty".into());
+        } else if control
+            .listen_address
+            .parse::<std::net::SocketAddr>()
+            .is_err()
+        {
+            errors.push(format!(
+                "control.listen_address '{}' is not a valid socket address",
+                control.listen_address
+            ));
+        }
+    }
+
     errors.extend(conduit_metrics::validate_metrics_tracing(cfg));
 
     ValidationResult {

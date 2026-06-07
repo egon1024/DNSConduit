@@ -43,15 +43,27 @@ From config `rhai:` section:
 
 On trap, timeout, or limit exceeded: log warning, increment script error counter, **fail-open** (forward path continues without further script effects for that hook).
 
-## Performance check (local)
+## Performance (local, optional)
 
-Ignored micro-benchmark for thread-local reuse:
+Correctness of thread-local Rhai engine reuse is covered by unit tests (for example `thread_local_engine_reused_for_same_snapshot` in `runtime.rs`).
+
+Optional throughput micro-benchmark (not run by `make test` or CI):
 
 ```bash
-cargo test -p conduit-script thread_local_runtime_bench -- --ignored --nocapture
+make performance
 ```
 
-Sample run (Linux x86_64, release, warm thread-local engine, minimal VIP-pool script): 10k invocations in ~10ms (~1M runs/sec). Compare on your hardware; debug builds are much slower.
+Equivalent:
+
+```bash
+cargo bench -p conduit-script --bench thread_local_runtime --features test-util
+```
+
+Sample output shape: `thread_local_runtime: 10000 runs in … (… runs/sec)`. Compare on your hardware; debug builds are much slower than the release bench profile.
+
+### Future
+
+Flesh out a workspace-wide performance test suite invoked via `make performance`: dataplane UDP/TCP forward throughput, config reload and snapshot swap, metrics/tracing hot paths, and additional Rhai scenarios — with optional local regression baselines. Default CI (`make test`) stays correctness-only.
 
 ## Examples
 

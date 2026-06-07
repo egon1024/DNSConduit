@@ -1,6 +1,6 @@
 //! Compiled upstream forward settings (phase 1b).
 
-use conduit_proto::config::Config;
+use conduit_proto::config::{Config, ForwardConfig};
 use std::collections::HashMap;
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 
@@ -8,6 +8,18 @@ pub const MAX_SOURCES_V4: usize = 32;
 pub const MAX_SOURCES_V6: usize = 32;
 pub const DEFAULT_SOURCE_SELECTION: &str = "round_robin";
 pub const DEFAULT_UPSTREAM_TRANSPORT: &str = "udp_only";
+
+pub fn default_forward_config() -> ForwardConfig {
+    ForwardConfig {
+        outstanding_per_backend: crate::defaults::DEFAULT_FORWARD_OUTSTANDING_PER_BACKEND,
+        timeout_ms: crate::defaults::DEFAULT_FORWARD_TIMEOUT_MS,
+        sources_v4: Vec::new(),
+        source_selection: DEFAULT_SOURCE_SELECTION.to_string(),
+        sources_v6: Vec::new(),
+        upstream_transport: String::new(),
+        client_tcp_uses_upstream_tcp: false,
+    }
+}
 
 /// Internal wire policy for upstream RD bit (Rhai `set_rd` / `clear_rd` or preserve).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -92,7 +104,8 @@ impl CompiledForward {
         let forward = cfg
             .forward
             .as_ref()
-            .ok_or_else(|| "forward section required".to_string())?;
+            .cloned()
+            .unwrap_or_else(default_forward_config);
         let sources_v4 = parse_sources_v4(&forward.sources_v4)?;
         let sources_v6 = parse_sources_v6(&forward.sources_v6)?;
         let source_selection = if forward.source_selection.is_empty() {

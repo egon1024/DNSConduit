@@ -4,6 +4,8 @@ use crate::host::{HostTransaction, ScriptPhase};
 use crate::metrics::MetricRegistry;
 use conduit_events::hash_sample;
 use rhai::{Dynamic, Engine, EvalAltResult, Scope};
+#[cfg(test)]
+use std::cell::Cell;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -13,7 +15,9 @@ use std::time::{Duration, Instant};
 static SCRIPT_ERRORS: AtomicU64 = AtomicU64::new(0);
 
 #[cfg(test)]
-static ENGINE_BUILDS: AtomicU64 = AtomicU64::new(0);
+thread_local! {
+    static ENGINE_BUILDS: Cell<u64> = const { Cell::new(0) };
+}
 
 thread_local! {
     static LOOKUP_DATA: RefCell<Option<Arc<DataSourceStore>>> = const { RefCell::new(None) };
@@ -28,7 +32,7 @@ struct ScriptRuntime {
 impl ScriptRuntime {
     fn new(scripting: &CompiledScripting) -> Self {
         #[cfg(test)]
-        ENGINE_BUILDS.fetch_add(1, Ordering::Relaxed);
+        ENGINE_BUILDS.with(|count| count.set(count.get() + 1));
 
         let mut engine = Engine::new();
         register_host_api(&mut engine);
@@ -97,11 +101,13 @@ where
 pub(crate) fn reset_thread_runtime_for_tests() {
     SCRIPT_RUNTIME.with(|cell| *cell.borrow_mut() = None);
     LOOKUP_DATA.with(|cell| *cell.borrow_mut() = None);
+    #[cfg(test)]
+    ENGINE_BUILDS.with(|count| count.set(0));
 }
 
 #[cfg(test)]
 pub(crate) fn thread_runtime_engine_builds() -> u64 {
-    ENGINE_BUILDS.load(Ordering::Relaxed)
+    ENGINE_BUILDS.with(|count| count.get())
 }
 
 pub fn rhai_script_errors_total() -> u64 {
@@ -501,97 +507,10 @@ fn run_one(
 mod tests {
     use super::*;
     use crate::compile::compile_from_config;
+    use crate::testing::MockHost;
     use conduit_config::load_yaml;
     use std::path::PathBuf;
     use std::time::Duration;
-
-    struct MockHost {
-        id: u64,
-        qname: String,
-        qtype: String,
-        dns_id: u16,
-        rcode: Option<String>,
-        pool: Option<String>,
-        retry: Option<String>,
-        dropped: bool,
-        rd_override: Option<bool>,
-        source_override_v4: Option<std::net::Ipv4Addr>,
-        source_override_v6: Option<std::net::Ipv6Addr>,
-        tags: HashMap<String, bool>,
-        attempts: u32,
-        started: Instant,
-        phase: ScriptPhase,
-    }
-
-    impl HostTransaction for MockHost {
-        fn txn_id(&self) -> u64 {
-            self.id
-        }
-        fn phase(&self) -> ScriptPhase {
-            self.phase
-        }
-        fn question_qname(&self) -> Option<&str> {
-            Some(&self.qname)
-        }
-        fn question_qtype_label(&self) -> Option<String> {
-            Some(self.qtype.clone())
-        }
-        fn question_id(&self) -> u16 {
-            self.dns_id
-        }
-        fn response_rcode_label(&self) -> Option<String> {
-            self.rcode.clone()
-        }
-        fn has_tag(&self, key: &str) -> bool {
-            self.tags.get(key).copied().unwrap_or(false)
-        }
-        fn set_tag_bool(&mut self, key: &str, value: bool) {
-            self.tags.insert(key.to_string(), value);
-        }
-        fn set_tag_string(&mut self, _key: &str, _value: &str) {}
-        fn set_pool(&mut self, name: &str) {
-            self.pool = Some(name.to_string());
-        }
-        fn set_retry_pool(&mut self, name: &str) {
-            self.retry = Some(name.to_string());
-        }
-        fn drop_query(&mut self) {}
-        fn set_rcode_name(&mut self, name: &str) {
-            self.rcode = Some(name.to_string());
-        }
-        fn set_rd(&mut self, value: bool) {
-            self.rd_override = Some(value);
-        }
-        fn clear_rd(&mut self) {
-            self.rd_override = Some(false);
-        }
-        fn set_source_v4(&mut self, addr: &str) {
-            if let Ok(ip) = addr.parse() {
-                self.source_override_v4 = Some(ip);
-            }
-        }
-        fn set_source_v6(&mut self, addr: &str) {
-            if let Ok(ip) = addr.parse() {
-                self.source_override_v6 = Some(ip);
-            }
-        }
-        fn attempt_count(&self) -> u32 {
-            self.attempts
-        }
-        fn started_at(&self) -> Instant {
-            self.started
-        }
-        fn is_dropped(&self) -> bool {
-            self.dropped
-        }
-        fn mark_dropped(&mut self) {
-            self.dropped = true;
-        }
-
-        fn script_tag_bools(&self) -> HashMap<String, bool> {
-            self.tags.clone()
-        }
-    }
 
     #[test]
     fn clear_rd_via_script() {
@@ -1064,18 +983,18 @@ rules:
         };
 
         let (_, _) = run_scripts(&scripting, &[0], &mut host, ScriptPhase::Request, None);
-        let builds_after_first = thread_runtime_engine_builds();
+        assert_eq!(
+            thread_runtime_engine_builds(),
+            1,
+            "first run on this thread should build exactly one engine"
+        );
         host.pool = None;
         let (_, _) = run_scripts(&scripting, &[0], &mut host, ScriptPhase::Request, None);
 
         assert_eq!(
             thread_runtime_engine_builds(),
-            builds_after_first,
+            1,
             "second run on the same snapshot generation must not rebuild the engine"
-        );
-        assert!(
-            builds_after_first > 0,
-            "expected at least one engine build on first run"
         );
     }
 
@@ -1191,45 +1110,6 @@ rules:
             1
         );
         let _ = std::fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    #[ignore = "micro-benchmark for local perf comparison; run: cargo test -p conduit-script thread_local_runtime_bench -- --ignored --nocapture"]
-    fn thread_local_runtime_bench() {
-        reset_thread_runtime_for_tests();
-        let yaml = include_str!("../../../tests/fixtures/config/with-rhai-minimal.yaml");
-        let cfg = load_yaml(yaml).unwrap();
-        let base = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/config");
-        let scripting = compile_from_config(&cfg, Some(&base)).unwrap();
-        let mut host = MockHost {
-            id: 99,
-            qname: "foo.vip.example.".into(),
-            qtype: "A".into(),
-            dns_id: 1,
-            rcode: None,
-            pool: None,
-            retry: None,
-            dropped: false,
-            rd_override: None,
-            source_override_v4: None,
-            source_override_v6: None,
-            tags: HashMap::new(),
-            attempts: 0,
-            started: Instant::now(),
-            phase: ScriptPhase::Request,
-        };
-        let n = 10_000u32;
-        let start = Instant::now();
-        for _ in 0..n {
-            let _ = run_scripts(&scripting, &[0], &mut host, ScriptPhase::Request, None);
-            host.pool = None;
-        }
-        let elapsed = start.elapsed();
-        eprintln!(
-            "thread_local_runtime_bench: {n} runs in {:?} ({:.0} runs/sec)",
-            elapsed,
-            n as f64 / elapsed.as_secs_f64()
-        );
     }
 
     #[test]

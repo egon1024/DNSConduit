@@ -192,22 +192,44 @@ fn apply_tls(
     }
 }
 
-/// Run the gRPC control server until shutdown.
-pub async fn serve(
+/// Handle for a background control-plane server task.
+pub struct ControlHandle {
+    shutdown_tx: tokio::sync::oneshot::Sender<()>,
+    join: tokio::task::JoinHandle<anyhow::Result<()>>,
+}
+
+impl ControlHandle {
+    pub async fn shutdown(self) {
+        let _ = self.shutdown_tx.send(());
+        match self.join.await {
+            Ok(Ok(())) => {}
+            Ok(Err(e)) => tracing::warn!(error = %e, "control plane exited with error"),
+            Err(e) if e.is_panic() => std::panic::resume_unwind(e.into_panic()),
+            Err(e) => tracing::warn!(error = %e, "control plane task failed"),
+        }
+    }
+}
+
+async fn run_control_plane<S>(
     addr: SocketAddr,
     snapshots: Arc<SnapshotStore>,
     effective: Arc<Mutex<EffectiveConfig>>,
     configurator: ConfiguratorHandle,
     tracing: Arc<TracingHub>,
-) -> anyhow::Result<()> {
+    shutdown: S,
+) -> anyhow::Result<()>
+where
+    S: std::future::Future<Output = ()> + Send + 'static,
+{
     let reflection_enabled = snapshots
         .load()
         .config
         .control
         .as_ref()
-        .map(|c| c.reflection_enabled)
-        .unwrap_or(false);
+        .is_some_and(|c| c.reflection_enabled);
     let service = build_server(snapshots.clone(), effective, configurator, tracing);
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+    let incoming = tokio_stream::wrappers::TcpListenerStream::new(listener);
     let mut builder = apply_tls(Server::builder(), &snapshots)?;
     if reflection_enabled {
         let reflection = tonic_reflection::server::Builder::configure()
@@ -216,12 +238,56 @@ pub async fn serve(
         builder
             .add_service(reflection)
             .add_service(service)
-            .serve(addr)
+            .serve_with_incoming_shutdown(incoming, shutdown)
             .await?;
     } else {
-        builder.add_service(service).serve(addr).await?;
+        builder
+            .add_service(service)
+            .serve_with_incoming_shutdown(incoming, shutdown)
+            .await?;
     }
     Ok(())
+}
+
+/// Spawn the gRPC control server on a background task with graceful shutdown.
+pub fn spawn_control_plane(
+    addr: SocketAddr,
+    snapshots: Arc<SnapshotStore>,
+    effective: Arc<Mutex<EffectiveConfig>>,
+    configurator: ConfiguratorHandle,
+    tracing: Arc<TracingHub>,
+) -> anyhow::Result<ControlHandle> {
+    let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
+    let join = tokio::spawn(run_control_plane(
+        addr,
+        snapshots,
+        effective,
+        configurator,
+        tracing,
+        async move {
+            let _ = shutdown_rx.await;
+        },
+    ));
+    Ok(ControlHandle { shutdown_tx, join })
+}
+
+/// Run the gRPC control server until the task is cancelled (blocks the current task).
+pub async fn serve(
+    addr: SocketAddr,
+    snapshots: Arc<SnapshotStore>,
+    effective: Arc<Mutex<EffectiveConfig>>,
+    configurator: ConfiguratorHandle,
+    tracing: Arc<TracingHub>,
+) -> anyhow::Result<()> {
+    run_control_plane(
+        addr,
+        snapshots,
+        effective,
+        configurator,
+        tracing,
+        std::future::pending(),
+    )
+    .await
 }
 
 /// Bind `addr` (use port `0` for tests), return the resolved local address, and run the server on that listener.
