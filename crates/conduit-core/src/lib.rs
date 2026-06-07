@@ -20,8 +20,8 @@ pub use conduit_config::forward::{
     MAX_SOURCES_V4,
 };
 pub use configurator::{
-    spawn as spawn_configurator, ApplyResult, ConfiguratorHandle, ConfiguratorState,
-    PolicyProposal, ProposalSource,
+    spawn as spawn_configurator, ApplyResult, ConfiguratorHandle, ConfiguratorSpawn,
+    ConfiguratorState, PolicyProposal, ProposalSource,
 };
 pub use orchestrator::{Orchestrator, RunOutcome, StageRegistry};
 pub use parse_reject::ParseRejectReason;

@@ -11,6 +11,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tokio::sync::{mpsc, oneshot};
+use tokio::task::JoinHandle;
 
 /// Origin of a configuration proposal (extensible for phase 5b / autoscaler).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -116,23 +117,44 @@ impl ConfiguratorHandle {
     }
 }
 
+/// Spawn product of the Configurator background task.
+pub struct ConfiguratorSpawn {
+    handle: ConfiguratorHandle,
+    task: JoinHandle<()>,
+}
+
+impl ConfiguratorSpawn {
+    pub fn handle(&self) -> ConfiguratorHandle {
+        self.handle.clone()
+    }
+
+    pub async fn shutdown(self) {
+        drop(self.handle);
+        match self.task.await {
+            Ok(()) => {}
+            Err(e) if e.is_panic() => std::panic::resume_unwind(e.into_panic()),
+            Err(e) => tracing::warn!(error = %e, "configurator task failed"),
+        }
+    }
+}
+
 /// Spawn the Configurator consumer task. Returns a handle for enqueueing proposals.
 pub fn spawn(
     store: Arc<SnapshotStore>,
     effective: Arc<Mutex<EffectiveConfig>>,
     state: ConfiguratorState,
-) -> ConfiguratorHandle {
+) -> ConfiguratorSpawn {
     let (tx, mut rx) = mpsc::channel::<ProposalEnvelope>(64);
     let handle = ConfiguratorHandle { tx: tx.clone() };
 
-    tokio::spawn(async move {
+    let task = tokio::spawn(async move {
         while let Some(envelope) = rx.recv().await {
             let result = apply_proposal(&store, &effective, &state, envelope.proposal).await;
             let _ = envelope.reply.send(result);
         }
     });
 
-    handle
+    ConfiguratorSpawn { handle, task }
 }
 
 async fn apply_proposal(
@@ -281,7 +303,7 @@ mod tests {
                 PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/config"),
             ),
         };
-        let handle = spawn(store.clone(), effective, state);
+        let handle = spawn(store.clone(), effective, state).handle();
 
         let mut overlay = file_cfg.clone();
         overlay.pools[0].backends[0].weight = Some(42);
@@ -308,7 +330,7 @@ mod tests {
                 PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/config"),
             ),
         };
-        let handle = spawn(store.clone(), effective, state);
+        let handle = spawn(store.clone(), effective, state).handle();
         let gen0 = store.generation();
 
         let mut overlay = file_cfg.clone();
@@ -335,7 +357,7 @@ mod tests {
                 PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/config"),
             ),
         };
-        let handle = spawn(store.clone(), effective.clone(), state);
+        let handle = spawn(store.clone(), effective.clone(), state).handle();
 
         let mut overlay = file_cfg.clone();
         overlay.pools[0].backends[0].weight = Some(42);

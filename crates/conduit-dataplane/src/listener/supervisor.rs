@@ -47,6 +47,11 @@ impl DataplaneHandle {
         for handle in self.threads {
             let _ = handle.join();
         }
+        if let Ok(events) = Arc::try_unwrap(self.events) {
+            events.shutdown();
+        } else {
+            tracing::warn!("observation hub still referenced after dataplane listener shutdown");
+        }
     }
 }
 

@@ -8,9 +8,6 @@
 #   make fmt         — apply rustfmt (fix formatting)
 #   make build       — cargo build --workspace
 #
-# Future: flesh out a full performance test suite under `make performance` (dataplane
-# forward throughput, config reload, metrics scrape path, Rhai hooks, etc.), with optional
-# regression baselines — not run in default CI.
 
 CARGO ?= cargo
 CLIPPY_FLAGS := --workspace --all-targets -- -D warnings
