@@ -1,4 +1,11 @@
 use crate::backend::DEFAULT_BACKEND_WEIGHT;
+use crate::defaults::{
+    DEFAULT_CONTROL_LISTEN_ADDRESS, DEFAULT_EVENTS_DROP_POLICY, DEFAULT_EVENTS_QUEUE_DEPTH,
+    DEFAULT_FORWARD_OUTSTANDING_PER_BACKEND, DEFAULT_FORWARD_TIMEOUT_MS,
+    DEFAULT_LISTENER_REUSE_PORT, DEFAULT_LISTENER_THREADS, DEFAULT_ORCHESTRATOR_MAX_ATTEMPTS,
+    DEFAULT_ORCHESTRATOR_MAX_TXN_DURATION_MS, DEFAULT_ORCHESTRATOR_TXN_TABLE_CAPACITY,
+    DEFAULT_RHAI_MAX_CALL_DEPTH, DEFAULT_RHAI_MAX_OPERATIONS,
+};
 use crate::error::ConfigError;
 use conduit_proto::config::{
     Action, Backend, Config, ControlConfig, ControlTlsConfig, DataSource, EventSinkFilters,
@@ -12,13 +19,19 @@ use serde::{Deserialize, Serialize};
 #[serde(deny_unknown_fields)]
 pub(crate) struct YamlConfig {
     schema_version: u32,
+    #[serde(default, skip_serializing_if = "YamlListeners::is_default")]
     listeners: YamlListeners,
+    #[serde(default, skip_serializing_if = "YamlForward::is_default")]
     forward: YamlForward,
+    #[serde(default, skip_serializing_if = "YamlOrchestrator::is_default")]
     orchestrator: YamlOrchestrator,
+    #[serde(default, skip_serializing_if = "YamlEvents::is_default")]
     events: YamlEvents,
+    #[serde(default, skip_serializing_if = "YamlRhai::is_default")]
     rhai: YamlRhai,
     pools: Vec<YamlPool>,
-    control: YamlControl,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    control: Option<YamlControl>,
     #[serde(default)]
     rules: YamlRules,
     #[serde(default)]
@@ -101,13 +114,45 @@ pub(crate) struct YamlAction {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub(crate) struct YamlListeners {
+    #[serde(default = "default_listener_threads")]
     threads: u32,
+    #[serde(default = "default_listener_reuse_port")]
     reuse_port: bool,
     #[serde(default)]
     rcvbuf: u32,
     #[serde(default)]
     sndbuf: u32,
     listeners: Vec<YamlListener>,
+}
+
+fn default_listener_threads() -> u32 {
+    DEFAULT_LISTENER_THREADS
+}
+
+fn default_listener_reuse_port() -> bool {
+    DEFAULT_LISTENER_REUSE_PORT
+}
+
+impl Default for YamlListeners {
+    fn default() -> Self {
+        Self {
+            threads: DEFAULT_LISTENER_THREADS,
+            reuse_port: DEFAULT_LISTENER_REUSE_PORT,
+            rcvbuf: 0,
+            sndbuf: 0,
+            listeners: Vec::new(),
+        }
+    }
+}
+
+impl YamlListeners {
+    pub(crate) fn is_default(&self) -> bool {
+        self.threads == DEFAULT_LISTENER_THREADS
+            && self.reuse_port == DEFAULT_LISTENER_REUSE_PORT
+            && self.rcvbuf == 0
+            && self.sndbuf == 0
+            && self.listeners.is_empty()
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -117,12 +162,14 @@ pub(crate) struct YamlListener {
 }
 
 fn default_source_selection() -> String {
-    "round_robin".into()
+    crate::forward::DEFAULT_SOURCE_SELECTION.into()
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub(crate) struct YamlForward {
+    #[serde(default = "default_forward_outstanding")]
     outstanding_per_backend: u32,
+    #[serde(default = "default_forward_timeout_ms")]
     timeout_ms: u32,
     #[serde(default)]
     sources_v4: Vec<String>,
@@ -136,19 +183,126 @@ pub(crate) struct YamlForward {
     client_tcp_uses_upstream_tcp: bool,
 }
 
+fn default_forward_outstanding() -> u32 {
+    DEFAULT_FORWARD_OUTSTANDING_PER_BACKEND
+}
+
+fn default_forward_timeout_ms() -> u32 {
+    DEFAULT_FORWARD_TIMEOUT_MS
+}
+
+impl Default for YamlForward {
+    fn default() -> Self {
+        Self {
+            outstanding_per_backend: DEFAULT_FORWARD_OUTSTANDING_PER_BACKEND,
+            timeout_ms: DEFAULT_FORWARD_TIMEOUT_MS,
+            sources_v4: Vec::new(),
+            source_selection: default_source_selection(),
+            sources_v6: Vec::new(),
+            upstream_transport: String::new(),
+            client_tcp_uses_upstream_tcp: false,
+        }
+    }
+}
+
+impl YamlForward {
+    pub(crate) fn is_default(&self) -> bool {
+        *self == Self::default()
+    }
+}
+
+impl PartialEq for YamlForward {
+    fn eq(&self, other: &Self) -> bool {
+        self.outstanding_per_backend == other.outstanding_per_backend
+            && self.timeout_ms == other.timeout_ms
+            && self.sources_v4 == other.sources_v4
+            && self.source_selection == other.source_selection
+            && self.sources_v6 == other.sources_v6
+            && self.upstream_transport == other.upstream_transport
+            && self.client_tcp_uses_upstream_tcp == other.client_tcp_uses_upstream_tcp
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 pub(crate) struct YamlOrchestrator {
+    #[serde(default = "default_orchestrator_max_attempts")]
     max_attempts: u32,
+    #[serde(default = "default_orchestrator_max_txn_duration_ms")]
     max_txn_duration_ms: u32,
+    #[serde(default = "default_orchestrator_txn_table_capacity")]
     txn_table_capacity: u32,
+}
+
+fn default_orchestrator_max_attempts() -> u32 {
+    DEFAULT_ORCHESTRATOR_MAX_ATTEMPTS
+}
+
+fn default_orchestrator_max_txn_duration_ms() -> u32 {
+    DEFAULT_ORCHESTRATOR_MAX_TXN_DURATION_MS
+}
+
+fn default_orchestrator_txn_table_capacity() -> u32 {
+    DEFAULT_ORCHESTRATOR_TXN_TABLE_CAPACITY
+}
+
+impl Default for YamlOrchestrator {
+    fn default() -> Self {
+        Self {
+            max_attempts: DEFAULT_ORCHESTRATOR_MAX_ATTEMPTS,
+            max_txn_duration_ms: DEFAULT_ORCHESTRATOR_MAX_TXN_DURATION_MS,
+            txn_table_capacity: DEFAULT_ORCHESTRATOR_TXN_TABLE_CAPACITY,
+        }
+    }
+}
+
+impl YamlOrchestrator {
+    pub(crate) fn is_default(&self) -> bool {
+        *self == Self::default()
+    }
+}
+
+impl PartialEq for YamlOrchestrator {
+    fn eq(&self, other: &Self) -> bool {
+        self.max_attempts == other.max_attempts
+            && self.max_txn_duration_ms == other.max_txn_duration_ms
+            && self.txn_table_capacity == other.txn_table_capacity
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub(crate) struct YamlEvents {
+    #[serde(default = "default_events_queue_depth")]
     queue_depth: u32,
+    #[serde(default = "default_events_drop_policy")]
     drop_policy: String,
     #[serde(default)]
     sinks: Vec<YamlEventSink>,
+}
+
+fn default_events_queue_depth() -> u32 {
+    DEFAULT_EVENTS_QUEUE_DEPTH
+}
+
+fn default_events_drop_policy() -> String {
+    DEFAULT_EVENTS_DROP_POLICY.into()
+}
+
+impl Default for YamlEvents {
+    fn default() -> Self {
+        Self {
+            queue_depth: DEFAULT_EVENTS_QUEUE_DEPTH,
+            drop_policy: DEFAULT_EVENTS_DROP_POLICY.into(),
+            sinks: Vec::new(),
+        }
+    }
+}
+
+impl YamlEvents {
+    pub(crate) fn is_default(&self) -> bool {
+        self.queue_depth == DEFAULT_EVENTS_QUEUE_DEPTH
+            && self.drop_policy == DEFAULT_EVENTS_DROP_POLICY
+            && self.sinks.is_empty()
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize, Default)]
@@ -227,10 +381,44 @@ pub(crate) struct YamlDataSource {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub(crate) struct YamlRhai {
+    #[serde(default = "default_rhai_max_operations")]
     max_operations: u64,
+    #[serde(default = "default_rhai_max_call_depth")]
     max_call_depth: u32,
     #[serde(default)]
     hook_timeout_ms: u32,
+}
+
+fn default_rhai_max_operations() -> u64 {
+    DEFAULT_RHAI_MAX_OPERATIONS
+}
+
+fn default_rhai_max_call_depth() -> u32 {
+    DEFAULT_RHAI_MAX_CALL_DEPTH
+}
+
+impl Default for YamlRhai {
+    fn default() -> Self {
+        Self {
+            max_operations: DEFAULT_RHAI_MAX_OPERATIONS,
+            max_call_depth: DEFAULT_RHAI_MAX_CALL_DEPTH,
+            hook_timeout_ms: 0,
+        }
+    }
+}
+
+impl YamlRhai {
+    pub(crate) fn is_default(&self) -> bool {
+        *self == Self::default()
+    }
+}
+
+impl PartialEq for YamlRhai {
+    fn eq(&self, other: &Self) -> bool {
+        self.max_operations == other.max_operations
+            && self.max_call_depth == other.max_call_depth
+            && self.hook_timeout_ms == other.hook_timeout_ms
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -327,6 +515,7 @@ pub(crate) struct YamlControlTls {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub(crate) struct YamlControl {
+    #[serde(default = "default_control_listen_address")]
     listen_address: String,
     #[serde(default, skip_serializing_if = "is_false")]
     reflection_enabled: bool,
@@ -334,6 +523,21 @@ pub(crate) struct YamlControl {
     api_keys: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     tls: Option<YamlControlTls>,
+}
+
+fn default_control_listen_address() -> String {
+    DEFAULT_CONTROL_LISTEN_ADDRESS.into()
+}
+
+impl Default for YamlControl {
+    fn default() -> Self {
+        Self {
+            listen_address: default_control_listen_address(),
+            reflection_enabled: false,
+            api_keys: Vec::new(),
+            tls: None,
+        }
+    }
 }
 
 fn is_false(v: &bool) -> bool {
@@ -355,7 +559,7 @@ impl From<YamlConfig> for Config {
             events: Some(y.events.into()),
             rhai: Some(y.rhai.into()),
             pools: y.pools.into_iter().map(Into::into).collect(),
-            control: Some(y.control.into()),
+            control: y.control.map(Into::into),
             rules: Some(y.rules.into()),
             logging: Some(y.logging.into()),
             data_sources: y.data_sources.into_iter().map(Into::into).collect(),
@@ -632,49 +836,46 @@ impl From<YamlControl> for ControlConfig {
     }
 }
 
-fn missing_section(name: &str) -> ConfigError {
-    ConfigError::Incomplete(format!("missing required section: {name}"))
-}
-
-/// Build the YAML view of `cfg` for serialization. All Phase 0 sections must be present.
+/// Build the YAML view of `cfg` for serialization. Default sections are omitted when sparse.
 pub(crate) fn config_to_yaml(cfg: &Config) -> Result<YamlConfig, ConfigError> {
     Ok(YamlConfig {
         schema_version: cfg.schema_version,
         listeners: cfg
             .listeners
             .as_ref()
-            .ok_or_else(|| missing_section("listeners"))?
-            .try_into()?,
+            .map(TryInto::try_into)
+            .transpose()?
+            .unwrap_or_default(),
         forward: cfg
             .forward
             .as_ref()
-            .ok_or_else(|| missing_section("forward"))?
-            .try_into()?,
+            .map(TryInto::try_into)
+            .transpose()?
+            .unwrap_or_default(),
         orchestrator: cfg
             .orchestrator
             .as_ref()
-            .ok_or_else(|| missing_section("orchestrator"))?
-            .try_into()?,
+            .map(TryInto::try_into)
+            .transpose()?
+            .unwrap_or_default(),
         events: cfg
             .events
             .as_ref()
-            .ok_or_else(|| missing_section("events"))?
-            .try_into()?,
+            .map(TryInto::try_into)
+            .transpose()?
+            .unwrap_or_default(),
         rhai: cfg
             .rhai
             .as_ref()
-            .ok_or_else(|| missing_section("rhai"))?
-            .try_into()?,
+            .map(TryInto::try_into)
+            .transpose()?
+            .unwrap_or_default(),
         pools: cfg
             .pools
             .iter()
             .map(|p| p.try_into())
             .collect::<Result<_, _>>()?,
-        control: cfg
-            .control
-            .as_ref()
-            .ok_or_else(|| missing_section("control"))?
-            .try_into()?,
+        control: cfg.control.as_ref().map(TryInto::try_into).transpose()?,
         rules: cfg
             .rules
             .as_ref()
@@ -997,6 +1198,13 @@ impl TryFrom<&ControlConfig> for YamlControl {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::defaults::{
+        DEFAULT_EVENTS_DROP_POLICY, DEFAULT_EVENTS_QUEUE_DEPTH,
+        DEFAULT_FORWARD_OUTSTANDING_PER_BACKEND, DEFAULT_FORWARD_TIMEOUT_MS,
+        DEFAULT_LISTENER_THREADS, DEFAULT_ORCHESTRATOR_MAX_ATTEMPTS,
+        DEFAULT_ORCHESTRATOR_MAX_TXN_DURATION_MS, DEFAULT_ORCHESTRATOR_TXN_TABLE_CAPACITY,
+        DEFAULT_RHAI_MAX_CALL_DEPTH, DEFAULT_RHAI_MAX_OPERATIONS,
+    };
     use conduit_proto::config::Config;
 
     #[test]
@@ -1005,6 +1213,86 @@ mod tests {
         let cfg: Config = load_yaml(yaml).expect("parse");
         assert_eq!(cfg.schema_version, 1);
         assert_eq!(cfg.listeners.as_ref().unwrap().threads, 2);
+    }
+
+    #[test]
+    fn load_minimal_sparse_yaml() {
+        let yaml = include_str!("../../../tests/fixtures/config/minimal-sparse.yaml");
+        let cfg: Config = load_yaml(yaml).expect("parse");
+        assert_eq!(cfg.schema_version, 1);
+        assert!(cfg.control.is_none());
+
+        let forward = cfg.forward.as_ref().expect("forward defaults applied");
+        assert_eq!(
+            forward.outstanding_per_backend,
+            DEFAULT_FORWARD_OUTSTANDING_PER_BACKEND
+        );
+        assert_eq!(forward.timeout_ms, DEFAULT_FORWARD_TIMEOUT_MS);
+
+        let orchestrator = cfg.orchestrator.as_ref().expect("orchestrator defaults");
+        assert_eq!(orchestrator.max_attempts, DEFAULT_ORCHESTRATOR_MAX_ATTEMPTS);
+        assert_eq!(
+            orchestrator.max_txn_duration_ms,
+            DEFAULT_ORCHESTRATOR_MAX_TXN_DURATION_MS
+        );
+        assert_eq!(
+            orchestrator.txn_table_capacity,
+            DEFAULT_ORCHESTRATOR_TXN_TABLE_CAPACITY
+        );
+
+        let events = cfg.events.as_ref().expect("events defaults");
+        assert_eq!(events.queue_depth, DEFAULT_EVENTS_QUEUE_DEPTH);
+        assert_eq!(events.drop_policy, DEFAULT_EVENTS_DROP_POLICY);
+
+        let rhai = cfg.rhai.as_ref().expect("rhai defaults");
+        assert_eq!(rhai.max_operations, DEFAULT_RHAI_MAX_OPERATIONS);
+        assert_eq!(rhai.max_call_depth, DEFAULT_RHAI_MAX_CALL_DEPTH);
+
+        let listeners = cfg.listeners.as_ref().expect("listeners");
+        assert_eq!(listeners.threads, DEFAULT_LISTENER_THREADS);
+    }
+
+    #[test]
+    fn sparse_yaml_matches_explicit_default_sections() {
+        let sparse = include_str!("../../../tests/fixtures/config/minimal-sparse.yaml");
+        let sparse_cfg = load_yaml(sparse).expect("sparse");
+
+        let explicit = format!(
+            r#"
+schema_version: 1
+listeners:
+  threads: {DEFAULT_LISTENER_THREADS}
+  reuse_port: false
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+forward:
+  outstanding_per_backend: {DEFAULT_FORWARD_OUTSTANDING_PER_BACKEND}
+  timeout_ms: {DEFAULT_FORWARD_TIMEOUT_MS}
+orchestrator:
+  max_attempts: {DEFAULT_ORCHESTRATOR_MAX_ATTEMPTS}
+  max_txn_duration_ms: {DEFAULT_ORCHESTRATOR_MAX_TXN_DURATION_MS}
+  txn_table_capacity: {DEFAULT_ORCHESTRATOR_TXN_TABLE_CAPACITY}
+events:
+  queue_depth: {DEFAULT_EVENTS_QUEUE_DEPTH}
+  drop_policy: {DEFAULT_EVENTS_DROP_POLICY}
+rhai:
+  max_operations: {DEFAULT_RHAI_MAX_OPERATIONS}
+  max_call_depth: {DEFAULT_RHAI_MAX_CALL_DEPTH}
+pools:
+  - name: default
+    backends:
+      - address: "127.0.0.1:5300"
+"#
+        );
+        let explicit_cfg = load_yaml(&explicit).expect("explicit defaults");
+
+        assert_eq!(sparse_cfg.forward, explicit_cfg.forward);
+        assert_eq!(sparse_cfg.orchestrator, explicit_cfg.orchestrator);
+        assert_eq!(sparse_cfg.events, explicit_cfg.events);
+        assert_eq!(sparse_cfg.rhai, explicit_cfg.rhai);
+        assert!(sparse_cfg.control.is_none());
+        assert!(explicit_cfg.control.is_none());
     }
 
     #[test]

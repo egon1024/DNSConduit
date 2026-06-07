@@ -1,10 +1,11 @@
-use conduit_api::serve;
+mod runtime;
+
 use conduit_config::{init_from_config, load_yaml, validate, EffectiveConfig};
 use conduit_core::{
     spawn_configurator, ConfiguratorState, ProposalSource, RuntimeSnapshot, SnapshotStore,
 };
-use conduit_metrics::{spawn_otel_push, spawn_prometheus_server, MetricsHub, TracingHub};
-use std::net::SocketAddr;
+use conduit_metrics::{MetricsHub, TracingHub};
+use runtime::{wait_for_shutdown_signal, RuntimeSupervisor, RuntimeSupervisorArgs};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
@@ -54,52 +55,19 @@ async fn main() -> anyhow::Result<()> {
     #[cfg(unix)]
     spawn_sighup_handler(configurator.clone());
 
-    let dataplane = conduit_dataplane::supervisor::start(
-        store.clone(),
-        metrics_hub.clone(),
-        tracing_hub.clone(),
-    )?;
-    metrics_hub.set_scrape_snapshot_fn(conduit_dataplane::metrics_scrape::scrape_snapshot_fn(
-        store.clone(),
-        dataplane.txn_table.clone(),
-    ));
-    tracing::info!("dataplane listeners started");
+    let supervisor = RuntimeSupervisor::start(RuntimeSupervisorArgs {
+        store,
+        effective,
+        configurator,
+        metrics_hub,
+        tracing_hub,
+        file_cfg,
+    })
+    .await?;
 
-    let mut _prometheus = if let Some(ref addr) = metrics_hub.compiled.prometheus_listen {
-        let listen: SocketAddr = addr.parse()?;
-        Some(spawn_prometheus_server(
-            listen,
-            metrics_hub.compiled.prometheus_path.clone(),
-            metrics_hub.clone(),
-            dataplane.events.clone(),
-        ))
-    } else {
-        None
-    };
-
-    let mut _otel = if let Some(ref endpoint) = metrics_hub.compiled.otel_endpoint {
-        Some(spawn_otel_push(
-            endpoint.clone(),
-            metrics_hub.compiled.otel_push_interval_ms,
-            metrics_hub.compiled.otel_resource_attributes.clone(),
-            metrics_hub.clone(),
-            dataplane.events.clone(),
-        ))
-    } else {
-        None
-    };
-
-    let listen_address = store
-        .load()
-        .config
-        .control
-        .as_ref()
-        .map(|c| c.listen_address.clone())
-        .unwrap_or_else(|| "127.0.0.1:5199".into());
-    let addr: SocketAddr = listen_address.parse()?;
-
-    tracing::info!(%addr, "starting control plane");
-    serve(addr, store, effective, configurator, tracing_hub).await?;
+    wait_for_shutdown_signal().await?;
+    tracing::info!("shutdown signal received");
+    supervisor.shutdown().await;
     Ok(())
 }
 
@@ -117,7 +85,10 @@ fn spawn_sighup_handler(configurator: conduit_core::ConfiguratorHandle) {
         while sighup.recv().await.is_some() {
             let result = configurator.reload_from_file(ProposalSource::Sighup).await;
             if !result.ok {
-                tracing::error!(errors = ?result.errors, "SIGHUP config reload failed");
+                tracing::error!(
+                    errors = %result.errors.join("; "),
+                    "SIGHUP config reload failed"
+                );
             }
         }
     });

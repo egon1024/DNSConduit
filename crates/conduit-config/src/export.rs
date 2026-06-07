@@ -39,4 +39,23 @@ mod tests {
             cfg2.listeners.as_ref().unwrap().threads
         );
     }
+
+    #[test]
+    fn export_sparse_omits_default_sections() {
+        let yaml_in = include_str!("../../../tests/fixtures/config/minimal-sparse.yaml");
+        let cfg = load_yaml(yaml_in).unwrap();
+        assert!(cfg.control.is_none());
+        let yaml_out = export_yaml(&cfg).unwrap();
+        assert!(!yaml_out.contains("forward:"));
+        assert!(!yaml_out.contains("orchestrator:"));
+        assert!(!yaml_out.contains("events:"));
+        assert!(!yaml_out.contains("rhai:"));
+        assert!(!yaml_out.contains("control:"));
+        let cfg2 = load_yaml(&yaml_out).unwrap();
+        assert_eq!(cfg.forward, cfg2.forward);
+        assert_eq!(cfg.orchestrator, cfg2.orchestrator);
+        assert_eq!(cfg.events, cfg2.events);
+        assert_eq!(cfg.rhai, cfg2.rhai);
+        assert!(cfg2.control.is_none());
+    }
 }

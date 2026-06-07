@@ -1,6 +1,7 @@
 //! Configuration load, validate, merge, and export.
 
 pub mod backend;
+pub mod defaults;
 pub mod error;
 pub mod export;
 pub mod file;
@@ -10,6 +11,13 @@ pub mod merge;
 pub mod validate;
 
 pub use backend::{effective_backend_weight, DEFAULT_BACKEND_WEIGHT};
+pub use defaults::{
+    DEFAULT_CONTROL_LISTEN_ADDRESS, DEFAULT_EVENTS_DROP_POLICY, DEFAULT_EVENTS_QUEUE_DEPTH,
+    DEFAULT_FORWARD_OUTSTANDING_PER_BACKEND, DEFAULT_FORWARD_TIMEOUT_MS,
+    DEFAULT_LISTENER_REUSE_PORT, DEFAULT_LISTENER_THREADS, DEFAULT_ORCHESTRATOR_MAX_ATTEMPTS,
+    DEFAULT_ORCHESTRATOR_MAX_TXN_DURATION_MS, DEFAULT_ORCHESTRATOR_TXN_TABLE_CAPACITY,
+    DEFAULT_RHAI_MAX_CALL_DEPTH, DEFAULT_RHAI_MAX_OPERATIONS,
+};
 pub use error::ConfigError;
 pub use export::export_yaml;
 pub use file::load_yaml;
@@ -22,3 +30,26 @@ pub use forward::{
 pub use logging::{init_from_config, validate_logging, DEFAULT_LOG_LEVEL, DEFAULT_LOG_OUTPUT};
 pub use merge::{clear_overlay, merge_file_and_overlay, EffectiveConfig};
 pub use validate::{validate, ValidationResult};
+
+use conduit_proto::config::Config;
+use std::net::SocketAddr;
+
+/// Parsed control-plane listen address when a `control` section is present.
+pub fn control_listen_addr(cfg: &Config) -> Result<Option<SocketAddr>, ConfigError> {
+    match cfg.control.as_ref() {
+        None => Ok(None),
+        Some(c) => {
+            if c.listen_address.is_empty() {
+                return Err(ConfigError::Invalid(
+                    "control.listen_address must not be empty".into(),
+                ));
+            }
+            c.listen_address.parse().map(Some).map_err(|e| {
+                ConfigError::Invalid(format!(
+                    "control.listen_address '{}': {e}",
+                    c.listen_address
+                ))
+            })
+        }
+    }
+}

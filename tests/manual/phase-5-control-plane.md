@@ -25,6 +25,8 @@
 
 **Note:** `conduitctl apply --file` loads a **full** YAML document. Overlays in this guide are complete configs that differ from the base only where noted.
 
+**Control plane:** gRPC is **opt-in**. Configs in this guide include a `control:` section with `listen_address`. Without that section, Conduit forwards DNS but does not listen on `:5199` and `conduitctl apply` / `export` / `reload` / `trace` require a running control listener.
+
 ## Prerequisites
 
 ```bash

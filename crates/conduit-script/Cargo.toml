@@ -5,6 +5,14 @@ edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
 
+[features]
+test-util = []
+
+[[bench]]
+name = "thread_local_runtime"
+harness = false
+required-features = ["test-util"]
+
 [dependencies]
 conduit-proto = { path = "../conduit-proto" }
 conduit-events = { path = "../conduit-events" }

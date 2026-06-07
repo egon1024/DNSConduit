@@ -1,0 +1,114 @@
+//! Minimal transaction host for unit tests and local benchmarks.
+
+use crate::host::{HostTransaction, ScriptPhase};
+use std::collections::HashMap;
+use std::net::{Ipv4Addr, Ipv6Addr};
+use std::time::Instant;
+
+pub struct MockHost {
+    pub id: u64,
+    pub qname: String,
+    pub qtype: String,
+    pub dns_id: u16,
+    pub rcode: Option<String>,
+    pub pool: Option<String>,
+    pub retry: Option<String>,
+    pub dropped: bool,
+    pub rd_override: Option<bool>,
+    pub source_override_v4: Option<Ipv4Addr>,
+    pub source_override_v6: Option<Ipv6Addr>,
+    pub tags: HashMap<String, bool>,
+    pub attempts: u32,
+    pub started: Instant,
+    pub phase: ScriptPhase,
+}
+
+impl HostTransaction for MockHost {
+    fn txn_id(&self) -> u64 {
+        self.id
+    }
+
+    fn phase(&self) -> ScriptPhase {
+        self.phase
+    }
+
+    fn question_qname(&self) -> Option<&str> {
+        Some(&self.qname)
+    }
+
+    fn question_qtype_label(&self) -> Option<String> {
+        Some(self.qtype.clone())
+    }
+
+    fn question_id(&self) -> u16 {
+        self.dns_id
+    }
+
+    fn response_rcode_label(&self) -> Option<String> {
+        self.rcode.clone()
+    }
+
+    fn has_tag(&self, key: &str) -> bool {
+        self.tags.get(key).copied().unwrap_or(false)
+    }
+
+    fn set_tag_bool(&mut self, key: &str, value: bool) {
+        self.tags.insert(key.to_string(), value);
+    }
+
+    fn set_tag_string(&mut self, _key: &str, _value: &str) {}
+
+    fn set_pool(&mut self, name: &str) {
+        self.pool = Some(name.to_string());
+    }
+
+    fn set_retry_pool(&mut self, name: &str) {
+        self.retry = Some(name.to_string());
+    }
+
+    fn drop_query(&mut self) {}
+
+    fn set_rcode_name(&mut self, name: &str) {
+        self.rcode = Some(name.to_string());
+    }
+
+    fn set_rd(&mut self, value: bool) {
+        self.rd_override = Some(value);
+    }
+
+    fn clear_rd(&mut self) {
+        self.rd_override = Some(false);
+    }
+
+    fn set_source_v4(&mut self, addr: &str) {
+        if let Ok(ip) = addr.parse() {
+            self.source_override_v4 = Some(ip);
+        }
+    }
+
+    fn set_source_v6(&mut self, addr: &str) {
+        if let Ok(ip) = addr.parse() {
+            self.source_override_v6 = Some(ip);
+        }
+    }
+
+    fn attempt_count(&self) -> u32 {
+        self.attempts
+    }
+
+    fn started_at(&self) -> Instant {
+        self.started
+    }
+
+    fn is_dropped(&self) -> bool {
+        self.dropped
+    }
+
+    fn mark_dropped(&mut self) {
+        self.dropped = true;
+    }
+
+    fn script_tag_bools(&self) -> HashMap<String, bool> {
+        self.tags.clone()
+    }
+}

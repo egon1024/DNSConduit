@@ -1,6 +1,6 @@
 //! UDP DNS listener worker.
 
-use crate::listener::startup_log;
+use crate::listener::DataplaneShutdown;
 use conduit_core::orchestrator::{Orchestrator, RunOutcome};
 use conduit_core::snapshot::SnapshotStore;
 use conduit_core::transaction::{ClientProtocol, Transaction};
@@ -11,14 +11,11 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
-pub fn run_worker(
-    listener: Listener,
-    store: Arc<SnapshotStore>,
-    orchestrator: Arc<Orchestrator>,
-    observation: Arc<EventHub>,
+pub fn bind_socket(
+    listener: &Listener,
     reuse_port: bool,
     rcvbuf: u32,
-) -> std::io::Result<()> {
+) -> std::io::Result<(Socket, SocketAddr)> {
     let addr: SocketAddr = listener
         .address
         .parse()
@@ -39,13 +36,26 @@ pub fn run_worker(
     }
     socket.set_nonblocking(false)?;
     socket.bind(&addr.into())?;
-    startup_log::log_listener_bound(addr, &listener.protocol);
-    let udp: std::net::UdpSocket = socket.into();
+    let bound = socket.local_addr()?.as_socket().unwrap();
+    Ok((socket, bound))
+}
+
+pub fn run_worker(
+    udp: std::net::UdpSocket,
+    listener: Listener,
+    store: Arc<SnapshotStore>,
+    orchestrator: Arc<Orchestrator>,
+    observation: Arc<EventHub>,
+    shutdown: DataplaneShutdown,
+) -> std::io::Result<()> {
     udp.set_read_timeout(Some(Duration::from_secs(1)))?;
 
     let mut buf = [0u8; 4096];
     let mut next_id = 1u64;
     loop {
+        if shutdown.is_shutdown() {
+            break;
+        }
         match udp.recv_from(&mut buf) {
             Ok((len, peer)) => {
                 let snap = store.load();
@@ -66,9 +76,14 @@ pub fn run_worker(
                 if e.kind() == std::io::ErrorKind::WouldBlock
                     || e.kind() == std::io::ErrorKind::TimedOut =>
             {
+                if shutdown.is_shutdown() {
+                    break;
+                }
                 continue;
             }
+            Err(_) if shutdown.is_shutdown() => break,
             Err(e) => return Err(e),
         }
     }
+    Ok(())
 }

@@ -5,4 +5,5 @@ pub mod listener;
 pub mod metrics_scrape;
 pub mod stages;
 
-pub use listener::supervisor;
+pub use listener::{supervisor, DataplaneShutdown};
+pub use supervisor::{start, DataplaneHandle};

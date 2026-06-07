@@ -7,6 +7,9 @@ mod host;
 mod metrics;
 mod runtime;
 
+#[cfg(any(test, feature = "test-util"))]
+pub mod testing;
+
 pub use compile::{compile_from_config, CompiledScripting, ScriptRef};
 pub use data_sources::DataSourceStore;
 pub use error::ScriptError;
