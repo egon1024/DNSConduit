@@ -8,13 +8,13 @@ This page explains how Conduit groups upstream DNS servers into [pools](/glossar
 
 A [backend](/glossary/index.md#backend) is a configured upstream destination Conduit forwards DNS queries to. Each backend carries settings that control how Conduit reaches and uses that destination (for example, address, port, and load-balancing weight in current releases).
 
-A [pool](/glossary/index.md#pool) is a named group of [backends](/glossary/index.md#backend). [Rules](/glossary/index.md#action) and scripts select a pool by name; Conduit then picks one backend inside that pool (see [Backend weights](#backend-weights)) and forwards the query.
+A [pool](/glossary/index.md#pool) is a named group of [backends](/glossary/index.md#backend). [Rules](/policy-routing/rules-and-actions.md) and scripts select a pool by name; Conduit then picks one backend inside that pool (see [Backend weights](#backend-weights)) and forwards the query.
 
 Conduit selects the [pool](/glossary/index.md#pool) and [backend](/glossary/index.md#backend) during the **Route** phase of each [transaction](/glossary/index.md#transaction), after [request rules](/policy-routing/rules-and-actions.md) run. For the full query pipeline, see [Architecture and packet path](/concepts/architecture-and-packet-path.md). If nothing sets a pool, Conduit uses the pool named `default`, or the first pool in configuration. If the selected pool is missing or has no backends, Conduit responds with **SERVFAIL**. A [retry](/glossary/index.md#retry) may target a different pool ([Retries and transactions](/policy-routing/retries-and-transactions.md)).
 
 ## Configuration
 
-[Pools](/glossary/index.md#pool) are declared under the top-level `pools:` key in the [config file](/control-plane/config-file.md). Each pool has a unique `name` and an unordered list of `backends`.
+[Pools](/glossary/index.md#pool) are declared under the top-level `pools:` key in the [config file](/control-plane/config-file.md). Each pool has a unique `name` and an unordered list of `backends`. Duplicate pool names or a pool with an empty `backends` list are rejected when the config is loaded or validated. A runnable installation needs at least one pool with at least one backend.
 
 Minimal example (single pool, single backend):
 
@@ -28,13 +28,14 @@ pools:
 
 | Field | Meaning |
 |-------|---------|
-| `name` | Pool identifier used by [rules](/policy-routing/rules-and-actions.md), [Rhai](/rhai/index.md), [retries](/policy-routing/retries-and-transactions.md), and as the `pool` label on [metrics](/observability/metrics.md). |
+| `name` | Pool identifier used by [rules](/policy-routing/rules-and-actions.md) (`set_pool`, `retry_pool`), [Rhai](/rhai/index.md), and as the `pool` label on [metrics](/observability/metrics.md). |
 | `backends` | One or more upstream destinations in this pool. |
 | `address` | Upstream resolver as `ip:port` (IPv6 addresses use bracket notation, for example `[2001:db8::1]:53`). |
 | `weight` | Optional load-balancing weight; see [Backend weights](#backend-weights). |
+| `sources_v4` | Optional list of local IPv4 addresses for upstream egress to this pool’s backends; see [Dual-stack forwarding](/guides/dual-stack-forwarding.md). |
+| `sources_v6` | Optional list of local IPv6 addresses for upstream egress to this pool’s backends. |
 
-Use `sources_v4` or `sources_v6` on a [pool](/glossary/index.md#pool) when those backends should be reached from a specific local address (for example binding to 127.0.0.1 or ::1 in lab setups). See the [dual-stack guide](/guides/dual-stack-forwarding.md) for examples.
-
+For every pool and backend field, defaults, and validation rules, see [Reference: pools](/reference/config-schema/pools.md).
 
 Other top-level blocks (`listeners`, `forward`, `rules`, and so on) are required for a runnable config but are documented on their own pages. A complete minimal file appears in [Minimal configuration](/getting-started/minimal-configuration.md).
 
@@ -76,7 +77,7 @@ pools:
         weight: 100
 
 rules:
-  match_mode: first_match
+  match_mode: first_match   # only supported mode today
   rules:
     - name: internal-zones
       hook: request
@@ -90,7 +91,7 @@ rules:
 
 Queries for names ending in `.corp.example.` use the **internal** pool; all other queries use **default** without an extra catch-all rule.
 
-The pool name in `set_pool` (or in Rhai’s `set_pool(...)`) must match a `name` under `pools:`. Additional [selectors](/glossary/index.md#selector) — query type, client subnet, tags, and others — are covered on [Rules and actions](/policy-routing/rules-and-actions.md). [Retries](/policy-routing/retries-and-transactions.md) can target a different pool when an upstream fails.
+The pool name in `set_pool`, `retry_pool` (or in Rhai’s `set_pool(...)` / `set_retry_pool(...)`) must match a `name` under `pools:`. Additional [selectors](/glossary/index.md#selector) — query name, query type, response code, tags, and others — are covered on [Rules and actions](/policy-routing/rules-and-actions.md). [Retries](/policy-routing/retries-and-transactions.md) can send a later attempt to a different pool when an upstream fails.
 
 ## Related topics
 
