@@ -68,15 +68,15 @@ The `conduit` service and query-processing runtime: configured listeners accept 
 
 ### Transaction
 
-<!-- one-line definition -->
+Per-query state object on the [dataplane](/glossary/index.md#dataplane): parsed question, client metadata, [tags](/glossary/index.md#tags), selected [pool](/glossary/index.md#pool) and [backend](/glossary/index.md#backend), and wire buffers, carried through every pipeline phase until a response is sent or the query is dropped.
 
-→ [Architecture and packet path](../concepts/architecture-and-packet-path.md)
+→ [Architecture and packet path](/concepts/architecture-and-packet-path.md)
 
 ### Tags
 
-<!-- one-line definition -->
+Runtime key/value annotations on a [transaction](/glossary/index.md#transaction), set or tested by rules and scripts; persist across [retries](/glossary/index.md#retry) unless cleared. Not part of on-disk config export.
 
-→ [Architecture and packet path](../concepts/architecture-and-packet-path.md)
+→ [Architecture and packet path](/concepts/architecture-and-packet-path.md)
 
 ### Retry
 
@@ -132,7 +132,7 @@ Configured upstream destination Conduit forwards DNS queries to; settings contro
 
 ### Control plane
 
-Optional gRPC API and operator surface (`conduitctl`, reload, export). Separate from the DNS [dataplane](/glossary/index.md#dataplane), which serves queries whether or not control is enabled.
+Optional gRPC API and operator tools (`conduitctl`, reload, export). Separate from the DNS [dataplane](/glossary/index.md#dataplane), which serves queries whether or not control is enabled.
 
 → [Control plane](../control-plane/index.md)
 
