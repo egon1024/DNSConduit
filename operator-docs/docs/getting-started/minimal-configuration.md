@@ -95,7 +95,7 @@ For the full query path (listen → policy → route → forward), see [Architec
 3. **Send a test query** once an upstream is listening on the pool address (see [First query](/getting-started/first-query.md)):
 
    ```bash
-   dig @127.0.0.1 -p 15353 example.com
+   dig @127.0.0.1 -p 15353 +time=3 +tries=1 example.com A
    ```
 
 For file format, load behavior, and reload via the [control plane](/glossary/index.md#control-plane), see [Config file](/control-plane/config-file.md).
