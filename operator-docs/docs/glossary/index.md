@@ -42,13 +42,13 @@ Entries are added as documentation grows. Keep one-line glosses in sync when lin
 
 ### Runtime snapshot
 
-<!-- one-line definition -->
+The validated settings bundle the [dataplane](/glossary/index.md#dataplane) uses to answer queries at a given moment — effective config (listeners, pools, forward behavior), loaded rules and scripts, and observability filters. All listener workers share the same snapshot until you reload or apply new settings.
 
-→ [Configuration model](../control-plane/configuration-model.md)
+→ [Architecture and packet path](../concepts/architecture-and-packet-path.md)
 
 ### Last-good snapshot
 
-<!-- one-line definition -->
+The previous working [runtime snapshot](/glossary/index.md#runtime-snapshot) Conduit keeps when a reload or apply fails validation — DNS continues on the last known-good settings instead of the rejected change.
 
 → [Reload and export](../control-plane/reload-and-export.md)
 
@@ -68,15 +68,15 @@ The `conduit` service and query-processing runtime: configured listeners accept 
 
 ### Transaction
 
-Per-query state object on the [dataplane](/glossary/index.md#dataplane): parsed question, client metadata, [tags](/glossary/index.md#tags), selected [pool](/glossary/index.md#pool) and [backend](/glossary/index.md#backend), and wire buffers, carried through every pipeline phase until a response is sent or the query is dropped.
+Everything Conduit remembers for one client query on the [dataplane](/glossary/index.md#dataplane) — the question, client and listener context, [tags](/glossary/index.md#tags), selected [pool](/glossary/index.md#pool) and [backend](/glossary/index.md#backend), query and response messages, and optional trace — from [Receive](/concepts/architecture-and-packet-path.md#receive) through [Send](/concepts/architecture-and-packet-path.md#send) or drop.
 
-→ [Architecture and packet path](/concepts/architecture-and-packet-path.md)
+→ [Architecture and packet path](../concepts/architecture-and-packet-path.md)
 
 ### Tags
 
 Runtime key/value annotations on a [transaction](/glossary/index.md#transaction), set or tested by rules and scripts; persist across [retries](/glossary/index.md#retry) unless cleared. Not part of on-disk config export.
 
-→ [Architecture and packet path](/concepts/architecture-and-packet-path.md)
+→ [Architecture and packet path](../concepts/architecture-and-packet-path.md)
 
 ### Retry
 
