@@ -29,7 +29,7 @@ When the `metrics` section is **omitted**, export is disabled (no scrape listene
 | `conduit_queries_total` | `listener`, `protocol` | + `qtype`, `qclass`, `ip_family` | — |
 | `conduit_queries_by_pool_total` | yes (`pool`) | yes | — |
 | `conduit_parse_rejected_total` | no | yes (`reason`) | — |
-| `conduit_responses_total` | no | yes (`listener`, `protocol`, `rcode_class`, `ip_family`) | — |
+| `conduit_responses_total` | yes (`listener`, `protocol`, coarse `rcode`) | yes (+ fine `rcode`, `ip_family`) | — |
 | Phase 4 forward/phase/retry histograms & counters | no | no (unchanged) | — |
 | `conduit_forward_outstanding` | — | — | yes |
 | `conduit_pool_backends_configured` | — | — | yes |
@@ -45,7 +45,7 @@ When the `metrics` section is **omitted**, export is disabled (no scrape listene
 | `conduit_queries_total` | see profile table | Incremented after successful parse |
 | `conduit_queries_by_pool_total` | `pool` | After route selection |
 | `conduit_parse_rejected_total` | `reason` | `empty`, `wire_error`, `not_query`, `no_question`, `multi_question` |
-| `conduit_responses_total` | `listener`, `protocol`, `rcode_class`, `ip_family` | `rcode_class`: NOERROR, NXDOMAIN, SERVFAIL, OTHER |
+| `conduit_responses_total` | `listener`, `protocol`, `rcode` (+ `ip_family` on `full`) | **`minimal`:** coarse `rcode` (`NOERROR`, `NXDOMAIN`, `SERVFAIL`, `REFUSED`, `OTHER`). **`full`:** per-IANA `rcode` (0–23 names) + `ip_family` |
 | `conduit_phase_duration_seconds` | `phase` | `full` profile only |
 | `conduit_forward_*`, `conduit_retries_total` | (phase 4) | `full` profile only |
 | `conduit_build_info` | `version`, `revision`, `dirty`, `profile` | Scrape-only; value `1`. See [Build metadata](#build-metadata). |
@@ -65,7 +65,8 @@ Use `histogram_quantile()` in PromQL for percentiles.
 sum(rate(conduit_queries_total[5m])) by (listener, protocol)
 sum(rate(conduit_queries_by_pool_total[5m])) by (pool)
 sum(rate(conduit_parse_rejected_total[5m])) by (reason)
-sum(rate(conduit_responses_total[5m])) by (rcode_class)
+sum(rate(conduit_responses_total[5m])) by (rcode)
+sum(rate(conduit_responses_total[5m])) by (rcode, ip_family)   # full profile only
 time() - conduit_start_time_seconds
 conduit_config_generation
 conduit_build_info{revision="abc1234",dirty="true",profile="debug"}

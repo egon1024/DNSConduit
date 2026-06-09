@@ -36,6 +36,8 @@ pub enum CompiledAction {
     RetryPool(String),
     Drop,
     SetRcode(String),
+    SetSourceV4(std::net::Ipv4Addr),
+    SetSourceV6(std::net::Ipv6Addr),
     Rhai,
 }
 
@@ -130,6 +132,8 @@ impl CompiledRule {
                 }
                 CompiledAction::Drop => drop = true,
                 CompiledAction::SetRcode(rc) => txn.set_rcode_name(rc),
+                CompiledAction::SetSourceV4(addr) => txn.set_source_override_v4(*addr),
+                CompiledAction::SetSourceV6(addr) => txn.set_source_override_v6(*addr),
             }
         }
         if drop {
@@ -157,8 +161,73 @@ impl CompiledAction {
                     .unwrap_or((act.value.clone(), "true".into()));
                 CompiledAction::SetTag { key, value }
             }
+            "set_source_v4" => CompiledAction::SetSourceV4(
+                act.value
+                    .parse()
+                    .expect("set_source_v4 must be validated before compile"),
+            ),
+            "set_source_v6" => CompiledAction::SetSourceV6(
+                act.value
+                    .parse()
+                    .expect("set_source_v6 must be validated before compile"),
+            ),
             "rhai" => CompiledAction::Rhai,
             _ => CompiledAction::SetPool(act.value.clone()),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::transaction::{ClientProtocol, Transaction};
+    use conduit_proto::config::{Action, Rule, RulesConfig};
+    use std::net::SocketAddr;
+
+    fn compile_request_rule(actions: Vec<Action>) -> CompiledRules {
+        CompiledRules::compile(Some(&RulesConfig {
+            match_mode: "first_match".into(),
+            rules: vec![Rule {
+                name: "test".into(),
+                hook: "request".into(),
+                selectors: vec![],
+                actions,
+            }],
+        }))
+    }
+
+    #[test]
+    fn set_source_v4_action_sets_override() {
+        let rules = compile_request_rule(vec![Action {
+            r#type: "set_source_v4".into(),
+            value: "10.0.0.5".into(),
+        }]);
+        let mut txn = Transaction::new(1, "127.0.0.1:53".parse::<SocketAddr>().unwrap(), ClientProtocol::Udp);
+        rules.eval(RuleHook::Request, &mut txn);
+        assert_eq!(
+            txn.source_override_v4,
+            Some("10.0.0.5".parse().unwrap())
+        );
+    }
+
+    #[test]
+    fn set_pool_before_set_source_applies_in_order() {
+        let rules = compile_request_rule(vec![
+            Action {
+                r#type: "set_pool".into(),
+                value: "internal".into(),
+            },
+            Action {
+                r#type: "set_source_v4".into(),
+                value: "192.0.2.1".into(),
+            },
+        ]);
+        let mut txn = Transaction::new(1, "127.0.0.1:53".parse::<SocketAddr>().unwrap(), ClientProtocol::Udp);
+        rules.eval(RuleHook::Request, &mut txn);
+        assert_eq!(txn.selected_pool.as_deref(), Some("internal"));
+        assert_eq!(
+            txn.source_override_v4,
+            Some("192.0.2.1".parse().unwrap())
+        );
     }
 }

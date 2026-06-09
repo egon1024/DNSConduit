@@ -9,6 +9,36 @@ use conduit_events::{
 };
 use conduit_proto::config::Config;
 
+fn configured_source_v4_addrs(cfg: &Config) -> std::collections::HashSet<std::net::Ipv4Addr> {
+    let mut addrs = std::collections::HashSet::new();
+    if let Some(f) = &cfg.forward {
+        if let Ok(v) = parse_sources_v4(&f.sources_v4) {
+            addrs.extend(v);
+        }
+    }
+    for p in &cfg.pools {
+        if let Ok(v) = parse_sources_v4(&p.sources_v4) {
+            addrs.extend(v);
+        }
+    }
+    addrs
+}
+
+fn configured_source_v6_addrs(cfg: &Config) -> std::collections::HashSet<std::net::Ipv6Addr> {
+    let mut addrs = std::collections::HashSet::new();
+    if let Some(f) = &cfg.forward {
+        if let Ok(v) = parse_sources_v6(&f.sources_v6) {
+            addrs.extend(v);
+        }
+    }
+    for p in &cfg.pools {
+        if let Ok(v) = parse_sources_v6(&p.sources_v6) {
+            addrs.extend(v);
+        }
+    }
+    addrs
+}
+
 #[derive(Debug, Clone)]
 pub struct ValidationResult {
     pub ok: bool,
@@ -178,6 +208,8 @@ pub fn validate(cfg: &Config) -> ValidationResult {
                 rules.match_mode
             ));
         }
+        let allowed_v4 = configured_source_v4_addrs(cfg);
+        let allowed_v6 = configured_source_v6_addrs(cfg);
         let mut rule_names = std::collections::HashSet::new();
         for rule in &rules.rules {
             if rule.name.is_empty() {
@@ -205,7 +237,14 @@ pub fn validate(cfg: &Config) -> ValidationResult {
             for act in &rule.actions {
                 if !matches!(
                     act.r#type.as_str(),
-                    "set_pool" | "set_tag" | "retry_pool" | "drop" | "set_rcode" | "rhai"
+                    "set_pool"
+                        | "set_tag"
+                        | "retry_pool"
+                        | "drop"
+                        | "set_rcode"
+                        | "rhai"
+                        | "set_source_v4"
+                        | "set_source_v6"
                 ) {
                     errors.push(format!(
                         "rule '{}' has unknown action type '{}'",
@@ -217,6 +256,63 @@ pub fn validate(cfg: &Config) -> ValidationResult {
                         "rule '{}' rhai action requires script path in value",
                         rule.name
                     ));
+                }
+                if matches!(act.r#type.as_str(), "set_source_v4" | "set_source_v6") {
+                    if rule.hook != "request" {
+                        errors.push(format!(
+                            "rule '{}' action '{}' is only valid on request hook",
+                            rule.name, act.r#type
+                        ));
+                    }
+                    if act.value.is_empty() {
+                        errors.push(format!(
+                            "rule '{}' action '{}' requires an address in value",
+                            rule.name, act.r#type
+                        ));
+                        continue;
+                    }
+                }
+                if act.r#type == "set_source_v4" {
+                    match act.value.parse::<std::net::Ipv4Addr>() {
+                        Ok(addr) => {
+                            if allowed_v4.is_empty() {
+                                errors.push(format!(
+                                    "rule '{}' set_source_v4 requires forward.sources_v4 or pool sources_v4",
+                                    rule.name
+                                ));
+                            } else if !allowed_v4.contains(&addr) {
+                                errors.push(format!(
+                                    "rule '{}' set_source_v4 '{}' is not in configured sources_v4",
+                                    rule.name, act.value
+                                ));
+                            }
+                        }
+                        Err(_) => errors.push(format!(
+                            "rule '{}' set_source_v4 '{}' is not a valid IPv4 address",
+                            rule.name, act.value
+                        )),
+                    }
+                }
+                if act.r#type == "set_source_v6" {
+                    match act.value.parse::<std::net::Ipv6Addr>() {
+                        Ok(addr) => {
+                            if allowed_v6.is_empty() {
+                                errors.push(format!(
+                                    "rule '{}' set_source_v6 requires forward.sources_v6 or pool sources_v6",
+                                    rule.name
+                                ));
+                            } else if !allowed_v6.contains(&addr) {
+                                errors.push(format!(
+                                    "rule '{}' set_source_v6 '{}' is not in configured sources_v6",
+                                    rule.name, act.value
+                                ));
+                            }
+                        }
+                        Err(_) => errors.push(format!(
+                            "rule '{}' set_source_v6 '{}' is not a valid IPv6 address",
+                            rule.name, act.value
+                        )),
+                    }
                 }
             }
         }
@@ -606,5 +702,56 @@ control:
         let result = validate(&cfg);
         assert!(!result.ok);
         assert!(result.errors.iter().any(|e| e.contains("duplicate rule")));
+    }
+
+    #[test]
+    fn accept_set_source_v4_on_request_rule() {
+        let yaml = include_str!("../../../tests/fixtures/config/with-rules-set-source-v4.yaml");
+        let cfg = load_yaml(yaml).unwrap();
+        assert!(validate(&cfg).ok, "{:?}", validate(&cfg).errors);
+    }
+
+    #[test]
+    fn reject_set_source_v4_on_response_hook() {
+        let yaml = include_str!("../../../tests/fixtures/config/with-rules-set-source-v4.yaml");
+        let mut cfg = load_yaml(yaml).unwrap();
+        cfg.rules.as_mut().unwrap().rules[0].hook = "response".into();
+        let result = validate(&cfg);
+        assert!(!result.ok);
+        assert!(result
+            .errors
+            .iter()
+            .any(|e| e.contains("only valid on request hook")));
+    }
+
+    #[test]
+    fn reject_set_source_v4_not_in_configured_sources() {
+        let yaml = include_str!("../../../tests/fixtures/config/with-rules-set-source-v4.yaml");
+        let mut cfg = load_yaml(yaml).unwrap();
+        cfg.rules.as_mut().unwrap().rules[0].actions[1].value = "192.0.2.99".into();
+        let result = validate(&cfg);
+        assert!(!result.ok);
+        assert!(result
+            .errors
+            .iter()
+            .any(|e| e.contains("not in configured sources_v4")));
+    }
+
+    #[test]
+    fn reject_set_source_v4_without_configured_sources() {
+        let yaml = include_str!("../../../tests/fixtures/config/with-rules.yaml");
+        let mut cfg = load_yaml(yaml).unwrap();
+        cfg.rules.as_mut().unwrap().rules[0]
+            .actions
+            .push(conduit_proto::config::Action {
+                r#type: "set_source_v4".into(),
+                value: "127.0.0.1".into(),
+            });
+        let result = validate(&cfg);
+        assert!(!result.ok);
+        assert!(result
+            .errors
+            .iter()
+            .any(|e| e.contains("requires forward.sources_v4")));
     }
 }

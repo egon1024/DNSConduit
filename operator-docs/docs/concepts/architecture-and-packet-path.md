@@ -116,7 +116,7 @@ Default happy path (single attempt, no early drop):
 |-------|-------------------------|
 | [Receive](/concepts/architecture-and-packet-path.md#receive) | Listener accepts the DNS message (UDP or TCP) and opens a [transaction](/glossary/index.md#transaction) on the worker. |
 | [Parse](/concepts/architecture-and-packet-path.md#parse) | Valid single-question query only; malformed or unsupported shapes → silent **drop** (no DNS reply). |
-| [Request rules](/concepts/architecture-and-packet-path.md#request-rules) | **First-match** [request rules](/policy-routing/rules-and-actions.md) and request [Rhai](/rhai/index.md) — `set_pool`, tags, or **drop**; no match → default path to [Route](/concepts/architecture-and-packet-path.md#route). |
+| [Request rules](/concepts/architecture-and-packet-path.md#request-rules) | **First-match** [request rules](/policy-routing/rules-and-actions.md) and request [Rhai](/rhai/index.md) — `set_pool`, `set_source_v4` / `set_source_v6`, tags, or **drop**; no match → default path to [Route](/concepts/architecture-and-packet-path.md#route). |
 | [Route](/concepts/architecture-and-packet-path.md#route) | `retry_pool` → rule pool → `default` / first pool; weighted [backend](/glossary/index.md#backend). Missing pool → **SERVFAIL** → [Send](/concepts/architecture-and-packet-path.md#send). |
 | [Forward](/concepts/architecture-and-packet-path.md#forward) | Send upstream (UDP/TCP per `forward.upstream_transport`); `forward.timeout_ms` and source addresses apply. Hard errors → **SERVFAIL** → [Send](/concepts/architecture-and-packet-path.md#send). |
 | [Wait for response](/concepts/architecture-and-packet-path.md#wait-for-response) | Wait for upstream answer or timeout; answer or timeout → [Response rules](/concepts/architecture-and-packet-path.md#response-rules) (retry policy may follow). |
@@ -148,6 +148,7 @@ Built-in actions on a matching rule can, among other things:
 
 - **`set_pool`** — choose which [pool](/glossary/index.md#pool) [Route](/concepts/architecture-and-packet-path.md#route) uses
 - **`set_tag`** — attach [tags](/glossary/index.md#tags) used by later selectors, export filters, or scripts
+- **`set_source_v4`** / **`set_source_v6`** — pin upstream egress for this query (request hook only; list after **`set_pool`** when both are on the same rule). See [Rules and actions](/policy-routing/rules-and-actions.md) and [Dual-stack forwarding](/guides/dual-stack-forwarding.md)
 - **`drop`** — end the [transaction](/glossary/index.md#transaction) with no reply (same observable effect as a [Parse](/concepts/architecture-and-packet-path.md#parse) drop; no built-in counter — see [policy drops](/reference/metrics-catalog.md#policy-drops-no-built-in-counter))
 
 If the matched rule includes a **`rhai`** action, Conduit runs the linked [Rhai](/rhai/index.md) scripts for the request hook after applying built-in actions. Scripts can refine pool choice, set tags, or drop the query.
@@ -204,7 +205,7 @@ If [Forward](/concepts/architecture-and-packet-path.md#forward) stored an upstre
 
 On **UDP**, if the response would exceed the client’s EDNS payload size (or 512 bytes when EDNS is absent), Conduit truncates the message and sets the **TC** (truncated) bit so standards-compliant resolvers can retry over TCP.
 
-Successful replies and synthesized errors both complete the [transaction](/glossary/index.md#transaction) on the listener; [`conduit_responses_total`](/reference/metrics-catalog.md#conduit_responses_total) (full profile) and event export run as configured. See [Observability](/observability/index.md) and the [Metrics catalog](/reference/metrics-catalog.md).
+Successful replies and synthesized errors both complete the [transaction](/glossary/index.md#transaction) on the listener; [`conduit_responses_total`](/reference/metrics-catalog.md#conduit_responses_total) and event export run as configured (coarse `rcode` buckets on **`minimal`**, per-IANA `rcode` + `ip_family` on **`full`**). See [Observability](/observability/index.md) and the [Metrics catalog](/reference/metrics-catalog.md).
 
 ## Tags
 

@@ -98,7 +98,7 @@ curl -sS http://127.0.0.1:19090/metrics | rg 'conduit_queries_by_pool_total'
 
 ---
 
-## 3. Responses by `rcode_class`
+## 3. Responses by `rcode`
 
 ```bash
 dig @127.0.0.1 -p 15353 +time=3 +tries=1 www.example.com A
@@ -106,13 +106,13 @@ dig @127.0.0.1 -p 15353 +time=3 +tries=1 this-name-should-not-exist-4b.example. 
 curl -sS http://127.0.0.1:19090/metrics | rg 'conduit_responses_total'
 ```
 
-**Expect:** `rcode_class="NOERROR"` and `rcode_class="NXDOMAIN"` (or `OTHER`).
+**Expect (full profile):** `rcode="NOERROR"` and `rcode="NXDOMAIN"` (fine IANA labels), plus `ip_family="v4"` on each line.
 
 **Optional SERVFAIL:** stop dnsmasq (Terminal A), then:
 
 ```bash
 dig @127.0.0.1 -p 15353 +time=3 +tries=1 www.example.com A
-curl -sS http://127.0.0.1:19090/metrics | rg 'rcode_class="SERVFAIL"'
+curl -sS http://127.0.0.1:19090/metrics | rg 'rcode="SERVFAIL"'
 ```
 
 Restart dnsmasq before later sections.
@@ -215,9 +215,11 @@ curl -sS http://127.0.0.1:19090/metrics | rg '^conduit_queries_total'
 # 7b — per-pool counter still on in minimal
 curl -sS http://127.0.0.1:19090/metrics | rg '^conduit_queries_by_pool_total'
 
-# 7c — 4b “full only” series are not registered at all in minimal
-curl -sS http://127.0.0.1:19090/metrics | rg 'conduit_parse_rejected_total|conduit_responses_total' \
-  && echo "UNEXPECTED: full-only metrics present" || echo "OK: no parse/response series"
+# 7c — parse_rejected is full-only; responses_total is present on minimal (coarse rcode)
+curl -sS http://127.0.0.1:19090/metrics | rg 'conduit_parse_rejected_total' \
+  && echo "UNEXPECTED: parse_rejected in minimal" || echo "OK: no parse_rejected series"
+curl -sS http://127.0.0.1:19090/metrics | rg '^conduit_responses_total' \
+  && echo "OK: coarse responses_total on minimal" || echo "UNEXPECTED: missing responses_total"
 
 # 7d — empty packet must not create parse_rejected (metric absent in minimal)
 python3 -c "import socket; socket.socket(socket.AF_INET, socket.SOCK_DGRAM).sendto(b'', ('127.0.0.1', 15353))"
@@ -234,7 +236,7 @@ curl -sS http://127.0.0.1:19090/metrics | rg 'conduit_pool_backends_configured|c
 conduit_queries_total{listener="127.0.0.1:15353",protocol="udp"} 1
 ```
 
-No `qtype=`, `qclass=`, or `ip_family=` on that line. **Not** seeing `conduit_parse_rejected_total` or `conduit_responses_total` anywhere on scrape is also correct (those vectors are not registered unless `profile: full`).
+No `qtype=`, `qclass=`, or `ip_family=` on **`conduit_queries_total`**. **`conduit_responses_total`** *is* present on minimal with coarse `rcode` buckets (`NOERROR`, `NXDOMAIN`, …) and **no** `ip_family` label. **`conduit_parse_rejected_total`** is still absent (full profile only).
 
 **§7b expect:** `conduit_queries_by_pool_total{pool="default",...} 1` (or higher after more queries).
 
@@ -244,7 +246,7 @@ No `qtype=`, `qclass=`, or `ip_family=` on that line. **Not** seeing `conduit_pa
 curl -sS http://127.0.0.1:19090/metrics | rg '^conduit_queries_total'
 ```
 
-You should now see `qtype="A"`, `qclass="IN"`, `ip_family="v4"` on the same counter, plus `conduit_responses_total` and (after an empty UDP packet) `conduit_parse_rejected_total`.
+You should now see `qtype="A"`, `qclass="IN"`, `ip_family="v4"` on **`conduit_queries_total`**, fine `rcode` + `ip_family` on **`conduit_responses_total`**, and (after an empty UDP packet) **`conduit_parse_rejected_total`**.
 
 ---
 

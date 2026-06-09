@@ -25,7 +25,7 @@ Every extension mechanism — built-in [rules](/policy-routing/rules-and-actions
 
 | Hook | Phase | What policy can change |
 |------|-------|------------------------|
-| **Request** | [Request rules](/concepts/architecture-and-packet-path.md#request-rules) | [Pool](/glossary/index.md#pool) choice, [tags](/glossary/index.md#tags), **drop**, source overrides — before [Route](/concepts/architecture-and-packet-path.md#route) |
+| **Request** | [Request rules](/concepts/architecture-and-packet-path.md#request-rules) | [Pool](/glossary/index.md#pool) choice, [tags](/glossary/index.md#tags), **drop**, egress source overrides (`set_source_v4` / `set_source_v6` or [Rhai](/rhai/index.md)) — before [Route](/concepts/architecture-and-packet-path.md#route) |
 | **Response** | [Response rules](/concepts/architecture-and-packet-path.md#response-rules) | Accept or **drop**, [retry](/glossary/index.md#retry) pool, response metadata — after upstream answer or timeout |
 
 On each hook Conduit evaluates [rules](/policy-routing/rules-and-actions.md) in **first-match** order: the first rule whose [selectors](/glossary/index.md#selector) match wins. A matching rule can run built-in [actions](/glossary/index.md#action), a **`rhai`** action (path to a script file), or both — built-in [actions](/glossary/index.md#action) on that rule first, then the linked [Rhai](/rhai/index.md) script when present.
@@ -53,7 +53,9 @@ For the full path from client to upstream and back, see [Architecture and packet
 
 Built-in [rules](/policy-routing/rules-and-actions.md) are the usual way to steer traffic without scripting. You declare [selectors](/glossary/index.md#selector) (what queries match) and [actions](/glossary/index.md#action) (what Conduit does) under `rules:` in your config file.
 
-Typical [actions](/glossary/index.md#action) include `set_pool`, `set_tag`, `drop`, `retry_pool`, and `set_rcode`. They load with the rest of your config when you **SIGHUP**, `conduitctl reload`, or `conduitctl apply` — no separate compile step beyond snapshot validation.
+Typical [actions](/glossary/index.md#action) include `set_pool`, `set_tag`, `set_source_v4`, `set_source_v6`, `drop`, `retry_pool`, and `set_rcode`. They load with the rest of your config when you **SIGHUP**, `conduitctl reload`, or `conduitctl apply` — no separate compile step beyond snapshot validation.
+
+When a rule sets both pool and egress source, list **`set_pool` before `set_source_v4` / `set_source_v6`**. See [Rules and actions — Action order](/policy-routing/rules-and-actions.md#action-order-on-one-rule).
 
 Syntax, hook names, and the full action list: [Rules and actions](/policy-routing/rules-and-actions.md).
 
@@ -61,7 +63,9 @@ Syntax, hook names, and the full action list: [Rules and actions](/policy-routin
 
 [Rhai](/glossary/index.md#rhai) is Conduit’s scripting option in **current releases**. You keep `.rhai` files on disk (or ship them with your config tree), point `rhai` actions at those paths, and Conduit loads and checks scripts when it builds a [runtime snapshot](/glossary/index.md#runtime-snapshot).
 
-On a matching rule at [Request rules](/concepts/architecture-and-packet-path.md#request-rules) or [Response rules](/concepts/architecture-and-packet-path.md#response-rules), the script sees a sandboxed view of the [transaction](/glossary/index.md#transaction) — query name, [tags](/glossary/index.md#tags), response code, and related fields — and can refine [pool](/glossary/index.md#pool) choice, set [tags](/glossary/index.md#tags), **drop** the query, or request a [retry](/glossary/index.md#retry), within [sandbox limits](/rhai/sandbox-limits.md) (`max_operations`, `max_call_depth`, `hook_timeout_ms` on the `rhai:` block).
+On a matching rule at [Request rules](/concepts/architecture-and-packet-path.md#request-rules) or [Response rules](/concepts/architecture-and-packet-path.md#response-rules), the script sees a sandboxed view of the [transaction](/glossary/index.md#transaction) — query name, [tags](/glossary/index.md#tags), response code, and related fields — and can refine [pool](/glossary/index.md#pool) choice, set [tags](/glossary/index.md#tags), pin egress source (`set_source_v4` / `set_source_v6`, request hook only), **drop** the query, or request a [retry](/glossary/index.md#retry), within [sandbox limits](/rhai/sandbox-limits.md) (`max_operations`, `max_call_depth`, `hook_timeout_ms` on the `rhai:` block).
+
+Built-in **`set_source_v4`** / **`set_source_v6`** [actions](/glossary/index.md#action) use the same override fields and forward-time allowed-set behavior as Rhai — see [Dual-stack forwarding](/guides/dual-stack-forwarding.md#choosing-an-egress-source).
 
 Changing a script file has no effect on live queries until you reload or apply and Conduit accepts the new snapshot. Queries already running finish on the scripts they started with.
 

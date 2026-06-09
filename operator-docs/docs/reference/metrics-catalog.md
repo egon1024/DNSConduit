@@ -56,7 +56,7 @@ Use **`full`** for day-two operations, SLO dashboards, and debugging upstream or
 | [`conduit_queries_total`](#conduit_queries_total) | `listener`, `protocol` | + `qtype`, `qclass`, `ip_family` | — |
 | [`conduit_queries_by_pool_total`](#conduit_queries_by_pool_total) | yes (`pool`) | yes | — |
 | [`conduit_parse_rejected_total`](#conduit_parse_rejected_total) | no | yes (`reason`) | — |
-| [`conduit_responses_total`](#conduit_responses_total) | no | yes | — |
+| [`conduit_responses_total`](#conduit_responses_total) | yes (`listener`, `protocol`, coarse `rcode`) | yes (+ fine `rcode`, `ip_family`) | — |
 | Phase / forward / retry histograms & counters below | no | yes | — |
 | [`conduit_forward_outstanding`](#conduit_forward_outstanding) | — | — | yes |
 | [`conduit_pool_backends_configured`](#conduit_pool_backends_configured) | — | — | yes |
@@ -178,11 +178,18 @@ Bucket upper bounds (seconds): 1 ms, 10 ms, 50 ms, 100 ms, 500 ms, 1 s, 5 s, 10 
 | | |
 |--|--|
 | **Type** | Counter |
-| **Labels** | `listener`, `protocol`, `rcode_class`, `ip_family` |
-| **Profile** | `full` only |
+| **Labels (`minimal`)** | `listener`, `protocol`, `rcode` |
+| **Labels (`full`)** | above + `ip_family` (`v4` / `v6`) |
 | **When** | [Send](/concepts/architecture-and-packet-path.md#send) completes — upstream answer or synthesized error |
 
-`rcode_class`: `NOERROR`, `NXDOMAIN`, `SERVFAIL`, `OTHER` (and related groupings from the response code).
+Both profiles use the label name **`rcode`**, but bucketing differs:
+
+| Profile | `rcode` values |
+|---------|----------------|
+| **`minimal`** | Coarse buckets: `NOERROR`, `NXDOMAIN`, `SERVFAIL`, `REFUSED`, `OTHER` (uncommon IANA codes roll into `OTHER`) |
+| **`full`** | Per-IANA names for codes 0–23 (for example `FORMERR`, `NOTAUTH`, `BADCOOKIE`); unknown codes → `OTHER` |
+
+**Breaking change (full profile):** earlier releases used the label name `rcode_class` with coarse buckets only. PromQL that grouped on `rcode_class` must use `rcode` instead; full-profile dashboards can now split on individual IANA codes.
 
 ### Policy drops (no built-in counter) { #policy-drops-no-built-in-counter }
 
@@ -321,7 +328,8 @@ Scripts can call `metric_inc` / `metric_inc_labels` from [Rhai](/rhai/index.md) 
 sum(rate(conduit_queries_total[5m])) by (listener, protocol)
 sum(rate(conduit_queries_by_pool_total[5m])) by (pool)
 sum(rate(conduit_parse_rejected_total[5m])) by (reason)
-sum(rate(conduit_responses_total[5m])) by (rcode_class)
+sum(rate(conduit_responses_total[5m])) by (rcode)
+sum(rate(conduit_responses_total[5m])) by (rcode, ip_family)   # full profile only
 sum(rate(conduit_forward_errors_total[5m])) by (pool, reason)
 histogram_quantile(0.99, sum(rate(conduit_forward_duration_seconds_bucket[5m])) by (le, pool))
 conduit_config_generation
