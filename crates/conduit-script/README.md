@@ -20,8 +20,8 @@ Rhai scripting for DNS Conduit: compile scripts at snapshot build, run at Reques
 | `set_pool(name)` | request | |
 | `set_rd(bool)` | request | upstream RD bit override |
 | `clear_rd()` | request | alias for `set_rd(false)` |
-| `set_source_v4(addr)` | request | IPv4 egress; must be in configured `sources_v4` for pool |
-| `set_source_v6(addr)` | request | IPv6 egress; must be in configured `sources_v6` for pool |
+| `set_source_v4(addr)` | request | Same as declarative `set_source_v4` [action](/policy-routing/rules-and-actions.md); must be in configured `sources_v4` for pool |
+| `set_source_v6(addr)` | request | Same as declarative `set_source_v6` [action](/policy-routing/rules-and-actions.md); must be in configured `sources_v6` for pool |
 | `set_retry_pool(name)` | response | sets retry pool |
 | `drop_query()` | request | terminate without forward |
 | `set_rcode(name)` | response | |

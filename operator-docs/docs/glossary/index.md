@@ -104,7 +104,7 @@ Condition on a [rule](/policy-routing/rules-and-actions.md) that tests query or 
 
 ### Action
 
-Built-in effect on a matching [rule](/policy-routing/rules-and-actions.md) (for example `set_pool`, `set_tag`, `drop`, `retry_pool`, `rhai`) — applied before optional [Rhai](/glossary/index.md#rhai) on the same rule.
+Built-in effect on a matching [rule](/policy-routing/rules-and-actions.md) (for example `set_pool`, `set_tag`, `set_source_v4`, `set_source_v6`, `drop`, `retry_pool`, `rhai`) — applied before optional [Rhai](/glossary/index.md#rhai) on the same rule.
 
 → [Rules and actions](/policy-routing/rules-and-actions.md)
 
