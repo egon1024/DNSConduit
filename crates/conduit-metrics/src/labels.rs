@@ -35,13 +35,39 @@ pub fn qclass_label(qclass: u16) -> String {
     }
 }
 
+/// Coarse response-code bucket for `metrics.profile: minimal`.
 pub fn rcode_class_label(rcode: Option<u16>) -> &'static str {
     match rcode {
         Some(0) => "NOERROR",
         Some(3) => "NXDOMAIN",
         Some(2) => "SERVFAIL",
         Some(5) => "REFUSED",
-        Some(1) => "OTHER",
+        _ => "OTHER",
+    }
+}
+
+/// Per-IANA response code name for `metrics.profile: full` (0–23); unknown → `OTHER`.
+pub fn rcode_label(rcode: Option<u16>) -> &'static str {
+    match rcode {
+        Some(0) => "NOERROR",
+        Some(1) => "FORMERR",
+        Some(2) => "SERVFAIL",
+        Some(3) => "NXDOMAIN",
+        Some(4) => "NOTIMP",
+        Some(5) => "REFUSED",
+        Some(6) => "YXDOMAIN",
+        Some(7) => "YXRRSET",
+        Some(8) => "NXRRSET",
+        Some(9) => "NOTAUTH",
+        Some(10) => "NOTZONE",
+        Some(16) => "BADSIG",
+        Some(17) => "BADKEY",
+        Some(18) => "BADTIME",
+        Some(19) => "BADMODE",
+        Some(20) => "BADNAME",
+        Some(21) => "BADALG",
+        Some(22) => "BADTRUNC",
+        Some(23) => "BADCOOKIE",
         _ => "OTHER",
     }
 }
@@ -53,5 +79,22 @@ mod tests {
     #[test]
     fn qtype_label_maps_a() {
         assert_eq!(qtype_label(1), "A");
+    }
+
+    #[test]
+    fn rcode_class_groups_uncommon_codes() {
+        assert_eq!(rcode_class_label(Some(1)), "OTHER");
+        assert_eq!(rcode_class_label(Some(9)), "OTHER");
+        assert_eq!(rcode_class_label(Some(0)), "NOERROR");
+        assert_eq!(rcode_class_label(Some(5)), "REFUSED");
+    }
+
+    #[test]
+    fn rcode_label_maps_iana_codes() {
+        assert_eq!(rcode_label(Some(1)), "FORMERR");
+        assert_eq!(rcode_label(Some(9)), "NOTAUTH");
+        assert_eq!(rcode_label(Some(23)), "BADCOOKIE");
+        assert_eq!(rcode_label(Some(11)), "OTHER");
+        assert_eq!(rcode_label(None), "OTHER");
     }
 }

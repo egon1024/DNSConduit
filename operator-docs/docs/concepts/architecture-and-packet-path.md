@@ -101,15 +101,14 @@ Every query walks the same [pipeline phases](/concepts/architecture-and-packet-p
 
 Default happy path (single attempt, no early drop):
 
-```mermaid
-flowchart LR
-  Parse --> RequestRules
-  RequestRules --> Route
-  Route --> Forward
-  Forward --> WaitResponse
-  WaitResponse --> ResponseRules
-  ResponseRules --> Send
-```
+1. [Receive](/concepts/architecture-and-packet-path.md#receive)
+2. [Parse](/concepts/architecture-and-packet-path.md#parse)
+3. [Request rules](/concepts/architecture-and-packet-path.md#request-rules)
+4. [Route](/concepts/architecture-and-packet-path.md#route)
+5. [Forward](/concepts/architecture-and-packet-path.md#forward)
+6. [Wait for response](/concepts/architecture-and-packet-path.md#wait-for-response)
+7. [Response rules](/concepts/architecture-and-packet-path.md#response-rules)
+8. [Send](/concepts/architecture-and-packet-path.md#send)
 
 [Response rules](/concepts/architecture-and-packet-path.md#response-rules) may send the pipeline back to [Route](/concepts/architecture-and-packet-path.md#route) (and then [Forward](/concepts/architecture-and-packet-path.md#forward) again) when a retry is requested and attempt limits allow it — the pipeline is **not** a strict one-pass pipe.
 
@@ -266,5 +265,5 @@ For reload, in-flight queries, and validation failures, see [Runtime snapshot](#
 - [Configuration model](/control-plane/configuration-model.md) — snapshots and effective config
 - [Observability](/observability/index.md) — metrics, tracing, event export, logging
 - [Metrics catalog](/reference/metrics-catalog.md) — built-in Prometheus series and pipeline mapping
-- [Extensibility](/concepts/extensibility.md) — Rhai and future plugin tiers
+- [Extensibility](/concepts/extensibility.md) — built-in rules and plugin models ([Rhai](/glossary/index.md#rhai), [WASM](/glossary/index.md#wasm), [sidecar](/glossary/index.md#sidecar))
 - [Glossary](/glossary/index.md) — [dataplane](/glossary/index.md#dataplane), [transaction](/glossary/index.md#transaction), [runtime snapshot](/glossary/index.md#runtime-snapshot), [tags](/glossary/index.md#tags)
