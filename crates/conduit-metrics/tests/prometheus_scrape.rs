@@ -208,6 +208,29 @@ fn parse_rejected_metric_after_drop() {
 }
 
 #[test]
+fn minimal_profile_includes_coarse_responses_total() {
+    let yaml = include_str!("../../../tests/fixtures/config/with-metrics-prometheus-minimal.yaml");
+    let cfg = load_yaml(yaml).unwrap();
+    let hub = Arc::new(MetricsHub::from_config(&cfg));
+    assert_eq!(hub.builtin.profile(), conduit_metrics::BuiltinProfile::Minimal);
+    let snap = Arc::new(RuntimeSnapshot::from_config(cfg));
+    let orch = orchestrator_with_mock_forward(hub.clone());
+
+    let mut txn = Transaction::new(22, "127.0.0.1:15353".parse().unwrap(), ClientProtocol::Udp)
+        .with_listener_label("127.0.0.1:15353")
+        .with_query_wire(sample_query());
+    let _ = orch.run(&mut txn, &snap, &SystemClock, None);
+
+    let body = render_prometheus(hub.as_ref(), &[]);
+    assert!(body.contains("conduit_responses_total"), "body:\n{body}");
+    assert!(body.contains(r#"rcode="NOERROR""#), "body:\n{body}");
+    assert!(
+        !body.contains("conduit_parse_rejected_total"),
+        "parse_rejected remains full-only, body:\n{body}"
+    );
+}
+
+#[test]
 fn full_profile_includes_qtype_on_queries() {
     let yaml = include_str!("../../../tests/fixtures/config/with-metrics-prometheus.yaml");
     let cfg = load_yaml(yaml).unwrap();

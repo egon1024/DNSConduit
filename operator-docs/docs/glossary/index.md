@@ -98,35 +98,35 @@ Configured upstream destination Conduit forwards DNS queries to; settings contro
 
 ### Selector
 
-<!-- one-line definition -->
+Condition on a [rule](/policy-routing/rules-and-actions.md) that tests query or response fields (for example query name, type, response code, or [tag](/glossary/index.md#tags) presence). Conduit evaluates rules in first-match order on each hook.
 
-→ [Rules and actions](../policy-routing/rules-and-actions.md)
+→ [Rules and actions](/policy-routing/rules-and-actions.md)
 
 ### Action
 
-<!-- one-line definition -->
+Built-in effect on a matching [rule](/policy-routing/rules-and-actions.md) (for example `set_pool`, `set_tag`, `drop`, `retry_pool`, `rhai`) — applied before optional [Rhai](/glossary/index.md#rhai) on the same rule.
 
-→ [Rules and actions](../policy-routing/rules-and-actions.md)
+→ [Rules and actions](/policy-routing/rules-and-actions.md)
 
 ## Extensibility
 
 ### Rhai
 
-<!-- one-line definition -->
+Scripting plugin model in current releases: `.rhai` files referenced from `rhai` [actions](/glossary/index.md#action) on [rules](/policy-routing/rules-and-actions.md), loaded into the [runtime snapshot](/glossary/index.md#runtime-snapshot) on reload or apply, run at [Request rules](/concepts/architecture-and-packet-path.md#request-rules) and [Response rules](/concepts/architecture-and-packet-path.md#response-rules) within [sandbox limits](/rhai/sandbox-limits.md).
 
-→ [Rhai](../rhai/index.md)
+→ [Rhai](/rhai/index.md), [Extensibility](/concepts/extensibility.md)
 
 ### WASM
 
-<!-- one-line definition -->
+Planned in-process plugin model: compiled `.wasm` plugins on the same request/response hooks as [Rhai](/glossary/index.md#rhai). **Not available** in current releases.
 
-→ [Extensibility](../concepts/extensibility.md)
+→ [Extensibility](/concepts/extensibility.md)
 
 ### Sidecar
 
-<!-- one-line definition -->
+Planned sidecar plugin model: separate processes Conduit calls on the same logical hooks as [Rhai](/glossary/index.md#rhai) and [WASM](/glossary/index.md#wasm). **Not available** in current releases.
 
-→ [Extensibility](../concepts/extensibility.md)
+→ [Extensibility](/concepts/extensibility.md)
 
 ## Control and operations
 

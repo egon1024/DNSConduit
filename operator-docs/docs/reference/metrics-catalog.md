@@ -4,11 +4,54 @@ Reference for **built-in** Prometheus series exported by Conduit. For enabling s
 
 Built-in labels never include `qname`, client IP, or transaction id — use [event export](/observability/event-export.md) or [tracing](/observability/tracing.md) for per-name detail.
 
-## Profiles
+## Profiles { #profiles }
 
-When the `metrics` section is **omitted** from config, export is disabled (no scrape listener, no hot-path increments).
+### Enabling export
 
-| Series | Hot path `minimal` | Hot path `full` | Scrape only |
+When the `metrics` section is **omitted** from config, export is disabled — no scrape listener, no hot-path increments, no built-in series.
+
+To enable built-ins, add a `metrics:` block with `enabled: true` and configure at least one export path (Prometheus scrape and/or OTEL push). Example:
+
+```yaml
+metrics:
+  enabled: true
+  profile: full          # or minimal
+  prometheus:
+    listen_address: "127.0.0.1:9090"
+    path: /metrics
+```
+
+| Setting {: .column-no-wrap } | Meaning |
+|---------|---------|
+| `metrics.enabled` | Must be `true` for any built-in export or hot-path recording |
+| `metrics.profile` | `minimal` or `full` (default **`full`** when the block is present). `off` disables export even if `enabled` is true |
+| `metrics.prometheus` | Optional HTTP scrape listener (`listen_address`, `path`) |
+| `metrics.otel` | Optional OTLP HTTP push (`endpoint`, `push_interval_ms`) |
+
+`minimal` and `full` control **what** Conduit records, not **how** you export it. Prometheus scrape, OTEL push, and both together all expose the same built-in series for the profile you chose. See [Metrics](/observability/metrics.md) and [Operator metrics profiles](/guides/operator-metrics-profiles.md).
+
+### `minimal` vs `full` (hot path)
+
+Both profiles record metrics **while handling queries** on listener workers (the **hot path**). The difference is **how much** is recorded and **how many label dimensions** are kept — a cardinality and overhead trade-off.
+
+**`minimal`** — low-cardinality volume counters only:
+
+- [`conduit_queries_total`](#conduit_queries_total) with `listener` and `protocol` only
+- [`conduit_queries_by_pool_total`](#conduit_queries_by_pool_total) per `pool`
+
+Use **`minimal`** when you want query volume and pool mix without per-qtype detail, parse-failure breakdown, response codes, forward latency, or per-phase histograms on the hot path.
+
+**`full`** — complete built-in observability on the hot path:
+
+- Richer [`conduit_queries_total`](#conduit_queries_total) labels (`qtype`, `qclass`, `ip_family`)
+- Parse failures, client responses, phase timings, forward attempts/errors/RTT, and retries (see table below)
+- Linux process gauges ([`conduit_process_resident_bytes`](#conduit_process_resident_bytes), [`conduit_process_open_fds`](#conduit_process_open_fds)) at scrape time
+
+Use **`full`** for day-two operations, SLO dashboards, and debugging upstream or pipeline behavior. Built-in labels still never include `qname`, client IP, or transaction id at either profile.
+
+**Scrape-time** series ([Scrape-time gauges](#scrape-time-gauges)) are largely the same for both profiles; only the process gauges require **`full`**.
+
+| Series | Hot path `minimal` | Hot path `full` | [Scrape-time](#scrape-time-gauges) only |
 |--------|-------------------|-----------------|-------------|
 | [`conduit_queries_total`](#conduit_queries_total) | `listener`, `protocol` | + `qtype`, `qclass`, `ip_family` | — |
 | [`conduit_queries_by_pool_total`](#conduit_queries_by_pool_total) | yes (`pool`) | yes | — |
@@ -19,6 +62,8 @@ When the `metrics` section is **omitted** from config, export is disabled (no sc
 | [`conduit_pool_backends_configured`](#conduit_pool_backends_configured) | — | — | yes |
 | [`conduit_build_info`](#conduit_build_info), [`conduit_start_time_seconds`](#conduit_start_time_seconds), [`conduit_config_generation`](#conduit_config_generation) | — | — | yes |
 | [`conduit_process_resident_bytes`](#conduit_process_resident_bytes), [`conduit_process_open_fds`](#conduit_process_open_fds) | — | — | yes (`full` only, Linux `/proc`) |
+
+**Hot path** — incremented while handling queries on listener workers. **Scrape-time only** — refreshed when metrics are exported (Prometheus scrape or OTEL push), not on the hot path; see [Scrape-time gauges](#scrape-time-gauges). A dash (—) means the series is not updated in that mode.
 
 Config schema: [Metrics and tracing](/reference/config-schema/metrics-and-tracing.md).
 
@@ -145,9 +190,9 @@ Bucket upper bounds (seconds): 1 ms, 10 ms, 50 ms, 100 ms, 500 ms, 1 s, 5 s, 10 
 
 ---
 
-## Scrape-time gauges
+## Scrape-time gauges { #scrape-time-gauges }
 
-Updated when Prometheus (or OTEL) scrapes — not incremented on listener workers.
+Series marked **Scrape-time only** in the [profile table](#profiles) above. Values are refreshed when metrics are exported (Prometheus scrape or OTEL push), not incremented on listener workers during queries.
 
 ### conduit_forward_outstanding { #conduit_forward_outstanding }
 

@@ -1,7 +1,7 @@
 //! Built-in Prometheus metrics (design §7.1).
 
 use crate::compile::BuiltinProfile;
-use crate::labels::{ip_family_label, qclass_label, qtype_label, rcode_class_label};
+use crate::labels::{ip_family_label, qclass_label, qtype_label, rcode_class_label, rcode_label};
 use parking_lot::RwLock;
 use prometheus::{
     Encoder, Gauge, GaugeVec, HistogramOpts, HistogramVec, IntCounterVec, IntGauge, Opts, Registry,
@@ -35,12 +35,17 @@ enum QueriesTotal {
     Full(IntCounterVec),
 }
 
+enum ResponsesTotal {
+    Minimal(IntCounterVec),
+    Full(IntCounterVec),
+}
+
 pub struct BuiltinRegistry {
     enabled: bool,
     profile: BuiltinProfile,
     registry: Registry,
     queries_total: QueriesTotal,
-    responses_total: Option<IntCounterVec>,
+    responses_total: Option<ResponsesTotal>,
     parse_rejected_total: Option<IntCounterVec>,
     queries_by_pool_total: IntCounterVec,
     phase_duration: HistogramVec,
@@ -84,14 +89,24 @@ impl BuiltinRegistry {
             QueriesTotal::Minimal(v)
         };
 
-        let responses_total = if effective && is_full {
-            let v = IntCounterVec::new(
-                Opts::new("conduit_responses_total", "DNS responses sent to clients"),
-                &["listener", "protocol", "rcode_class", "ip_family"],
-            )
-            .expect("metric");
-            registry.register(Box::new(v.clone())).expect("register");
-            Some(v)
+        let responses_total = if effective {
+            if is_full {
+                let v = IntCounterVec::new(
+                    Opts::new("conduit_responses_total", "DNS responses sent to clients"),
+                    &["listener", "protocol", "rcode", "ip_family"],
+                )
+                .expect("metric");
+                registry.register(Box::new(v.clone())).expect("register");
+                Some(ResponsesTotal::Full(v))
+            } else {
+                let v = IntCounterVec::new(
+                    Opts::new("conduit_responses_total", "DNS responses sent to clients"),
+                    &["listener", "protocol", "rcode"],
+                )
+                .expect("metric");
+                registry.register(Box::new(v.clone())).expect("register");
+                Some(ResponsesTotal::Minimal(v))
+            }
         } else {
             None
         };
@@ -336,11 +351,19 @@ impl BuiltinRegistry {
         if !self.enabled {
             return;
         }
-        if let Some(ref c) = self.responses_total {
-            let rcode_class = rcode_class_label(rcode);
-            let ip_family = ip_family_label(client_addr);
-            c.with_label_values(&[listener, protocol, rcode_class, ip_family])
-                .inc();
+        if let Some(ref responses) = self.responses_total {
+            match responses {
+                ResponsesTotal::Minimal(c) => {
+                    let rcode = rcode_class_label(rcode);
+                    c.with_label_values(&[listener, protocol, rcode]).inc();
+                }
+                ResponsesTotal::Full(c) => {
+                    let rcode = rcode_label(rcode);
+                    let ip_family = ip_family_label(client_addr);
+                    c.with_label_values(&[listener, protocol, rcode, ip_family])
+                        .inc();
+                }
+            }
         }
     }
 
@@ -439,7 +462,7 @@ impl BuiltinRegistry {
             "backend",
             "outcome",
             "reason",
-            "rcode_class",
+            "rcode",
             "phase",
         ]
     }
@@ -561,6 +584,45 @@ mod tests {
         assert!(body.contains("conduit_build_info"));
         assert!(body.contains("conduit_start_time_seconds"));
         assert!(body.contains("conduit_config_generation"));
+    }
+
+    #[test]
+    fn minimal_profile_responses_use_coarse_rcode_buckets() {
+        let reg = BuiltinRegistry::new(true, BuiltinProfile::Minimal);
+        let addr: std::net::SocketAddr = "127.0.0.1:15353".parse().unwrap();
+        reg.record_response("ln", "udp", Some(9), &addr);
+        reg.record_response("ln", "udp", Some(0), &addr);
+        let body = encode_builtin(reg.gather());
+        assert!(body.contains("conduit_responses_total"), "body:\n{body}");
+        assert!(
+            body.contains(r#"rcode="OTHER""#),
+            "NOTAUTH should bucket to OTHER on minimal, body:\n{body}"
+        );
+        assert!(body.contains(r#"rcode="NOERROR""#), "body:\n{body}");
+        assert!(
+            !body.contains("ip_family="),
+            "minimal responses omit ip_family, body:\n{body}"
+        );
+    }
+
+    #[test]
+    fn full_profile_responses_use_per_rcode_labels() {
+        let reg = BuiltinRegistry::new(true, BuiltinProfile::Full);
+        let addr: std::net::SocketAddr = "127.0.0.1:15353".parse().unwrap();
+        reg.record_response("ln", "udp", Some(9), &addr);
+        let body = encode_builtin(reg.gather());
+        assert!(
+            body.contains(r#"rcode="NOTAUTH""#),
+            "full profile should expose NOTAUTH, body:\n{body}"
+        );
+        assert!(
+            body.contains(r#"ip_family="v4""#),
+            "full responses include ip_family, body:\n{body}"
+        );
+        assert!(
+            !body.contains(r#"rcode_class="#),
+            "label renamed to rcode, body:\n{body}"
+        );
     }
 
     #[test]
