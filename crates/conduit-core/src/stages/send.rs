@@ -88,6 +88,45 @@ mod tests {
     }
 
     #[test]
+    fn error_response_parses_query_after_compressed_upstream_response_roundtrip() {
+        use hickory_proto::op::{MessageType, ResponseCode};
+        use hickory_proto::rr::rdata::A;
+        use hickory_proto::rr::{RData, Record};
+
+        let name = Name::from_utf8("www.example.com.").unwrap();
+        let mut upstream = Message::new();
+        upstream.set_id(0x00_42);
+        upstream.set_message_type(MessageType::Response);
+        upstream.set_response_code(ResponseCode::NoError);
+        upstream.add_query(Query::query(name.clone(), RecordType::A));
+        upstream.add_answer(Record::from_rdata(
+            name.clone(),
+            60,
+            RData::A(A::new(1, 2, 3, 4)),
+        ));
+        let mut upstream_wire = Vec::new();
+        let mut enc = BinEncoder::new(&mut upstream_wire);
+        upstream.emit(&mut enc).unwrap();
+        assert!(upstream_wire.windows(2).any(|w| w[0] & 0xC0 == 0xC0));
+
+        let mut client_query = Message::new();
+        client_query.set_id(0x00_42);
+        client_query.add_query(Query::query(name, RecordType::A));
+        let mut query_wire = Vec::new();
+        let mut qenc = BinEncoder::new(&mut query_wire);
+        client_query.emit(&mut qenc).unwrap();
+
+        let _ = Message::from_vec(&upstream_wire).expect("compressed response parses");
+        let wire = build_error_response(0x00_42, 5, &query_wire, None);
+        let parsed = Message::from_vec(&wire).unwrap();
+        assert_eq!(
+            parsed.queries().first().unwrap().name().to_utf8(),
+            "www.example.com."
+        );
+        assert_eq!(parsed.response_code(), ResponseCode::Refused);
+    }
+
+    #[test]
     fn error_response_respects_512_without_edns() {
         let wire = build_error_response(42, 2, &example_query(), None);
         assert!(wire.len() <= 512);

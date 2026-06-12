@@ -85,3 +85,69 @@ fn format_opcode(op: OpCode) -> String {
 fn format_records(records: &[Record]) -> Vec<String> {
     records.iter().map(|r| r.to_string()).collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::parse_dns_wire;
+    use hickory_proto::op::{Message, MessageType, Query, ResponseCode};
+    use hickory_proto::rr::rdata::A;
+    use hickory_proto::rr::{Name, RData, Record, RecordType};
+    use hickory_proto::serialize::binary::{BinEncodable, BinEncoder};
+
+    fn response_with_compressed_answer() -> Vec<u8> {
+        let name = Name::from_utf8("www.example.com.").unwrap();
+        let mut msg = Message::new();
+        msg.set_id(0x10_00);
+        msg.set_message_type(MessageType::Response);
+        msg.set_response_code(ResponseCode::NoError);
+        msg.add_query(Query::query(name.clone(), RecordType::A));
+        msg.add_answer(Record::from_rdata(
+            name,
+            300,
+            RData::A(A::new(93, 184, 215, 14)),
+        ));
+        let mut buf = Vec::new();
+        let mut enc = BinEncoder::new(&mut buf);
+        msg.emit(&mut enc).unwrap();
+        assert!(buf.windows(2).any(|w| w[0] & 0xC0 == 0xC0));
+        buf
+    }
+
+    #[test]
+    fn parse_dns_wire_decompresses_question_from_compressed_response() {
+        let detail = parse_dns_wire(&response_with_compressed_answer()).expect("must parse");
+        let q = detail.question.expect("question present");
+        assert_eq!(q.name, "www.example.com.");
+        assert_eq!(q.qtype, "A");
+        assert_eq!(detail.answers.len(), 1);
+        assert!(detail.answers[0].contains("93.184.215.14"));
+    }
+
+    #[test]
+    fn parse_dns_wire_handles_hickory_regression_fixture() {
+        #[rustfmt::skip]
+        let wire: Vec<u8> = vec![
+            0x10, 0x00, 0x81, 0x80,
+            0x00, 0x01, 0x00, 0x01,
+            0x00, 0x00, 0x00, 0x00,
+            0x03, b'w', b'w', b'w',
+            0x07, b'e', b'x', b'a',
+            b'm', b'p', b'l', b'e',
+            0x03, b'c', b'o', b'm',
+            0x00,
+            0x00, 0x01, 0x00, 0x01,
+            0xC0, 0x0C,
+            0x00, 0x01, 0x00, 0x01,
+            0x00, 0x00, 0x00, 0x02,
+            0x00, 0x04,
+            0x5D, 0xB8, 0xD7, 0x0E,
+        ];
+        let detail = parse_dns_wire(&wire).expect("fixed bytes must parse");
+        assert_eq!(detail.header.id, 4096);
+        assert_eq!(
+            detail.question.as_ref().map(|q| q.name.as_str()),
+            Some("www.example.com.")
+        );
+        assert_eq!(detail.answers.len(), 1);
+    }
+}
