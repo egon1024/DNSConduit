@@ -212,7 +212,10 @@ fn minimal_profile_includes_coarse_responses_total() {
     let yaml = include_str!("../../../tests/fixtures/config/with-metrics-prometheus-minimal.yaml");
     let cfg = load_yaml(yaml).unwrap();
     let hub = Arc::new(MetricsHub::from_config(&cfg));
-    assert_eq!(hub.builtin.profile(), conduit_metrics::BuiltinProfile::Minimal);
+    assert_eq!(
+        hub.builtin.profile(),
+        conduit_metrics::BuiltinProfile::Minimal
+    );
     let snap = Arc::new(RuntimeSnapshot::from_config(cfg));
     let orch = orchestrator_with_mock_forward(hub.clone());
 

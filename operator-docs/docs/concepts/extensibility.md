@@ -53,7 +53,7 @@ For the full path from client to upstream and back, see [Architecture and packet
 
 Built-in [rules](/policy-routing/rules-and-actions.md) are the usual way to steer traffic without scripting. You declare [selectors](/glossary/index.md#selector) (what queries match) and [actions](/glossary/index.md#action) (what Conduit does) under `rules:` in your config file.
 
-Typical [actions](/glossary/index.md#action) include `set_pool`, `set_tag`, `set_source_v4`, `set_source_v6`, `drop`, `retry_pool`, and `set_rcode`. They load with the rest of your config when you **SIGHUP**, `conduitctl reload`, or `conduitctl apply` — no separate compile step beyond snapshot validation.
+Typical [actions](/glossary/index.md#action) include `set_pool`, `set_tag`, `set_source_v4`, `set_source_v6`, `drop`, `retry`, `retry_pool`, and `set_rcode`. They load with the rest of your config when you **SIGHUP**, `conduitctl reload`, or `conduitctl apply` — no separate compile step beyond snapshot validation.
 
 When a rule sets both pool and egress source, list **`set_pool` before `set_source_v4` / `set_source_v6`**. See [Rules and actions — Action order](/policy-routing/rules-and-actions.md#action-order-on-one-rule).
 

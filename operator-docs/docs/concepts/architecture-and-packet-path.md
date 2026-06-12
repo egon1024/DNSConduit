@@ -117,10 +117,10 @@ Default happy path (single attempt, no early drop):
 | [Receive](/concepts/architecture-and-packet-path.md#receive) | Listener accepts the DNS message (UDP or TCP) and opens a [transaction](/glossary/index.md#transaction) on the worker. |
 | [Parse](/concepts/architecture-and-packet-path.md#parse) | Valid single-question query only; malformed or unsupported shapes → silent **drop** (no DNS reply). |
 | [Request rules](/concepts/architecture-and-packet-path.md#request-rules) | **First-match** [request rules](/policy-routing/rules-and-actions.md) and request [Rhai](/rhai/index.md) — `set_pool`, `set_source_v4` / `set_source_v6`, tags, or **drop**; no match → default path to [Route](/concepts/architecture-and-packet-path.md#route). |
-| [Route](/concepts/architecture-and-packet-path.md#route) | `retry_pool` → rule pool → `default` / first pool; weighted [backend](/glossary/index.md#backend). Missing pool → **SERVFAIL** → [Send](/concepts/architecture-and-packet-path.md#send). |
+| [Route](/concepts/architecture-and-packet-path.md#route) | One-shot `retry_pool` → `selected_pool` → `default` / first pool; sticky weighted [backend](/glossary/index.md#backend) on first attempt, exclude-tried on [retries](/glossary/index.md#retry). Missing pool or exhausted pool → **SERVFAIL** → [Send](/concepts/architecture-and-packet-path.md#send). |
 | [Forward](/concepts/architecture-and-packet-path.md#forward) | Send upstream (UDP/TCP per `forward.upstream_transport`); `forward.timeout_ms` and source addresses apply. Hard errors → **SERVFAIL** → [Send](/concepts/architecture-and-packet-path.md#send). |
 | [Wait for response](/concepts/architecture-and-packet-path.md#wait-for-response) | Wait for upstream answer or timeout; answer or timeout → [Response rules](/concepts/architecture-and-packet-path.md#response-rules) (retry policy may follow). |
-| [Response rules](/concepts/architecture-and-packet-path.md#response-rules) | **First-match** response rules and Rhai — accept, **drop**, or **retry** via `retry_pool` → [Route](/concepts/architecture-and-packet-path.md#route) ([Retries and transactions](/policy-routing/retries-and-transactions.md)). |
+| [Response rules](/concepts/architecture-and-packet-path.md#response-rules) | **First-match** response rules and Rhai — accept, **drop**, or **retry** (`retry` / `retry_pool`) → [Route](/concepts/architecture-and-packet-path.md#route) ([Retries and transactions](/policy-routing/retries-and-transactions.md)). |
 | [Send](/concepts/architecture-and-packet-path.md#send) | Return stored upstream wire or synthesize error (**SERVFAIL** common); UDP **TC** when truncated. |
 
 ### Receive
@@ -163,9 +163,11 @@ When **no** rule matches, Conduit continues to [Route](/concepts/architecture-an
 2. **`selected_pool`** from [Request rules](/concepts/architecture-and-packet-path.md#request-rules) or scripts
 3. The pool named `default`, or the **first** pool in configuration if there is no `default` pool
 
-Inside the chosen pool, Conduit selects a backend using configured **weights** (see [Pools and backends](/policy-routing/pools-and-backends.md)). Each forward attempt increments the transaction’s attempt counter. When the pipeline continues to [Forward](/concepts/architecture-and-packet-path.md#forward), [`conduit_queries_by_pool_total`](/reference/metrics-catalog.md#conduit_queries_by_pool_total) records the selected pool.
+On the **first** attempt, Conduit selects a [backend](/glossary/index.md#backend) using sticky weighted choice among all members of the pool (see [Pools and backends](/policy-routing/pools-and-backends.md)). On **retries**, Conduit picks among backends in the target pool that were **not** already used for that pool on this [transaction](/glossary/index.md#transaction) — cross-pool retries only exclude backends tried in the **target** pool.
 
-If the pool name does not exist, the pool has no backends, or backend selection fails, Conduit sets **SERVFAIL** on the [transaction](/glossary/index.md#transaction) and skips [Forward](/concepts/architecture-and-packet-path.md#forward) — the query goes straight to [Send](/concepts/architecture-and-packet-path.md#send).
+Each forward attempt increments the transaction’s attempt counter. When the pipeline continues to [Forward](/concepts/architecture-and-packet-path.md#forward), [`conduit_queries_by_pool_total`](/reference/metrics-catalog.md#conduit_queries_by_pool_total) records the selected pool.
+
+If the pool name does not exist, the pool has no backends, every backend in the pool was already tried, or backend selection fails, Conduit sets **SERVFAIL** on the [transaction](/glossary/index.md#transaction) and skips [Forward](/concepts/architecture-and-packet-path.md#forward) — the query goes straight to [Send](/concepts/architecture-and-packet-path.md#send).
 
 ### Forward
 
@@ -193,9 +195,9 @@ In current releases the wait runs on the same worker as [Forward](/concepts/arch
 
 [Response rules](/concepts/architecture-and-packet-path.md#response-rules) run once an upstream wire is available **or** a forward timeout has occurred (still with no stored answer). Like [Request rules](/concepts/architecture-and-packet-path.md#request-rules), evaluation is **first-match** on the response hook, with optional [Rhai](/rhai/index.md) scripts on the matched rule.
 
-Built-in actions can accept the upstream answer, **drop** the query ([no built-in counter](/reference/metrics-catalog.md#policy-drops-no-built-in-counter)), set **`retry_pool`**, or adjust response metadata (for example **`set_rcode`**). A **retry** intent — from a `retry_pool` action or from Rhai — sends the [transaction](/glossary/index.md#transaction) back to [Route](/concepts/architecture-and-packet-path.md#route) for another [Forward](/concepts/architecture-and-packet-path.md#forward) attempt **only when** a retry pool was set; [`conduit_retries_total`](/reference/metrics-catalog.md#conduit_retries_total) increments for that pool. Retry without a pool continues to [Send](/concepts/architecture-and-packet-path.md#send).
+Built-in actions can accept the upstream answer, **drop** the query ([no built-in counter](/reference/metrics-catalog.md#policy-drops-no-built-in-counter)), request **`retry`** (stay in the current [pool](/glossary/index.md#pool)), set **`retry_pool`** (one-shot pool override), or adjust response metadata (for example **`set_rcode`**). **Retry** intent — from **`retry`**, **`retry_pool`**, or [Rhai](/rhai/index.md) — sends the [transaction](/glossary/index.md#transaction) back to [Route](/concepts/architecture-and-packet-path.md#route) for another [Forward](/concepts/architecture-and-packet-path.md#forward) attempt; [`conduit_retries_total`](/reference/metrics-catalog.md#conduit_retries_total) increments for the **target** pool of that attempt (**full** profile only).
 
-Global caps from `orchestrator.max_attempts` (default **3**) and `orchestrator.max_txn_duration_ms` (default **5000** ms) apply before each [Route](/concepts/architecture-and-packet-path.md#route). When a cap is hit, Conduit sets **SERVFAIL** and moves to [Send](/concepts/architecture-and-packet-path.md#send) instead of forwarding again. Details and examples: [Retries and transactions](/policy-routing/retries-and-transactions.md), [Rules and actions](/policy-routing/rules-and-actions.md).
+Global caps from `orchestrator.max_attempts` (default **3**) and `orchestrator.max_txn_duration_ms` (default **5000** ms), plus **pool exhaustion** when no unused [backend](/glossary/index.md#backend) remains in the target pool, apply before each [Route](/concepts/architecture-and-packet-path.md#route). When a limit is hit, Conduit sets **SERVFAIL** and moves to [Send](/concepts/architecture-and-packet-path.md#send) instead of forwarding again. Details and examples: [Retries and transactions](/policy-routing/retries-and-transactions.md), [Rules and actions](/policy-routing/rules-and-actions.md).
 
 ### Send
 
@@ -221,7 +223,7 @@ Tags are not part of the on-disk config file or normal config export. Script and
 
 ## Retries and re-entry
 
-When [Response rules](/concepts/architecture-and-packet-path.md#response-rules) request a [retry](/glossary/index.md#retry), Conduit counts the attempt and re-enters at [Route](/concepts/architecture-and-packet-path.md#route) (possibly with a different [pool](/glossary/index.md#pool) from `retry_pool` or script). Caps from `orchestrator.max_attempts` and `orchestrator.max_txn_duration_ms` stop further attempts and typically yield **SERVFAIL**. Retry transitions increment [`conduit_retries_total`](/reference/metrics-catalog.md#conduit_retries_total) per pool (full profile).
+When [Response rules](/concepts/architecture-and-packet-path.md#response-rules) request a [retry](/glossary/index.md#retry), Conduit counts the attempt and re-enters at [Route](/concepts/architecture-and-packet-path.md#route) — in the current [pool](/glossary/index.md#pool) or a one-shot override from `retry_pool` / script. Retries avoid [backends](/glossary/index.md#backend) already used in the target pool on this [transaction](/glossary/index.md#transaction). Further attempts stop at `orchestrator.max_attempts`, `orchestrator.max_txn_duration_ms`, or when the target pool has no unused backends — typically yielding **SERVFAIL**. Retry transitions increment [`conduit_retries_total`](/reference/metrics-catalog.md#conduit_retries_total) for the target pool (**full** profile).
 
 ```mermaid
 stateDiagram-v2

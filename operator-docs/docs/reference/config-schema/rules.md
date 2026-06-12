@@ -40,7 +40,8 @@ Schema reference for the top-level `rules:` block. Operator-oriented behavior: [
 | `set_tag` | request, response | `key=value` or `key` |
 | `set_source_v4` | **request only** | IPv4 address in configured `sources_v4` union |
 | `set_source_v6` | **request only** | IPv6 address in configured `sources_v6` union |
-| `retry_pool` | response | Pool name for [retry](/glossary/index.md#retry) |
+| `retry` | response | [Retry](/glossary/index.md#retry) in the current [pool](/glossary/index.md#pool) (`value` ignored) |
+| `retry_pool` | response | Pool name — one-shot [retry](/glossary/index.md#retry) target (`value` required) |
 | `set_rcode` | response | RCODE name (for example `SERVFAIL`) |
 | `drop` | request, response | Ignored |
 | `rhai` | request, response | Path to `.rhai` script (non-empty) |

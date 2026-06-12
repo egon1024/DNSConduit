@@ -1,0 +1,50 @@
+schema_version: 1
+listeners:
+  threads: 1
+  reuse_port: false
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+forward:
+  outstanding_per_backend: 100
+  timeout_ms: 2000
+orchestrator:
+  max_attempts: 3
+  max_txn_duration_ms: 5000
+  txn_table_capacity: 1024
+events:
+  queue_depth: 4096
+  drop_policy: drop_oldest
+rhai:
+  max_operations: 10000
+  max_call_depth: 32
+pools:
+  - name: primary
+    backends:
+      - address: "10.0.0.1:53"
+        weight: 100
+      - address: "10.0.0.2:53"
+        weight: 100
+      - address: "10.0.0.3:53"
+        weight: 100
+rules:
+  match_mode: first_match
+  rules:
+    - name: use-primary
+      hook: request
+      selectors:
+        - type: qname_suffix
+          value: ".example."
+      actions:
+        - type: set_pool
+          value: primary
+    - name: servfail-retry-same-pool
+      hook: response
+      selectors:
+        - type: rcode
+          value: SERVFAIL
+      actions:
+        - type: retry
+          value: ""
+control:
+  listen_address: "127.0.0.1:5199"

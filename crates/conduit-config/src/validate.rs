@@ -239,6 +239,7 @@ pub fn validate(cfg: &Config) -> ValidationResult {
                     act.r#type.as_str(),
                     "set_pool"
                         | "set_tag"
+                        | "retry"
                         | "retry_pool"
                         | "drop"
                         | "set_rcode"
@@ -254,6 +255,20 @@ pub fn validate(cfg: &Config) -> ValidationResult {
                 if act.r#type == "rhai" && act.value.is_empty() {
                     errors.push(format!(
                         "rule '{}' rhai action requires script path in value",
+                        rule.name
+                    ));
+                }
+                if matches!(act.r#type.as_str(), "retry" | "retry_pool" | "set_rcode")
+                    && rule.hook != "response"
+                {
+                    errors.push(format!(
+                        "rule '{}' action '{}' is only valid on response hook",
+                        rule.name, act.r#type
+                    ));
+                }
+                if act.r#type == "retry_pool" && act.value.is_empty() {
+                    errors.push(format!(
+                        "rule '{}' retry_pool requires a pool name in value",
                         rule.name
                     ));
                 }

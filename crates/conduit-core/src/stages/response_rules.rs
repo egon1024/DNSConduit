@@ -48,16 +48,12 @@ impl PipelineStage for ResponseRulesStage {
         }
 
         if script_retry || outcome == RuleOutcome::Retry {
-            if txn.retry_pool.is_some() {
-                return StageOutcome::Continue(Phase::Route);
-            }
-            return StageOutcome::Continue(Phase::Send);
+            return StageOutcome::Continue(Phase::Route);
         }
 
         match outcome {
             RuleOutcome::Drop => StageOutcome::Drop,
-            RuleOutcome::Continue => StageOutcome::Continue(Phase::Send),
-            RuleOutcome::Retry => StageOutcome::Continue(Phase::Send),
+            RuleOutcome::Continue | RuleOutcome::Retry => StageOutcome::Continue(Phase::Send),
         }
     }
 }
