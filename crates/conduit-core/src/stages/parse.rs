@@ -169,6 +169,22 @@ mod tests {
     }
 
     #[test]
+    fn parse_rejects_recursive_name_compression_pointer() {
+        let yaml = include_str!("../../../../tests/fixtures/config/minimal.yaml");
+        let cfg = load_yaml(yaml).unwrap();
+        let snap = Arc::new(RuntimeSnapshot::from_config(cfg));
+        // QNAME is a pointer to its own offset (invalid recursive compression).
+        let wire = vec![
+            0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xC0, 0x0C,
+            0x00, 0x01, 0x00, 0x01,
+        ];
+        let mut txn = Transaction::new(1, "127.0.0.1:15353".parse().unwrap(), ClientProtocol::Udp)
+            .with_query_wire(wire);
+        assert_eq!(ParseStage.handle(&mut txn, &snap), StageOutcome::Drop);
+        assert_eq!(txn.parse_reject_reason, Some(ParseRejectReason::WireError));
+    }
+
+    #[test]
     fn parse_rejects_multi_question() {
         let yaml = include_str!("../../../../tests/fixtures/config/minimal.yaml");
         let cfg = load_yaml(yaml).unwrap();
