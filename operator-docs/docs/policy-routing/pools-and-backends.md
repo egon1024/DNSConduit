@@ -55,7 +55,7 @@ pools:
         weight: 30
 ```
 
-Over many queries, traffic approximates the configured weight ratio.
+Over many queries, traffic approximates the configured weight ratio. On the **first** forward attempt for a query, Conduit uses this sticky weighted pick. On [retries](/glossary/index.md#retry) within the same [pool](/glossary/index.md#pool), Conduit selects among backends not already used for that pool on that [transaction](/glossary/index.md#transaction) — see [Retries and transactions](/policy-routing/retries-and-transactions.md).
 
 Pool weights can be changed at runtime through the [control plane](/glossary/index.md#control-plane) (for example via `ApplyConfig`); see [Control plane workflows](/guides/control-plane-workflows.md).
 

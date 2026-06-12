@@ -80,7 +80,7 @@ Runtime key/value annotations on a [transaction](/glossary/index.md#transaction)
 
 ### Retry
 
-<!-- one-line definition -->
+Another [Route](/concepts/architecture-and-packet-path.md#route) → [Forward](/concepts/architecture-and-packet-path.md#forward) cycle for the same client [transaction](/glossary/index.md#transaction), triggered from [Response rules](/concepts/architecture-and-packet-path.md#response-rules) via the `retry` or `retry_pool` [action](/glossary/index.md#action) (or [Rhai](/glossary/index.md#rhai)); capped by `orchestrator.max_attempts`, `orchestrator.max_txn_duration_ms`, and pool exhaustion when every [backend](/glossary/index.md#backend) in the target [pool](/glossary/index.md#pool) was already tried.
 
 → [Retries and transactions](../policy-routing/retries-and-transactions.md)
 
@@ -104,7 +104,7 @@ Condition on a [rule](/policy-routing/rules-and-actions.md) that tests query or 
 
 ### Action
 
-Built-in effect on a matching [rule](/policy-routing/rules-and-actions.md) (for example `set_pool`, `set_tag`, `set_source_v4`, `set_source_v6`, `drop`, `retry_pool`, `rhai`) — applied before optional [Rhai](/glossary/index.md#rhai) on the same rule.
+Built-in effect on a matching [rule](/policy-routing/rules-and-actions.md) (for example `set_pool`, `set_tag`, `set_source_v4`, `set_source_v6`, `drop`, `retry`, `retry_pool`, `rhai`) — applied before optional [Rhai](/glossary/index.md#rhai) on the same rule.
 
 → [Rules and actions](/policy-routing/rules-and-actions.md)
 

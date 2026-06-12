@@ -193,7 +193,9 @@ impl Orchestrator {
                     }
                     if phase == Phase::ResponseRules && next == Phase::Route {
                         if let Some(hub) = metrics {
-                            if let Some(ref pool) = txn.selected_pool {
+                            let retry_target =
+                                txn.retry_pool.as_ref().or(txn.selected_pool.as_ref());
+                            if let Some(pool) = retry_target {
                                 hub.builtin.record_retry(pool);
                             }
                         }
@@ -478,6 +480,26 @@ mod tests {
         assert!(txn.attempts.len() >= 2);
         assert_eq!(txn.attempts[0].pool, "primary");
         assert_eq!(txn.attempts.last().unwrap().pool, "secondary");
+    }
+
+    #[test]
+    fn servfail_same_pool_retry_uses_different_backends() {
+        let yaml = include_str!("../../../tests/fixtures/config/with-same-pool-retry.yaml");
+        let cfg = load_yaml(yaml).unwrap();
+        let snap = Arc::new(RuntimeSnapshot::from_config(cfg));
+        let mut txn = Transaction::new(2, "127.0.0.1:15353".parse().unwrap(), ClientProtocol::Udp)
+            .with_query_wire(example_query());
+        let orch = orchestrator_with_mock_forward();
+        let _ = orch.run(&mut txn, &snap, &SystemClock, None);
+        assert_eq!(txn.attempts.len(), 3, "attempts={:?}", txn.attempts);
+        assert_eq!(txn.attempts[0].pool, "primary");
+        assert_eq!(txn.attempts[1].pool, "primary");
+        assert_eq!(txn.attempts[2].pool, "primary");
+        let backends: Vec<_> = txn.attempts.iter().map(|a| a.backend).collect();
+        assert_eq!(backends.len(), 3);
+        assert_ne!(backends[0], backends[1]);
+        assert_ne!(backends[0], backends[2]);
+        assert_ne!(backends[1], backends[2]);
     }
 
     #[test]

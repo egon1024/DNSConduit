@@ -172,6 +172,7 @@ Bucket upper bounds (seconds): 1 ms, 10 ms, 50 ms, 100 ms, 500 ms, 1 s, 5 s, 10 
 | **Labels** | `pool` |
 | **Profile** | `full` only |
 | **When** | [Response rules](/concepts/architecture-and-packet-path.md#response-rules) send the pipeline back to [Route](/concepts/architecture-and-packet-path.md#route) for a [retry](/glossary/index.md#retry) |
+| **Label `pool`** | Target [pool](/glossary/index.md#pool) for the next attempt (`retry_pool` override when set, otherwise the current pool) |
 
 ### conduit_responses_total { #conduit_responses_total }
 

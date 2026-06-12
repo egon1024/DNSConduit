@@ -67,6 +67,7 @@ fn register_host_api(engine: &mut Engine) {
         .register_fn("has_tag", RhaiTxn::has_tag)
         .register_fn("set_pool", RhaiTxn::set_pool)
         .register_fn("set_retry_pool", RhaiTxn::retry)
+        .register_fn("request_retry", RhaiTxn::request_retry)
         .register_fn("drop_query", RhaiTxn::drop)
         .register_fn("set_rcode", RhaiTxn::set_rcode)
         .register_fn("set_rd", RhaiTxn::set_rd)
@@ -139,6 +140,7 @@ pub enum ScriptRunOutcome {
 struct ScriptEffects {
     pool: Option<String>,
     retry_pool: Option<String>,
+    retry_requested: bool,
     tags_bool: HashMap<String, bool>,
     tags_string: HashMap<String, String>,
     rcode: Option<String>,
@@ -238,6 +240,16 @@ impl RhaiTxn {
     fn retry(&mut self, pool: &str) {
         if let Ok(mut fx) = self.effects.lock() {
             fx.retry_pool = Some(pool.to_string());
+            fx.retry_requested = true;
+        }
+    }
+
+    fn request_retry(&mut self) {
+        if self.phase != ScriptPhase::Response {
+            return;
+        }
+        if let Ok(mut fx) = self.effects.lock() {
+            fx.retry_requested = true;
         }
     }
 
@@ -386,7 +398,7 @@ pub fn run_scripts(
                 if fx.dropped {
                     return (ScriptRunOutcome::Drop, stats);
                 }
-                if fx.retry_pool.is_some() {
+                if fx.retry_requested {
                     return (ScriptRunOutcome::Retry, stats);
                 }
             }
@@ -491,6 +503,7 @@ fn run_one(
     Ok(ScriptEffects {
         pool: fx.pool.clone(),
         retry_pool: fx.retry_pool.clone(),
+        retry_requested: fx.retry_requested,
         tags_bool: fx.tags_bool.clone(),
         tags_string: fx.tags_string.clone(),
         rcode: fx.rcode.clone(),
@@ -828,6 +841,90 @@ rules:
         assert_eq!(stats.errors, 0, "script should not error");
         assert_eq!(outcome, ScriptRunOutcome::Retry);
         assert_eq!(host.retry.as_deref(), Some("secondary"));
+    }
+
+    #[test]
+    fn request_retry_without_pool() {
+        let script = r#"txn.request_retry();"#;
+        let dir = std::env::temp_dir().join(format!("conduit-script-retry-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let script_path = dir.join("retry.rhai");
+        std::fs::write(&script_path, script).unwrap();
+        let yaml = format!(
+            r#"
+schema_version: 1
+listeners:
+  threads: 1
+  reuse_port: true
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+forward:
+  outstanding_per_backend: 100
+  timeout_ms: 2000
+orchestrator:
+  max_attempts: 3
+  max_txn_duration_ms: 5000
+  txn_table_capacity: 1024
+events:
+  queue_depth: 4096
+  drop_policy: drop_oldest
+rhai:
+  max_operations: 10000
+  max_call_depth: 32
+pools:
+  - name: default
+    backends:
+      - address: "127.0.0.1:5300"
+control:
+  listen_address: "127.0.0.1:5199"
+rules:
+  match_mode: first_match
+  rules:
+    - name: retry
+      hook: response
+      selectors: []
+      actions:
+        - type: rhai
+          value: "{}"
+"#,
+            script_path.display()
+        );
+        let cfg = load_yaml(&yaml).unwrap();
+        let scripting = compile_from_config(&cfg, Some(&dir)).unwrap();
+        let script_id = scripting
+            .rules_scripts
+            .iter()
+            .find(|r| r.rule_name == "retry")
+            .unwrap()
+            .script_id;
+        let mut host = MockHost {
+            id: 3,
+            qname: "test.example.".into(),
+            qtype: "A".into(),
+            dns_id: 1,
+            rcode: Some("SERVFAIL".into()),
+            pool: Some("primary".into()),
+            retry: None,
+            dropped: false,
+            rd_override: None,
+            source_override_v4: None,
+            source_override_v6: None,
+            tags: HashMap::new(),
+            attempts: 1,
+            started: Instant::now(),
+            phase: ScriptPhase::Response,
+        };
+        let (outcome, stats) = run_scripts(
+            &scripting,
+            &[script_id],
+            &mut host,
+            ScriptPhase::Response,
+            None,
+        );
+        assert_eq!(stats.errors, 0);
+        assert_eq!(outcome, ScriptRunOutcome::Retry);
+        assert!(host.retry.is_none());
     }
 
     #[test]

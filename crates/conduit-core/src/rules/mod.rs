@@ -34,6 +34,7 @@ pub enum CompiledAction {
     SetPool(String),
     SetTag { key: String, value: String },
     RetryPool(String),
+    Retry,
     Drop,
     SetRcode(String),
     SetSourceV4(std::net::Ipv4Addr),
@@ -130,6 +131,7 @@ impl CompiledRule {
                     txn.retry_pool = Some(p.clone());
                     retry = true;
                 }
+                CompiledAction::Retry => retry = true,
                 CompiledAction::Drop => drop = true,
                 CompiledAction::SetRcode(rc) => txn.set_rcode_name(rc),
                 CompiledAction::SetSourceV4(addr) => txn.set_source_override_v4(*addr),
@@ -151,6 +153,7 @@ impl CompiledAction {
         match act.r#type.as_str() {
             "set_pool" => CompiledAction::SetPool(act.value.clone()),
             "retry_pool" => CompiledAction::RetryPool(act.value.clone()),
+            "retry" => CompiledAction::Retry,
             "drop" => CompiledAction::Drop,
             "set_rcode" => CompiledAction::SetRcode(act.value.clone()),
             "set_tag" => {
@@ -185,11 +188,19 @@ mod tests {
     use std::net::SocketAddr;
 
     fn compile_request_rule(actions: Vec<Action>) -> CompiledRules {
+        compile_hook_rule("request", actions)
+    }
+
+    fn compile_response_rule(actions: Vec<Action>) -> CompiledRules {
+        compile_hook_rule("response", actions)
+    }
+
+    fn compile_hook_rule(hook: &str, actions: Vec<Action>) -> CompiledRules {
         CompiledRules::compile(Some(&RulesConfig {
             match_mode: "first_match".into(),
             rules: vec![Rule {
                 name: "test".into(),
-                hook: "request".into(),
+                hook: hook.into(),
                 selectors: vec![],
                 actions,
             }],
@@ -202,12 +213,31 @@ mod tests {
             r#type: "set_source_v4".into(),
             value: "10.0.0.5".into(),
         }]);
-        let mut txn = Transaction::new(1, "127.0.0.1:53".parse::<SocketAddr>().unwrap(), ClientProtocol::Udp);
-        rules.eval(RuleHook::Request, &mut txn);
-        assert_eq!(
-            txn.source_override_v4,
-            Some("10.0.0.5".parse().unwrap())
+        let mut txn = Transaction::new(
+            1,
+            "127.0.0.1:53".parse::<SocketAddr>().unwrap(),
+            ClientProtocol::Udp,
         );
+        rules.eval(RuleHook::Request, &mut txn);
+        assert_eq!(txn.source_override_v4, Some("10.0.0.5".parse().unwrap()));
+    }
+
+    #[test]
+    fn retry_action_requests_route_without_pool() {
+        let rules = compile_response_rule(vec![Action {
+            r#type: "retry".into(),
+            value: "".into(),
+        }]);
+        let mut txn = Transaction::new(
+            1,
+            "127.0.0.1:53".parse::<SocketAddr>().unwrap(),
+            ClientProtocol::Udp,
+        );
+        txn.selected_pool = Some("primary".into());
+        txn.set_rcode_name("SERVFAIL");
+        let result = rules.eval(RuleHook::Response, &mut txn);
+        assert_eq!(result.outcome, RuleOutcome::Retry);
+        assert!(txn.retry_pool.is_none());
     }
 
     #[test]
@@ -222,12 +252,13 @@ mod tests {
                 value: "192.0.2.1".into(),
             },
         ]);
-        let mut txn = Transaction::new(1, "127.0.0.1:53".parse::<SocketAddr>().unwrap(), ClientProtocol::Udp);
+        let mut txn = Transaction::new(
+            1,
+            "127.0.0.1:53".parse::<SocketAddr>().unwrap(),
+            ClientProtocol::Udp,
+        );
         rules.eval(RuleHook::Request, &mut txn);
         assert_eq!(txn.selected_pool.as_deref(), Some("internal"));
-        assert_eq!(
-            txn.source_override_v4,
-            Some("192.0.2.1".parse().unwrap())
-        );
+        assert_eq!(txn.source_override_v4, Some("192.0.2.1".parse().unwrap()));
     }
 }

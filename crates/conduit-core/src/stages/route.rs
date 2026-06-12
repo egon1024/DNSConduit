@@ -2,7 +2,7 @@
 
 use crate::phase::Phase;
 use crate::pipeline::{PipelineStage, StageOutcome};
-use crate::routing::{default_pool_name, select_backend};
+use crate::routing::{default_pool_name, select_backend, tried_backends_in_pool};
 use crate::snapshot::RuntimeSnapshot;
 use crate::transaction::Transaction;
 use std::sync::Arc;
@@ -25,11 +25,14 @@ impl PipelineStage for RouteStage {
             return StageOutcome::Continue(Phase::Send);
         };
 
+        let tried = tried_backends_in_pool(&txn.attempts, &pool_name);
         let Some((pool, backend)) = select_backend(
             &snapshot.config.pools,
             &pool_name,
             txn.id,
             snapshot.generation,
+            txn.attempt_count,
+            &tried,
         ) else {
             txn.set_rcode_name("SERVFAIL");
             return StageOutcome::Continue(Phase::Send);

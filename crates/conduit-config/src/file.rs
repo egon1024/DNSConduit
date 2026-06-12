@@ -109,6 +109,7 @@ pub(crate) struct YamlSelector {
 pub(crate) struct YamlAction {
     #[serde(rename = "type")]
     action_type: String,
+    #[serde(default)]
     value: String,
 }
 

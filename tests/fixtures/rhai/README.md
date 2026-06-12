@@ -64,6 +64,7 @@ Some Rhai reserved words require different names in scripts:
 | Design / doc name | Script name |
 |-------------------|-------------|
 | `retry(pool)` | `set_retry_pool(pool)` |
+| `retry()` (same pool) | `request_retry()` |
 | `drop()` | `drop_query()` |
 | `lookup(table, key)` | `table_lookup(table, key)` |
 | `question().qname` | `question_qname(txn)` global |

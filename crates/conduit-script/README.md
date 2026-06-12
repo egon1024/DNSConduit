@@ -22,7 +22,8 @@ Rhai scripting for DNS Conduit: compile scripts at snapshot build, run at Reques
 | `clear_rd()` | request | alias for `set_rd(false)` |
 | `set_source_v4(addr)` | request | Same as declarative `set_source_v4` [action](/policy-routing/rules-and-actions.md); must be in configured `sources_v4` for pool |
 | `set_source_v6(addr)` | request | Same as declarative `set_source_v6` [action](/policy-routing/rules-and-actions.md); must be in configured `sources_v6` for pool |
-| `set_retry_pool(name)` | response | sets retry pool |
+| `set_retry_pool(name)` | response | [retry](/policy-routing/retries-and-transactions.md) to named pool |
+| `request_retry()` | response | [retry](/policy-routing/retries-and-transactions.md) in current pool |
 | `drop_query()` | request | terminate without forward |
 | `set_rcode(name)` | response | |
 | `table_lookup(table, key)` | both | global; host-loaded `data_sources` only |
