@@ -10,21 +10,21 @@ Entries are added as documentation grows. Keep one-line glosses in sync when lin
 
 ### Overlay
 
-<!-- one-line definition -->
+In-memory config patch applied with `conduitctl apply`; merged on top of the [file layer](/glossary/index.md#file-layer) until [file-wins reload](/glossary/index.md#file-wins-reload) clears it.
 
-→ [Configuration model](../control-plane/configuration-model.md)
+→ [Configuration model](/control-plane/configuration-model.md)
 
 ### File layer
 
-<!-- one-line definition -->
+YAML read from the path passed at `conduit` startup — the durable baseline on disk, distinct from any API [overlay](/glossary/index.md#overlay).
 
-→ [Configuration model](../control-plane/configuration-model.md)
+→ [Configuration model](/control-plane/configuration-model.md)
 
 ### Effective config
 
-<!-- one-line definition -->
+[File layer](/glossary/index.md#file-layer) after merge with the active [overlay](/glossary/index.md#overlay) (if any) and before compile into a [runtime snapshot](/glossary/index.md#runtime-snapshot).
 
-→ [Configuration model](../control-plane/configuration-model.md)
+→ [Configuration model](/control-plane/configuration-model.md)
 
 ### Export
 
@@ -54,9 +54,9 @@ The previous working [runtime snapshot](/glossary/index.md#runtime-snapshot) Con
 
 ### Pending reconcile
 
-<!-- one-line definition -->
+Snapshot updated after a reload or apply, but `listeners` or `forward` socket state still reflects the previous process start — restart `conduit` to apply on the wire.
 
-→ [Reload and export](../control-plane/reload-and-export.md)
+→ [Configuration model](/control-plane/configuration-model.md)
 
 ## Datapath
 

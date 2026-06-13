@@ -114,7 +114,7 @@ Each time Conduit enters [Route](/concepts/architecture-and-packet-path.md#route
 2. **Backend selection** — see [Backend selection on retries](#backend-selection-on-retries).
 3. **Attempt counter** — Conduit increments the attempt count for this transaction before [Forward](/concepts/architecture-and-packet-path.md#forward).
 
-[`conduit_queries_by_pool_total`](/reference/metrics-catalog.md#conduit_queries_by_pool_total) increments for **each** attempt that reaches [Route](/concepts/architecture-and-packet-path.md#route) → [Forward](/concepts/architecture-and-packet-path.md#forward), including retries.
+[`conduit_queries_by_pool_total`](/observability/built-in-metrics.md#conduit_queries_by_pool_total) increments for **each** attempt that reaches [Route](/concepts/architecture-and-packet-path.md#route) → [Forward](/concepts/architecture-and-packet-path.md#forward), including retries.
 
 [Tags](/glossary/index.md#tags) set on [request rules](/concepts/architecture-and-packet-path.md#request-rules) or earlier [response rules](/concepts/architecture-and-packet-path.md#response-rules) **persist** across retries unless a script clears them. You can branch later rules on tags (for example “already retried”).
 
@@ -162,8 +162,8 @@ You can adjust response metadata before [Send](/concepts/architecture-and-packet
 
 | Signal | When |
 |--------|------|
-| [`conduit_retries_total{pool}`](/reference/metrics-catalog.md#conduit_retries_total) | [Response rules](/concepts/architecture-and-packet-path.md#response-rules) send the pipeline back to [Route](/concepts/architecture-and-packet-path.md#route); `pool` is the **target** pool for the next attempt (**full** metrics profile only) |
-| [`conduit_queries_by_pool_total{pool}`](/reference/metrics-catalog.md#conduit_queries_by_pool_total) | Each attempt that reaches [Forward](/concepts/architecture-and-packet-path.md#forward), including retries |
+| [`conduit_retries_total{pool}`](/observability/built-in-metrics.md#conduit_retries_total) | [Response rules](/concepts/architecture-and-packet-path.md#response-rules) send the pipeline back to [Route](/concepts/architecture-and-packet-path.md#route); `pool` is the **target** pool for the next attempt (**full** metrics profile only) |
+| [`conduit_queries_by_pool_total{pool}`](/observability/built-in-metrics.md#conduit_queries_by_pool_total) | Each attempt that reaches [Forward](/concepts/architecture-and-packet-path.md#forward), including retries |
 | Event export **`retry`** frames | When sinks are configured with retry emission — see [Event export](/observability/event-export.md) |
 
 ## Related topics
@@ -172,4 +172,4 @@ You can adjust response metadata before [Send](/concepts/architecture-and-packet
 - [Pools and backends](/policy-routing/pools-and-backends.md) — pool names, weights, default pool
 - [Architecture and packet path](/concepts/architecture-and-packet-path.md) — [Response rules](/concepts/architecture-and-packet-path.md#response-rules), [Send](/concepts/architecture-and-packet-path.md#send), timeouts
 - [Extensibility](/concepts/extensibility.md) — built-in rules vs [Rhai](/glossary/index.md#rhai)
-- [Metrics catalog](/reference/metrics-catalog.md) — built-in counters and profiles
+- [Built-in metrics](/observability/built-in-metrics.md) — counters, profiles, and pipeline mapping

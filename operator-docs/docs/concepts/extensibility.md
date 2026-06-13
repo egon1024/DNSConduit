@@ -110,7 +110,7 @@ In **current releases**, only [Rhai](/rhai/index.md) can publish custom policy m
 
 **[WASM](/glossary/index.md#wasm)** is planned to share [Rhai](/glossary/index.md#rhai)’s in-process metric APIs when it ships. **[Sidecar](/glossary/index.md#sidecar)** is planned to target the **same host metric store** through the sidecar protocol (writes returned with hook results; reads via hook context or the control plane) — not by scraping Prometheus from inside policy code.
 
-API detail, registration at script load, and export labels: [User metrics](/rhai/user-metrics.md). Built-in series and profiles: [Metrics](/observability/metrics.md) and [Metrics catalog](/reference/metrics-catalog.md).
+API detail, registration at script load, and export labels: [User metrics](/rhai/user-metrics.md). Built-in series and profiles: [Metrics](/observability/metrics.md) and [Built-in metrics](/observability/built-in-metrics.md).
 
 ## Beyond policy hooks
 

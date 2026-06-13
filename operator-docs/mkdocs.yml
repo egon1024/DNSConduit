@@ -94,6 +94,7 @@ nav:
   - Observability:
       - Overview: observability/index.md
       - Metrics: observability/metrics.md
+      - Built-in metrics: observability/built-in-metrics.md
       - Tracing: observability/tracing.md
       - Event export: observability/event-export.md
       - Logging: observability/logging.md
@@ -119,7 +120,6 @@ nav:
           - Control: reference/config-schema/control.md
           - Events: reference/config-schema/events.md
           - Metrics and tracing: reference/config-schema/metrics-and-tracing.md
-      - Metrics catalog: reference/metrics-catalog.md
       - gRPC and CLI: reference/grpc-and-cli.md
   - Versions: versions.md
   - License: license.md
