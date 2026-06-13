@@ -76,7 +76,7 @@ sequenceDiagram
 
 Conduit can record activity during the query path without slowing answers:
 
-- **[Metrics](/observability/metrics.md)** — counters and histograms at selected [pipeline phases](/concepts/architecture-and-packet-path.md#pipeline-phases); series reference in [Metrics catalog](/reference/metrics-catalog.md)
+- **[Metrics](/observability/metrics.md)** — counters and histograms at selected [pipeline phases](/concepts/architecture-and-packet-path.md#pipeline-phases); series reference in [Built-in metrics](/observability/built-in-metrics.md)
 - **[Event export](/observability/event-export.md)** — [dnstap](/glossary/index.md#dnstap) and other sinks
 - **[Tracing](/observability/tracing.md)** — per-query [pipeline trace](/glossary/index.md#pipeline-trace) when enabled
 
@@ -97,7 +97,7 @@ Transactions are **not** persisted across queries and are **not** exported as pa
 
 ## Pipeline phases
 
-Every query walks the same [pipeline phases](/concepts/architecture-and-packet-path.md#pipeline-phases) in order. Policy may **drop** the query (no DNS reply), jump ahead (for example straight to [Send](/concepts/architecture-and-packet-path.md#send) on failure), or loop back to [Route](/concepts/architecture-and-packet-path.md#route) for a **[retry](/glossary/index.md#retry)** when limits allow. With the **full** metrics profile, [`conduit_phase_duration_seconds`](/reference/metrics-catalog.md#conduit_phase_duration_seconds) records time in each phase.
+Every query walks the same [pipeline phases](/concepts/architecture-and-packet-path.md#pipeline-phases) in order. Policy may **drop** the query (no DNS reply), jump ahead (for example straight to [Send](/concepts/architecture-and-packet-path.md#send) on failure), or loop back to [Route](/concepts/architecture-and-packet-path.md#route) for a **[retry](/glossary/index.md#retry)** when limits allow. With the **full** metrics profile, [`conduit_phase_duration_seconds`](/observability/built-in-metrics.md#conduit_phase_duration_seconds) records time in each phase.
 
 Default happy path (single attempt, no early drop):
 
@@ -138,7 +138,7 @@ Conduit **drops** (no DNS reply) when the packet is:
 - A query with no question section
 - A query with more than one question
 
-From the client’s perspective a drop is silent — there is no answer and no synthesized error. When metrics use the **full** profile, drops increment [`conduit_parse_rejected_total`](/reference/metrics-catalog.md#conduit_parse_rejected_total) with a `reason` label (`empty`, `wire_error`, `not_query`, `no_question`, `multi_question`). Successful parses increment [`conduit_queries_total`](/reference/metrics-catalog.md#conduit_queries_total) before [Request rules](/concepts/architecture-and-packet-path.md#request-rules) run.
+From the client’s perspective a drop is silent — there is no answer and no synthesized error. When metrics use the **full** profile, drops increment [`conduit_parse_rejected_total`](/observability/built-in-metrics.md#conduit_parse_rejected_total) with a `reason` label (`empty`, `wire_error`, `not_query`, `no_question`, `multi_question`). Successful parses increment [`conduit_queries_total`](/observability/built-in-metrics.md#conduit_queries_total) before [Request rules](/concepts/architecture-and-packet-path.md#request-rules) run.
 
 ### Request rules
 
@@ -149,7 +149,7 @@ Built-in actions on a matching rule can, among other things:
 - **`set_pool`** — choose which [pool](/glossary/index.md#pool) [Route](/concepts/architecture-and-packet-path.md#route) uses
 - **`set_tag`** — attach [tags](/glossary/index.md#tags) used by later selectors, export filters, or scripts
 - **`set_source_v4`** / **`set_source_v6`** — pin upstream egress for this query (request hook only; list after **`set_pool`** when both are on the same rule). See [Rules and actions](/policy-routing/rules-and-actions.md) and [Dual-stack forwarding](/guides/dual-stack-forwarding.md)
-- **`drop`** — end the [transaction](/glossary/index.md#transaction) with no reply (same observable effect as a [Parse](/concepts/architecture-and-packet-path.md#parse) drop; no built-in counter — see [policy drops](/reference/metrics-catalog.md#policy-drops-no-built-in-counter))
+- **`drop`** — end the [transaction](/glossary/index.md#transaction) with no reply (same observable effect as a [Parse](/concepts/architecture-and-packet-path.md#parse) drop; no built-in counter — see [policy drops](/observability/built-in-metrics.md#policy-drops-no-built-in-counter))
 
 If the matched rule includes a **`rhai`** action, Conduit runs the linked [Rhai](/rhai/index.md) scripts for the request hook after applying built-in actions. Scripts can refine pool choice, set tags, or drop the query.
 
@@ -165,7 +165,7 @@ When **no** rule matches, Conduit continues to [Route](/concepts/architecture-an
 
 On the **first** attempt, Conduit selects a [backend](/glossary/index.md#backend) using sticky weighted choice among all members of the pool (see [Pools and backends](/policy-routing/pools-and-backends.md)). On **retries**, Conduit picks among backends in the target pool that were **not** already used for that pool on this [transaction](/glossary/index.md#transaction) — cross-pool retries only exclude backends tried in the **target** pool.
 
-Each forward attempt increments the transaction’s attempt counter. When the pipeline continues to [Forward](/concepts/architecture-and-packet-path.md#forward), [`conduit_queries_by_pool_total`](/reference/metrics-catalog.md#conduit_queries_by_pool_total) records the selected pool.
+Each forward attempt increments the transaction’s attempt counter. When the pipeline continues to [Forward](/concepts/architecture-and-packet-path.md#forward), [`conduit_queries_by_pool_total`](/observability/built-in-metrics.md#conduit_queries_by_pool_total) records the selected pool.
 
 If the pool name does not exist, the pool has no backends, every backend in the pool was already tried, or backend selection fails, Conduit sets **SERVFAIL** on the [transaction](/glossary/index.md#transaction) and skips [Forward](/concepts/architecture-and-packet-path.md#forward) — the query goes straight to [Send](/concepts/architecture-and-packet-path.md#send).
 
@@ -179,14 +179,14 @@ If the pool name does not exist, the pool has no backends, every backend in the 
 
 **Source addresses.** Conduit binds outbound packets using global `forward.sources_v4` / `forward.sources_v6`, optional per-pool `sources_v4` / `sources_v6`, and any source overrides from rules or [Rhai](/rhai/index.md). IPv4 and IPv6 backends use the matching address family. See [Dual-stack forwarding](/guides/dual-stack-forwarding.md).
 
-Immediate forward errors (for example send failure or too many outstanding queries to the same backend) set **SERVFAIL** and jump to [Send](/concepts/architecture-and-packet-path.md#send). A successful send continues to [Wait for response](/concepts/architecture-and-packet-path.md#wait-for-response). With the **full** metrics profile, each attempt updates [`conduit_forward_attempts_total`](/reference/metrics-catalog.md#conduit_forward_attempts_total), [`conduit_forward_errors_total`](/reference/metrics-catalog.md#conduit_forward_errors_total) (on failure), and [`conduit_forward_duration_seconds`](/reference/metrics-catalog.md#conduit_forward_duration_seconds).
+Immediate forward errors (for example send failure or too many outstanding queries to the same backend) set **SERVFAIL** and jump to [Send](/concepts/architecture-and-packet-path.md#send). A successful send continues to [Wait for response](/concepts/architecture-and-packet-path.md#wait-for-response). With the **full** metrics profile, each attempt updates [`conduit_forward_attempts_total`](/observability/built-in-metrics.md#conduit_forward_attempts_total), [`conduit_forward_errors_total`](/observability/built-in-metrics.md#conduit_forward_errors_total) (on failure), and [`conduit_forward_duration_seconds`](/observability/built-in-metrics.md#conduit_forward_duration_seconds).
 
 ### Wait for response
 
 [Wait for response](/concepts/architecture-and-packet-path.md#wait-for-response) is where the worker waits for the upstream answer after [Forward](/concepts/architecture-and-packet-path.md#forward) has sent the query.
 
 - **Answer received** — the upstream wire is stored on the [transaction](/glossary/index.md#transaction) (including response code) and processing continues to [Response rules](/concepts/architecture-and-packet-path.md#response-rules).
-- **Timeout** — no answer before `forward.timeout_ms`; [`conduit_forward_errors_total`](/reference/metrics-catalog.md#conduit_forward_errors_total) records `reason="timeout"` and processing still continues to [Response rules](/concepts/architecture-and-packet-path.md#response-rules) so retry policy can run another attempt.
+- **Timeout** — no answer before `forward.timeout_ms`; [`conduit_forward_errors_total`](/observability/built-in-metrics.md#conduit_forward_errors_total) records `reason="timeout"` and processing still continues to [Response rules](/concepts/architecture-and-packet-path.md#response-rules) so retry policy can run another attempt.
 - **Hard forward failure** — some errors skip waiting and go directly to [Send](/concepts/architecture-and-packet-path.md#send) with **SERVFAIL** (see [Forward](/concepts/architecture-and-packet-path.md#forward) above).
 
 In current releases the wait runs on the same worker as [Forward](/concepts/architecture-and-packet-path.md#forward) before [Response rules](/concepts/architecture-and-packet-path.md#response-rules); the separate pipeline step keeps tracing and diagrams aligned with the full path. Retry behavior after a timeout or error: [Retries and transactions](/policy-routing/retries-and-transactions.md).
@@ -195,7 +195,7 @@ In current releases the wait runs on the same worker as [Forward](/concepts/arch
 
 [Response rules](/concepts/architecture-and-packet-path.md#response-rules) run once an upstream wire is available **or** a forward timeout has occurred (still with no stored answer). Like [Request rules](/concepts/architecture-and-packet-path.md#request-rules), evaluation is **first-match** on the response hook, with optional [Rhai](/rhai/index.md) scripts on the matched rule.
 
-Built-in actions can accept the upstream answer, **drop** the query ([no built-in counter](/reference/metrics-catalog.md#policy-drops-no-built-in-counter)), request **`retry`** (stay in the current [pool](/glossary/index.md#pool)), set **`retry_pool`** (one-shot pool override), or adjust response metadata (for example **`set_rcode`**). **Retry** intent — from **`retry`**, **`retry_pool`**, or [Rhai](/rhai/index.md) — sends the [transaction](/glossary/index.md#transaction) back to [Route](/concepts/architecture-and-packet-path.md#route) for another [Forward](/concepts/architecture-and-packet-path.md#forward) attempt; [`conduit_retries_total`](/reference/metrics-catalog.md#conduit_retries_total) increments for the **target** pool of that attempt (**full** profile only).
+Built-in actions can accept the upstream answer, **drop** the query ([no built-in counter](/observability/built-in-metrics.md#policy-drops-no-built-in-counter)), request **`retry`** (stay in the current [pool](/glossary/index.md#pool)), set **`retry_pool`** (one-shot pool override), or adjust response metadata (for example **`set_rcode`**). **Retry** intent — from **`retry`**, **`retry_pool`**, or [Rhai](/rhai/index.md) — sends the [transaction](/glossary/index.md#transaction) back to [Route](/concepts/architecture-and-packet-path.md#route) for another [Forward](/concepts/architecture-and-packet-path.md#forward) attempt; [`conduit_retries_total`](/observability/built-in-metrics.md#conduit_retries_total) increments for the **target** pool of that attempt (**full** profile only).
 
 Global caps from `orchestrator.max_attempts` (default **3**) and `orchestrator.max_txn_duration_ms` (default **5000** ms), plus **pool exhaustion** when no unused [backend](/glossary/index.md#backend) remains in the target pool, apply before each [Route](/concepts/architecture-and-packet-path.md#route). When a limit is hit, Conduit sets **SERVFAIL** and moves to [Send](/concepts/architecture-and-packet-path.md#send) instead of forwarding again. Details and examples: [Retries and transactions](/policy-routing/retries-and-transactions.md), [Rules and actions](/policy-routing/rules-and-actions.md).
 
@@ -207,7 +207,7 @@ If [Forward](/concepts/architecture-and-packet-path.md#forward) stored an upstre
 
 On **UDP**, if the response would exceed the client’s EDNS payload size (or 512 bytes when EDNS is absent), Conduit truncates the message and sets the **TC** (truncated) bit so standards-compliant resolvers can retry over TCP.
 
-Successful replies and synthesized errors both complete the [transaction](/glossary/index.md#transaction) on the listener; [`conduit_responses_total`](/reference/metrics-catalog.md#conduit_responses_total) and event export run as configured (coarse `rcode` buckets on **`minimal`**, per-IANA `rcode` + `ip_family` on **`full`**). See [Observability](/observability/index.md) and the [Metrics catalog](/reference/metrics-catalog.md).
+Successful replies and synthesized errors both complete the [transaction](/glossary/index.md#transaction) on the listener; [`conduit_responses_total`](/observability/built-in-metrics.md#conduit_responses_total) and event export run as configured (coarse `rcode` buckets on **`minimal`**, per-IANA `rcode` + `ip_family` on **`full`**). See [Observability](/observability/index.md) and [Built-in metrics](/observability/built-in-metrics.md).
 
 ## Tags
 
@@ -223,7 +223,7 @@ Tags are not part of the on-disk config file or normal config export. Script and
 
 ## Retries and re-entry
 
-When [Response rules](/concepts/architecture-and-packet-path.md#response-rules) request a [retry](/glossary/index.md#retry), Conduit counts the attempt and re-enters at [Route](/concepts/architecture-and-packet-path.md#route) — in the current [pool](/glossary/index.md#pool) or a one-shot override from `retry_pool` / script. Retries avoid [backends](/glossary/index.md#backend) already used in the target pool on this [transaction](/glossary/index.md#transaction). Further attempts stop at `orchestrator.max_attempts`, `orchestrator.max_txn_duration_ms`, or when the target pool has no unused backends — typically yielding **SERVFAIL**. Retry transitions increment [`conduit_retries_total`](/reference/metrics-catalog.md#conduit_retries_total) for the target pool (**full** profile).
+When [Response rules](/concepts/architecture-and-packet-path.md#response-rules) request a [retry](/glossary/index.md#retry), Conduit counts the attempt and re-enters at [Route](/concepts/architecture-and-packet-path.md#route) — in the current [pool](/glossary/index.md#pool) or a one-shot override from `retry_pool` / script. Retries avoid [backends](/glossary/index.md#backend) already used in the target pool on this [transaction](/glossary/index.md#transaction). Further attempts stop at `orchestrator.max_attempts`, `orchestrator.max_txn_duration_ms`, or when the target pool has no unused backends — typically yielding **SERVFAIL**. Retry transitions increment [`conduit_retries_total`](/observability/built-in-metrics.md#conduit_retries_total) for the target pool (**full** profile).
 
 ```mermaid
 stateDiagram-v2
@@ -243,7 +243,7 @@ Full retry semantics, actions, and examples: [Retries and transactions](/policy-
 
 A **[runtime snapshot](/glossary/index.md#runtime-snapshot)** is the bundle of settings Conduit uses to answer queries at a given moment: effective config (listeners, pools, forward behavior), loaded rules and scripts, and observability filters. All listener workers share the same snapshot until you change configuration.
 
-When you reload or apply new settings (**SIGHUP**, `conduitctl reload`, or `conduitctl apply`), Conduit validates the change and builds a new snapshot for **later** queries. Queries already in flight keep using the settings they started with — they do not jump mid-query to a half-applied config. [`conduit_config_generation`](/reference/metrics-catalog.md#conduit_config_generation) reflects the active generation at scrape time.
+When you reload or apply new settings (**SIGHUP**, `conduitctl reload`, or `conduitctl apply`), Conduit validates the change and builds a new snapshot for **later** queries. Queries already in flight keep using the settings they started with — they do not jump mid-query to a half-applied config. [`conduit_config_generation`](/observability/built-in-metrics.md#conduit_config_generation) reflects the active generation at scrape time.
 
 If validation fails, Conduit keeps the **[last-good snapshot](/glossary/index.md#last-good-snapshot)** (the previous working settings) and continues serving DNS.
 
@@ -255,7 +255,7 @@ Listeners bind to the addresses in your config. Each listener can run multiple w
 
 One client query stays on a single worker from [Receive](/concepts/architecture-and-packet-path.md#receive) through [Send](/concepts/architecture-and-packet-path.md#send) — [pipeline phases](/concepts/architecture-and-packet-path.md#pipeline-phases) run in order on that worker before it takes the next query.
 
-[Metrics](/observability/metrics.md), [event export](/observability/event-export.md) ([dnstap](/glossary/index.md#dnstap)), and similar observation are handled separately from the query path. If an export queue fills up, Conduit drops export events and increments [`conduit_events_queue_dropped_total`](/reference/metrics-catalog.md#conduit_events_queue_dropped_total) rather than delaying DNS responses.
+[Metrics](/observability/metrics.md), [event export](/observability/event-export.md) ([dnstap](/glossary/index.md#dnstap)), and similar observation are handled separately from the query path. If an export queue fills up, Conduit drops export events and increments [`conduit_events_queue_dropped_total`](/observability/built-in-metrics.md#conduit_events_queue_dropped_total) rather than delaying DNS responses.
 
 For reload, in-flight queries, and validation failures, see [Runtime snapshot](#runtime-snapshot).
 
@@ -267,6 +267,6 @@ For reload, in-flight queries, and validation failures, see [Runtime snapshot](#
 - [Retries and transactions](/policy-routing/retries-and-transactions.md) — retry loops and limits
 - [Configuration model](/control-plane/configuration-model.md) — snapshots and effective config
 - [Observability](/observability/index.md) — metrics, tracing, event export, logging
-- [Metrics catalog](/reference/metrics-catalog.md) — built-in Prometheus series and pipeline mapping
+- [Built-in metrics](/observability/built-in-metrics.md) — Prometheus series and pipeline mapping
 - [Extensibility](/concepts/extensibility.md) — built-in rules and plugin models ([Rhai](/glossary/index.md#rhai), [WASM](/glossary/index.md#wasm), [sidecar](/glossary/index.md#sidecar))
 - [Glossary](/glossary/index.md) — [dataplane](/glossary/index.md#dataplane), [transaction](/glossary/index.md#transaction), [runtime snapshot](/glossary/index.md#runtime-snapshot), [tags](/glossary/index.md#tags)

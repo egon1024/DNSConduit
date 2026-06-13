@@ -72,7 +72,7 @@ Use on `hook: request` — after [Parse](/concepts/architecture-and-packet-path.
 | `set_tag` | `key=value` or `key` (→ `true`) | Sets a [tag](/glossary/index.md#tags) on the [transaction](/glossary/index.md#transaction) |
 | `set_source_v4` | IPv4 address | Pins upstream egress to this local IPv4 address for this query |
 | `set_source_v6` | IPv6 address | Pins upstream egress to this local IPv6 address for this query |
-| `drop` | (ignored) | Ends the query with **no** DNS reply ([policy drop](/reference/metrics-catalog.md#policy-drops-no-built-in-counter)) |
+| `drop` | (ignored) | Ends the query with **no** DNS reply ([policy drop](/observability/built-in-metrics.md#policy-drops-no-built-in-counter)) |
 | `rhai` | Script path | Runs a [Rhai](/rhai/index.md) request script after built-in actions |
 
 **`set_source_v4` / `set_source_v6`** — request hook only. The address must appear in **`forward.sources_v4`** / **`forward.sources_v6`** or a pool’s **`sources_v4`** / **`sources_v6`** (union checked when config is validated).
@@ -89,7 +89,7 @@ Use on `hook: response` — after an upstream answer or forward timeout, before 
 | `retry_pool` | Pool name | [Retry](/glossary/index.md#retry) to the named pool on the next [Route](/concepts/architecture-and-packet-path.md#route) (one-shot override) |
 | `set_tag` | `key=value` or `key` (→ `true`) | Sets a [tag](/glossary/index.md#tags) on the [transaction](/glossary/index.md#transaction) |
 | `set_rcode` | RCODE name | Sets response code metadata (for example before [Send](/concepts/architecture-and-packet-path.md#send)) |
-| `drop` | (ignored) | Ends the query with **no** DNS reply ([policy drop](/reference/metrics-catalog.md#policy-drops-no-built-in-counter)) |
+| `drop` | (ignored) | Ends the query with **no** DNS reply ([policy drop](/observability/built-in-metrics.md#policy-drops-no-built-in-counter)) |
 | `rhai` | Script path | Runs a [Rhai](/rhai/index.md) response script after built-in actions |
 
 **`retry`** and **`retry_pool`** — request another [Route](/concepts/architecture-and-packet-path.md#route) → [Forward](/concepts/architecture-and-packet-path.md#forward) cycle. Use **`retry`** to stay in the current [pool](/glossary/index.md#pool); use **`retry_pool`** to target a different pool for the next attempt. On retries, Conduit avoids [backends](/glossary/index.md#backend) already used in the target pool on this [transaction](/glossary/index.md#transaction). Global caps, pool exhaustion, and examples: [Retries and transactions](/policy-routing/retries-and-transactions.md).

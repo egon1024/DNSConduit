@@ -10,5 +10,5 @@ Mental models for how Conduit handles DNS — the query path on the [dataplane](
 **Where next:**
 
 - [Policy & routing](/policy-routing/rules-and-actions.md) — [selectors](/glossary/index.md#selector), [actions](/glossary/index.md#action), [pools](/glossary/index.md#pool), and [retries](/glossary/index.md#retry)
-- [Observability](/observability/index.md) — built-in [metrics](/reference/metrics-catalog.md), tracing, and event export
+- [Observability](/observability/index.md) — [metrics](/observability/metrics.md), tracing, and event export
 - [Glossary](/glossary/index.md) — short definitions for terms used across the docs
