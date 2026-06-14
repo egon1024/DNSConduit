@@ -1,39 +1,55 @@
 # gRPC and conduitctl
 
-This page documents the optional [control plane](/glossary/index.md#control-plane): the gRPC API Conduit exposes when `control.listen_address` is set at process start, and **`conduitctl`**, the operator CLI that calls it. For workflows (reload, [overlay](/glossary/index.md#overlay) apply modes, [export](/glossary/index.md#export)), see [Reload and export](/control-plane/reload-and-export.md). For how layers combine into [effective config](/glossary/index.md#effective-config), see [Configuration model](/control-plane/configuration-model.md).
+This page is the **connection and command reference** for the optional [control plane](/glossary/index.md#control-plane): enabling gRPC, pointing **`conduitctl`** at a server, and invoking each subcommand. For **when** to reload, apply an [overlay](/glossary/index.md#overlay), or [export](/glossary/index.md#export), see [Reload and export](/control-plane/reload-and-export.md). For how config layers merge, see [Configuration model](/control-plane/configuration-model.md).
 
-## Overview
+## Enabling the control plane
 
-When the `control:` block is present at **process start**, Conduit listens for gRPC on `control.listen_address` (for example `127.0.0.1:5199`). The **`conduitctl`** binary connects to that address to apply overlays, export config, reload from disk, validate files offline, and fetch pipeline traces.
+Conduit starts the gRPC listener only when the process **starts** with a `control:` block that sets **`listen_address`** (for example `127.0.0.1:5199`). Without it, DNS still runs but **`conduitctl apply`**, **`export`**, **`reload`**, and **`trace`** are unavailable — use **SIGHUP** or a process restart to reload from disk instead.
 
-| Command | gRPC RPC | Needs running server? |
-|---------|----------|------------------------|
-| `conduitctl apply` | `ApplyConfig` | Yes |
-| `conduitctl export` | `ExportConfig` | Yes |
-| `conduitctl reload` | `ReloadFromFile` | Yes |
-| `conduitctl validate --file` | (local only) | No |
-| `conduitctl trace` | `GetTrace` | Yes |
+Adding or changing `control:` via reload updates the stored config but does **not** start or rebind the listener today. **Restart** `conduit` after enabling or moving the control address.
 
-Adding or changing `control:` via reload updates the stored config but does **not** start the gRPC listener today — **restart** the process after enabling control.
+Config fields: [Reference: control](/reference/config-schema/control.md).
 
-## CLI connection
+## Connecting
 
 Global flags apply to every subcommand:
 
-| Flag / env | Default | Purpose |
+| Flag / env {: .column-no-wrap } | Default {: .column-no-wrap } | Purpose |
 |------------|---------|---------|
-| `--endpoint` / `CONDUIT_CONTROL` | `http://127.0.0.1:5199` | gRPC control address |
+| `--endpoint` / `CONDUIT_CONTROL` | `http://127.0.0.1:5199` | Control plane URL |
 | `--api-key` / `CONDUIT_API_KEY` | (none) | `Authorization: Bearer …` when the server requires API keys |
+
+Use **`http://`** when the listener is plain TCP. When **`control.tls`** is configured, use **`https://`** (or the scheme your TLS setup expects) on the same host and port.
 
 On success, mutating commands print `ok` to stdout. Failures exit non-zero with error text on stderr.
 
-## `conduitctl apply`
+## Authentication
 
-Apply an [overlay](/glossary/index.md#overlay) patch to a running server. Modes match gRPC **`ApplyConfig`** and **`OverlayApplyMode`** (below).
+| Server config | Client requirement |
+|---------------|-------------------|
+| `control.api_keys` **empty** | No credentials (anonymous access to control RPCs) |
+| `control.api_keys` **non-empty** | Valid key via **`Authorization: Bearer …`** or header **`x-api-key`** — `conduitctl` uses Bearer (`--api-key` / `CONDUIT_API_KEY`) |
+| `control.tls.client_ca_path` set | Server requires a client certificate (mTLS) in addition to any API key rules |
+
+Details: [API keys](/security/api-keys.md), [mTLS](/security/mtls.md).
+
+## Commands
+
+| Command | Needs server? | Purpose |
+|---------|---------------|---------|
+| `conduitctl apply` | Yes | Patch the in-memory overlay ([apply modes](/control-plane/reload-and-export.md#apply-modes)) |
+| `conduitctl export` | Yes | Print effective config as YAML |
+| `conduitctl reload` | Yes | [Reload from disk](/glossary/index.md#reload-from-disk); clear overlay |
+| `conduitctl validate --file` | **No** | Offline structural validation of any YAML path |
+| `conduitctl trace` | Yes | Fetch pipeline trace events for a transaction id |
+
+RPC methods and messages: [Reference: gRPC and CLI](/reference/grpc-and-cli.md).
+
+### `apply`
 
 ```bash
 conduitctl apply --file patch.yaml              # default: merge into overlay
-conduitctl apply --merge --file patch.yaml      # explicit merge (same as default)
+conduitctl apply --merge --file patch.yaml      # explicit merge
 conduitctl apply --replace --file patch.yaml    # replace entire overlay
 conduitctl apply --clear                        # clear overlay; no --file
 ```
@@ -41,67 +57,59 @@ conduitctl apply --clear                        # clear overlay; no --file
 | Flag | Conflicts with | Behavior |
 |------|----------------|----------|
 | (default) | — | **Merge** patch into accumulated overlay |
-| `--merge` | `--replace`, `--clear` | Explicit **merge** (same as default) |
-| `--replace` | `--merge`, `--clear` | **Replace** overlay with patch; `schema_version`-only patch **clears** overlay |
-| `--clear` | `--merge`, `--replace`, `--file` | **Clear** overlay without re-reading startup file |
+| `--merge` | `--replace`, `--clear` | Explicit merge (same as default) |
+| `--replace` | `--merge`, `--clear` | Replace overlay; `schema_version`-only patch **clears** overlay |
+| `--clear` | `--merge`, `--replace`, `--file` | Clear overlay without re-reading startup file |
 
 **`--file`** is required for merge and replace; omit it for **`--clear`**.
 
-Operator workflows and examples: [Reload and export — apply modes](/control-plane/reload-and-export.md#apply-modes).
+Patch files are **sparse YAML** — only keys you include are sent. Overlays **must not** include **`rules:`**, **`metrics:`**, or **`tracing:`**; apply is rejected if those sections are present. Semantics, examples, and overlay scope: [Reload and export — apply modes](/control-plane/reload-and-export.md#apply-modes).
 
-## Other commands
+### `export`
 
 ```bash
-conduitctl export [--output PATH]   # effective YAML; default stdout (-)
-conduitctl reload                   # reload from disk; clears overlay
-conduitctl validate --file PATH     # offline validation; no server required
-conduitctl trace TXN_ID             # pipeline trace for a transaction id
+conduitctl export                    # stdout
+conduitctl export --output PATH      # write file
 ```
 
-## ApplyConfig and OverlayApplyMode
+Returns effective config as YAML (file layer + overlay, defaults normalized). See [Reload and export — export](/control-plane/reload-and-export.md#export-effective-configuration).
 
-**`ApplyConfig`** applies an overlay patch using **`OverlayApplyMode`**. The protobuf enum values map to CLI flags as follows:
+### `reload`
 
-| `OverlayApplyMode` (proto) | Value | CLI equivalent | `overlay` field |
-|----------------------------|-------|----------------|-----------------|
-| `OVERLAY_APPLY_MODE_UNSPECIFIED` | 0 | (default) **merge** | Patch required |
-| `OVERLAY_APPLY_MODE_MERGE` | 1 | default or `--merge` | Patch required |
-| `OVERLAY_APPLY_MODE_REPLACE` | 2 | `--replace` | Patch required; empty patch clears overlay |
-| `OVERLAY_APPLY_MODE_CLEAR` | 3 | `--clear` | Omit / unset |
-
-Request shape (conceptual):
-
-```protobuf
-message ApplyConfigRequest {
-  Config overlay = 1;           // patch for MERGE/REPLACE
-  OverlayApplyMode mode = 2;
-}
+```bash
+conduitctl reload
 ```
 
-**Merge:** combine `overlay` with the active accumulated overlay, then merge file + overlay into [effective config](/glossary/index.md#effective-config).
+Re-reads the config path from process startup and clears the overlay. Same semantics as **SIGHUP** when gRPC is enabled. See [Reload from disk](/control-plane/reload-and-export.md#reload-from-disk-sighup-and-conduitctl-reload).
 
-**Replace:** set overlay to the patch; if the patch sets no overlay-eligible fields (`schema_version` only), clear the overlay.
+### `validate`
 
-**Clear:** drop the overlay; do not re-read the startup config file.
+```bash
+conduitctl validate --file PATH
+```
 
-Response: `ok` plus `errors` when validation fails (prior [runtime snapshot](/glossary/index.md#runtime-snapshot) unchanged).
+Runs locally — no control plane connection. Validates structure only; does not check Rhai script paths, CSV files, or TLS PEM paths on disk. The server also exposes **`ValidateConfig`** over gRPC for automation that already talks to the control plane; the CLI does not call it today.
 
-Other RPCs (summary):
+### `trace`
 
-| RPC | Purpose |
-|-----|---------|
-| `GetConfig` | Return current effective config |
-| `ExportConfig` | Serialize effective config (`format`: `yaml` or `json`) |
-| `ReloadFromFile` | [Reload from disk](/glossary/index.md#reload-from-disk) — re-read startup file, clear overlay |
-| `ValidateConfig` | Validate a config message without applying |
-| `Health` | Liveness (`status`: `serving`) |
-| `GetTrace` | Pipeline trace events for a transaction id |
+```bash
+conduitctl trace TXN_ID
+```
 
-Field-exact RPC and message reference: [Reference: gRPC and CLI](/reference/grpc-and-cli.md) (when published).
+Prints pipeline trace events when [tracing](/observability/tracing.md) captured the transaction. Exits non-zero if no trace was found.
+
+## Access logs
+
+Successful and failed control RPCs log at **`info`** as **`control rpc`**: gRPC method, peer address, requestor identity (anonymous, API key, mTLS, or rejected), status, and latency. Request and response bodies are **not** logged.
+
+## gRPC reflection
+
+When **`control.reflection_enabled: true`**, Conduit registers the standard gRPC **server reflection** service for dev and test tooling (for example discovering `ConduitControl` without a local copy of the proto). Leave reflection **off** in production unless you need it.
 
 ## Related topics
 
-- [Reload and export](/control-plane/reload-and-export.md) — SIGHUP, reload, apply modes, export-before-clear
-- [Configuration model](/control-plane/configuration-model.md) — file layer, overlay merge rules
+- [Reload and export](/control-plane/reload-and-export.md) — workflows, apply modes, export-before-clear
+- [Configuration model](/control-plane/configuration-model.md) — merge rules and overlay scope
 - [Config file](/control-plane/config-file.md) — startup path used by reload
-- [Glossary](/glossary/index.md) — [overlay](/glossary/index.md#overlay), [clear overlay without reload](/glossary/index.md#clear-overlay-without-reload), [conduitctl](/glossary/index.md#conduitctl)
+- [Reference: gRPC and CLI](/reference/grpc-and-cli.md) — RPC and message reference
+- [Glossary](/glossary/index.md) — [overlay](/glossary/index.md#overlay), [conduitctl](/glossary/index.md#conduitctl), [control plane](/glossary/index.md#control-plane)

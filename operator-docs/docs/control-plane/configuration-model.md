@@ -105,7 +105,7 @@ Merge rules (current release):
 | **`pools`** | Match pools by `name`; within a pool, match [backends](/glossary/index.md#backend) by `address` and update fields. New pools or backends in the overlay are **appended**. Unset `weight` in the overlay does **not** clear a file-layer weight |
 | **`rules`**, **`metrics`**, **`tracing`** | **File layer only** — not allowed in overlay patches; apply is rejected if the patch includes these keys |
 
-Example — shift weight on one backend without editing the main file:
+Example — shift weight on one backend without editing the main file (full merge/replace/clear walkthrough with sparse patches: [Reload and export — worked example](/control-plane/reload-and-export.md#worked-example-pool-weights)):
 
 ```yaml
 schema_version: 1
@@ -165,7 +165,7 @@ See [Pending reconcile](/glossary/index.md#pending-reconcile) and [Reload and ex
 
 **SIGHUP** and **`conduitctl reload`** re-read the startup file path, merge validation, and install a new snapshot. They do not read arbitrary paths — only the file Conduit was started with.
 
-Commands and RPC details: [gRPC and conduitctl](/control-plane/grpc-and-conduitctl.md), [Reload and export](/control-plane/reload-and-export.md).
+Commands and RPC details: [gRPC and conduitctl](/control-plane/grpc-and-conduitctl.md), [Reference: gRPC and CLI](/reference/grpc-and-cli.md), [Reload and export](/control-plane/reload-and-export.md).
 
 ## Related topics
 

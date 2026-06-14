@@ -105,40 +105,111 @@ Requires the [control plane](#what-each-command-needs) (default endpoint `http:/
 
 Flags **`--merge`**, **`--replace`**, and **`--clear`** are mutually exclusive. **`--clear`** conflicts with **`--file`**.
 
-gRPC **`ApplyConfig`** accepts the same modes via **`OverlayApplyMode`** — see [gRPC and conduitctl — ApplyConfig](/control-plane/grpc-and-conduitctl.md#applyconfig-and-overlayapplymode).
+gRPC **`ApplyConfig`** accepts the same modes via **`OverlayApplyMode`** — see [Reference: gRPC and CLI — OverlayApplyMode](/reference/grpc-and-cli.md#overlayapplymode).
 
-### Examples
+### Worked example: pool weights
 
-Default merge (accumulates across successive applies):
+Assume Conduit started with a full config file; only the **`pools`** excerpt matters here. The on-disk file stays **`100` / `100`** for the whole example until you [reload from disk](#reload-from-disk-sighup-and-conduitctl-reload).
 
-```bash
-conduitctl apply --file maintenance-weight.yaml
-conduitctl apply --file restore-one-backend.yaml   # merges into overlay
+**File layer (on disk, unchanged by apply):**
+
+```yaml
+schema_version: 1
+# … listeners, forward, etc. …
+pools:
+  - name: default
+    backends:
+      - address: "10.0.0.1:53"
+        weight: 100
+      - address: "10.0.0.2:53"
+        weight: 100
 ```
 
-Replace entire overlay (previous overlay discarded):
+Overlay patches are **sparse** — include only `schema_version` and the fields you mean to change. Do not include **`rules:`**, **`metrics:`**, or **`tracing:`**.
 
-```bash
-conduitctl apply --replace --file new-overlay.yaml
+**Step 1 — merge (maintenance on primary):**
+
+`maint-primary.yaml`:
+
+```yaml
+schema_version: 1
+pools:
+  - name: default
+    backends:
+      - address: "10.0.0.1:53"
+        weight: 10
 ```
 
-Clear overlay without reading disk (file layer unchanged):
+```bash
+conduitctl apply --file maint-primary.yaml
+```
+
+**Step 2 — merge again (accumulates into overlay):**
+
+`shift-secondary.yaml`:
+
+```yaml
+schema_version: 1
+pools:
+  - name: default
+    backends:
+      - address: "10.0.0.2:53"
+        weight: 50
+```
+
+```bash
+conduitctl apply --file shift-secondary.yaml
+```
+
+**Step 3 — replace (drops prior overlay; only this patch remains):**
+
+`replace-primary.yaml`:
+
+```yaml
+schema_version: 1
+pools:
+  - name: default
+    backends:
+      - address: "10.0.0.1:53"
+        weight: 50
+```
+
+```bash
+conduitctl apply --replace --file replace-primary.yaml
+```
+
+**Step 4 — clear (overlay removed; file layer in memory unchanged):**
 
 ```bash
 conduitctl apply --clear
 ```
 
-Clear via replace with empty patch:
+**Effective backend weights** after each step (what routing uses; confirm with **`conduitctl export`**):
+
+| Step | Command | Primary `10.0.0.1:53` | Secondary `10.0.0.2:53` | Overlay |
+|------|---------|-------------------------|---------------------------|---------|
+| 0 — startup | — | 100 | 100 | none |
+| 1 | `apply --file maint-primary.yaml` | **10** | 100 | merge patch |
+| 2 | `apply --file shift-secondary.yaml` | **10** | **50** | both patches accumulated |
+| 3 | `apply --replace --file replace-primary.yaml` | **50** | 100 | replace patch only (step 2 dropped) |
+| 4 | `apply --clear` | 100 | 100 | none |
+
+Pool merge rules (match by pool `name`, backend `address`): [Configuration model — how file and overlay merge](/control-plane/configuration-model.md#how-file-and-overlay-merge).
+
+**Export note:** `conduitctl export` may omit default fields (for example explicit `weight: 100`). The table shows **effective** weights; export output can look sparser than the patches above.
+
+**Reload contrast:** If you edit the file on disk to `90` / `90` and run **`conduitctl reload`**, effective becomes **90 / 90** and the overlay is cleared — regardless of step 4. See [Clear vs reload](#clear-vs-reload) below.
+
+### Command quick reference
 
 ```bash
-# empty.yaml contains only: schema_version: 1
-conduitctl apply --replace --file empty.yaml
-```
+conduitctl apply --file patch.yaml              # merge (default)
+conduitctl apply --merge --file patch.yaml      # explicit merge
+conduitctl apply --replace --file patch.yaml    # replace overlay
+conduitctl apply --clear                        # clear overlay; no --file
 
-Explicit merge (same as default):
-
-```bash
-conduitctl apply --merge --file patch.yaml
+# replace with schema_version-only file — same end state as --clear
+conduitctl apply --replace --file empty.yaml    # empty.yaml: schema_version: 1 only
 ```
 
 ### Clear vs reload
@@ -153,13 +224,13 @@ If you edited the config file on disk but have **not** reloaded yet, **`--clear`
 
 ## Temporary changes with `conduitctl apply`
 
-**`conduitctl apply`** patches the running server through an [overlay](/glossary/index.md#overlay) — useful for short-lived changes (for example lowering a [backend](/glossary/index.md#backend) weight during maintenance) without editing the file on disk.
+**`conduitctl apply`** patches the running server through an [overlay](/glossary/index.md#overlay) — useful for short-lived changes (for example lowering a [backend](/glossary/index.md#backend) weight during maintenance) without editing the file on disk. See [Worked example: pool weights](#worked-example-pool-weights) for sparse patch files and effective results.
 
 ```bash
 conduitctl apply --file overlay.yaml
 ```
 
-The file is a **full YAML document** parsed as config; only fields you include participate in merge rules described in [Configuration model — overlay](/control-plane/configuration-model.md#overlay). By default each apply **merges** into the accumulated overlay; use **`--replace`** or **`--clear`** when you need to reset overlay state — see [Apply modes](#apply-modes) above.
+The file is a **sparse YAML patch**; only fields you include are sent. Overlays **must not** include **`rules:`**, **`metrics:`**, or **`tracing:`** (apply is rejected). Merge rules: [Configuration model — overlay](/control-plane/configuration-model.md#overlay). Use **`--replace`** or **`--clear`** when you need to reset overlay state — see [Apply modes](#apply-modes) above.
 
 **Examples of overlay-friendly changes today:**
 
@@ -244,7 +315,7 @@ Overlay is cleared; effective config matches the new file layer.
 
 ### Temporary pool weight, then return to file
 
-1. **`conduitctl apply --file maintenance-overlay.yaml`** (pool weight patch only).
+1. **`conduitctl apply --file maint-primary.yaml`** (or your patch — see [Worked example: pool weights](#worked-example-pool-weights)).
 2. Operate during the window; confirm with **`conduitctl export`** if needed.
 3. **`conduitctl apply --clear`** to drop the overlay and restore file-layer weights **without** re-reading disk, **or** **`conduitctl reload`** (or SIGHUP) when the on-disk file also changed.
 
@@ -270,9 +341,9 @@ After a successful reload or apply, look for:
 | `pool: backends changed` (and similar) | Subsystem diff hints |
 | [`conduit_config_generation`](/observability/built-in-metrics.md#conduit_config_generation) | Monotonic generation on Prometheus scrape (when enabled) |
 
-Control RPCs are logged at `info` as `control rpc` (method, peer, latency) without request bodies. Details: [gRPC and conduitctl](/control-plane/grpc-and-conduitctl.md).
+Control RPCs are logged at `info` as `control rpc` (method, peer, requestor, latency) without request bodies. Details: [gRPC and conduitctl — access logs](/control-plane/grpc-and-conduitctl.md#access-logs).
 
-To confirm effective pool weights or other fields without export, use **`conduitctl export`** or gRPC **`GetConfig`** — see [gRPC and conduitctl](/control-plane/grpc-and-conduitctl.md).
+To confirm effective pool weights or other fields, use **`conduitctl export`** or gRPC **`GetConfig`** — see [Reference: gRPC and CLI](/reference/grpc-and-cli.md).
 
 ## Related topics
 

@@ -82,8 +82,8 @@ nav:
       - Overview: control-plane/index.md
       - Configuration model: control-plane/configuration-model.md
       - Config file: control-plane/config-file.md
-      - gRPC and conduitctl: control-plane/grpc-and-conduitctl.md
       - Reload and export: control-plane/reload-and-export.md
+      - gRPC and conduitctl: control-plane/grpc-and-conduitctl.md
   - Rhai:
       - Overview: rhai/index.md
       - Hooks and phases: rhai/hooks-and-phases.md
