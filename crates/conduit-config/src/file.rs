@@ -44,6 +44,37 @@ pub(crate) struct YamlConfig {
     tracing: Option<YamlTracing>,
 }
 
+/// Sparse overlay patch: omitted top-level keys stay unset (`None` / empty) in [`Config`].
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct YamlOverlayPatch {
+    schema_version: u32,
+    #[serde(default)]
+    listeners: Option<YamlListeners>,
+    #[serde(default)]
+    forward: Option<YamlForward>,
+    #[serde(default)]
+    orchestrator: Option<YamlOrchestrator>,
+    #[serde(default)]
+    events: Option<YamlEvents>,
+    #[serde(default)]
+    rhai: Option<YamlRhai>,
+    #[serde(default)]
+    pools: Vec<YamlPool>,
+    #[serde(default)]
+    control: Option<YamlControl>,
+    #[serde(default)]
+    rules: Option<YamlRules>,
+    #[serde(default)]
+    logging: Option<YamlLogging>,
+    #[serde(default)]
+    data_sources: Vec<YamlDataSource>,
+    #[serde(default)]
+    metrics: Option<YamlMetrics>,
+    #[serde(default)]
+    tracing: Option<YamlTracing>,
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 pub(crate) struct YamlLogging {
     #[serde(default = "default_log_level")]
@@ -548,6 +579,40 @@ fn is_false(v: &bool) -> bool {
 pub fn load_yaml(input: &str) -> Result<Config, ConfigError> {
     let y: YamlConfig = serde_yaml::from_str(input)?;
     Ok(y.into())
+}
+
+/// Load a sparse YAML overlay patch for `conduitctl apply`.
+///
+/// Omitted top-level sections remain unset in the returned [`Config`], unlike [`load_yaml`]
+/// which materializes file-layer defaults for a startup config document.
+pub fn load_overlay_patch(input: &str) -> Result<Config, ConfigError> {
+    let y: YamlOverlayPatch = serde_yaml::from_str(input)?;
+    let cfg: Config = y.into();
+    let validation = crate::overlay::validate_overlay_patch(&cfg);
+    if !validation.ok {
+        return Err(ConfigError::Invalid(validation.errors.join("; ")));
+    }
+    Ok(cfg)
+}
+
+impl From<YamlOverlayPatch> for Config {
+    fn from(y: YamlOverlayPatch) -> Self {
+        Config {
+            schema_version: y.schema_version,
+            listeners: y.listeners.map(Into::into),
+            forward: y.forward.map(Into::into),
+            orchestrator: y.orchestrator.map(Into::into),
+            events: y.events.map(Into::into),
+            rhai: y.rhai.map(Into::into),
+            pools: y.pools.into_iter().map(Into::into).collect(),
+            control: y.control.map(Into::into),
+            rules: y.rules.map(Into::into),
+            logging: y.logging.map(Into::into),
+            data_sources: y.data_sources.into_iter().map(Into::into).collect(),
+            metrics: y.metrics.map(Into::into),
+            tracing: y.tracing.map(Into::into),
+        }
+    }
 }
 
 impl From<YamlConfig> for Config {

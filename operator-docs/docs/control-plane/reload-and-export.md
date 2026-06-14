@@ -16,49 +16,53 @@ Conduit separates **durable config on disk** from **in-memory tweaks**:
 | **`conduitctl apply --clear`** | Yes | Yes | No |
 | **`conduitctl export`** | Yes | No | No (read only) |
 
-**SIGHUP** and **`conduitctl reload`** implement the same **[file-wins reload](/glossary/index.md#file-wins-reload)** semantics: re-read the config path Conduit was started with, **clear any API overlay**, validate, and install a new [runtime snapshot](/glossary/index.md#runtime-snapshot) when successful.
+**SIGHUP** and **`conduitctl reload`** both **[reload from disk](/glossary/index.md#reload-from-disk)**: re-read the config path Conduit was started with, **clear any API overlay**, validate, and install a new [runtime snapshot](/glossary/index.md#runtime-snapshot) when successful.
+
+**Which action updates which layer:**
 
 ```mermaid
-flowchart TD
-  subgraph durable [Durable]
-    Disk[Config file on disk]
-  end
-  subgraph memory [In memory]
-    File[File layer]
-    Overlay[Accumulated overlay]
-  end
-  Disk -->|reload / SIGHUP| File
-  File --> Merge[Effective config]
-  Overlay --> Merge
-  Merge --> Snapshot[Runtime snapshot]
-  Snapshot --> DNS[Dataplane serves queries]
-  Reload[SIGHUP or conduitctl reload] --> Disk
-  Reload --> ClearO[Clear overlay]
-  ClearO --> Merge
-  ApplyM[apply --file default merge] --> Acc[Merge patch into overlay]
-  ApplyR[apply --replace] --> SetO[Replace overlay with patch]
-  ApplyC[apply --clear] --> DropO[Clear overlay only]
-  Acc --> Overlay
-  SetO --> Overlay
-  DropO --> Overlay
-  DropO --> Merge
+flowchart LR
+  Disk[On-disk YAML]
+  Reload[SIGHUP or conduitctl reload]
+  Apply[conduitctl apply]
+  File[File layer]
+  Overlay[Overlay]
+  Eff[Effective config]
+  Snap[Runtime snapshot]
+
+  Reload -->|re-read| Disk
+  Reload -->|refresh| File
+  Reload -.->|clear| Overlay
+  Apply -->|patch| Overlay
+  File --> Eff
+  Overlay --> Eff
+  Eff --> Snap
 ```
+
+- **SIGHUP or `conduitctl reload`** — [reload from disk](/glossary/index.md#reload-from-disk): re-read the startup file into the file layer and clear the overlay.
+- **`conduitctl apply`** — update the overlay only; on-disk YAML is unchanged until the next reload.
+- **Export** — read effective config; not shown because it does not change any layer.
+
+Apply modes (`--merge`, `--replace`, `--clear`) change *how* the patch affects the overlay; see [Apply modes](#apply-modes) below and the table above.
 
 Every successful reload or apply runs **validate → compile → swap**. In-flight [transactions](/glossary/index.md#transaction) finish on the snapshot they started with; new queries use the updated snapshot. On failure, Conduit keeps the **[last-good snapshot](/glossary/index.md#last-good-snapshot)** and continues serving DNS.
 
-## Prerequisites
+## What each command needs
 
-| Goal | Requirement |
-|------|-------------|
-| Reload from disk with **SIGHUP** | Unix process; config saved to the **same path** used at startup |
-| **`conduitctl reload`**, **`apply`**, **`export`** | Running server with a `control:` block (`listen_address`) from **process start** — adding `control:` via reload does **not** start gRPC today; **restart** the process |
-| **`conduitctl validate --file`** | None — works offline; see [Config file](/control-plane/config-file.md#validation) |
+**SIGHUP** and **`conduitctl reload`** re-read only the config file you passed when starting Conduit (for example `conduit /etc/conduit/conduit.yaml`). They do not take a file path on the command line, and they do not use the path from **`conduitctl validate --file`**. Save your edits to that startup file before you reload.
 
-Reload and apply do **not** read arbitrary paths you pass to `conduitctl validate --file`. They always use the file path recorded when `conduit` started.
+| Command | Control plane required? | Also required |
+|---------|-------------------------|---------------|
+| **SIGHUP** | No | Unix; on-disk file updated at the **startup path** |
+| **`conduitctl reload`**, **`apply`**, **`export`** | Yes — see below | Running server; reachable `control.listen_address` |
 
-## File-wins reload (SIGHUP and `conduitctl reload`)
+**Control plane at process start:** **`conduitctl`** talks to gRPC only when the process **started** with a `control:` block (`listen_address`). If Conduit started without `control:`, adding it in YAML and reloading updates the snapshot but **does not** start the listener — **restart** the process, then use `conduitctl`.
 
-Use file-wins reload when configuration management or an editor has updated the on-disk YAML and you want that file to become the sole source of truth again.
+**Optional before reload:** **`conduitctl validate --file`** checks structure offline (any path; no running server). See [Config file — validation](/control-plane/config-file.md#validation). Passing validation does not load that file into Conduit unless it is the startup path and you reload.
+
+## Reload from disk (SIGHUP and `conduitctl reload`)
+
+Use **reload from disk** when configuration management or an editor has updated the on-disk YAML and you want that file to become the sole source of configuration again — with no active [overlay](/glossary/index.md#overlay).
 
 **What happens:**
 
@@ -81,7 +85,7 @@ Configure your init system or config-management hook to send SIGHUP after deploy
 conduitctl reload
 ```
 
-Requires a reachable control plane. Default endpoint: `http://127.0.0.1:5199` (override with `--endpoint` or `CONDUIT_CONTROL`). On success the CLI prints `ok`; on validation failure it exits non-zero with error text.
+Requires the [control plane](#what-each-command-needs) (default endpoint `http://127.0.0.1:5199`; override with `--endpoint` or `CONDUIT_CONTROL`). On success the CLI prints `ok`; on validation failure it exits non-zero with error text.
 
 **Before reload:** save edits to the configured path. **`conduitctl validate --file /path/to/conduit.yaml`** checks structure offline but does not prove Rhai scripts or CSV paths exist — see [Config file — validation](/control-plane/config-file.md#what-validation-does-not-check).
 
@@ -143,7 +147,7 @@ conduitctl apply --merge --file patch.yaml
 |--------|----------------------------------|-----------------|-------------|
 | **`conduitctl apply --clear`** | No | Yes | Revert API tweaks; keep the in-memory [file layer](/glossary/index.md#file-layer) from the last load |
 | **`conduitctl apply --replace`** + empty patch | No | Yes | Same as `--clear` when automation already emits a minimal YAML document |
-| **SIGHUP** / **`conduitctl reload`** | Yes | Yes | Pick up on-disk edits and drop overlay ([file-wins reload](/glossary/index.md#file-wins-reload)) |
+| **SIGHUP** / **`conduitctl reload`** | Yes | Yes | Pick up on-disk edits and drop overlay ([reload from disk](/glossary/index.md#reload-from-disk)) |
 
 If you edited the config file on disk but have **not** reloaded yet, **`--clear`** returns effective config to the **old** file layer still in memory — not the edited file on disk. Use **reload** when the file on disk is the new source of truth.
 
@@ -163,15 +167,15 @@ The file is a **full YAML document** parsed as config; only fields you include p
 - Top-level sections such as `forward`, `orchestrator`, `events`, `rhai`, `control`, `logging` (whole-section replace when the section is present)
 - `data_sources` list (non-empty overlay list replaces the file list)
 
-**File layer only** (require edit + reload, not overlay): **`rules:`**, **`metrics:`**, **`tracing:`**.
+**File layer only** (edit + reload; **`conduitctl apply` rejects** patches that include these keys): **`rules:`**, **`metrics:`**, **`tracing:`**.
 
 On success the CLI prints `ok`. Logs include `config applied` with `source=grpc` and a **generation** counter. Failed apply leaves the prior snapshot unchanged (including any earlier overlay).
 
-**Drop overlay without reload:** **`conduitctl apply --clear`**, **`conduitctl apply --replace --file`** with a `schema_version`-only patch, or [file-wins reload](#file-wins-reload-sighup-and-conduitctl-reload) when you also need disk edits.
+**Drop overlay without reload:** **`conduitctl apply --clear`**, **`conduitctl apply --replace --file`** with a `schema_version`-only patch, or [reload from disk](#reload-from-disk-sighup-and-conduitctl-reload) when you also need on-disk edits.
 
 ## Export before clear or reload
 
-When an [overlay](/glossary/index.md#overlay) is active, [effective config](/glossary/index.md#effective-config) differs from the on-disk [file layer](/glossary/index.md#file-layer). Before you **clear** the overlay or run a **file-wins reload**, capture the running state if you might need it later:
+When an [overlay](/glossary/index.md#overlay) is active, [effective config](/glossary/index.md#effective-config) differs from the on-disk [file layer](/glossary/index.md#file-layer). Before you **clear** the overlay or **reload from disk**, capture the running state if you might need it later:
 
 ```bash
 conduitctl export --output /tmp/conduit-effective-before-clear.yaml
@@ -202,7 +206,7 @@ conduitctl export --output /tmp/conduit-effective.yaml
 Use export to:
 
 - Inspect what the server is **actually running** after applies and defaults.
-- Capture overlay changes before a file-wins reload clears them.
+- Capture overlay changes before you reload from disk.
 - Produce a fuller YAML starting point than a sparse on-disk file (export omits many default sections and default field values).
 
 **Normalization:** export may **omit** fields equal to built-in defaults (for example default backend `weight: 100` or entire default blocks). A sparse export round-trips to the same behavior — see [Configuration model — defaults](/control-plane/configuration-model.md#defaults-at-load). Export reflects **effective** values, not necessarily a byte-for-byte copy of your on-disk file plus overlay.
@@ -276,4 +280,4 @@ To confirm effective pool weights or other fields without export, use **`conduit
 - [Config file](/control-plane/config-file.md) — format, path resolution, validation limits
 - [gRPC and conduitctl](/control-plane/grpc-and-conduitctl.md) — endpoint, API keys, TLS, CLI reference
 - [Pools and backends](/policy-routing/pools-and-backends.md) — weights and routing after reload
-- [Glossary](/glossary/index.md) — [overlay](/glossary/index.md#overlay), [clear overlay without reload](/glossary/index.md#clear-overlay-without-reload), [export](/glossary/index.md#export), [file-wins reload](/glossary/index.md#file-wins-reload), [pending reconcile](/glossary/index.md#pending-reconcile)
+- [Glossary](/glossary/index.md) — [overlay](/glossary/index.md#overlay), [clear overlay without reload](/glossary/index.md#clear-overlay-without-reload), [export](/glossary/index.md#export), [reload from disk](/glossary/index.md#reload-from-disk), [pending reconcile](/glossary/index.md#pending-reconcile)

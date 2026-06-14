@@ -10,13 +10,13 @@ Entries are added as documentation grows. Keep one-line glosses in sync when lin
 
 ### Overlay
 
-In-memory config patch applied with `conduitctl apply`; **merge** mode accumulates successive patches, then combines with the [file layer](/glossary/index.md#file-layer) into [effective config](/glossary/index.md#effective-config). Cleared by [file-wins reload](/glossary/index.md#file-wins-reload), **`conduitctl apply --clear`**, or **`conduitctl apply --replace`** with an empty patch (`schema_version` only).
+In-memory config patch applied with `conduitctl apply`; **merge** mode accumulates successive patches, then combines with the [file layer](/glossary/index.md#file-layer) into [effective config](/glossary/index.md#effective-config). Cleared by [reload from disk](/glossary/index.md#reload-from-disk), **`conduitctl apply --clear`**, or **`conduitctl apply --replace`** with an empty patch (`schema_version` only).
 
 → [Configuration model](/control-plane/configuration-model.md)
 
 ### Clear overlay (without reload)
 
-**`conduitctl apply --clear`**: drop the active [overlay](/glossary/index.md#overlay) without re-reading the [file layer](/glossary/index.md#file-layer) from disk — distinct from [file-wins reload](/glossary/index.md#file-wins-reload), which re-reads the startup file and clears the overlay.
+**`conduitctl apply --clear`**: drop the active [overlay](/glossary/index.md#overlay) without re-reading the [file layer](/glossary/index.md#file-layer) from disk — distinct from [reload from disk](/glossary/index.md#reload-from-disk), which re-reads the startup file and clears the overlay.
 
 → [Reload and export](/control-plane/reload-and-export.md#clear-vs-reload)
 
@@ -38,9 +38,9 @@ YAML serialization of the **[effective config](/glossary/index.md#effective-conf
 
 → [Reload and export](/control-plane/reload-and-export.md)
 
-### File-wins reload
+### Reload from disk { #reload-from-disk #file-wins-reload }
 
-**SIGHUP** or **`conduitctl reload`**: re-read the startup config file, **clear the overlay**, validate, and swap the [runtime snapshot](/glossary/index.md#runtime-snapshot).
+**SIGHUP** or **`conduitctl reload`**: re-read the startup config file from disk, **clear the overlay**, validate, and swap the [runtime snapshot](/glossary/index.md#runtime-snapshot). Afterward, effective config comes from the on-disk file only.
 
 → [Reload and export](/control-plane/reload-and-export.md)
 

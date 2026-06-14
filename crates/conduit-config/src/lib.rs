@@ -8,6 +8,7 @@ pub mod file;
 pub mod forward;
 pub mod logging;
 pub mod merge;
+pub mod overlay;
 pub mod validate;
 
 pub use backend::{effective_backend_weight, DEFAULT_BACKEND_WEIGHT};
@@ -21,7 +22,7 @@ pub use defaults::{
 };
 pub use error::ConfigError;
 pub use export::export_yaml;
-pub use file::load_yaml;
+pub use file::{load_overlay_patch, load_yaml};
 pub use forward::{
     compile_forward_from_config, parse_sources_v4, parse_sources_v6, parse_upstream_transport,
     validate_upstream_backend_addresses, CompiledForward, CompiledPoolForward, RecursionDesired,
@@ -33,6 +34,7 @@ pub use merge::{
     clear_overlay, is_overlay_patch_empty, merge_file_and_overlay, merge_overlay_patches,
     EffectiveConfig,
 };
+pub use overlay::validate_overlay_patch;
 pub use validate::{validate, ValidationResult};
 
 use conduit_proto::config::Config;

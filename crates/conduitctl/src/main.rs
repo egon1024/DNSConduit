@@ -2,7 +2,7 @@
 
 use anyhow::Context;
 use clap::{Parser, Subcommand};
-use conduit_config::{load_yaml, validate};
+use conduit_config::{load_overlay_patch, load_yaml, validate};
 use conduit_proto::config::Config as RuntimeConfig;
 use conduit_proto::control::conduit_control_client::ConduitControlClient;
 use conduit_proto::control::Config as ControlConfig;
@@ -114,7 +114,7 @@ async fn main() -> anyhow::Result<()> {
                     .ok_or_else(|| anyhow::anyhow!("--file is required unless --clear is set"))?;
                 let yaml =
                     std::fs::read_to_string(path).with_context(|| format!("reading {:?}", path))?;
-                let overlay = load_yaml(&yaml)?;
+                let overlay = load_overlay_patch(&yaml)?;
                 let mode = if replace {
                     OverlayApplyMode::Replace
                 } else {
