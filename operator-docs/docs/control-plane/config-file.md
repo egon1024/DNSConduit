@@ -123,8 +123,9 @@ Similarly, upstream [backends](/glossary/index.md#backend) need not be reachable
 | **Process start** | Path recorded at start | Exit before DNS | Install snapshot, start [dataplane](/glossary/index.md#dataplane) |
 | **SIGHUP** (Unix) | Same path re-read from disk | Log error; keep last-good snapshot | New snapshot for later queries; clear [overlay](/glossary/index.md#overlay) |
 | **`conduitctl reload`** | Same path on server | RPC error; keep last-good snapshot | Same as SIGHUP |
+| **`conduitctl apply --clear`** | Startup path unchanged (not re-read) | RPC error; keep last-good snapshot | Clear [overlay](/glossary/index.md#overlay) only; [file layer](/glossary/index.md#file-layer) stays as last loaded |
 
-Reload does not apply edits you only made locally unless they are saved to the configured file path first.
+Reload does not apply edits you only made locally unless they are saved to the configured file path first. To drop an [overlay](/glossary/index.md#overlay) **without** re-reading disk, use **`conduitctl apply --clear`** — see [Reload and export — clear vs reload](/control-plane/reload-and-export.md#clear-vs-reload).
 
 Some successful reloads still log **pending (restart required)** when `listeners` or `forward` changed — snapshot updates, but listener bind or egress sockets need a process restart. See [Configuration model](/control-plane/configuration-model.md#pending-reconcile-restart-required).
 

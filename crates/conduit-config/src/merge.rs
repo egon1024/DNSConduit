@@ -9,6 +9,10 @@
 //! - **`pools`**: match pools by `name`; for each overlay pool, match backends by
 //!   `address` and update fields. Overlay pools not present in the file are appended.
 //!   Overlay backends not present in a pool are appended.
+//!
+//! Successive API applies default to **merge** patches into the accumulated overlay
+//! (see [`merge_overlay_patches`]); effective config is always `file` merged with that
+//! single overlay blob.
 
 use conduit_proto::config::{Backend, Config, Pool};
 
@@ -74,6 +78,24 @@ pub fn merge_file_and_overlay(file: &Config, overlay: &Config) -> Config {
 
 pub fn clear_overlay(effective: &mut EffectiveConfig) {
     effective.overlay = None;
+}
+
+/// True when the patch sets no overlay-eligible fields (`schema_version` alone does not count).
+pub fn is_overlay_patch_empty(cfg: &Config) -> bool {
+    cfg.listeners.is_none()
+        && cfg.forward.is_none()
+        && cfg.orchestrator.is_none()
+        && cfg.events.is_none()
+        && cfg.rhai.is_none()
+        && cfg.control.is_none()
+        && cfg.logging.is_none()
+        && cfg.pools.is_empty()
+        && cfg.data_sources.is_empty()
+}
+
+/// Merge one overlay patch into another (same rules as [`merge_file_and_overlay`]).
+pub fn merge_overlay_patches(base: &Config, patch: &Config) -> Config {
+    merge_file_and_overlay(base, patch)
 }
 
 fn merge_pools(base: &mut Vec<Pool>, overlay: &[Pool]) {
@@ -165,5 +187,47 @@ mod tests {
         let merged = merge_file_and_overlay(&file_cfg, &overlay);
         assert_eq!(merged.listeners.as_ref().unwrap().threads, 4);
         assert_eq!(merged.forward, file_cfg.forward);
+    }
+
+    #[test]
+    fn is_overlay_patch_empty_for_schema_version_only() {
+        let cfg = Config {
+            schema_version: 1,
+            ..Default::default()
+        };
+        assert!(is_overlay_patch_empty(&cfg));
+    }
+
+    #[test]
+    fn merge_overlay_patches_accumulates_pool_and_listeners() {
+        let file_cfg =
+            load_yaml(include_str!("../../../tests/fixtures/config/minimal.yaml")).unwrap();
+        let mut weight_patch = Config {
+            schema_version: 1,
+            pools: vec![{
+                let mut pool = file_cfg.pools[0].clone();
+                pool.backends[0].weight = Some(50);
+                pool
+            }],
+            ..Default::default()
+        };
+        let listener_patch = Config {
+            schema_version: 1,
+            listeners: Some(conduit_proto::config::ListenersConfig {
+                threads: 4,
+                reuse_port: true,
+                rcvbuf: 0,
+                sndbuf: 0,
+                listeners: vec![],
+            }),
+            ..Default::default()
+        };
+        let accumulated = merge_overlay_patches(&weight_patch, &listener_patch);
+        let effective = merge_file_and_overlay(&file_cfg, &accumulated);
+        assert_eq!(effective.pools[0].backends[0].weight, Some(50));
+        assert_eq!(effective.listeners.as_ref().unwrap().threads, 4);
+        weight_patch.pools[0].backends[0].weight = Some(99);
+        let replaced = merge_overlay_patches(&weight_patch, &listener_patch);
+        assert_eq!(replaced.pools[0].backends[0].weight, Some(99));
     }
 }

@@ -10,9 +10,15 @@ Entries are added as documentation grows. Keep one-line glosses in sync when lin
 
 ### Overlay
 
-In-memory config patch applied with `conduitctl apply`; merged on top of the [file layer](/glossary/index.md#file-layer) until [file-wins reload](/glossary/index.md#file-wins-reload) clears it.
+In-memory config patch applied with `conduitctl apply`; **merge** mode accumulates successive patches, then combines with the [file layer](/glossary/index.md#file-layer) into [effective config](/glossary/index.md#effective-config). Cleared by [file-wins reload](/glossary/index.md#file-wins-reload), **`conduitctl apply --clear`**, or **`conduitctl apply --replace`** with an empty patch (`schema_version` only).
 
 → [Configuration model](/control-plane/configuration-model.md)
+
+### Clear overlay (without reload)
+
+**`conduitctl apply --clear`**: drop the active [overlay](/glossary/index.md#overlay) without re-reading the [file layer](/glossary/index.md#file-layer) from disk — distinct from [file-wins reload](/glossary/index.md#file-wins-reload), which re-reads the startup file and clears the overlay.
+
+→ [Reload and export](/control-plane/reload-and-export.md#clear-vs-reload)
 
 ### File layer
 
@@ -28,15 +34,15 @@ YAML read from the path passed at `conduit` startup — the durable baseline on 
 
 ### Export
 
-<!-- one-line definition -->
+YAML serialization of the **[effective config](/glossary/index.md#effective-config)** (file layer plus active overlay, defaults normalized) via `conduitctl export` or gRPC `ExportConfig`.
 
-→ [Reload and export](../control-plane/reload-and-export.md)
+→ [Reload and export](/control-plane/reload-and-export.md)
 
 ### File-wins reload
 
-<!-- one-line definition -->
+**SIGHUP** or **`conduitctl reload`**: re-read the startup config file, **clear the overlay**, validate, and swap the [runtime snapshot](/glossary/index.md#runtime-snapshot).
 
-→ [Reload and export](../control-plane/reload-and-export.md)
+→ [Reload and export](/control-plane/reload-and-export.md)
 
 ## Runtime
 
@@ -50,7 +56,7 @@ The validated settings bundle the [dataplane](/glossary/index.md#dataplane) uses
 
 The previous working [runtime snapshot](/glossary/index.md#runtime-snapshot) Conduit keeps when a reload or apply fails validation — DNS continues on the last known-good settings instead of the rejected change.
 
-→ [Reload and export](../control-plane/reload-and-export.md)
+→ [Reload and export](/control-plane/reload-and-export.md)
 
 ### Pending reconcile
 
@@ -138,9 +144,9 @@ Optional gRPC API and operator tools (`conduitctl`, reload, export). Separate fr
 
 ### conduitctl
 
-<!-- one-line definition -->
+CLI for the [control plane](/glossary/index.md#control-plane) — `apply` (with merge / replace / clear modes), `export`, `reload`, `validate`, and `trace`.
 
-→ [gRPC and conduitctl](../control-plane/grpc-and-conduitctl.md)
+→ [gRPC and conduitctl](/control-plane/grpc-and-conduitctl.md)
 
 ## Observability
 

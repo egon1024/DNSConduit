@@ -4,7 +4,10 @@
 //! on the same channel without refactoring gRPC handlers.
 
 use crate::snapshot::{RuntimeSnapshot, SnapshotStore};
-use conduit_config::{clear_overlay, load_yaml, validate, EffectiveConfig, ValidationResult};
+use conduit_config::{
+    clear_overlay, is_overlay_patch_empty, load_yaml, merge_overlay_patches, validate,
+    EffectiveConfig, ValidationResult,
+};
 use conduit_proto::config::Config;
 use std::fmt;
 use std::fs;
@@ -31,12 +34,22 @@ impl fmt::Display for ProposalSource {
     }
 }
 
+/// How an API overlay patch is applied to the accumulated overlay layer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum OverlayApplyMode {
+    #[default]
+    Merge,
+    Replace,
+    Clear,
+}
+
 /// Configuration change submitted to the Configurator.
 #[derive(Debug, Clone)]
 pub struct PolicyProposal {
     pub source: ProposalSource,
-    /// gRPC overlay patch (replaces API overlay layer).
+    /// gRPC overlay patch (interpretation depends on [`Self::overlay_mode`]).
     pub overlay: Option<Config>,
+    pub overlay_mode: OverlayApplyMode,
     /// When set, replaces the file baseline (reload from disk).
     pub file_reload: Option<Config>,
     pub correlation_id: Option<String>,
@@ -94,12 +107,14 @@ impl ConfiguratorHandle {
 
     pub async fn apply_overlay(
         &self,
-        overlay: Config,
+        overlay: Option<Config>,
+        mode: OverlayApplyMode,
         correlation_id: Option<String>,
     ) -> ApplyResult {
         self.propose(PolicyProposal {
             source: ProposalSource::Grpc,
-            overlay: Some(overlay),
+            overlay,
+            overlay_mode: mode,
             file_reload: None,
             correlation_id,
         })
@@ -110,6 +125,7 @@ impl ConfiguratorHandle {
         self.propose(PolicyProposal {
             source,
             overlay: None,
+            overlay_mode: OverlayApplyMode::Merge,
             file_reload: None,
             correlation_id: None,
         })
@@ -218,8 +234,8 @@ fn prepare_effective(
         clear_overlay(&mut eff);
     }
 
-    if let Some(overlay) = &proposal.overlay {
-        eff.overlay = Some(overlay.clone());
+    if proposal.source == ProposalSource::Grpc {
+        apply_overlay_mode(&mut eff, proposal)?;
     }
 
     let merged = eff.effective();
@@ -228,6 +244,43 @@ fn prepare_effective(
         return Err(errors);
     }
     Ok(merged)
+}
+
+fn apply_overlay_mode(
+    eff: &mut EffectiveConfig,
+    proposal: &PolicyProposal,
+) -> Result<(), Vec<String>> {
+    match proposal.overlay_mode {
+        OverlayApplyMode::Clear => {
+            clear_overlay(eff);
+            Ok(())
+        }
+        OverlayApplyMode::Replace => {
+            let patch = proposal
+                .overlay
+                .as_ref()
+                .ok_or_else(|| vec!["replace apply requires overlay".into()])?;
+            if is_overlay_patch_empty(patch) {
+                clear_overlay(eff);
+            } else {
+                eff.overlay = Some(patch.clone());
+            }
+            Ok(())
+        }
+        OverlayApplyMode::Merge => {
+            let Some(patch) = &proposal.overlay else {
+                return Err(vec!["merge apply requires overlay".into()]);
+            };
+            if is_overlay_patch_empty(patch) {
+                return Ok(());
+            }
+            eff.overlay = Some(match &eff.overlay {
+                Some(existing) => merge_overlay_patches(existing, patch),
+                None => patch.clone(),
+            });
+            Ok(())
+        }
+    }
 }
 
 /// Operator-facing log after a successful snapshot swap.
@@ -308,7 +361,9 @@ mod tests {
         let mut overlay = file_cfg.clone();
         overlay.pools[0].backends[0].weight = Some(42);
 
-        let result = handle.apply_overlay(overlay, None).await;
+        let result = handle
+            .apply_overlay(Some(overlay), OverlayApplyMode::Merge, None)
+            .await;
         assert!(result.ok, "{:?}", result.errors);
         assert_eq!(store.load().config.pools[0].backends[0].weight, Some(42));
         assert_eq!(store.generation(), result.generation);
@@ -336,7 +391,9 @@ mod tests {
         let mut overlay = file_cfg.clone();
         overlay.listeners.as_mut().unwrap().threads = 0;
 
-        let result = handle.apply_overlay(overlay, None).await;
+        let result = handle
+            .apply_overlay(Some(overlay), OverlayApplyMode::Merge, None)
+            .await;
         assert!(!result.ok);
         assert_eq!(store.generation(), gen0);
         assert_eq!(store.load().config.pools[0].backends[0].weight, Some(100));
@@ -361,7 +418,9 @@ mod tests {
 
         let mut overlay = file_cfg.clone();
         overlay.pools[0].backends[0].weight = Some(42);
-        handle.apply_overlay(overlay, None).await;
+        handle
+            .apply_overlay(Some(overlay), OverlayApplyMode::Merge, None)
+            .await;
         assert_eq!(store.load().config.pools[0].backends[0].weight, Some(42));
 
         let result = handle.reload_from_file(ProposalSource::Sighup).await;
@@ -369,5 +428,170 @@ mod tests {
         assert_eq!(store.load().config.pools[0].backends[0].weight, Some(100));
         let eff = effective.lock().unwrap();
         assert!(eff.overlay.is_none());
+    }
+
+    fn pool_weight_patch(file_cfg: &Config, weight: u32) -> Config {
+        let mut pool = file_cfg.pools[0].clone();
+        pool.backends[0].weight = Some(weight);
+        Config {
+            schema_version: 1,
+            pools: vec![pool],
+            ..Default::default()
+        }
+    }
+
+    fn listeners_only_patch(threads: u32) -> Config {
+        Config {
+            schema_version: 1,
+            listeners: Some(conduit_proto::config::ListenersConfig {
+                threads,
+                reuse_port: true,
+                rcvbuf: 0,
+                sndbuf: 0,
+                listeners: vec![],
+            }),
+            ..Default::default()
+        }
+    }
+
+    #[tokio::test]
+    async fn merge_apply_accumulates_overlay_fields() {
+        let yaml = include_str!("../../../tests/fixtures/config/minimal.yaml");
+        let file_cfg = load_yaml(yaml).unwrap();
+        let store = Arc::new(SnapshotStore::new(RuntimeSnapshot::from_config(
+            file_cfg.clone(),
+        )));
+        let effective = Arc::new(Mutex::new(EffectiveConfig::new(file_cfg.clone())));
+        let state = ConfiguratorState {
+            config_path: PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../tests/fixtures/config/minimal.yaml"),
+            base_dir: Some(
+                PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/config"),
+            ),
+        };
+        let handle = spawn(store.clone(), effective, state).handle();
+
+        handle
+            .apply_overlay(
+                Some(pool_weight_patch(&file_cfg, 50)),
+                OverlayApplyMode::Merge,
+                None,
+            )
+            .await;
+        handle
+            .apply_overlay(Some(listeners_only_patch(4)), OverlayApplyMode::Merge, None)
+            .await;
+
+        let snap = store.load();
+        assert_eq!(snap.config.pools[0].backends[0].weight, Some(50));
+        assert_eq!(snap.config.listeners.as_ref().unwrap().threads, 4);
+    }
+
+    #[tokio::test]
+    async fn replace_apply_drops_prior_overlay_fields() {
+        let yaml = include_str!("../../../tests/fixtures/config/minimal.yaml");
+        let file_cfg = load_yaml(yaml).unwrap();
+        let store = Arc::new(SnapshotStore::new(RuntimeSnapshot::from_config(
+            file_cfg.clone(),
+        )));
+        let effective = Arc::new(Mutex::new(EffectiveConfig::new(file_cfg.clone())));
+        let state = ConfiguratorState {
+            config_path: PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../tests/fixtures/config/minimal.yaml"),
+            base_dir: Some(
+                PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/config"),
+            ),
+        };
+        let handle = spawn(store.clone(), effective, state).handle();
+
+        handle
+            .apply_overlay(
+                Some(pool_weight_patch(&file_cfg, 50)),
+                OverlayApplyMode::Merge,
+                None,
+            )
+            .await;
+        handle
+            .apply_overlay(
+                Some(listeners_only_patch(4)),
+                OverlayApplyMode::Replace,
+                None,
+            )
+            .await;
+
+        let snap = store.load();
+        assert_eq!(snap.config.pools[0].backends[0].weight, Some(100));
+        assert_eq!(snap.config.listeners.as_ref().unwrap().threads, 4);
+    }
+
+    #[tokio::test]
+    async fn clear_apply_drops_overlay_without_reload() {
+        let yaml = include_str!("../../../tests/fixtures/config/minimal.yaml");
+        let file_cfg = load_yaml(yaml).unwrap();
+        let store = Arc::new(SnapshotStore::new(RuntimeSnapshot::from_config(
+            file_cfg.clone(),
+        )));
+        let effective = Arc::new(Mutex::new(EffectiveConfig::new(file_cfg.clone())));
+        let state = ConfiguratorState {
+            config_path: PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../tests/fixtures/config/minimal.yaml"),
+            base_dir: Some(
+                PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/config"),
+            ),
+        };
+        let handle = spawn(store.clone(), effective.clone(), state).handle();
+
+        handle
+            .apply_overlay(
+                Some(pool_weight_patch(&file_cfg, 50)),
+                OverlayApplyMode::Merge,
+                None,
+            )
+            .await;
+        let result = handle
+            .apply_overlay(None, OverlayApplyMode::Clear, None)
+            .await;
+        assert!(result.ok, "{:?}", result.errors);
+        assert_eq!(store.load().config.pools[0].backends[0].weight, Some(100));
+        assert!(effective.lock().unwrap().overlay.is_none());
+    }
+
+    #[tokio::test]
+    async fn replace_empty_patch_clears_overlay() {
+        let yaml = include_str!("../../../tests/fixtures/config/minimal.yaml");
+        let file_cfg = load_yaml(yaml).unwrap();
+        let store = Arc::new(SnapshotStore::new(RuntimeSnapshot::from_config(
+            file_cfg.clone(),
+        )));
+        let effective = Arc::new(Mutex::new(EffectiveConfig::new(file_cfg.clone())));
+        let state = ConfiguratorState {
+            config_path: PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../tests/fixtures/config/minimal.yaml"),
+            base_dir: Some(
+                PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/config"),
+            ),
+        };
+        let handle = spawn(store.clone(), effective.clone(), state).handle();
+
+        handle
+            .apply_overlay(
+                Some(pool_weight_patch(&file_cfg, 50)),
+                OverlayApplyMode::Merge,
+                None,
+            )
+            .await;
+        handle
+            .apply_overlay(
+                Some(Config {
+                    schema_version: 1,
+                    ..Default::default()
+                }),
+                OverlayApplyMode::Replace,
+                None,
+            )
+            .await;
+
+        assert_eq!(store.load().config.pools[0].backends[0].weight, Some(100));
+        assert!(effective.lock().unwrap().overlay.is_none());
     }
 }

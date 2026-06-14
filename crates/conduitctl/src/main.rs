@@ -7,7 +7,8 @@ use conduit_proto::config::Config as RuntimeConfig;
 use conduit_proto::control::conduit_control_client::ConduitControlClient;
 use conduit_proto::control::Config as ControlConfig;
 use conduit_proto::control::{
-    ApplyConfigRequest, ExportConfigRequest, GetTraceRequest, ReloadFromFileRequest,
+    ApplyConfigRequest, ExportConfigRequest, GetTraceRequest, OverlayApplyMode,
+    ReloadFromFileRequest,
 };
 use prost::Message;
 use std::path::PathBuf;
@@ -29,10 +30,23 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Apply an API overlay from a YAML file
+    /// Apply an API overlay patch (default: merge into active overlay)
     Apply {
+        /// YAML patch file (required unless --clear)
         #[arg(long)]
-        file: PathBuf,
+        file: Option<PathBuf>,
+
+        /// Merge patch into the active overlay (default when neither --replace nor --clear is set)
+        #[arg(long, conflicts_with_all = ["replace", "clear"])]
+        merge: bool,
+
+        /// Replace the entire overlay with this patch (empty patch clears overlay)
+        #[arg(long, conflicts_with_all = ["merge", "clear"])]
+        replace: bool,
+
+        /// Clear the active overlay without re-reading the config file
+        #[arg(long, conflicts_with_all = ["merge", "replace", "file"])]
+        clear: bool,
     },
     /// Export effective configuration as YAML
     Export {
@@ -86,16 +100,36 @@ fn with_auth<T>(cli: &Cli, mut request: tonic::Request<T>) -> anyhow::Result<ton
 async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     match cli.command {
-        Commands::Apply { ref file } => {
-            let yaml =
-                std::fs::read_to_string(file).with_context(|| format!("reading {:?}", file))?;
-            let overlay = load_yaml(&yaml)?;
+        Commands::Apply {
+            ref file,
+            replace,
+            clear,
+            ..
+        } => {
+            let (mode, overlay) = if clear {
+                (OverlayApplyMode::Clear, None)
+            } else {
+                let path = file
+                    .as_ref()
+                    .ok_or_else(|| anyhow::anyhow!("--file is required unless --clear is set"))?;
+                let yaml =
+                    std::fs::read_to_string(path).with_context(|| format!("reading {:?}", path))?;
+                let overlay = load_yaml(&yaml)?;
+                let mode = if replace {
+                    OverlayApplyMode::Replace
+                } else {
+                    OverlayApplyMode::Merge
+                };
+                (mode, Some(runtime_to_control(overlay)))
+            };
+
             let mut client = client(&cli).await?;
             let resp = client
                 .apply_config(with_auth(
                     &cli,
                     tonic::Request::new(ApplyConfigRequest {
-                        overlay: Some(runtime_to_control(overlay)),
+                        overlay,
+                        mode: mode.into(),
                     }),
                 )?)
                 .await?

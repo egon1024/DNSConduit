@@ -21,7 +21,7 @@ pub use conduit_config::forward::{
 };
 pub use configurator::{
     spawn as spawn_configurator, ApplyResult, ConfiguratorHandle, ConfiguratorSpawn,
-    ConfiguratorState, PolicyProposal, ProposalSource,
+    ConfiguratorState, OverlayApplyMode, PolicyProposal, ProposalSource,
 };
 pub use orchestrator::{Orchestrator, RunOutcome, StageRegistry};
 pub use parse_reject::ParseRejectReason;

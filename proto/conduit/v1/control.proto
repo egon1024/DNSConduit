@@ -27,8 +27,16 @@ message ValidateConfigResponse {
   repeated string errors = 2;
 }
 
+enum OverlayApplyMode {
+  OVERLAY_APPLY_MODE_UNSPECIFIED = 0;  // treated as MERGE
+  OVERLAY_APPLY_MODE_MERGE = 1;
+  OVERLAY_APPLY_MODE_REPLACE = 2;
+  OVERLAY_APPLY_MODE_CLEAR = 3;
+}
+
 message ApplyConfigRequest {
-  Config overlay = 1;           // fields to merge over file layer
+  Config overlay = 1;           // patch fields (required for MERGE/REPLACE unless REPLACE with empty patch)
+  OverlayApplyMode mode = 2;
 }
 message ApplyConfigResponse {
   bool ok = 1;
