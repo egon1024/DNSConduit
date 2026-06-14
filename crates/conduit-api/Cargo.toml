@@ -26,5 +26,6 @@ tracing = { workspace = true }
 conduit-config = { path = "../conduit-config" }
 conduit-core = { path = "../conduit-core" }
 conduit-metrics = { path = "../conduit-metrics" }
+tempfile = "3"
 hickory-proto = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "net"] }

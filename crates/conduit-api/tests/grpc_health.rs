@@ -6,11 +6,11 @@ use std::net::SocketAddr;
 
 #[tokio::test]
 async fn health_returns_serving() {
-    let (snapshots, effective, configurator, tracing) = support::minimal_control_setup();
+    let (snapshots, effective, configurator, tracing, base_dir) = support::minimal_control_setup();
 
     let addr: SocketAddr = "127.0.0.1:0".parse().expect("parse");
     let local_addr =
-        conduit_api::serve_on_listener(addr, snapshots, effective, configurator, tracing)
+        conduit_api::serve_on_listener(addr, snapshots, effective, configurator, tracing, base_dir)
             .await
             .expect("start server");
 

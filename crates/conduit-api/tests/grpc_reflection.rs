@@ -44,7 +44,7 @@ async fn reflection_enabled_lists_conduit_service() {
             .unwrap_or(false),
         "fixture should enable reflection"
     );
-    let (snapshots, effective, configurator, tracing) = support::control_setup(
+    let (snapshots, effective, configurator, tracing, base_dir) = support::control_setup(
         file_cfg,
         support::workspace_fixture("tests/fixtures/config/with-metrics-tracing-prometheus.yaml"),
         Some(support::workspace_fixture("tests/fixtures/config")),
@@ -52,7 +52,7 @@ async fn reflection_enabled_lists_conduit_service() {
 
     let addr: SocketAddr = "127.0.0.1:0".parse().expect("parse");
     let local_addr =
-        conduit_api::serve_on_listener(addr, snapshots, effective, configurator, tracing)
+        conduit_api::serve_on_listener(addr, snapshots, effective, configurator, tracing, base_dir)
             .await
             .expect("start server");
 
@@ -75,11 +75,11 @@ async fn reflection_disabled_rejects_reflection_requests() {
             .unwrap_or(false),
         "minimal fixture should not enable reflection"
     );
-    let (snapshots, effective, configurator, tracing) = support::minimal_control_setup();
+    let (snapshots, effective, configurator, tracing, base_dir) = support::minimal_control_setup();
 
     let addr: SocketAddr = "127.0.0.1:0".parse().expect("parse");
     let local_addr =
-        conduit_api::serve_on_listener(addr, snapshots, effective, configurator, tracing)
+        conduit_api::serve_on_listener(addr, snapshots, effective, configurator, tracing, base_dir)
             .await
             .expect("start server");
 

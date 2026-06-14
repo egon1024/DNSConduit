@@ -314,6 +314,7 @@ dependencies = [
  "http",
  "pin-project",
  "prost",
+ "tempfile",
  "tokio",
  "tokio-stream",
  "tonic",
@@ -350,6 +351,7 @@ dependencies = [
  "conduit-script",
  "hickory-proto",
  "serde_json",
+ "tempfile",
  "thiserror 2.0.18",
  "tokio",
  "tracing",
@@ -441,6 +443,7 @@ dependencies = [
  "conduit-metrics",
  "conduit-proto",
  "rhai",
+ "tempfile",
  "thiserror 2.0.18",
  "tracing",
 ]

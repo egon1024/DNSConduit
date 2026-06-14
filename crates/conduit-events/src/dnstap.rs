@@ -353,7 +353,7 @@ mod tests {
             name: None,
             connect_retry,
         };
-        compile_one_sink(&sink).unwrap()
+        compile_one_sink(&sink, None).unwrap()
     }
 
     #[test]

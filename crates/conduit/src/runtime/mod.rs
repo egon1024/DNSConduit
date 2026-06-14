@@ -15,6 +15,7 @@ use conduit_metrics::{
 };
 use conduit_proto::config::Config;
 use std::net::SocketAddr;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 pub struct RuntimeSupervisorArgs {
@@ -24,6 +25,7 @@ pub struct RuntimeSupervisorArgs {
     pub metrics_hub: Arc<MetricsHub>,
     pub tracing_hub: Arc<TracingHub>,
     pub file_cfg: Config,
+    pub config_base_dir: Option<PathBuf>,
     #[cfg(unix)]
     pub sighup: Option<SighupReloadTask>,
 }
@@ -47,6 +49,7 @@ impl RuntimeSupervisor {
             metrics_hub,
             tracing_hub,
             file_cfg,
+            config_base_dir,
             #[cfg(unix)]
             sighup,
         } = args;
@@ -102,6 +105,7 @@ impl RuntimeSupervisor {
                     effective,
                     configurator_handle,
                     tracing_hub,
+                    config_base_dir,
                 )?)
             }
         };

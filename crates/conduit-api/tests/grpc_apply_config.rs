@@ -15,14 +15,20 @@ fn runtime_to_control(cfg: RuntimeConfig) -> ControlConfig {
 
 #[tokio::test]
 async fn apply_config_changes_pool_weight_and_generation() {
-    let (snapshots, effective, configurator, tracing) = support::minimal_control_setup();
+    let (snapshots, effective, configurator, tracing, base_dir) = support::minimal_control_setup();
     let gen0 = snapshots.generation();
 
     let addr: SocketAddr = "127.0.0.1:0".parse().expect("parse");
-    let local_addr =
-        conduit_api::serve_on_listener(addr, snapshots.clone(), effective, configurator, tracing)
-            .await
-            .expect("start server");
+    let local_addr = conduit_api::serve_on_listener(
+        addr,
+        snapshots.clone(),
+        effective,
+        configurator,
+        tracing,
+        base_dir,
+    )
+    .await
+    .expect("start server");
 
     let mut client = ConduitControlClient::connect(format!("http://{local_addr}"))
         .await
@@ -55,14 +61,20 @@ async fn apply_config_changes_pool_weight_and_generation() {
 
 #[tokio::test]
 async fn apply_config_invalid_overlay_rejected() {
-    let (snapshots, effective, configurator, tracing) = support::minimal_control_setup();
+    let (snapshots, effective, configurator, tracing, base_dir) = support::minimal_control_setup();
     let gen0 = snapshots.generation();
 
     let addr: SocketAddr = "127.0.0.1:0".parse().expect("parse");
-    let local_addr =
-        conduit_api::serve_on_listener(addr, snapshots.clone(), effective, configurator, tracing)
-            .await
-            .expect("start server");
+    let local_addr = conduit_api::serve_on_listener(
+        addr,
+        snapshots.clone(),
+        effective,
+        configurator,
+        tracing,
+        base_dir,
+    )
+    .await
+    .expect("start server");
 
     let mut client = ConduitControlClient::connect(format!("http://{local_addr}"))
         .await
@@ -89,13 +101,19 @@ async fn apply_config_invalid_overlay_rejected() {
 
 #[tokio::test]
 async fn reload_from_file_clears_api_overlay() {
-    let (snapshots, effective, configurator, tracing) = support::minimal_control_setup();
+    let (snapshots, effective, configurator, tracing, base_dir) = support::minimal_control_setup();
 
     let addr: SocketAddr = "127.0.0.1:0".parse().expect("parse");
-    let local_addr =
-        conduit_api::serve_on_listener(addr, snapshots.clone(), effective, configurator, tracing)
-            .await
-            .expect("start server");
+    let local_addr = conduit_api::serve_on_listener(
+        addr,
+        snapshots.clone(),
+        effective,
+        configurator,
+        tracing,
+        base_dir,
+    )
+    .await
+    .expect("start server");
 
     let mut client = ConduitControlClient::connect(format!("http://{local_addr}"))
         .await

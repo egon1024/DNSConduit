@@ -176,17 +176,20 @@ mod tests {
 
     #[test]
     fn builds_pool_and_attempt_count() {
-        let instance = compile_one_sink(&EventSink {
-            r#type: "dnstap".into(),
-            export_id: "x".into(),
-            destinations: vec!["unix:/tmp/x".into()],
-            emit: vec!["response".into()],
-            filters: None,
-            extra_fields: vec!["pool".into(), "attempt_count".into()],
-            extra_tags: vec![],
-            name: None,
-            connect_retry: None,
-        })
+        let instance = compile_one_sink(
+            &EventSink {
+                r#type: "dnstap".into(),
+                export_id: "x".into(),
+                destinations: vec!["unix:/tmp/x".into()],
+                emit: vec!["response".into()],
+                filters: None,
+                extra_fields: vec!["pool".into(), "attempt_count".into()],
+                extra_tags: vec![],
+                name: None,
+                connect_retry: None,
+            },
+            None,
+        )
         .unwrap();
         let json =
             String::from_utf8(build_extra_json(&instance, &source_with_tags()).unwrap()).unwrap();
@@ -197,17 +200,20 @@ mod tests {
 
     #[test]
     fn all_tags_when_star() {
-        let instance = compile_one_sink(&EventSink {
-            r#type: "dnstap".into(),
-            export_id: "x".into(),
-            destinations: vec!["unix:/tmp/x".into()],
-            emit: vec![],
-            filters: None,
-            extra_fields: vec!["tags".into()],
-            extra_tags: vec!["*".into()],
-            name: None,
-            connect_retry: None,
-        })
+        let instance = compile_one_sink(
+            &EventSink {
+                r#type: "dnstap".into(),
+                export_id: "x".into(),
+                destinations: vec!["unix:/tmp/x".into()],
+                emit: vec![],
+                filters: None,
+                extra_fields: vec!["tags".into()],
+                extra_tags: vec!["*".into()],
+                name: None,
+                connect_retry: None,
+            },
+            None,
+        )
         .unwrap();
         let json =
             String::from_utf8(build_extra_json(&instance, &source_with_tags()).unwrap()).unwrap();
@@ -218,17 +224,20 @@ mod tests {
 
     #[test]
     fn filtered_tags() {
-        let instance = compile_one_sink(&EventSink {
-            r#type: "dnstap".into(),
-            export_id: "x".into(),
-            destinations: vec!["unix:/tmp/x".into()],
-            emit: vec![],
-            filters: None,
-            extra_fields: vec!["tags".into()],
-            extra_tags: vec!["tenant".into()],
-            name: None,
-            connect_retry: None,
-        })
+        let instance = compile_one_sink(
+            &EventSink {
+                r#type: "dnstap".into(),
+                export_id: "x".into(),
+                destinations: vec!["unix:/tmp/x".into()],
+                emit: vec![],
+                filters: None,
+                extra_fields: vec!["tags".into()],
+                extra_tags: vec!["tenant".into()],
+                name: None,
+                connect_retry: None,
+            },
+            None,
+        )
         .unwrap();
         let json =
             String::from_utf8(build_extra_json(&instance, &source_with_tags()).unwrap()).unwrap();
@@ -238,17 +247,20 @@ mod tests {
 
     #[test]
     fn sink_name_extra_field() {
-        let instance = compile_one_sink(&EventSink {
-            r#type: "dnstap".into(),
-            name: Some("prod-tap".into()),
-            export_id: "wire-id".into(),
-            destinations: vec!["unix:/tmp/x".into()],
-            emit: vec![],
-            filters: None,
-            extra_fields: vec!["sink_name".into()],
-            extra_tags: vec![],
-            connect_retry: None,
-        })
+        let instance = compile_one_sink(
+            &EventSink {
+                r#type: "dnstap".into(),
+                name: Some("prod-tap".into()),
+                export_id: "wire-id".into(),
+                destinations: vec!["unix:/tmp/x".into()],
+                emit: vec![],
+                filters: None,
+                extra_fields: vec!["sink_name".into()],
+                extra_tags: vec![],
+                connect_retry: None,
+            },
+            None,
+        )
         .unwrap();
         let json =
             String::from_utf8(build_extra_json(&instance, &source_with_tags()).unwrap()).unwrap();
@@ -257,17 +269,20 @@ mod tests {
 
     #[test]
     fn empty_extra_fields_omits_bytes() {
-        let instance = compile_one_sink(&EventSink {
-            r#type: "dnstap".into(),
-            export_id: "x".into(),
-            destinations: vec!["unix:/tmp/x".into()],
-            emit: vec![],
-            filters: None,
-            extra_fields: vec![],
-            extra_tags: vec![],
-            name: None,
-            connect_retry: None,
-        })
+        let instance = compile_one_sink(
+            &EventSink {
+                r#type: "dnstap".into(),
+                export_id: "x".into(),
+                destinations: vec!["unix:/tmp/x".into()],
+                emit: vec![],
+                filters: None,
+                extra_fields: vec![],
+                extra_tags: vec![],
+                name: None,
+                connect_retry: None,
+            },
+            None,
+        )
         .unwrap();
         assert!(build_extra_json(&instance, &source_with_tags()).is_none());
     }
