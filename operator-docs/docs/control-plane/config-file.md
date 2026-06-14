@@ -68,8 +68,6 @@ Relative **filesystem** paths in the config resolve against the **directory cont
 | `control.tls` | `cert_path`, `key_path`, `client_ca_path` |
 | `events.sinks` dnstap destinations | `unix:run/dnstap.sock` (path after `unix:`) |
 
-**Not filesystem paths:** listener and backend addresses, `metrics.otel.endpoint` URLs, `metrics.prometheus.path` (HTTP path on the scrape listener), `logging.output` (`stderr` / `stdout`).
-
 Example — config at `/etc/conduit/conduit.yaml` and `value: scripts/policy.rhai` loads `/etc/conduit/scripts/policy.rhai`. The same rule applies to `cert_path: tls/server.pem` and `destinations: ["unix:run/dnstap.sock"]`.
 
 Use absolute paths when assets live outside the config directory tree.
