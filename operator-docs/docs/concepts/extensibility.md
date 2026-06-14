@@ -89,9 +89,11 @@ Sidecars trade per-query latency for running code in another language or an exis
 
 ## Lookup tables
 
-Extension code does **not** read arbitrary paths on the host. You declare lookup tables under **`data_sources:`** in config; Conduit loads them when it builds a [runtime snapshot](/glossary/index.md#runtime-snapshot) and exposes **lookup** calls to [Rhai](/rhai/index.md) (and, when shipped, [WASM](/glossary/index.md#wasm) and [sidecar](/glossary/index.md#sidecar) plugins).
+Extension code does **not** read arbitrary paths on the host. You declare lookup tables under **`data_sources:`** in config; the host loads them when it builds a [runtime snapshot](/glossary/index.md#runtime-snapshot) and exposes **lookup** calls to [Rhai](/rhai/index.md) (and, when shipped, [WASM](/glossary/index.md#wasm) and [sidecar](/glossary/index.md#sidecar) plugins).
 
-That matches how the rest of config reloads: **SIGHUP**, `conduitctl reload`, or `conduitctl apply` refreshes rules, scripts, and lookup tables together. In-flight [transactions](/glossary/index.md#transaction) keep the tables they started with.
+In **current releases**, each table with **`type: csv`** is read from disk at snapshot build and held in an **in-memory map** for **`table_lookup`** in [Rhai](/rhai/index.md). **Additional lookup backends and fresher refresh behavior** (beyond reloading the full file into memory) are planned for a near-term release; the host-owned lookup surface will stay shared across [Rhai](/glossary/index.md#rhai), [WASM](/glossary/index.md#wasm), and [sidecar](/glossary/index.md#sidecar) plugins.
+
+That matches how the rest of config reloads today: **SIGHUP**, `conduitctl reload`, or `conduitctl apply` refreshes rules, scripts, and lookup tables together. In-flight [transactions](/glossary/index.md#transaction) keep the tables they started with.
 
 Lookup API, examples, and grant rules: [Data sources and lookups](/rhai/data-sources-and-lookups.md). Field reference: [Config schema](/reference/config-schema/index.md) (when published for `data_sources`).
 
