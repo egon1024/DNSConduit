@@ -72,7 +72,7 @@ Overlays require a running [control plane](/glossary/index.md#control-plane) (`c
 | **Replace** | `--replace` | Replace the entire overlay with the patch; a patch containing only **`schema_version`** **clears** the overlay |
 | **Clear** | `--clear` (no `--file`) | Drop the overlay; **do not** re-read the config file from disk |
 
-**SIGHUP** and **`conduitctl reload`** are unchanged: they re-read the startup file path and **clear** the overlay ([file-wins reload](/glossary/index.md#file-wins-reload)).
+**SIGHUP** and **`conduitctl reload`** are unchanged: they re-read the startup file path and **clear** the overlay ([reload from disk](/glossary/index.md#reload-from-disk)).
 
 **Clear vs reload:** **`conduitctl apply --clear`** ([clear overlay without reload](/glossary/index.md#clear-overlay-without-reload)) drops the overlay but keeps the in-memory [file layer](/glossary/index.md#file-layer) from the last successful load — use this when you want to revert API tweaks without picking up disk edits. **Reload** re-reads the file from disk **and** clears the overlay — use this when configuration management has updated the on-disk YAML.
 
@@ -103,7 +103,7 @@ Merge rules (current release):
 | **`listeners`**, **`forward`**, **`orchestrator`**, **`events`**, **`rhai`**, **`control`**, **`logging`** | If the overlay includes the section, it **replaces** the file-layer section entirely |
 | **`data_sources`** | Non-empty overlay list replaces the file-layer list |
 | **`pools`** | Match pools by `name`; within a pool, match [backends](/glossary/index.md#backend) by `address` and update fields. New pools or backends in the overlay are **appended**. Unset `weight` in the overlay does **not** clear a file-layer weight |
-| **`rules`**, **`metrics`**, **`tracing`** | **File layer only** — not patchable via overlay |
+| **`rules`**, **`metrics`**, **`tracing`** | **File layer only** — not allowed in overlay patches; apply is rejected if the patch includes these keys |
 
 Example — shift weight on one backend without editing the main file:
 
@@ -116,7 +116,7 @@ pools:
         weight: 10
 ```
 
-Save as `overlay.yaml`, then `conduitctl apply --file overlay.yaml` (default **merge**). The file-layer pool definition stays on disk; the effective weight becomes **10** until you [clear](/glossary/index.md#clear-overlay-without-reload) or [reload](/glossary/index.md#file-wins-reload) the overlay.
+Save as `overlay.yaml`, then `conduitctl apply --file overlay.yaml` (default **merge**). The file-layer pool definition stays on disk; the effective weight becomes **10** until you [clear](/glossary/index.md#clear-overlay-without-reload) or [reload from disk](/glossary/index.md#reload-from-disk).
 
 A second apply with another weight patch **merges** into the same overlay — for example maintenance weight **10**, then restore one backend to **100** without touching the file. To discard all overlay state at once, use **`conduitctl apply --clear`**, **`conduitctl apply --replace --file empty.yaml`** where `empty.yaml` contains only `schema_version: 1`, or **reload** / **SIGHUP**.
 

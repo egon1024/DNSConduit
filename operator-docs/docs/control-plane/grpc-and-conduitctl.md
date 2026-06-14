@@ -53,7 +53,7 @@ Operator workflows and examples: [Reload and export — apply modes](/control-pl
 
 ```bash
 conduitctl export [--output PATH]   # effective YAML; default stdout (-)
-conduitctl reload                   # file-wins reload; clears overlay
+conduitctl reload                   # reload from disk; clears overlay
 conduitctl validate --file PATH     # offline validation; no server required
 conduitctl trace TXN_ID             # pipeline trace for a transaction id
 ```
@@ -92,7 +92,7 @@ Other RPCs (summary):
 |-----|---------|
 | `GetConfig` | Return current effective config |
 | `ExportConfig` | Serialize effective config (`format`: `yaml` or `json`) |
-| `ReloadFromFile` | [File-wins reload](/glossary/index.md#file-wins-reload) — re-read startup file, clear overlay |
+| `ReloadFromFile` | [Reload from disk](/glossary/index.md#reload-from-disk) — re-read startup file, clear overlay |
 | `ValidateConfig` | Validate a config message without applying |
 | `Health` | Liveness (`status`: `serving`) |
 | `GetTrace` | Pipeline trace events for a transaction id |

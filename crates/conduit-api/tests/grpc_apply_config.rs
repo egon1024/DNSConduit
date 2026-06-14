@@ -93,12 +93,18 @@ async fn apply_config_invalid_overlay_rejected() {
         .expect("connect");
 
     let yaml = include_str!("../../../tests/fixtures/config/minimal.yaml");
-    let mut overlay = load_yaml(yaml).expect("parse");
-    overlay.listeners.as_mut().unwrap().threads = 0;
+    let file_cfg = load_yaml(yaml).expect("parse");
+    let mut listeners = file_cfg.listeners.clone().expect("listeners");
+    listeners.threads = 0;
+    let overlay = runtime_to_control(RuntimeConfig {
+        schema_version: 1,
+        listeners: Some(listeners),
+        ..Default::default()
+    });
 
     let apply = client
         .apply_config(ApplyConfigRequest {
-            overlay: Some(runtime_to_control(overlay)),
+            overlay: Some(overlay),
             mode: OverlayApplyMode::Merge.into(),
         })
         .await
@@ -315,4 +321,49 @@ async fn apply_config_replace_empty_clears_overlay() {
         snapshots.load().config.pools[0].backends[0].weight,
         Some(100)
     );
+}
+
+#[tokio::test]
+async fn apply_config_rejects_rules_in_overlay() {
+    use conduit_proto::config::RulesConfig;
+
+    let (snapshots, effective, configurator, tracing, base_dir) = support::minimal_control_setup();
+    let gen0 = snapshots.generation();
+
+    let addr: SocketAddr = "127.0.0.1:0".parse().expect("parse");
+    let local_addr = conduit_api::serve_on_listener(
+        addr,
+        snapshots.clone(),
+        effective,
+        configurator,
+        tracing,
+        base_dir,
+    )
+    .await
+    .expect("start server");
+
+    let mut client = ConduitControlClient::connect(format!("http://{local_addr}"))
+        .await
+        .expect("connect");
+
+    let overlay = runtime_to_control(RuntimeConfig {
+        schema_version: 1,
+        rules: Some(RulesConfig {
+            match_mode: "first_match".into(),
+            rules: vec![],
+        }),
+        ..Default::default()
+    });
+
+    let apply = client
+        .apply_config(ApplyConfigRequest {
+            overlay: Some(overlay),
+            mode: OverlayApplyMode::Merge.into(),
+        })
+        .await
+        .expect("apply rpc")
+        .into_inner();
+    assert!(!apply.ok);
+    assert!(apply.errors.iter().any(|e| e.contains("rules")));
+    assert_eq!(snapshots.generation(), gen0);
 }
