@@ -1,0 +1,2 @@
+# Empty overlay patch (schema_version only). Use with --replace to clear overlay.
+schema_version: 1

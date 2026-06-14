@@ -17,13 +17,16 @@
 | Purpose | File |
 |---------|------|
 | **Baseline** — file layer at startup | [`config/phase-5-base.yaml`](config/phase-5-base.yaml) |
-| **Overlay** — pool weight 100 → 50 | [`config/phase-5-overlay-weight.yaml`](config/phase-5-overlay-weight.yaml) |
+| **Overlay** — pool weight 100 → 50 (full document) | [`config/phase-5-overlay-weight.yaml`](config/phase-5-overlay-weight.yaml) |
+| **Overlay (sparse)** — pools weight patch only | [`config/phase-5-overlay-pools-only.yaml`](config/phase-5-overlay-pools-only.yaml) |
+| **Overlay (sparse)** — `listeners.threads: 4` only | [`config/phase-5-overlay-listeners-only.yaml`](config/phase-5-overlay-listeners-only.yaml) |
+| **Overlay (sparse)** — `schema_version` only (empty patch) | [`config/phase-5-overlay-empty.yaml`](config/phase-5-overlay-empty.yaml) |
 | **Overlay (invalid)** — `listeners.threads: 0` | [`config/phase-5-overlay-invalid.yaml`](config/phase-5-overlay-invalid.yaml) |
-| **Overlay** — listener thread bump (pending reconcile) | [`config/phase-5-overlay-listeners.yaml`](config/phase-5-overlay-listeners.yaml) |
+| **Overlay** — listener thread bump (full document; pending reconcile) | [`config/phase-5-overlay-listeners.yaml`](config/phase-5-overlay-listeners.yaml) |
 | **Overlay** — enable API keys | [`config/phase-5-overlay-api-keys.yaml`](config/phase-5-overlay-api-keys.yaml) |
 | **Tracing** — `conduitctl trace` smoke | [`config/phase-5-tracing.yaml`](config/phase-5-tracing.yaml) |
 
-**Note:** `conduitctl apply --file` loads a **full** YAML document. Overlays in this guide are complete configs that differ from the base only where noted.
+**Note:** `conduitctl apply --file` accepts **sparse** YAML patches — only fields you include participate in merge. Full-document overlays (`phase-5-overlay-weight.yaml`, `phase-5-overlay-listeners.yaml`) remain valid; sparse fixtures (`phase-5-overlay-*-only.yaml`) exercise the same merge rules with minimal YAML. Default apply **merges** into the active overlay; use `--replace` to drop prior overlay fields (§3c, §3f) or `--clear` to drop the overlay without re-reading the file (§3d).
 
 **Control plane:** gRPC is **opt-in**. Configs in this guide include a `control:` section with `listen_address`. Without that section, Conduit forwards DNS but does not listen on `:5199` and `conduitctl apply` / `export` / `reload` / `trace` require a running control listener.
 
@@ -153,6 +156,8 @@ grpcurl -plaintext 127.0.0.1:5199 conduit.v1.ConduitControl/GetConfig \
 
 ## 3. `ApplyConfig` — overlay changes pool weight
 
+Default apply **merges** the patch into the active overlay (first apply creates the overlay from the patch). Equivalent sparse patch: `phase-5-overlay-pools-only.yaml`.
+
 **Terminal C:**
 
 ```bash
@@ -182,9 +187,170 @@ dig @127.0.0.1 -p 15353 +time=3 +tries=1 phase5-after-apply.example.com A
 
 ---
 
-## 4. `ExportConfig` — export reflects overlay
+## 3b. Merge successive applies (weight then listeners-only)
+
+Start from file baseline if needed (`ctl reload` or restart Conduit). **Terminal C:**
+
+```bash
+ctl apply --file tests/manual/config/phase-5-overlay-pools-only.yaml
+grpcurl -plaintext 127.0.0.1:5199 conduit.v1.ConduitControl/GetConfig \
+  | rg '"weight": 50'
+
+ctl apply --file tests/manual/config/phase-5-overlay-listeners-only.yaml
+```
+
+**Expect:**
+
+- Both apply commands print `ok`
+- **Terminal B:** second `config applied` plus `listeners: pending (restart required) — snapshot updated, sockets not rebound`
+- Effective config retains **both** patches:
+
+```bash
+grpcurl -plaintext 127.0.0.1:5199 conduit.v1.ConduitControl/GetConfig \
+  | rg '"weight": 50|threads'
+```
+
+**Expect:** backend weight **50** and listeners threads **4** (overlay accumulated; default merge, no flags).
+
+---
+
+## 3c. Replace drops prior overlay (`--replace` with listeners-only after weight)
+
+With weight overlay active (from §3 or §3b), **Terminal C:**
+
+```bash
+ctl apply --file tests/manual/config/phase-5-overlay-pools-only.yaml
+ctl apply --replace --file tests/manual/config/phase-5-overlay-listeners-only.yaml
+```
+
+**Expect:**
+
+- CLI prints `ok` for both commands
+- Pool weight returns to file baseline **100** (prior weight patch dropped from overlay)
+- Listeners threads **4** still present in effective config:
+
+```bash
+grpcurl -plaintext 127.0.0.1:5199 conduit.v1.ConduitControl/GetConfig \
+  | rg '"weight":|"threads"'
+```
+
+**Expect:** `"weight": 100` (or default-normalized export without explicit weight) and threads **4**. `--replace` sets the overlay to this patch only; it does not merge with the previous overlay.
+
+---
+
+## 3d. Clear without reload (`apply --clear`)
+
+**Terminal C** — apply weight overlay, then clear:
+
+```bash
+ctl apply --file tests/manual/config/phase-5-overlay-pools-only.yaml
+grpcurl -plaintext 127.0.0.1:5199 conduit.v1.ConduitControl/GetConfig \
+  | rg '"weight": 50'
+
+ctl apply --clear
+```
+
+**Expect:**
+
+- `apply --clear` prints `ok`
+- **Terminal B:** `config applied` with `source=grpc` (overlay cleared; file layer in memory unchanged)
+- Effective weight back to **100**:
+
+```bash
+grpcurl -plaintext 127.0.0.1:5199 conduit.v1.ConduitControl/GetConfig \
+  | rg '"weight": 100'
+```
+
+**Expect:** file-layer weight **100**. The on-disk `phase-5-base.yaml` was not re-read.
+
+---
+
+## 3e. Clear vs reload (edit base file on disk while overlay active)
+
+Demonstrates that **`apply --clear`** drops the overlay but keeps the **in-memory** file layer, while **`reload`** re-reads the path from disk.
 
 **Terminal C:**
+
+```bash
+ctl apply --file tests/manual/config/phase-5-overlay-pools-only.yaml
+grpcurl -plaintext 127.0.0.1:5199 conduit.v1.ConduitControl/GetConfig \
+  | rg '"weight": 50'
+```
+
+Edit `tests/manual/config/phase-5-base.yaml` on disk: change `weight: 100` to **`weight: 75`**. Do **not** reload yet.
+
+```bash
+grpcurl -plaintext 127.0.0.1:5199 conduit.v1.ConduitControl/GetConfig \
+  | rg '"weight": 50'
+```
+
+**Expect:** still **50** (overlay still active; in-memory file layer still **100**).
+
+```bash
+ctl apply --clear
+grpcurl -plaintext 127.0.0.1:5199 conduit.v1.ConduitControl/GetConfig \
+  | rg '"weight": 100'
+```
+
+**Expect:** weight **100**, **not** **75** — clear removed overlay but did not read the edited file from disk.
+
+```bash
+ctl reload
+grpcurl -plaintext 127.0.0.1:5199 conduit.v1.ConduitControl/GetConfig \
+  | rg '"weight": 75'
+```
+
+**Expect:** weight **75** (file re-read from disk, overlay cleared). Restore `phase-5-base.yaml` to `weight: 100` before later sections.
+
+---
+
+## 3f. Replace empty clears (`--replace --file phase-5-overlay-empty.yaml`)
+
+**Terminal C:**
+
+```bash
+ctl apply --file tests/manual/config/phase-5-overlay-pools-only.yaml
+grpcurl -plaintext 127.0.0.1:5199 conduit.v1.ConduitControl/GetConfig \
+  | rg '"weight": 50'
+
+ctl apply --replace --file tests/manual/config/phase-5-overlay-empty.yaml
+grpcurl -plaintext 127.0.0.1:5199 conduit.v1.ConduitControl/GetConfig \
+  | rg '"weight": 100'
+```
+
+**Expect:** empty patch with `--replace` clears the overlay (same effective config as `apply --clear`). Equivalent to §3d for end state; useful when scripting a file-based clear.
+
+---
+
+## 3g. Export before clear workflow
+
+Capture effective config while overlay is active, then clear and compare.
+
+**Terminal C:**
+
+```bash
+ctl apply --file tests/manual/config/phase-5-overlay-pools-only.yaml
+ctl export --output /tmp/conduit-before-clear.yaml
+rg weight /tmp/conduit-before-clear.yaml
+
+ctl apply --clear
+ctl export --output /tmp/conduit-after-clear.yaml
+rg weight /tmp/conduit-after-clear.yaml
+```
+
+**Expect:**
+
+- **Before clear:** exported YAML shows backend `weight: 50`
+- **After clear:** exported YAML matches file baseline (weight **100** omitted if default-normalized)
+- On-disk `phase-5-base.yaml` unchanged until you edit it and `reload`
+
+Use this pattern to snapshot overlay state before maintenance or before `reload` / SIGHUP clears it.
+
+---
+
+## 4. `ExportConfig` — export reflects overlay
+
+With weight overlay active (re-apply §3 or `phase-5-overlay-pools-only.yaml` if prior sections cleared it). **Terminal C:**
 
 ```bash
 ctl export | rg 'weight'
@@ -214,7 +380,7 @@ ctl apply --file tests/manual/config/phase-5-overlay-invalid.yaml ; echo exit=$?
 - Non-zero exit / error mentioning validation (e.g. `threads`)
 - **No** new `config applied` success line in Terminal B (or apply errors logged)
 
-Effective weight still **50** from section 3:
+Effective weight still **50** from §3 (re-apply pools-only overlay if §3d–§3g cleared it):
 
 ```bash
 grpcurl -plaintext 127.0.0.1:5199 conduit.v1.ConduitControl/GetConfig | rg '"weight":'
@@ -436,7 +602,7 @@ cargo test -p conduit-core configurator::
 | `apply failed: reading config` | Path to overlay YAML correct from repo root |
 | `dig` SERVFAIL | dnsmasq on `15300`? `$UPSTREAM_DNS` reachable? |
 | `Unauthenticated` unexpectedly | `ctl reload` or restart without `api_keys` overlay |
-| Overlay weight not visible in `GetConfig` | Apply succeeded? Check Terminal B for `config applied` |
+| Overlay weight not visible in `GetConfig` | Apply succeeded? Default merge accumulates patches — use `--replace` only when resetting overlay (§3c). Check Terminal B for `config applied` |
 | SIGHUP no effect | Signal sent to Conduit PID, not shell parent; Linux only in v1 |
 
 ---

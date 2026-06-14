@@ -9,7 +9,7 @@ Conduit keeps configuration in **layers**:
 | Layer | What it is | How it changes |
 |-------|------------|----------------|
 | **[File layer](/glossary/index.md#file-layer)** | YAML at the path you pass when starting `conduit` | Edit on disk; reload with **SIGHUP** (Unix) or `conduitctl reload` |
-| **[Overlay](/glossary/index.md#overlay)** | In-memory patch applied through the [control plane](/glossary/index.md#control-plane) | `conduitctl apply` with a partial YAML file |
+| **[Overlay](/glossary/index.md#overlay)** | In-memory patch applied through the [control plane](/glossary/index.md#control-plane) | `conduitctl apply` (default **merge** into accumulated overlay) |
 | **[Effective config](/glossary/index.md#effective-config)** | File layer merged with overlay (if any), then validated | Result of merge + validation before compile |
 | **[Runtime snapshot](/glossary/index.md#runtime-snapshot)** | Compiled bundle the [dataplane](/glossary/index.md#dataplane) uses (rules, scripts, forward tables, observability filters) | Built from effective config on each successful apply or reload |
 
@@ -58,11 +58,40 @@ A sparse on-disk file and a fully exported file can behave the same at runtime. 
 
 ## Overlay
 
-An **overlay** is a partial config patch held in memory after **`conduitctl apply`**. It does not rewrite your on-disk file. Overlays are useful for short-lived or automated tweaks — for example shifting [backend](/glossary/index.md#backend) weights during an upstream maintenance window.
+An **[overlay](/glossary/index.md#overlay)** is an accumulated in-memory config patch held after one or more **`conduitctl apply`** calls. It does not rewrite your on-disk [file layer](/glossary/index.md#file-layer). Overlays are useful for short-lived or automated tweaks — for example shifting [backend](/glossary/index.md#backend) weights during an upstream maintenance window.
 
-Applying an overlay **replaces** the entire previous overlay (not a deep merge of successive applies). To drop the overlay without editing the file, use **`conduitctl reload`** or **SIGHUP** — both reload the file layer and **clear** the overlay ([file-wins reload](/glossary/index.md#file-wins-reload)).
+Each successful apply updates the overlay according to an **apply mode**, then rebuilds **[effective config](/glossary/index.md#effective-config)** as **file layer + overlay**. Flags, examples, and export workflows: [Reload and export — apply modes](/control-plane/reload-and-export.md#apply-modes).
 
 Overlays require a running [control plane](/glossary/index.md#control-plane) (`control.listen_address` in config). **`conduitctl apply` is unavailable** when the `control:` block is omitted.
+
+### Apply modes
+
+| Mode | CLI | Effect on overlay |
+|------|-----|-------------------|
+| **Merge** (default) | `conduitctl apply --file patch.yaml` (or `--merge`) | Merge the patch **into** the current overlay using the same section rules as [file + overlay merge](#how-file-and-overlay-merge) below |
+| **Replace** | `--replace` | Replace the entire overlay with the patch; a patch containing only **`schema_version`** **clears** the overlay |
+| **Clear** | `--clear` (no `--file`) | Drop the overlay; **do not** re-read the config file from disk |
+
+**SIGHUP** and **`conduitctl reload`** are unchanged: they re-read the startup file path and **clear** the overlay ([file-wins reload](/glossary/index.md#file-wins-reload)).
+
+**Clear vs reload:** **`conduitctl apply --clear`** ([clear overlay without reload](/glossary/index.md#clear-overlay-without-reload)) drops the overlay but keeps the in-memory [file layer](/glossary/index.md#file-layer) from the last successful load — use this when you want to revert API tweaks without picking up disk edits. **Reload** re-reads the file from disk **and** clears the overlay — use this when configuration management has updated the on-disk YAML.
+
+Before **clear** or **reload** when an overlay is active, **[export](/glossary/index.md#export)** if you need a record of the running [effective config](/glossary/index.md#effective-config). See [Reload and export — export before clear or reload](/control-plane/reload-and-export.md#export-before-clear-or-reload).
+
+```mermaid
+flowchart TB
+  File[File layer in memory]
+  Patch[YAML patch file]
+  Overlay[Accumulated overlay]
+  Eff[Effective config]
+  File --> Eff
+  Overlay --> Eff
+  Patch --> Merge[MERGE: patch into overlay]
+  Patch --> Replace[REPLACE: overlay = patch]
+  Clear[CLEAR: no patch] --> Overlay
+  Merge --> Overlay
+  Replace --> Overlay
+```
 
 ### How file and overlay merge
 
@@ -87,7 +116,9 @@ pools:
         weight: 10
 ```
 
-Save as `overlay.yaml`, then `conduitctl apply --file overlay.yaml`. The file-layer pool definition stays on disk; the effective weight becomes **10** until reload clears the overlay.
+Save as `overlay.yaml`, then `conduitctl apply --file overlay.yaml` (default **merge**). The file-layer pool definition stays on disk; the effective weight becomes **10** until you [clear](/glossary/index.md#clear-overlay-without-reload) or [reload](/glossary/index.md#file-wins-reload) the overlay.
+
+A second apply with another weight patch **merges** into the same overlay — for example maintenance weight **10**, then restore one backend to **100** without touching the file. To discard all overlay state at once, use **`conduitctl apply --clear`**, **`conduitctl apply --replace --file empty.yaml`** where `empty.yaml` contains only `schema_version: 1`, or **reload** / **SIGHUP**.
 
 ## Runtime snapshot
 
@@ -123,12 +154,14 @@ See [Pending reconcile](/glossary/index.md#pending-reconcile) and [Reload and ex
 
 ## Changing configuration
 
-| Mechanism | Needs control plane? | Clears overlay? | Typical use |
-|-----------|----------------------|-----------------|-------------|
-| **Edit file + restart** | No | Yes (fresh start) | First deploy, `control:` or `listeners` changes |
-| **SIGHUP** (Unix) | No | Yes | Automate file reload from config management |
-| **`conduitctl reload`** | Yes | Yes | Same as SIGHUP when gRPC is enabled |
-| **`conduitctl apply`** | Yes | No (replaces overlay) | Temporary pool or section overrides |
+| Mechanism | Needs control plane? | Clears overlay? | Re-reads startup file? | Typical use |
+|-----------|----------------------|-----------------|------------------------|-------------|
+| **Edit file + restart** | No | Yes (fresh start) | Yes (at start) | First deploy, `control:` or `listeners` changes |
+| **SIGHUP** (Unix) | No | Yes | Yes | Automate file reload from config management |
+| **`conduitctl reload`** | Yes | Yes | Yes | Same as SIGHUP when gRPC is enabled |
+| **`conduitctl apply`** (default merge) | Yes | No | No | Temporary pool or section overrides; successive applies accumulate |
+| **`conduitctl apply --replace`** | Yes | Yes when patch is empty (`schema_version` only) | No | Replace entire overlay; empty patch clears it |
+| **`conduitctl apply --clear`** | Yes | Yes | No | Drop overlay; keep in-memory file layer |
 
 **SIGHUP** and **`conduitctl reload`** re-read the startup file path, merge validation, and install a new snapshot. They do not read arbitrary paths — only the file Conduit was started with.
 
@@ -140,4 +173,4 @@ Commands and RPC details: [gRPC and conduitctl](/control-plane/grpc-and-conduitc
 - [Config file](/control-plane/config-file.md) — format, paths, and validation
 - [Reload and export](/control-plane/reload-and-export.md) — SIGHUP, `conduitctl reload` / `apply` / `export`
 - [Rules and actions](/policy-routing/rules-and-actions.md) — when rule changes enter the snapshot
-- [Glossary](/glossary/index.md) — [overlay](/glossary/index.md#overlay), [effective config](/glossary/index.md#effective-config), [last-good snapshot](/glossary/index.md#last-good-snapshot)
+- [Glossary](/glossary/index.md) — [overlay](/glossary/index.md#overlay), [clear overlay without reload](/glossary/index.md#clear-overlay-without-reload), [effective config](/glossary/index.md#effective-config), [last-good snapshot](/glossary/index.md#last-good-snapshot)

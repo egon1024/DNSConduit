@@ -120,7 +120,7 @@ Some operator-facing capabilities extend Conduit **without** plugging into [Requ
 
 | Capability | Role in current releases |
 |------------|--------------------------|
-| **Config reload and apply** | Reread the file (**SIGHUP**, `conduitctl reload`) or merge API changes (`conduitctl apply`, export) — [Control plane](/control-plane/index.md) |
+| **Config reload and apply** | Reread the file (**SIGHUP**, `conduitctl reload`) or patch via [overlay](/glossary/index.md#overlay) apply modes (**merge** default, **replace**, **clear**) — [Control plane](/control-plane/index.md), [Reload and export](/control-plane/reload-and-export.md#apply-modes) |
 | **Observation sinks** | [dnstap](/glossary/index.md#dnstap) and related [event export](/observability/event-export.md) |
 | **Metric sinks** | Prometheus scrape and OTEL push — [Metrics](/observability/metrics.md) |
 | **Control API auth** | API keys and mTLS — [Security](/security/index.md) |

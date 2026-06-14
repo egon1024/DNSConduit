@@ -29,7 +29,10 @@ pub use forward::{
     MAX_SOURCES_V6,
 };
 pub use logging::{init_from_config, validate_logging, DEFAULT_LOG_LEVEL, DEFAULT_LOG_OUTPUT};
-pub use merge::{clear_overlay, merge_file_and_overlay, EffectiveConfig};
+pub use merge::{
+    clear_overlay, is_overlay_patch_empty, merge_file_and_overlay, merge_overlay_patches,
+    EffectiveConfig,
+};
 pub use validate::{validate, ValidationResult};
 
 use conduit_proto::config::Config;

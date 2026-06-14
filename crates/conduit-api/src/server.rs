@@ -4,12 +4,13 @@ use crate::access_log::{AccessLogLayer, AccessLogService};
 use crate::auth::ControlInterceptor;
 use crate::tls::server_tls_config;
 use conduit_config::{export_yaml, validate, EffectiveConfig};
-use conduit_core::configurator::{ConfiguratorHandle, ProposalSource};
+use conduit_core::configurator::{ConfiguratorHandle, OverlayApplyMode, ProposalSource};
 use conduit_core::snapshot::SnapshotStore;
 use conduit_metrics::TracingHub;
 use conduit_proto::config::Config as RuntimeConfig;
 use conduit_proto::control::conduit_control_server::{ConduitControl, ConduitControlServer};
 use conduit_proto::control::Config as ControlConfig;
+use conduit_proto::control::OverlayApplyMode as ProtoOverlayApplyMode;
 use conduit_proto::control::{
     ApplyConfigRequest, ApplyConfigResponse, ExportConfigRequest, ExportConfigResponse,
     GetConfigRequest, GetConfigResponse, GetTraceRequest, GetTraceResponse, HealthRequest,
@@ -43,6 +44,16 @@ fn control_to_runtime(cfg: ControlConfig) -> RuntimeConfig {
     RuntimeConfig::decode(bytes.as_slice()).expect("config and control Config are compatible")
 }
 
+fn proto_overlay_mode(mode: i32) -> OverlayApplyMode {
+    match ProtoOverlayApplyMode::try_from(mode).unwrap_or(ProtoOverlayApplyMode::Unspecified) {
+        ProtoOverlayApplyMode::Replace => OverlayApplyMode::Replace,
+        ProtoOverlayApplyMode::Clear => OverlayApplyMode::Clear,
+        ProtoOverlayApplyMode::Merge | ProtoOverlayApplyMode::Unspecified => {
+            OverlayApplyMode::Merge
+        }
+    }
+}
+
 #[tonic::async_trait]
 impl ConduitControl for ControlService {
     async fn get_config(
@@ -74,14 +85,18 @@ impl ConduitControl for ControlService {
         &self,
         request: Request<ApplyConfigRequest>,
     ) -> Result<Response<ApplyConfigResponse>, Status> {
-        let overlay = request
-            .into_inner()
-            .overlay
-            .ok_or_else(|| Status::invalid_argument("missing overlay"))?;
-        let result = self
-            .configurator
-            .apply_overlay(control_to_runtime(overlay), None)
-            .await;
+        let req = request.into_inner();
+        let mode = proto_overlay_mode(req.mode);
+        let (overlay, mode) = match mode {
+            OverlayApplyMode::Clear => (None, mode),
+            OverlayApplyMode::Merge | OverlayApplyMode::Replace => {
+                let overlay = req
+                    .overlay
+                    .ok_or_else(|| Status::invalid_argument("missing overlay"))?;
+                (Some(control_to_runtime(overlay)), mode)
+            }
+        };
+        let result = self.configurator.apply_overlay(overlay, mode, None).await;
         Ok(Response::new(ApplyConfigResponse {
             ok: result.ok,
             errors: result.errors,
