@@ -57,14 +57,22 @@ Omitted **`control:`** means no gRPC listener — `conduitctl apply`, `export`, 
 
 ## Path resolution (base directory)
 
-Relative paths in the config resolve against the **directory containing the config file**, not the process working directory. This applies to:
+Relative **filesystem** paths in the config resolve against the **directory containing the config file**, not the process working directory. Absolute paths are used as-is. This keeps scripts, data files, TLS material, and dnstap sockets stable when systemd or a chroot changes the process working directory.
 
-- **`rhai`** script paths in rule actions (`type: rhai`, `value: scripts/foo.rhai`)
-- **`data_sources`** `path` fields (today **`type: csv`** only — each file is loaded into an in-memory lookup table at snapshot build; additional backends are planned)
+**Exception:** the config **file path** you pass when starting `conduit` is resolved relative to the process working directory (or as an absolute path). Use an absolute path inside a chroot or container (for example `/etc/conduit/conduit.yaml`) so reload always re-reads the same location.
 
-Example — config at `/etc/conduit/conduit.yaml` and `value: scripts/policy.rhai` loads `/etc/conduit/scripts/policy.rhai`.
+| Field | Example |
+|-------|---------|
+| Rhai script path in rule actions | `type: rhai`, `value: scripts/policy.rhai` |
+| `data_sources` `path` (`type: csv` today) | `data/blocklist.csv` |
+| `control.tls` | `cert_path`, `key_path`, `client_ca_path` |
+| `events.sinks` dnstap destinations | `unix:run/dnstap.sock` (path after `unix:`) |
 
-Use absolute paths when the config file and assets live in different trees.
+**Not filesystem paths:** listener and backend addresses, `metrics.otel.endpoint` URLs, `metrics.prometheus.path` (HTTP path on the scrape listener), `logging.output` (`stderr` / `stdout`).
+
+Example — config at `/etc/conduit/conduit.yaml` and `value: scripts/policy.rhai` loads `/etc/conduit/scripts/policy.rhai`. The same rule applies to `cert_path: tls/server.pem` and `destinations: ["unix:run/dnstap.sock"]`.
+
+Use absolute paths when assets live outside the config directory tree.
 
 ## What makes a config runnable
 
@@ -106,7 +114,7 @@ Full rules evolve with the product; [Reference: config schema](/reference/config
 
 ### What validation does not check
 
-`conduitctl validate` does **not** read Rhai script files or compile them. A file can pass validate while script paths are missing or syntactically invalid. Missing or invalid Rhai scripts are **not** covered by `conduitctl validate`. Conduit resolves and compiles script paths when building the [runtime snapshot](/glossary/index.md#runtime-snapshot) at startup and on reload — ensure scripts exist under the config directory before deploying.
+`conduitctl validate` does **not** read Rhai scripts, CSV data sources, TLS files, or open dnstap socket paths. A file can pass validate while those paths are missing on disk. Conduit resolves and opens them when building the [runtime snapshot](/glossary/index.md#runtime-snapshot) at startup and on reload — ensure files exist relative to the config directory (or use absolute paths) before deploying.
 
 Similarly, upstream [backends](/glossary/index.md#backend) need not be reachable at validate time; Conduit only checks address format.
 

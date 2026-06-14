@@ -18,6 +18,7 @@ use conduit_proto::control::{
 };
 use prost::Message;
 use std::net::SocketAddr;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use tonic::transport::Server;
 use tonic::{Request, Response, Status};
@@ -178,6 +179,7 @@ fn build_server(
 fn apply_tls(
     builder: tonic::transport::server::Server,
     snapshots: &SnapshotStore,
+    base_dir: Option<&Path>,
 ) -> anyhow::Result<tonic::transport::server::Server> {
     let snap = snapshots.load();
     let tls = snap.config.control.as_ref().and_then(|c| c.tls.as_ref());
@@ -185,7 +187,7 @@ fn apply_tls(
         if tls.cert_path.is_empty() || tls.key_path.is_empty() {
             anyhow::bail!("control.tls requires cert_path and key_path");
         }
-        let tls_config = server_tls_config(tls)?;
+        let tls_config = server_tls_config(tls, base_dir)?;
         Ok(builder.tls_config(tls_config)?)
     } else {
         Ok(builder)
@@ -216,6 +218,7 @@ async fn run_control_plane<S>(
     effective: Arc<Mutex<EffectiveConfig>>,
     configurator: ConfiguratorHandle,
     tracing: Arc<TracingHub>,
+    config_base_dir: Option<PathBuf>,
     shutdown: S,
 ) -> anyhow::Result<()>
 where
@@ -230,7 +233,8 @@ where
     let service = build_server(snapshots.clone(), effective, configurator, tracing);
     let listener = tokio::net::TcpListener::bind(addr).await?;
     let incoming = tokio_stream::wrappers::TcpListenerStream::new(listener);
-    let mut builder = apply_tls(Server::builder(), &snapshots)?;
+    let base_dir = config_base_dir.as_deref();
+    let mut builder = apply_tls(Server::builder(), &snapshots, base_dir)?;
     if reflection_enabled {
         let reflection = tonic_reflection::server::Builder::configure()
             .register_encoded_file_descriptor_set(conduit_proto::FILE_DESCRIPTOR_SET)
@@ -256,6 +260,7 @@ pub fn spawn_control_plane(
     effective: Arc<Mutex<EffectiveConfig>>,
     configurator: ConfiguratorHandle,
     tracing: Arc<TracingHub>,
+    config_base_dir: Option<PathBuf>,
 ) -> anyhow::Result<ControlHandle> {
     let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
     let join = tokio::spawn(run_control_plane(
@@ -264,6 +269,7 @@ pub fn spawn_control_plane(
         effective,
         configurator,
         tracing,
+        config_base_dir,
         async move {
             let _ = shutdown_rx.await;
         },
@@ -278,6 +284,7 @@ pub async fn serve(
     effective: Arc<Mutex<EffectiveConfig>>,
     configurator: ConfiguratorHandle,
     tracing: Arc<TracingHub>,
+    config_base_dir: Option<PathBuf>,
 ) -> anyhow::Result<()> {
     run_control_plane(
         addr,
@@ -285,6 +292,7 @@ pub async fn serve(
         effective,
         configurator,
         tracing,
+        config_base_dir,
         std::future::pending(),
     )
     .await
@@ -297,6 +305,7 @@ pub async fn serve_on_listener(
     effective: Arc<Mutex<EffectiveConfig>>,
     configurator: ConfiguratorHandle,
     tracing: Arc<TracingHub>,
+    config_base_dir: Option<PathBuf>,
 ) -> anyhow::Result<SocketAddr> {
     let reflection_enabled = snapshots
         .load()
@@ -310,12 +319,13 @@ pub async fn serve_on_listener(
     let service = build_server(snapshots.clone(), effective, configurator, tracing);
     let incoming = tokio_stream::wrappers::TcpListenerStream::new(listener);
     tokio::spawn(async move {
+        let base_dir = config_base_dir.as_deref();
         let result = if reflection_enabled {
             match tonic_reflection::server::Builder::configure()
                 .register_encoded_file_descriptor_set(conduit_proto::FILE_DESCRIPTOR_SET)
                 .build_v1alpha()
             {
-                Ok(reflection) => match apply_tls(Server::builder(), &snapshots) {
+                Ok(reflection) => match apply_tls(Server::builder(), &snapshots, base_dir) {
                     Ok(mut builder) => {
                         builder
                             .add_service(reflection)
@@ -334,7 +344,7 @@ pub async fn serve_on_listener(
                 }
             }
         } else {
-            match apply_tls(Server::builder(), &snapshots) {
+            match apply_tls(Server::builder(), &snapshots, base_dir) {
                 Ok(mut builder) => {
                     builder
                         .add_service(service)

@@ -1,7 +1,8 @@
 use crate::error::ScriptError;
 use conduit_proto::config::DataSource;
+use conduit_proto::paths::resolve_config_path;
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 #[derive(Debug, Clone, Default)]
 pub struct DataSourceStore {
@@ -50,22 +51,11 @@ pub fn load_data_sources(
                 message: "path must not be empty".into(),
             });
         }
-        let path = resolve_path(base_dir, &ds.path);
+        let path = resolve_config_path(base_dir, &ds.path);
         let table = load_csv(&path, ds)?;
         store.tables.insert(ds.name.clone(), table);
     }
     Ok(store)
-}
-
-fn resolve_path(base_dir: Option<&Path>, path: &str) -> PathBuf {
-    let p = Path::new(path);
-    if p.is_absolute() {
-        p.to_path_buf()
-    } else if let Some(base) = base_dir {
-        base.join(p)
-    } else {
-        p.to_path_buf()
-    }
 }
 
 fn load_csv(path: &Path, ds: &DataSource) -> Result<HashMap<String, String>, ScriptError> {
@@ -142,6 +132,20 @@ mod tests {
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("../../tests/fixtures/data")
             .join(name)
+    }
+
+    #[test]
+    fn load_blocklist_csv_relative_to_base_dir() {
+        let base = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/data");
+        let ds = DataSource {
+            name: "blocklist".into(),
+            r#type: "csv".into(),
+            path: "blocklist.csv".into(),
+            key_column: "qname".into(),
+            value_column: "action".into(),
+        };
+        let store = load_data_sources(&[ds], Some(base.as_path())).unwrap();
+        assert_eq!(store.lookup("blocklist", "bad.example."), "block");
     }
 
     #[test]

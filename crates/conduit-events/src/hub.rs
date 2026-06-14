@@ -239,7 +239,7 @@ mod tests {
             name: None,
             connect_retry: None,
         }]);
-        let compiled = compile_from_config(&cfg);
+        let compiled = compile_from_config(&cfg, None);
         let hub = EventHub::from_compiled(&compiled);
         assert_eq!(hub.consumer_count(), 1);
         hub.shutdown();
@@ -247,22 +247,28 @@ mod tests {
 
     #[test]
     fn noop_hub_does_not_allocate_consumer_threads() {
-        let hub = EventHub::from_compiled(&compile_from_config(&Config {
-            schema_version: 1,
-            events: Some(EventsConfig {
-                queue_depth: 4096,
-                drop_policy: "drop_oldest".into(),
-                sinks: vec![],
-            }),
-            ..Default::default()
-        }));
+        let hub = EventHub::from_compiled(&compile_from_config(
+            &Config {
+                schema_version: 1,
+                events: Some(EventsConfig {
+                    queue_depth: 4096,
+                    drop_policy: "drop_oldest".into(),
+                    sinks: vec![],
+                }),
+                ..Default::default()
+            },
+            None,
+        ));
         assert!(!hub.enabled());
         assert_eq!(hub.consumer_count(), 0);
-        let disabled = compile_from_config(&Config {
-            schema_version: 1,
-            events: None,
-            ..Default::default()
-        });
+        let disabled = compile_from_config(
+            &Config {
+                schema_version: 1,
+                events: None,
+                ..Default::default()
+            },
+            None,
+        );
         hub.try_enqueue_query(sample_view(1), &disabled, |_| true);
         assert_eq!(hub.dropped_total(), 0);
         assert!(hub.sink_metrics_snapshot().is_empty());
@@ -281,7 +287,7 @@ mod tests {
             name: None,
             connect_retry: None,
         }]);
-        let compiled = compile_from_config(&cfg);
+        let compiled = compile_from_config(&cfg, None);
         let hub = EventHub::from_compiled(&compiled);
         assert_eq!(hub.consumer_count(), 1);
         hub.try_enqueue_query(sample_view(1), &compiled, |_| true);
@@ -308,7 +314,7 @@ mod tests {
             extra_tags: vec![],
             connect_retry: None,
         }]);
-        let compiled = compile_from_config(&cfg);
+        let compiled = compile_from_config(&cfg, None);
         let hub = EventHub::from_compiled(&compiled);
         hub.try_enqueue_query(sample_view(1), &compiled, |_| true);
         let snap = hub.sink_metrics_snapshot();
@@ -342,7 +348,7 @@ mod tests {
                 connect_retry: None,
             },
         ]);
-        let compiled = compile_from_config(&cfg);
+        let compiled = compile_from_config(&cfg, None);
         let hub = EventHub::from_compiled(&compiled);
         hub.try_enqueue_query(sample_view(1), &compiled, |_| true);
         let snap = hub.sink_metrics_snapshot();
@@ -385,7 +391,7 @@ mod tests {
             }),
             ..Default::default()
         };
-        let compiled = compile_from_config(&cfg);
+        let compiled = compile_from_config(&cfg, None);
         let hub = EventHub::from_compiled(&compiled);
         hub.try_enqueue_query(sample_view(1), &compiled, |_| true);
         hub.try_enqueue_query(sample_view(2), &compiled, |_| true);
@@ -401,23 +407,26 @@ mod tests {
 
     #[test]
     fn tag_required_compiled_from_filters() {
-        let instance = crate::compile::compile_one_sink(&EventSink {
-            r#type: "dnstap".into(),
-            export_id: "x".into(),
-            destinations: vec!["unix:/tmp/x".into()],
-            emit: vec!["query".into()],
-            filters: Some(EventSinkFilters {
-                tag_required: Some("vip".into()),
-                selectors: vec![],
-                sample_rate: None,
-                pool: None,
-                backend: None,
-            }),
-            extra_fields: vec![],
-            extra_tags: vec![],
-            name: None,
-            connect_retry: None,
-        })
+        let instance = crate::compile::compile_one_sink(
+            &EventSink {
+                r#type: "dnstap".into(),
+                export_id: "x".into(),
+                destinations: vec!["unix:/tmp/x".into()],
+                emit: vec!["query".into()],
+                filters: Some(EventSinkFilters {
+                    tag_required: Some("vip".into()),
+                    selectors: vec![],
+                    sample_rate: None,
+                    pool: None,
+                    backend: None,
+                }),
+                extra_fields: vec![],
+                extra_tags: vec![],
+                name: None,
+                connect_retry: None,
+            },
+            None,
+        )
         .unwrap();
         assert_eq!(instance.filters.tag_required.as_deref(), Some("vip"));
     }
@@ -446,7 +455,7 @@ mod tests {
             name: None,
             connect_retry: None,
         }]);
-        let compiled = compile_from_config(&cfg);
+        let compiled = compile_from_config(&cfg, None);
         let hub = EventHub::from_compiled(&compiled);
         hub.try_enqueue_query(sample_view(1), &compiled, |_| true);
         let snap = hub.sink_metrics_snapshot();
@@ -472,7 +481,7 @@ mod tests {
             name: None,
             connect_retry: None,
         }]);
-        let compiled = compile_from_config(&cfg);
+        let compiled = compile_from_config(&cfg, None);
         let hub = EventHub::from_compiled(&compiled);
         for id in 1..=200u64 {
             let mut view = sample_view(id);

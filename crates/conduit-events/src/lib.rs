@@ -15,10 +15,10 @@ pub mod sink;
 pub mod view;
 
 pub use compile::{
-    compile_from_config, parse_connect_retry, parse_extra_field, parse_extra_fields,
-    parse_extra_tags, parse_sample_rate, parse_sink_filters, resolve_sink_identity,
-    validate_sink_identity_uniqueness, CompiledEvents, CompiledSinkFilters, CompiledSinkInstance,
-    Destination, ExtraField, SinkIdentity, TagExportMode, EXTRA_FIELD_NAMES,
+    compile_from_config, parse_connect_retry, parse_destination, parse_extra_field,
+    parse_extra_fields, parse_extra_tags, parse_sample_rate, parse_sink_filters,
+    resolve_sink_identity, validate_sink_identity_uniqueness, CompiledEvents, CompiledSinkFilters,
+    CompiledSinkInstance, Destination, ExtraField, SinkIdentity, TagExportMode, EXTRA_FIELD_NAMES,
 };
 pub use connect_retry::{BackoffState, ConnectRetryConfig};
 pub use event::{EventKind, ExportEvent};

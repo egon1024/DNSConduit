@@ -3,9 +3,10 @@ use crate::error::ScriptError;
 use crate::host::ScriptPhase;
 use crate::metrics::{scan_metrics_from_source, MetricRegistry};
 use conduit_proto::config::{Config, RhaiConfig, Rule};
+use conduit_proto::paths::resolve_config_path;
 use rhai::AST;
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
@@ -142,7 +143,7 @@ fn compile_rule_scripts(
                 message: "rhai action requires script path in value".into(),
             });
         }
-        let resolved = resolve_path(base_dir, &action.value);
+        let resolved = resolve_config_path(base_dir, &action.value);
         let path_key = resolved.display().to_string();
         let script_id = if let Some(&id) = scripting
             .script_index
@@ -184,25 +185,77 @@ fn compile_rule_scripts(
     Ok(())
 }
 
-fn resolve_path(base_dir: Option<&Path>, path: &str) -> PathBuf {
-    let p = Path::new(path);
-    if p.is_absolute() {
-        p.to_path_buf()
-    } else if let Some(base) = base_dir {
-        base.join(p)
-    } else {
-        p.to_path_buf()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use conduit_config::load_yaml;
+    use std::fs;
     use std::path::PathBuf;
 
     fn fixtures_config_dir() -> PathBuf {
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/config")
+    }
+
+    #[test]
+    fn rhai_resolved_path_matches_config_relative_script_location() {
+        let base = fixtures_config_dir();
+        let yaml = include_str!("../../../tests/fixtures/config/with-rhai-minimal.yaml");
+        let cfg = load_yaml(yaml).unwrap();
+        let expected = base
+            .join("../rhai/set-vip-pool.rhai")
+            .canonicalize()
+            .expect("fixture script path");
+        let compiled = compile_from_config(&cfg, Some(&base)).unwrap();
+        assert_eq!(compiled.scripts.len(), 1);
+        let resolved = PathBuf::from(&compiled.scripts[0].path);
+        assert_eq!(
+            resolved.canonicalize().expect("resolved script path"),
+            expected
+        );
+    }
+
+    #[test]
+    fn rhai_relative_path_ignored_by_cwd_when_base_dir_set() {
+        let root = tempfile::TempDir::new().unwrap();
+        let config_dir = root.path().join("cfg");
+        let scripts_dir = config_dir.join("scripts");
+        fs::create_dir_all(&scripts_dir).unwrap();
+        fs::write(scripts_dir.join("hook.rhai"), "// ok\n").unwrap();
+
+        let other = root.path().join("other");
+        fs::create_dir_all(&other).unwrap();
+
+        let cfg = load_yaml(
+            r#"schema_version: 1
+listeners:
+  threads: 1
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+pools:
+  - name: default
+    backends:
+      - address: "127.0.0.1:5300"
+        weight: 100
+rules:
+  match_mode: first_match
+  rules:
+    - name: hook
+      hook: request
+      selectors: []
+      actions:
+        - type: rhai
+          value: scripts/hook.rhai
+"#,
+        )
+        .unwrap();
+
+        let original = std::env::current_dir().unwrap();
+        std::env::set_current_dir(&other).unwrap();
+        let result = compile_from_config(&cfg, Some(config_dir.as_path()));
+        std::env::set_current_dir(original).unwrap();
+
+        result.expect("config dir must resolve script even when cwd differs");
     }
 
     #[test]

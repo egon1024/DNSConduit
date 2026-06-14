@@ -11,6 +11,7 @@ pub mod merge;
 pub mod validate;
 
 pub use backend::{effective_backend_weight, DEFAULT_BACKEND_WEIGHT};
+pub use conduit_proto::paths::resolve_config_path;
 pub use defaults::{
     DEFAULT_CONTROL_LISTEN_ADDRESS, DEFAULT_EVENTS_DROP_POLICY, DEFAULT_EVENTS_QUEUE_DEPTH,
     DEFAULT_FORWARD_OUTSTANDING_PER_BACKEND, DEFAULT_FORWARD_TIMEOUT_MS,

@@ -5,8 +5,9 @@ use crate::metrics::SinkMetrics;
 use crate::queue::DropPolicy;
 use crate::selectors::{compile_selectors, validate_selector_type, CompiledSelector};
 use conduit_proto::config::{Config, EventSink, EventSinkFilters, EventsConfig};
+use conduit_proto::paths::resolve_config_path;
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 /// Metadata field names allowed in `extra_fields`.
@@ -266,19 +267,19 @@ impl CompiledEvents {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Destination {
     Unix(PathBuf),
     Tcp { host: String, port: u16 },
 }
 
-pub fn compile_from_config(cfg: &Config) -> CompiledEvents {
+pub fn compile_from_config(cfg: &Config, base_dir: Option<&Path>) -> CompiledEvents {
     let obs = cfg.events.as_ref();
     let (queue_depth, drop_policy, sinks) = match obs {
         Some(o) => (
             default_queue_depth(o),
             parse_drop_policy(o),
-            compile_sinks(o),
+            compile_sinks(o, base_dir),
         ),
         None => (8192, DropPolicy::DropOldest, Vec::new()),
     };
@@ -311,11 +312,17 @@ fn parse_drop_policy(o: &EventsConfig) -> DropPolicy {
     DropPolicy::parse(o.drop_policy.as_str()).unwrap_or(DropPolicy::DropOldest)
 }
 
-fn compile_sinks(o: &EventsConfig) -> Vec<CompiledSinkInstance> {
-    o.sinks.iter().filter_map(compile_one_sink).collect()
+fn compile_sinks(o: &EventsConfig, base_dir: Option<&Path>) -> Vec<CompiledSinkInstance> {
+    o.sinks
+        .iter()
+        .filter_map(|s| compile_one_sink(s, base_dir))
+        .collect()
 }
 
-pub(crate) fn compile_one_sink(s: &EventSink) -> Option<CompiledSinkInstance> {
+pub(crate) fn compile_one_sink(
+    s: &EventSink,
+    base_dir: Option<&Path>,
+) -> Option<CompiledSinkInstance> {
     if s.r#type != "dnstap" || s.destinations.is_empty() {
         return None;
     }
@@ -323,7 +330,7 @@ pub(crate) fn compile_one_sink(s: &EventSink) -> Option<CompiledSinkInstance> {
     let destinations: Vec<Destination> = s
         .destinations
         .iter()
-        .filter_map(|d| parse_destination(d.as_str()))
+        .filter_map(|d| parse_destination(d.as_str(), base_dir))
         .collect();
     if destinations.is_empty() {
         return None;
@@ -383,9 +390,12 @@ fn normalize_emit(emit: &[String]) -> EmitFlags {
     flags
 }
 
-pub fn parse_destination(s: &str) -> Option<Destination> {
+pub fn parse_destination(s: &str, base_dir: Option<&Path>) -> Option<Destination> {
     if let Some(path) = s.strip_prefix("unix:") {
-        return Some(Destination::Unix(PathBuf::from(path)));
+        if path.is_empty() {
+            return None;
+        }
+        return Some(Destination::Unix(resolve_config_path(base_dir, path)));
     }
     if let Some(rest) = s.strip_prefix("tcp:") {
         let (host, port) = rest.rsplit_once(':')?;
@@ -409,14 +419,24 @@ mod tests {
     #[test]
     fn parse_unix_and_tcp_destinations() {
         assert!(matches!(
-            parse_destination("unix:/tmp/x.sock"),
+            parse_destination("unix:/tmp/x.sock", None),
             Some(Destination::Unix(_))
         ));
         assert!(matches!(
-            parse_destination("tcp:127.0.0.1:6000"),
+            parse_destination("tcp:127.0.0.1:6000", None),
             Some(Destination::Tcp { .. })
         ));
-        assert!(parse_destination("bad").is_none());
+        assert!(parse_destination("bad", None).is_none());
+    }
+
+    #[test]
+    fn parse_unix_relative_destination_against_base_dir() {
+        let base = Path::new("/etc/conduit");
+        let dest = parse_destination("unix:run/dnstap.sock", Some(base)).unwrap();
+        assert_eq!(
+            dest,
+            Destination::Unix(PathBuf::from("/etc/conduit/run/dnstap.sock"))
+        );
     }
 
     #[test]
@@ -507,7 +527,7 @@ mod tests {
             }),
             ..Default::default()
         };
-        let compiled = compile_from_config(&cfg);
+        let compiled = compile_from_config(&cfg, None);
         assert_eq!(compiled.export_id_for_name("tap-a"), Some("wire-a"));
         assert_eq!(compiled.name_for_export_id("wire-a"), Some("tap-a"));
         assert_eq!(

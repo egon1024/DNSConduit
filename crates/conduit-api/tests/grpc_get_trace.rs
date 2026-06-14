@@ -64,7 +64,7 @@ impl PipelineStage for PassthroughWait {
 async fn get_trace_returns_events_after_traced_query() {
     let yaml = include_str!("../../../tests/fixtures/config/with-tracing-selectors.yaml");
     let file_cfg = load_yaml(yaml).expect("parse");
-    let (snapshots, effective, configurator, tracing) = support::control_setup(
+    let (snapshots, effective, configurator, tracing, base_dir) = support::control_setup(
         file_cfg,
         support::workspace_fixture("tests/fixtures/config/with-tracing-selectors.yaml"),
         Some(support::workspace_fixture("tests/fixtures/config")),
@@ -77,6 +77,7 @@ async fn get_trace_returns_events_after_traced_query() {
         effective,
         configurator,
         tracing.clone(),
+        base_dir,
     )
     .await
     .expect("start server");
@@ -139,17 +140,23 @@ async fn get_trace_returns_events_after_traced_query() {
 async fn get_trace_unknown_id_not_found() {
     let yaml = include_str!("../../../tests/fixtures/config/with-tracing-selectors.yaml");
     let file_cfg = load_yaml(yaml).expect("parse");
-    let (snapshots, effective, configurator, tracing) = support::control_setup(
+    let (snapshots, effective, configurator, tracing, base_dir) = support::control_setup(
         file_cfg,
         support::workspace_fixture("tests/fixtures/config/with-tracing-selectors.yaml"),
         Some(support::workspace_fixture("tests/fixtures/config")),
     );
 
     let addr: SocketAddr = "127.0.0.1:0".parse().expect("parse");
-    let local_addr =
-        conduit_api::serve_on_listener(addr, snapshots, effective, configurator, tracing.clone())
-            .await
-            .expect("start server");
+    let local_addr = conduit_api::serve_on_listener(
+        addr,
+        snapshots,
+        effective,
+        configurator,
+        tracing.clone(),
+        base_dir,
+    )
+    .await
+    .expect("start server");
 
     let endpoint = format!("http://{local_addr}");
     let mut client = ConduitControlClient::connect(endpoint)

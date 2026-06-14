@@ -132,7 +132,7 @@ impl RuntimeSnapshot {
     }
 
     pub fn from_config_with_base(config: Config, base_dir: Option<&Path>) -> Self {
-        let events = compile_events(&config);
+        let events = compile_events(&config, base_dir);
         let (metrics, tracing) = compile_metrics(&config);
         let scripting = compile_scripts(&config, base_dir).unwrap_or_else(|e| {
             panic!("script compile failed at snapshot build: {e}");
@@ -159,7 +159,7 @@ impl RuntimeSnapshot {
         config: Config,
         base_dir: Option<&Path>,
     ) -> Result<Self, ScriptError> {
-        let events = compile_events(&config);
+        let events = compile_events(&config, base_dir);
         let (metrics, tracing) = compile_metrics(&config);
         let scripting = compile_scripts(&config, base_dir)?;
         let (forward, pool_forward) =

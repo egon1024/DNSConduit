@@ -22,3 +22,4 @@ serde_json = { workspace = true }
 [dev-dependencies]
 conduit-config = { path = "../conduit-config" }
 hickory-proto = { workspace = true }
+tempfile = "3"

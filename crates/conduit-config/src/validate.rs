@@ -484,7 +484,7 @@ control:
         let yaml = include_str!("../../../tests/fixtures/config/with-dnstap-extra.yaml");
         let cfg = load_yaml(yaml).unwrap();
         assert!(validate(&cfg).ok);
-        let snap = conduit_events::compile_from_config(&cfg);
+        let snap = conduit_events::compile_from_config(&cfg, None);
         assert!(snap.enabled);
         assert!(snap.sinks[0].extra_fields.len() >= 3);
     }
@@ -495,7 +495,7 @@ control:
         let cfg = load_yaml(yaml).unwrap();
         let result = validate(&cfg);
         assert!(result.ok, "errors: {:?}", result.errors);
-        let snap = conduit_events::compile_from_config(&cfg);
+        let snap = conduit_events::compile_from_config(&cfg, None);
         assert_eq!(snap.sinks[0].filters.selectors.len(), 2);
         assert_eq!(snap.sinks[0].filters.tag_required.as_deref(), Some("audit"));
     }
@@ -505,7 +505,7 @@ control:
         let yaml = include_str!("../../../tests/fixtures/config/with-dnstap-sample.yaml");
         let cfg = load_yaml(yaml).unwrap();
         assert!(validate(&cfg).ok);
-        let snap = conduit_events::compile_from_config(&cfg);
+        let snap = conduit_events::compile_from_config(&cfg, None);
         assert!((snap.sinks[0].filters.sample_rate - 0.1).abs() < f64::EPSILON);
         assert_eq!(snap.sinks[0].filters.pool.as_deref(), Some("default"));
     }
@@ -668,7 +668,7 @@ control:
             });
         let result = validate(&cfg);
         assert!(result.ok, "{:?}", result.errors);
-        let snap = conduit_events::compile_from_config(&cfg);
+        let snap = conduit_events::compile_from_config(&cfg, None);
         assert_eq!(snap.sinks[0].connect_retry.initial_ms, 250);
         assert!(!snap.sinks[0].connect_retry.jitter);
     }

@@ -48,7 +48,7 @@ async fn main() -> anyhow::Result<()> {
 
     let configurator_state = ConfiguratorState {
         config_path: PathBuf::from(&path),
-        base_dir,
+        base_dir: base_dir.clone(),
     };
     let configurator = spawn_configurator(store.clone(), effective.clone(), configurator_state);
 
@@ -62,6 +62,7 @@ async fn main() -> anyhow::Result<()> {
         metrics_hub,
         tracing_hub,
         file_cfg,
+        config_base_dir: base_dir,
         #[cfg(unix)]
         sighup,
     })
