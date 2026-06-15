@@ -3,9 +3,14 @@
 use crate::export::render_prometheus;
 use crate::task::OtelPushHandle;
 use crate::MetricsHub;
+use async_trait::async_trait;
 use conduit_events::EventHub;
+use http::header::{HeaderName, HeaderValue};
+use http::{Request, Response};
 use opentelemetry::KeyValue;
-use opentelemetry_otlp::WithExportConfig;
+use opentelemetry_http::Bytes;
+use opentelemetry_http::HttpClient;
+use opentelemetry_otlp::{WithExportConfig, WithHttpConfig};
 use opentelemetry_sdk::metrics::data::{
     DataPoint, Histogram, Metric, ResourceMetrics, ScopeMetrics, Sum,
 };
@@ -13,37 +18,45 @@ use opentelemetry_sdk::metrics::exporter::PushMetricExporter;
 use opentelemetry_sdk::metrics::Temporality;
 use opentelemetry_sdk::Resource;
 use std::borrow::Cow;
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
+/// Settings for OTLP HTTP metrics push.
+#[derive(Debug, Clone)]
+pub struct OtelPushSettings {
+    pub endpoint: String,
+    pub push_interval_ms: u32,
+    pub resource_attributes: Vec<(String, String)>,
+    pub allow_invalid_certs: bool,
+    /// Reserved for future auth headers; ignored when empty.
+    pub headers: Vec<(String, String)>,
+}
+
 pub fn spawn_otel_push(
-    endpoint: String,
-    interval_ms: u32,
-    resource_attributes: Vec<(String, String)>,
+    settings: OtelPushSettings,
     hub: Arc<MetricsHub>,
     observation: Arc<EventHub>,
 ) -> OtelPushHandle {
     let (shutdown_tx, mut shutdown_rx) = tokio::sync::oneshot::channel();
     let join = tokio::spawn(async move {
-        let exporter = match opentelemetry_otlp::MetricExporter::builder()
-            .with_http()
-            .with_endpoint(endpoint.clone())
-            .build()
-        {
+        let endpoint = settings.endpoint.clone();
+        let exporter = match build_metric_exporter(&settings) {
             Ok(e) => e,
             Err(e) => {
-                tracing::error!(error = %e, endpoint = %endpoint, "failed to build OTLP metric exporter");
+                tracing::error!(error = %e, %endpoint, "failed to build OTLP metric exporter");
                 return;
             }
         };
 
-        let mut resource_kv: Vec<KeyValue> = resource_attributes
+        let mut resource_kv: Vec<KeyValue> = settings
+            .resource_attributes
             .into_iter()
             .map(|(k, v)| KeyValue::new(k, v))
             .collect();
         resource_kv.push(KeyValue::new("service.name", "conduit"));
 
-        let interval = Duration::from_millis(interval_ms.max(1000) as u64);
+        let interval = Duration::from_millis(settings.push_interval_ms.max(1000) as u64);
         loop {
             tokio::select! {
                 _ = &mut shutdown_rx => break,
@@ -54,17 +67,101 @@ pub fn spawn_otel_push(
                         let mut resource_metrics =
                             prometheus_text_to_resource_metrics(&prom_text, resource_kv.clone());
                         if let Err(e) = exporter.export(&mut resource_metrics).await {
-                            tracing::warn!(error = %e, endpoint = %endpoint, "otel metrics push failed");
+                            tracing::warn!(error = %e, %endpoint, "otel metrics push failed");
                         } else {
-                            tracing::debug!(endpoint = %endpoint, "otel metrics push ok");
+                            tracing::debug!(%endpoint, "otel metrics push ok");
                         }
                     }
                 }
             }
         }
-        tracing::debug!(endpoint = %endpoint, "otel metrics push stopped");
+        tracing::debug!(%endpoint, "otel metrics push stopped");
     });
     OtelPushHandle::new(shutdown_tx, join)
+}
+
+fn build_metric_exporter(
+    settings: &OtelPushSettings,
+) -> Result<opentelemetry_otlp::MetricExporter, String> {
+    let headers: HashMap<String, String> = settings.headers.iter().cloned().collect();
+    let client = if headers.is_empty() {
+        OtelHttpClient::Plain(build_reqwest_client(settings.allow_invalid_certs)?)
+    } else {
+        OtelHttpClient::WithHeaders {
+            inner: build_reqwest_client(settings.allow_invalid_certs)?,
+            headers,
+        }
+    };
+    opentelemetry_otlp::MetricExporter::builder()
+        .with_http()
+        .with_endpoint(settings.endpoint.clone())
+        .with_http_client(client)
+        .build()
+        .map_err(|e| e.to_string())
+}
+
+#[derive(Debug)]
+enum OtelHttpClient {
+    Plain(reqwest::Client),
+    WithHeaders {
+        inner: reqwest::Client,
+        headers: HashMap<String, String>,
+    },
+}
+
+#[async_trait]
+impl HttpClient for OtelHttpClient {
+    async fn send(
+        &self,
+        request: Request<Vec<u8>>,
+    ) -> Result<Response<Bytes>, opentelemetry_http::HttpError> {
+        match self {
+            OtelHttpClient::Plain(client) => client.send(request).await,
+            OtelHttpClient::WithHeaders { inner, headers } => {
+                let (parts, body) = request.into_parts();
+                let mut req = Request::from_parts(parts, body);
+                for (key, value) in headers {
+                    if let (Ok(name), Ok(val)) = (
+                        HeaderName::try_from(key.as_str()),
+                        HeaderValue::from_str(value),
+                    ) {
+                        req.headers_mut().insert(name, val);
+                    }
+                }
+                inner.send(req).await
+            }
+        }
+    }
+}
+
+fn build_reqwest_client(allow_invalid_certs: bool) -> Result<reqwest::Client, String> {
+    let mut builder = reqwest::Client::builder();
+    if allow_invalid_certs {
+        builder = builder.danger_accept_invalid_certs(true);
+    }
+    builder.build().map_err(|e| format!("reqwest client: {e}"))
+}
+
+/// Push one OTLP metrics payload (used by integration tests).
+pub async fn push_metrics_once(
+    hub: &MetricsHub,
+    observation: &EventHub,
+    settings: &OtelPushSettings,
+) -> Result<(), String> {
+    let exporter = build_metric_exporter(settings)?;
+    let mut resource_kv: Vec<KeyValue> = settings
+        .resource_attributes
+        .iter()
+        .map(|(k, v)| KeyValue::new(k.clone(), v.clone()))
+        .collect();
+    resource_kv.push(KeyValue::new("service.name", "conduit"));
+    let obs = observation.sink_metrics_snapshot();
+    let prom_text = render_prometheus(hub, &obs);
+    let mut resource_metrics = prometheus_text_to_resource_metrics(&prom_text, resource_kv);
+    exporter
+        .export(&mut resource_metrics)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 /// Map Prometheus text exposition into OTEL `ResourceMetrics` for OTLP export.
@@ -318,5 +415,29 @@ conduit_config_generation 2
             assert!(prom_names.contains(family), "prom missing {family}");
             assert!(otel_names.contains(family), "otel missing {family}");
         }
+    }
+
+    #[test]
+    fn build_metric_exporter_accepts_http_endpoint() {
+        let settings = OtelPushSettings {
+            endpoint: "http://127.0.0.1:4318/v1/metrics".into(),
+            push_interval_ms: 15_000,
+            resource_attributes: vec![],
+            allow_invalid_certs: false,
+            headers: vec![],
+        };
+        assert!(build_metric_exporter(&settings).is_ok());
+    }
+
+    #[test]
+    fn build_metric_exporter_accepts_https_endpoint() {
+        let settings = OtelPushSettings {
+            endpoint: "https://collector.example/v1/metrics".into(),
+            push_interval_ms: 15_000,
+            resource_attributes: vec![],
+            allow_invalid_certs: false,
+            headers: vec![],
+        };
+        assert!(build_metric_exporter(&settings).is_ok());
     }
 }

@@ -122,4 +122,4 @@ Completed traces are stored in a bounded in-memory `TraceStore` (1000 entries, 5
 
 ## OTEL push
 
-When `metrics.otel.endpoint` is set, a background task pushes metrics derived from the same Prometheus text as scrape on `push_interval_ms`. Use Prometheus scrape when you need ad-hoc PromQL on histogram `_bucket` series; OTLP carries counters, gauges, and histogram summaries for built-ins.
+When `metrics.otel.endpoint` is set, a background task pushes metrics derived from the same Prometheus text as scrape on `push_interval_ms`. Endpoints may be `http://` or `https://`. Use `allow_invalid_certs: true` only when the collector presents a certificate that will not validate (for example self-signed lab setups). Use Prometheus scrape when you need ad-hoc PromQL on histogram `_bucket` series; OTLP carries counters, gauges, and histogram summaries for built-ins.

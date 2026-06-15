@@ -23,9 +23,17 @@ parking_lot = "0.12"
 opentelemetry = { workspace = true }
 opentelemetry_sdk = { workspace = true }
 opentelemetry-otlp = { workspace = true }
+opentelemetry-http = { version = "0.27", default-features = false, features = ["reqwest"] }
+reqwest = { workspace = true }
+async-trait = "0.1"
+http = "1"
 
 [dev-dependencies]
 conduit-config = { path = "../conduit-config" }
 conduit-core = { path = "../conduit-core" }
 conduit-events = { path = "../conduit-events" }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 hickory-proto = { workspace = true }
+rcgen = "0.13"
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }

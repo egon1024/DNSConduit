@@ -10,8 +10,8 @@ use conduit_core::configurator::{ConfiguratorHandle, ConfiguratorSpawn};
 use conduit_core::snapshot::SnapshotStore;
 use conduit_dataplane::DataplaneHandle;
 use conduit_metrics::{
-    spawn_otel_push, spawn_prometheus_server, MetricsHub, OtelPushHandle, PrometheusServerHandle,
-    TracingHub,
+    spawn_otel_push, spawn_prometheus_server, MetricsHub, OtelPushHandle, OtelPushSettings,
+    PrometheusServerHandle, TracingHub,
 };
 use conduit_proto::config::Config;
 use std::net::SocketAddr;
@@ -78,9 +78,13 @@ impl RuntimeSupervisor {
 
         let otel = if let Some(ref endpoint) = metrics_hub.compiled.otel_endpoint {
             Some(spawn_otel_push(
-                endpoint.clone(),
-                metrics_hub.compiled.otel_push_interval_ms,
-                metrics_hub.compiled.otel_resource_attributes.clone(),
+                OtelPushSettings {
+                    endpoint: endpoint.clone(),
+                    push_interval_ms: metrics_hub.compiled.otel_push_interval_ms,
+                    resource_attributes: metrics_hub.compiled.otel_resource_attributes.clone(),
+                    allow_invalid_certs: metrics_hub.compiled.otel_allow_invalid_certs,
+                    headers: metrics_hub.compiled.otel_headers.clone(),
+                },
                 metrics_hub.clone(),
                 dataplane.events.clone(),
             ))

@@ -34,9 +34,11 @@ message PrometheusMetricsConfig {
 }
 
 message OtelMetricsConfig {
-  string endpoint = 1;             // OTLP HTTP endpoint
+  string endpoint = 1;             // OTLP HTTP endpoint (http:// or https://)
   uint32 push_interval_ms = 2;
   map<string, string> resource_attributes = 3;
+  bool allow_invalid_certs = 4;    // when true, accept invalid TLS server certs (https only)
+  map<string, string> headers = 5; // optional OTLP HTTP headers (reserved for future auth)
 }
 
 // Phase 4: per-transaction pipeline trace (design §4.3); off by default.
