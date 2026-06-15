@@ -103,6 +103,7 @@ nav:
       - Dual-stack forwarding: guides/dual-stack-forwarding.md
       - Control plane workflows: guides/control-plane-workflows.md
       - Metrics and tracing: guides/metrics-and-tracing.md
+      - Event export and dnstap: guides/event-export-dnstap.md
       - Operator metrics profiles: guides/operator-metrics-profiles.md
   - Security:
       - Overview: security/index.md

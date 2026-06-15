@@ -2,7 +2,7 @@
 
 Per-query DNS observation for the [dataplane](/glossary/index.md#dataplane): client queries, responses, and optional retry markers exported as [dnstap](/glossary/index.md#dnstap) frames to one or more collectors. Export runs **off** the DNS hot path — a full export queue drops events rather than delaying client replies.
 
-Use event export when you need qname-level detail, client addresses, or policy [tags](/glossary/index.md#tags) in a SIEM or tap pipeline. For aggregate volume and latency, use [Metrics](/observability/metrics.md). For in-process pipeline timing on selected queries, use [Tracing](/observability/tracing.md).
+Use event export when you need qname-level detail, client addresses, or policy [tags](/glossary/index.md#tags) in a log analytics pipeline or tap collector. For aggregate volume and latency, use [Metrics](/observability/metrics.md). For in-process pipeline timing on selected queries, use [Tracing](/observability/tracing.md).
 
 ## Enabling dnstap
 
@@ -200,14 +200,17 @@ After a successful [reload](/control-plane/reload-and-export.md) or **`conduitct
 
 ## Lab smoke test
 
-1. Build Conduit and a dnstap collector (for example the `conduit-dnstap-tracer` helper shipped in the repo, or any framestream-compatible collector).
-2. Start the collector on a Unix socket, for example `/tmp/conduit-dnstap.sock`.
-3. Start Conduit with a config that includes an `events.sinks` dnstap block pointing at that socket (see [Enabling dnstap](#enabling-dnstap)).
+Short checklist — full walkthrough with **`conduit-dnstap-tracer`**: [Event export and dnstap](/guides/event-export-dnstap.md).
+
+1. Build Conduit and **`conduit-dnstap-tracer`** ([Install and run](/getting-started/install-and-run.md)).
+2. Start the tracer on a Unix socket, for example `conduit-dnstap-tracer -u /tmp/conduit-dnstap.sock -f yaml`.
+3. Start Conduit with an `events.sinks` dnstap block pointing at that socket (see [Enabling dnstap](#enabling-dnstap)).
 4. Send a query: `dig @127.0.0.1 -p 15353 +time=3 example.com A` (adjust listener port to your config).
-5. Confirm the collector receives client query and response frames; if **`extra_fields`** includes **`pool`** / **`backend`**, confirm they appear in **`extra`**.
+5. Confirm the tracer receives client query and response frames; if **`extra_fields`** includes **`pool`** / **`backend`**, confirm they appear in **`extra`**.
 
 ## Related topics
 
+- [Event export and dnstap](/guides/event-export-dnstap.md) — end-to-end lab with `conduit-dnstap-tracer`
 - [Config schema: events](/reference/config-schema/events.md) — field-level reference
 - [Architecture and packet path — Tags](/concepts/architecture-and-packet-path.md#tags) — why tags matter for export and tracing
 - [Built-in metrics — Event export](/observability/built-in-metrics.md#event-export) — sink counters at scrape time
