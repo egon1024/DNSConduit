@@ -118,7 +118,7 @@ Retries re-enter the pipeline; you will see additional **`route`** / **`forward`
 
 ## Fetching traces
 
-Traces are keyed by internal **transaction id** (`txn_id`). Conduit logs `txn_id` on **`query complete`** at **`info`** when a query finishes — use that value with the CLI or gRPC.
+Traces are keyed by internal **transaction id** (`txn_id`). In lab setups the first query is often **`1`** (incrementing per worker). With **`logging.level: debug`**, Conduit also logs **`txn_id`** on each **`query complete`** line — use that value with the CLI or gRPC.
 
 ### `conduitctl trace`
 
@@ -176,8 +176,7 @@ Tracing activation rules and **`log_json`** are compiled into the process at **s
 1. Start an upstream resolver on **`127.0.0.1:5300`** (or adjust pool backend in your config).
 2. Start Conduit with **`control:`** and **`tracing.enabled: true`** (minimal example in [Enabling tracing](#enabling-tracing)).
 3. Send a matching query: `dig @127.0.0.1 -p 15353 +time=3 test.example.com A`.
-4. Note **`txn_id`** in the **`query complete`** log line (often **`1`** on first query in a lab).
-5. Run **`conduitctl trace 1`** (or **`GetTrace`** via grpcurl).
+4. Run **`conduitctl trace 1`** (or **`GetTrace`** via grpcurl). If unsure of the id, set **`logging.level: debug`** and read **`txn_id`** from a **`query complete`** line.
 
 Expect phases such as **`route`**, **`forward`**, and **`send`**.
 
@@ -188,4 +187,4 @@ Expect phases such as **`route`**, **`forward`**, and **`send`**.
 - [Event export](/observability/event-export.md) — dnstap and tag-gated export
 - [Metrics](/observability/metrics.md) — aggregate observability
 - [gRPC and conduitctl](/control-plane/grpc-and-conduitctl.md) — `trace` subcommand and control plane setup
-- [Logging](/observability/logging.md) — process log levels (in progress)
+- [Logging](/observability/logging.md) — process log levels and query summary lines
