@@ -505,6 +505,10 @@ pub(crate) struct YamlOtelMetrics {
     push_interval_ms: u32,
     #[serde(default)]
     resource_attributes: std::collections::HashMap<String, String>,
+    #[serde(default)]
+    allow_invalid_certs: bool,
+    #[serde(default)]
+    headers: std::collections::HashMap<String, String>,
 }
 
 fn default_otel_interval() -> u32 {
@@ -661,6 +665,8 @@ impl From<YamlOtelMetrics> for OtelMetricsConfig {
             endpoint: y.endpoint,
             push_interval_ms: y.push_interval_ms,
             resource_attributes: y.resource_attributes,
+            allow_invalid_certs: y.allow_invalid_certs,
+            headers: y.headers,
         }
     }
 }
@@ -989,6 +995,8 @@ impl From<&OtelMetricsConfig> for YamlOtelMetrics {
             endpoint: o.endpoint.clone(),
             push_interval_ms: o.push_interval_ms,
             resource_attributes: o.resource_attributes.clone(),
+            allow_invalid_certs: o.allow_invalid_certs,
+            headers: o.headers.clone(),
         }
     }
 }

@@ -22,6 +22,9 @@ pub struct CompiledMetrics {
     pub otel_endpoint: Option<String>,
     pub otel_push_interval_ms: u32,
     pub otel_resource_attributes: Vec<(String, String)>,
+    pub otel_allow_invalid_certs: bool,
+    /// OTLP HTTP headers (for future auth); not sent when empty.
+    pub otel_headers: Vec<(String, String)>,
 }
 
 impl Default for CompiledMetrics {
@@ -34,6 +37,8 @@ impl Default for CompiledMetrics {
             otel_endpoint: None,
             otel_push_interval_ms: 15_000,
             otel_resource_attributes: Vec::new(),
+            otel_allow_invalid_certs: false,
+            otel_headers: Vec::new(),
         }
     }
 }
@@ -104,6 +109,15 @@ fn compile_metrics(m: Option<&MetricsConfig>) -> CompiledMetrics {
         otel_resource_attributes: otel
             .map(|o| {
                 o.resource_attributes
+                    .iter()
+                    .map(|(k, v)| (k.clone(), v.clone()))
+                    .collect()
+            })
+            .unwrap_or_default(),
+        otel_allow_invalid_certs: otel.map(|o| o.allow_invalid_certs).unwrap_or(false),
+        otel_headers: otel
+            .map(|o| {
+                o.headers
                     .iter()
                     .map(|(k, v)| (k.clone(), v.clone()))
                     .collect()
@@ -286,5 +300,45 @@ mod tests {
         assert!(t.enabled);
         assert!(t.log_json);
         assert_eq!(t.activation.tag_required.as_deref(), Some("trace"));
+    }
+
+    #[test]
+    fn compile_otel_tls_and_headers() {
+        use conduit_proto::config::{MetricsConfig, OtelMetricsConfig};
+        let cfg = Config {
+            schema_version: 1,
+            metrics: Some(MetricsConfig {
+                enabled: true,
+                profile: "full".into(),
+                prometheus: None,
+                otel: Some(OtelMetricsConfig {
+                    endpoint: "https://collector.example/v1/metrics".into(),
+                    push_interval_ms: 5000,
+                    resource_attributes: Default::default(),
+                    allow_invalid_certs: true,
+                    headers: [("X-Test".to_string(), "1".to_string())]
+                        .into_iter()
+                        .collect(),
+                }),
+            }),
+            listeners: None,
+            forward: None,
+            orchestrator: None,
+            events: None,
+            rhai: None,
+            pools: vec![],
+            control: None,
+            rules: None,
+            logging: None,
+            data_sources: vec![],
+            tracing: None,
+        };
+        let (m, _) = compile_from_config(&cfg);
+        assert_eq!(
+            m.otel_endpoint.as_deref(),
+            Some("https://collector.example/v1/metrics")
+        );
+        assert!(m.otel_allow_invalid_certs);
+        assert_eq!(m.otel_headers, vec![("X-Test".into(), "1".into())]);
     }
 }

@@ -152,15 +152,15 @@ CLI for the [control plane](/glossary/index.md#control-plane) — `apply` (with 
 
 ### Event sink
 
-<!-- one-line definition -->
+Configured destination (for example a [dnstap](#dnstap) collector) that receives per-query observation frames from the [dataplane](/glossary/index.md#dataplane).
 
-→ [Event export](../observability/event-export.md)
+→ [Event export](/observability/event-export.md)
 
 ### dnstap
 
-<!-- one-line definition -->
+Industry-standard protobuf format and framestream transport for DNS observation; Conduit exports client query/response (and optional retry) frames when `events.sinks` includes `type: dnstap`.
 
-→ [Event export](../observability/event-export.md)
+→ [Event export](/observability/event-export.md)
 
 ### Pipeline trace
 
