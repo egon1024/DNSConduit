@@ -252,7 +252,7 @@ impl Orchestrator {
         }
 
         match &outcome {
-            RunOutcome::Response(_) => tracing::info!(
+            RunOutcome::Response(_) => tracing::debug!(
                 txn_id = txn.id,
                 dns_id = txn.dns_id,
                 qname = %log_text(txn.qname.as_deref().unwrap_or("-")),
@@ -267,7 +267,7 @@ impl Orchestrator {
                 attempts = txn.attempt_count,
                 "query complete"
             ),
-            RunOutcome::Dropped => tracing::warn!(
+            RunOutcome::Dropped => tracing::debug!(
                 txn_id = txn.id,
                 dns_id = txn.dns_id,
                 qname = %log_text(txn.qname.as_deref().unwrap_or("-")),

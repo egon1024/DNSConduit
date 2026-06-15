@@ -11,6 +11,6 @@ Field-level reference for the Conduit YAML **`schema_version: 1`** document. Syn
 | `events` | [Events](/reference/config-schema/events.md) |
 | `metrics`, `tracing` | [Metrics and tracing](/reference/config-schema/metrics-and-tracing.md) |
 
-Other top-level blocks (`forward`, `orchestrator`, `rhai`, `logging`, `data_sources`) are documented in progress on their topic pages; see [Config file — top-level blocks](/control-plane/config-file.md).
+Other top-level blocks (`forward`, `orchestrator`, `rhai`, `data_sources`) are documented in progress on their topic pages; **`logging`** fields are documented on [Logging](/observability/logging.md). See [Config file — top-level blocks](/control-plane/config-file.md).
 
 Canonical machine-readable schema: `proto/conduit/v1/config.proto`.
