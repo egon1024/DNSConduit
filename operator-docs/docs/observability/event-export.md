@@ -212,5 +212,5 @@ After a successful [reload](/control-plane/reload-and-export.md) or **`conduitct
 - [Architecture and packet path — Tags](/concepts/architecture-and-packet-path.md#tags) — why tags matter for export and tracing
 - [Built-in metrics — Event export](/observability/built-in-metrics.md#event-export) — sink counters at scrape time
 - [Metrics](/observability/metrics.md) — aggregate observability (orthogonal to dnstap)
-- [Tracing](/observability/tracing.md) — per-query pipeline traces (in progress)
+- [Tracing](/observability/tracing.md) — per-query pipeline traces
 - [Rules and actions](/policy-routing/rules-and-actions.md) — `set_tag` and selectors used in filters

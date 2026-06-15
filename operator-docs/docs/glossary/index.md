@@ -164,6 +164,6 @@ Industry-standard protobuf format and framestream transport for DNS observation;
 
 ### Pipeline trace
 
-<!-- one-line definition -->
+In-memory record of pipeline phases, timing, and routing decisions for one [transaction](/glossary/index.md#transaction); fetched via `GetTrace` / `conduitctl trace` when [tracing](/observability/tracing.md) is enabled.
 
-→ [Tracing](../observability/tracing.md)
+→ [Tracing](/observability/tracing.md)
