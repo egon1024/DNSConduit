@@ -6,29 +6,9 @@ Built-in labels never include `qname`, client IP, or transaction id — use [eve
 
 ## Profiles { #profiles }
 
-### Enabling export
+Built-in recording uses a **`metrics.profile`** of **`minimal`** or **`full`** (see [Metrics](/observability/metrics.md) for enabling export, Prometheus scrape, OTEL push, and restart semantics). When the `metrics:` block is omitted, built-ins are off — no hot-path increments and no export.
 
-When the `metrics` section is **omitted** from config, export is disabled — no scrape listener, no hot-path increments, no built-in series.
-
-To enable built-ins, add a `metrics:` block with `enabled: true` and configure at least one export path (Prometheus scrape and/or OTEL push). Example:
-
-```yaml
-metrics:
-  enabled: true
-  profile: full          # or minimal
-  prometheus:
-    listen_address: "127.0.0.1:9090"
-    path: /metrics
-```
-
-| Setting {: .column-no-wrap } | Meaning |
-|---------|---------|
-| `metrics.enabled` | Must be `true` for any built-in export or hot-path recording |
-| `metrics.profile` | `minimal` or `full` (default **`full`** when the block is present). `off` disables export even if `enabled` is true |
-| `metrics.prometheus` | Optional HTTP scrape listener (`listen_address`, `path`) |
-| `metrics.otel` | Optional OTLP HTTP push (`endpoint`, `push_interval_ms`) |
-
-`minimal` and `full` control **what** Conduit records, not **how** you export it. Prometheus scrape, OTEL push, and both together all expose the same built-in series for the profile you chose. See [Metrics](/observability/metrics.md) and [Operator metrics profiles](/guides/operator-metrics-profiles.md).
+`minimal` and `full` control **what** Conduit records on the hot path, not **how** you export it. Prometheus scrape, OTEL push, and both together expose the same built-in series for the profile you chose.
 
 ### `minimal` vs `full` (hot path)
 

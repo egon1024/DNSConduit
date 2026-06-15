@@ -82,5 +82,5 @@ Built-in labels never include `qname`, client IP, or transaction id. Use [Event 
 
 - [Built-in metrics](/observability/built-in-metrics.md) — series reference and PromQL examples
 - [Architecture and packet path](/concepts/architecture-and-packet-path.md) — phase-by-phase metric hooks
-- [Operator metrics profiles](/guides/operator-metrics-profiles.md) — lab validation of `minimal` vs `full`
-- [Metrics and tracing](/guides/metrics-and-tracing.md) — end-to-end observability setup (guide in progress)
+- [Metrics and tracing](/guides/metrics-and-tracing.md) — end-to-end lab (metrics scrape + pipeline tracing)
+- [Event export and dnstap](/guides/event-export-dnstap.md) — wire-level tap lab

@@ -27,7 +27,7 @@ logging:
 
 Validate with `conduitctl validate --file …`. Invalid levels or outputs fail validation before Conduit starts.
 
-### `RUST_LOG` override
+### `RUST_LOG` override { #rust_log-override }
 
 If the environment variable **`RUST_LOG`** is set when Conduit starts, it **replaces** `logging.level` for filter construction. This follows common Rust tooling conventions — useful in labs:
 
@@ -71,7 +71,7 @@ INFO … Starting listening on 127.0.0.1:15353 udp
 
 Use **`dataplane startup summary`** to confirm generation, pool/rule counts, forward timeout, egress source lists, and whether event sinks compiled.
 
-### Per-query summaries
+### Per-query summaries { #per-query-summaries }
 
 At **`debug`**, each completed [transaction](/glossary/index.md#transaction) emits a structured **`query complete`** line (not shown at default **`info`**):
 
@@ -131,6 +131,27 @@ At **`debug`** or **`warn`**, you may see per-query summaries, OTEL push results
 
 Production deployments usually stay at **`info`**. Use **`debug`** briefly when troubleshooting individual queries, or rely on [Metrics](/observability/metrics.md) for steady-state volume.
 
+## Lab smoke test { #lab-smoke-test }
+
+1. Start Conduit with a minimal config (for example [Minimal configuration](/getting-started/minimal-configuration.md)) — omit **`logging:`** to use defaults.
+2. In the process log, confirm at **`info`**:
+   - **`dataplane startup summary`** with generation, listener, and pool counts
+   - **`configured listener`** and **`Starting listening on`** for your DNS address
+3. Send a query: `dig @127.0.0.1 -p 15353 +time=3 smoke.example.com A` (adjust port).
+4. At default **`info`**, the log stays **quiet** for per-query traffic — no **`query complete`** line (by design).
+5. Stop Conduit. Add or change:
+
+   ```yaml
+   logging:
+     level: debug
+     output: stderr
+   ```
+
+   Restart Conduit and send another query.
+6. Expect a **`DEBUG`** line **`query complete`** with **`qname`**, **`rcode`**, **`pool`**, **`backend`**, and **`txn_id`** — use **`txn_id`** with [Tracing](/observability/tracing.md) when needed.
+
+Unset **`debug`** after the lab — production should remain at **`info`** unless you are actively investigating.
+
 ## Changing logging config
 
 The **`logging:`** block may appear in the [file layer](/glossary/index.md#file-layer) or in an [overlay](/glossary/index.md#overlay) patch (whole-section replace when the overlay includes `logging`).
@@ -144,4 +165,4 @@ The log subscriber is initialized **once at process start**. Changing **`level`*
 - [Metrics](/observability/metrics.md) — Prometheus scrape and OTEL metrics push
 - [Event export](/observability/event-export.md) — dnstap sinks
 - [gRPC and conduitctl](/control-plane/grpc-and-conduitctl.md) — control RPC access logs
-- [Troubleshooting](/troubleshooting/index.md) — symptom hub (in progress)
+- [Troubleshooting — Observability](/troubleshooting/index.md#observability) — symptom hub
