@@ -14,7 +14,6 @@ pub struct MockHost {
     pub pool: Option<String>,
     pub retry: Option<String>,
     pub dropped: bool,
-    pub rd_override: Option<bool>,
     pub source_override_v4: Option<Ipv4Addr>,
     pub source_override_v6: Option<Ipv6Addr>,
     pub tags: HashMap<String, bool>,
@@ -70,14 +69,6 @@ impl HostTransaction for MockHost {
 
     fn set_rcode_name(&mut self, name: &str) {
         self.rcode = Some(name.to_string());
-    }
-
-    fn set_rd(&mut self, value: bool) {
-        self.rd_override = Some(value);
-    }
-
-    fn clear_rd(&mut self) {
-        self.rd_override = Some(false);
     }
 
     fn set_source_v4(&mut self, addr: &str) {

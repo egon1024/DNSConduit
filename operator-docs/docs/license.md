@@ -7,17 +7,17 @@ file in the project repository.
 
 Copyright 2026 Cole Tuininga.
 
-## Your configuration and extensions
+## Configuration and scripts you author
 
-The project license covers DNS Conduit software and documentation in the
-repository. It does **not** automatically apply to:
+The Apache License applies to **Conduit software and documentation in this repository only**. It does **not** automatically apply to material you create for your deployment that is **not part of this repository**.
 
-- Operator YAML or JSON configuration you write for your deployment
-- Rhai policy scripts
-- Future WASM plugins or sidecar processes you author separately
+Examples include, but are not limited to:
 
-Those are your own works unless they include or are derived from Conduit
-source code. You may keep them proprietary.
+- Operator YAML or JSON configuration
+- [Rule Rhai](/glossary/index.md#rule-rhai) (`.rhai`) policy scripts
+- Plugins, modules, or helper services you build or deploy alongside Conduit
+
+Those are your own works unless they include or are derived from Conduit source code. You may keep them proprietary.
 
 ## Contributing
 

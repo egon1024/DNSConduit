@@ -110,29 +110,41 @@ Condition on a [rule](/policy-routing/rules-and-actions.md) that tests query or 
 
 ### Action
 
-Built-in effect on a matching [rule](/policy-routing/rules-and-actions.md) (for example `set_pool`, `set_tag`, `set_source_v4`, `set_source_v6`, `drop`, `retry`, `retry_pool`, `rhai`) — applied before optional [Rhai](/glossary/index.md#rhai) on the same rule.
+Built-in effect on a matching [rule](/policy-routing/rules-and-actions.md) (for example `set_pool`, `set_tag`, `set_source_v4`, `set_source_v6`, `drop`, `retry`, `retry_pool`, `rhai`) — applied before optional [Rule Rhai](/glossary/index.md#rule-rhai) on the same rule.
 
 → [Rules and actions](/policy-routing/rules-and-actions.md)
 
-## Extensibility
+### Rule Rhai { #rule-rhai #rhai }
 
-### Rhai
+Scripted **policy** on [rules](/policy-routing/rules-and-actions.md) in current releases: `.rhai` files referenced from `rhai` [actions](/glossary/index.md#action), loaded into the [runtime snapshot](/glossary/index.md#runtime-snapshot) on reload or apply, run at [Request rules](/concepts/architecture-and-packet-path.md#request-rules) and [Response rules](/concepts/architecture-and-packet-path.md#response-rules) within [sandbox limits](/rhai/sandbox-limits.md). Uses the `txn` API — not DNS wire editing.
 
-Scripting plugin model in current releases: `.rhai` files referenced from `rhai` [actions](/glossary/index.md#action) on [rules](/policy-routing/rules-and-actions.md), loaded into the [runtime snapshot](/glossary/index.md#runtime-snapshot) on reload or apply, run at [Request rules](/concepts/architecture-and-packet-path.md#request-rules) and [Response rules](/concepts/architecture-and-packet-path.md#response-rules) within [sandbox limits](/rhai/sandbox-limits.md).
+→ [Rhai](/rhai/index.md), [Rules and actions](/policy-routing/rules-and-actions.md)
 
-→ [Rhai](/rhai/index.md), [Extensibility](/concepts/extensibility.md)
+## Planned plugin models
 
 ### WASM
 
-Planned in-process plugin model: compiled `.wasm` plugins on the same request/response hooks as [Rhai](/glossary/index.md#rhai). **Not available** in current releases.
+Planned in-process plugin model: compiled `.wasm` plugins on the same request/response hooks as [Rule Rhai](/glossary/index.md#rule-rhai). **Not yet shipped.**
 
-→ [Extensibility](/concepts/extensibility.md)
+→ [Planned plugin models](/concepts/planned-plugin-models.md)
 
 ### Sidecar
 
-Planned sidecar plugin model: separate processes Conduit calls on the same logical hooks as [Rhai](/glossary/index.md#rhai) and [WASM](/glossary/index.md#wasm). **Not available** in current releases.
+Planned sidecar plugin model: separate processes Conduit calls on the same logical hooks as [Rule Rhai](/glossary/index.md#rule-rhai) and [WASM](/glossary/index.md#wasm). **Not yet shipped.**
 
-→ [Extensibility](/concepts/extensibility.md)
+→ [Planned plugin models](/concepts/planned-plugin-models.md)
+
+### Processor chains
+
+Planned datapath feature with `processors:` config: DNS wire editing and (when shipped) transaction refinement such as **`set_tag`** and ingress **`set_pool`** after [rules](/policy-routing/rules-and-actions.md) — separate from [Rule Rhai](/glossary/index.md#rule-rhai). **Not yet shipped.**
+
+→ [Planned plugin models](/concepts/planned-plugin-models.md#processor-chains-planned)
+
+### Processor-chain Rhai
+
+Planned [Rhai](/glossary/index.md#rhai) scripts in [processor chains](/glossary/index.md#processor-chains): `processors:` config and **message API** (`conduit-dns`) for wire editing — not the rule `txn` surface. **Not yet shipped.**
+
+→ [Planned plugin models](/concepts/planned-plugin-models.md#processor-chains-planned)
 
 ## Control and operations
 

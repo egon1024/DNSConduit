@@ -1,6 +1,6 @@
 # Rules and actions
 
-This page is the **behavioral home** for declarative policy in Conduit: how you declare rules under `rules:` in your [config file](/control-plane/config-file.md), what they can change on each query, and when they run on the [dataplane](/glossary/index.md#dataplane). For the query pipeline, see [Architecture and packet path](/concepts/architecture-and-packet-path.md). For scripting and future plugin models, see [Extensibility](/concepts/extensibility.md).
+This page is the **behavioral home** for declarative policy in Conduit: how you declare rules under `rules:` in your [config file](/control-plane/config-file.md), what they can change on each query, and when they run on the [dataplane](/glossary/index.md#dataplane). For the query pipeline, see [Architecture and packet path](/concepts/architecture-and-packet-path.md). For [Rule Rhai](/glossary/index.md#rule-rhai), see [Rhai](/rhai/index.md). For planned [WASM](/glossary/index.md#wasm) and [sidecar](/glossary/index.md#sidecar) plugins, see [Planned plugin models](/concepts/planned-plugin-models.md).
 
 ## Overview
 
@@ -48,7 +48,7 @@ rules:
 
 Every field on `rules:`, selectors, and actions: [Reference: rules](/reference/config-schema/rules.md).
 
-## When rule changes take effect
+## When changes to rules take effect { #when-changes-to-rules-take-effect }
 
 When you reload or apply configuration (**SIGHUP**, `conduitctl reload`, or `conduitctl apply`), Conduit validates the file (including rules and script paths) and loads the result into the active [runtime snapshot](/glossary/index.md#runtime-snapshot) for **later** queries.
 
@@ -66,7 +66,7 @@ The selected [pool](/glossary/index.md#pool) can also come from an **earlier** m
 
 Use on `hook: request` — after [Parse](/concepts/architecture-and-packet-path.md#parse), before [Route](/concepts/architecture-and-packet-path.md#route).
 
-| Action | `value` | Effect |
+| Action {: .column-no-wrap } | `value` | Effect |
 |--------|---------|--------|
 | `set_pool` | Pool name | Sets the target [pool](/glossary/index.md#pool) for [Route](/concepts/architecture-and-packet-path.md#route) |
 | `set_tag` | `key=value` or `key` (→ `true`) | Sets a [tag](/glossary/index.md#tags) on the [transaction](/glossary/index.md#transaction) |
@@ -83,7 +83,7 @@ When a matching rule includes **`rhai`**, Conduit runs the script **after** buil
 
 Use on `hook: response` — after an upstream answer or forward timeout, before [Send](/concepts/architecture-and-packet-path.md#send) or a [retry](/glossary/index.md#retry).
 
-| Action | `value` | Effect |
+| Action {: .column-no-wrap } | `value` | Effect |
 |--------|---------|--------|
 | `retry` | (ignored) | [Retry](/glossary/index.md#retry) in the current [pool](/glossary/index.md#pool) — re-enter [Route](/concepts/architecture-and-packet-path.md#route) and pick another [backend](/glossary/index.md#backend) in that pool when possible |
 | `retry_pool` | Pool name | [Retry](/glossary/index.md#retry) to the named pool on the next [Route](/concepts/architecture-and-packet-path.md#route) (one-shot override) |
@@ -95,6 +95,16 @@ Use on `hook: response` — after an upstream answer or forward timeout, before 
 **`retry`** and **`retry_pool`** — request another [Route](/concepts/architecture-and-packet-path.md#route) → [Forward](/concepts/architecture-and-packet-path.md#forward) cycle. Use **`retry`** to stay in the current [pool](/glossary/index.md#pool); use **`retry_pool`** to target a different pool for the next attempt. On retries, Conduit avoids [backends](/glossary/index.md#backend) already used in the target pool on this [transaction](/glossary/index.md#transaction). Global caps, pool exhaustion, and examples: [Retries and transactions](/policy-routing/retries-and-transactions.md).
 
 **`set_source_v4` / `set_source_v6`** are not supported on the response hook (egress is chosen before [Forward](/concepts/architecture-and-packet-path.md#forward); same as [Rhai](/rhai/index.md)).
+
+## Scripted policy (Rule Rhai)
+
+When built-in actions are not enough, add **`type: rhai`** to a matching rule’s `actions:` list. Conduit still uses **`match_mode: first_match`** on each hook: only the **first** matching rule runs, and on that rule built-in actions run in list order **before** the script.
+
+The script receives a sandboxed **`txn`** object — policy fields only ([pool](/glossary/index.md#pool), [tags](/glossary/index.md#tags), egress, drop, retry). It does **not** edit DNS wire bytes.
+
+When [processor chains](/concepts/planned-plugin-models.md#processor-chains-planned) ship, they are planned to refine policy **after** rules on the same [transaction](/glossary/index.md#transaction) — alongside wire editing. See [Policy refinement (planned)](/concepts/planned-plugin-models.md#policy-refinement-planned).
+
+Full reference: [Rhai](/rhai/index.md) (Rule Rhai).
 
 ## Selectors
 
@@ -135,5 +145,5 @@ Full validation rules: [Reference: rules](/reference/config-schema/rules.md).
 - [Pools and backends](/policy-routing/pools-and-backends.md) — `set_pool`, default pool, backend weights
 - [Retries and transactions](/policy-routing/retries-and-transactions.md) — `retry_pool`, attempt limits
 - [Dual-stack forwarding](/guides/dual-stack-forwarding.md) — `set_source_v4` / `set_source_v6`
-- [Extensibility](/concepts/extensibility.md) — built-in rules vs [Rhai](/glossary/index.md#rhai) / future plugins
-- [Rhai](/rhai/index.md) — when built-in actions are not enough
+- [Rhai](/rhai/index.md) — Rule Rhai on matching rules
+- [Planned plugin models](/concepts/planned-plugin-models.md) — [WASM](/glossary/index.md#wasm), [sidecar](/glossary/index.md#sidecar) (not yet shipped)

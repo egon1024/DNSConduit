@@ -70,8 +70,6 @@ fn register_host_api(engine: &mut Engine) {
         .register_fn("request_retry", RhaiTxn::request_retry)
         .register_fn("drop_query", RhaiTxn::drop)
         .register_fn("set_rcode", RhaiTxn::set_rcode)
-        .register_fn("set_rd", RhaiTxn::set_rd)
-        .register_fn("clear_rd", RhaiTxn::clear_rd)
         .register_fn("set_source_v4", RhaiTxn::set_source_v4)
         .register_fn("set_source_v6", RhaiTxn::set_source_v6)
         .register_fn("sample_include", RhaiTxn::sample_include)
@@ -146,7 +144,6 @@ struct ScriptEffects {
     rcode: Option<String>,
     dropped: bool,
     sample_decision: Option<bool>,
-    rd_override: Option<bool>,
     source_override_v4: Option<std::net::Ipv4Addr>,
     source_override_v6: Option<std::net::Ipv6Addr>,
     user_metric_flushes: Vec<UserMetricFlush>,
@@ -263,16 +260,6 @@ impl RhaiTxn {
         if let Ok(mut fx) = self.effects.lock() {
             fx.rcode = Some(name.to_string());
         }
-    }
-
-    fn set_rd(&mut self, value: bool) {
-        if let Ok(mut fx) = self.effects.lock() {
-            fx.rd_override = Some(value);
-        }
-    }
-
-    fn clear_rd(&mut self) {
-        self.set_rd(false);
     }
 
     fn set_source_v4(&mut self, addr: &str) -> Result<(), Box<EvalAltResult>> {
@@ -434,9 +421,6 @@ fn apply_effects(host: &mut dyn HostTransaction, fx: &ScriptEffects) {
     if let Some(ref rc) = fx.rcode {
         host.set_rcode_name(rc);
     }
-    if let Some(rd) = fx.rd_override {
-        host.set_rd(rd);
-    }
     if let Some(addr) = fx.source_override_v4 {
         host.set_source_v4(&addr.to_string());
     }
@@ -509,7 +493,6 @@ fn run_one(
         rcode: fx.rcode.clone(),
         dropped: fx.dropped,
         sample_decision: fx.sample_decision,
-        rd_override: fx.rd_override,
         source_override_v4: fx.source_override_v4,
         source_override_v6: fx.source_override_v6,
         user_metric_flushes: fx.user_metric_flushes.clone(),
@@ -524,78 +507,6 @@ mod tests {
     use conduit_config::load_yaml;
     use std::path::PathBuf;
     use std::time::Duration;
-
-    #[test]
-    fn clear_rd_via_script() {
-        let script = r#"txn.clear_rd();"#;
-        let dir = std::env::temp_dir().join(format!("conduit-script-rd-{}", std::process::id()));
-        let _ = std::fs::create_dir_all(&dir);
-        let script_path = dir.join("clear.rhai");
-        std::fs::write(&script_path, script).unwrap();
-        let yaml = format!(
-            r#"
-schema_version: 1
-listeners:
-  threads: 1
-  reuse_port: true
-  listeners:
-    - address: "127.0.0.1:15353"
-      protocol: udp
-forward:
-  outstanding_per_backend: 100
-  timeout_ms: 2000
-orchestrator:
-  max_attempts: 3
-  max_txn_duration_ms: 5000
-  txn_table_capacity: 1024
-events:
-  queue_depth: 4096
-  drop_policy: drop_oldest
-rhai:
-  max_operations: 10000
-  max_call_depth: 32
-pools:
-  - name: default
-    backends:
-      - address: "127.0.0.1:5300"
-control:
-  listen_address: "127.0.0.1:5199"
-rules:
-  match_mode: first_match
-  rules:
-    - name: rd
-      hook: request
-      selectors: []
-      actions:
-        - type: rhai
-          value: "{}"
-"#,
-            script_path.display()
-        );
-        let cfg = load_yaml(&yaml).unwrap();
-        let scripting = compile_from_config(&cfg, Some(&dir)).unwrap();
-        let mut host = MockHost {
-            id: 50,
-            qname: "test.example.".into(),
-            qtype: "A".into(),
-            dns_id: 1,
-            rcode: None,
-            pool: None,
-            retry: None,
-            dropped: false,
-            rd_override: None,
-            source_override_v4: None,
-            source_override_v6: None,
-            tags: HashMap::new(),
-            attempts: 0,
-            started: Instant::now(),
-            phase: ScriptPhase::Request,
-        };
-        let (_, stats) = run_scripts(&scripting, &[0], &mut host, ScriptPhase::Request, None);
-        assert_eq!(stats.errors, 0);
-        assert_eq!(host.rd_override, Some(false));
-        let _ = std::fs::remove_dir_all(&dir);
-    }
 
     #[test]
     fn set_source_v4_via_script() {
@@ -655,7 +566,6 @@ rules:
             pool: None,
             retry: None,
             dropped: false,
-            rd_override: None,
             source_override_v4: None,
             source_override_v6: None,
             tags: HashMap::new(),
@@ -727,7 +637,6 @@ rules:
             pool: None,
             retry: None,
             dropped: false,
-            rd_override: None,
             source_override_v4: None,
             source_override_v6: None,
             tags: HashMap::new(),
@@ -782,7 +691,6 @@ rules:
             pool: None,
             retry: None,
             dropped: false,
-            rd_override: None,
             source_override_v4: None,
             source_override_v6: None,
             tags: HashMap::new(),
@@ -823,7 +731,6 @@ rules:
             pool: Some("primary".into()),
             retry: None,
             dropped: false,
-            rd_override: None,
             source_override_v4: None,
             source_override_v6: None,
             tags: HashMap::new(),
@@ -907,7 +814,6 @@ rules:
             pool: Some("primary".into()),
             retry: None,
             dropped: false,
-            rd_override: None,
             source_override_v4: None,
             source_override_v6: None,
             tags: HashMap::new(),
@@ -942,7 +848,6 @@ rules:
             pool: None,
             retry: None,
             dropped: false,
-            rd_override: None,
             source_override_v4: None,
             source_override_v6: None,
             tags: HashMap::new(),
@@ -972,7 +877,6 @@ rules:
             pool: Some("default".into()),
             retry: None,
             dropped: false,
-            rd_override: None,
             source_override_v4: None,
             source_override_v6: None,
             tags: HashMap::new(),
@@ -1002,7 +906,6 @@ rules:
             pool: None,
             retry: None,
             dropped: false,
-            rd_override: None,
             source_override_v4: None,
             source_override_v6: None,
             tags: HashMap::new(),
@@ -1031,7 +934,6 @@ rules:
             pool: None,
             retry: None,
             dropped: false,
-            rd_override: None,
             source_override_v4: None,
             source_override_v6: None,
             tags: HashMap::new(),
@@ -1070,7 +972,6 @@ rules:
             pool: None,
             retry: None,
             dropped: false,
-            rd_override: None,
             source_override_v4: None,
             source_override_v6: None,
             tags: HashMap::new(),
@@ -1172,7 +1073,6 @@ rules:
             pool: None,
             retry: None,
             dropped: false,
-            rd_override: None,
             source_override_v4: None,
             source_override_v6: None,
             tags: HashMap::new(),
@@ -1237,7 +1137,6 @@ rules:
             pool: None,
             retry: None,
             dropped: false,
-            rd_override: None,
             source_override_v4: None,
             source_override_v6: None,
             tags: HashMap::new(),

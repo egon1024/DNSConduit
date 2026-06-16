@@ -21,24 +21,6 @@ pub fn default_forward_config() -> ForwardConfig {
     }
 }
 
-/// Internal wire policy for upstream RD bit (Rhai `set_rd` / `clear_rd` or preserve).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RecursionDesired {
-    Preserve,
-    Clear,
-    Set,
-}
-
-impl RecursionDesired {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Preserve => "preserve",
-            Self::Clear => "clear",
-            Self::Set => "set",
-        }
-    }
-}
-
 /// Upstream transport policy (phase 1b slice C).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum UpstreamTransport {

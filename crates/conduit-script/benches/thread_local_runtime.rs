@@ -24,7 +24,6 @@ fn main() {
         pool: None,
         retry: None,
         dropped: false,
-        rd_override: None,
         source_override_v4: None,
         source_override_v6: None,
         tags: HashMap::new(),

@@ -1,20 +1,19 @@
 # Rhai
 
-[Rhai](/glossary/index.md#rhai) is Conduit’s scripting layer for policy you cannot express with built-in [rules](/policy-routing/rules-and-actions.md) alone. You keep `.rhai` files beside your config, reference them from matching rules, and Conduit runs them at [Request rules](/concepts/architecture-and-packet-path.md#request-rules) and [Response rules](/concepts/architecture-and-packet-path.md#response-rules) on the [dataplane](/glossary/index.md#dataplane).
+[Rule Rhai](/glossary/index.md#rule-rhai) is Conduit’s **scripted policy** on matching [rules](/policy-routing/rules-and-actions.md) — for logic you cannot express with built-in actions alone. You keep `.rhai` files beside your config, reference them from rules via `type: rhai`, and Conduit runs them at [Request rules](/concepts/architecture-and-packet-path.md#request-rules) and [Response rules](/concepts/architecture-and-packet-path.md#response-rules) on the [dataplane](/glossary/index.md#dataplane).
 
-For how built-in [rules](/policy-routing/rules-and-actions.md), [Rhai](/glossary/index.md#rhai), and planned plugin models fit together, see [Extensibility](/concepts/extensibility.md). This section is the **how-to** for writing and operating Rhai policy today.
+This section documents **Rule Rhai** (`txn` policy API). It is not [Processor-chain Rhai](/glossary/index.md#processor-chain-rhai) — planned DNS wire editing under `processors:` (separate config and API, **not yet shipped**). For how rules and scripts fit together, see [Policy & routing](/policy-routing/index.md) and [Rules and actions](/policy-routing/rules-and-actions.md).
 
-## When to use Rhai
+## When to use Rule Rhai
 
-Built-in [selectors](/glossary/index.md#selector) and [actions](/glossary/index.md#action) cover most routing — pool choice, [tags](/glossary/index.md#tags), egress overrides, **drop**, and [retry](/glossary/index.md#retry). Reach for Rhai when you need logic on top of that, for example:
+Built-in [selectors](/glossary/index.md#selector) and [actions](/glossary/index.md#action) cover most routing — pool choice, [tags](/glossary/index.md#tags), egress overrides, **drop**, and [retry](/glossary/index.md#retry). Reach for Rule Rhai when you need logic on top of that, for example:
 
-- Branch on a [lookup table](/rhai/data-sources-and-lookups.md) (`table_lookup`) instead of long static rule lists
-- Combine several conditions in one place (blocklist hit → tag + drop)
+- Branch on a [lookup table](/rhai/data-sources-and-lookups.md) (`table_lookup`) on the **request** hook — for example map qname to a pool before [Route](/concepts/architecture-and-packet-path.md#route), instead of a long static rule list
+- Combine several checks in one script — for example upstream [rcode](/glossary/index.md#rcode) **and** a [tag](/glossary/index.md#tags) set on the request hook → `retry_pool("backup")` on the **response** hook
 - Set [tags](/glossary/index.md#tags) that drive [event export](/observability/event-export.md) filters or [tracing](/observability/tracing.md) activation
-- Request a [retry](/policy-routing/retries-and-transactions.md) from the response hook based on upstream [rcode](/glossary/index.md#rcode)
 - Publish custom counters (`conduit_user_*`) from policy — [User metrics](/rhai/user-metrics.md)
 
-If declarative YAML is enough, prefer [Rules and actions](/policy-routing/rules-and-actions.md). Rhai adds flexibility and operational surface (script files, sandbox limits, compile-time checks on reload).
+If declarative YAML is enough, prefer [Rules and actions](/policy-routing/rules-and-actions.md). Rule Rhai adds flexibility and operational surface (script files, [sandbox limits](/rhai/sandbox-limits.md), compile-time checks on reload), but runs an interpreted script on the query path for each matching rule — **higher per-query cost** than built-in actions alone. Prefer built-in selectors and actions when they express the same policy.
 
 ## How scripts attach to rules
 
@@ -132,4 +131,4 @@ Built-in actions on the same rule still ran before the script. Use [Logging](/ob
 - [Dual-stack forwarding](/guides/dual-stack-forwarding.md) — `set_source_v4` / `set_source_v6` in rules and Rhai
 - [Event export](/observability/event-export.md) — tag-based sink filters
 - [Built-in metrics](/observability/built-in-metrics.md) — dataplane counters alongside user metrics
-- [Extensibility](/concepts/extensibility.md) — lookup tables and policy metrics across extension mechanisms
+- [Planned plugin models](/concepts/planned-plugin-models.md) — WASM, sidecar, processor chains (**not yet shipped**)

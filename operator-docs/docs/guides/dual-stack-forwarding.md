@@ -37,4 +37,4 @@ Manual lab scenarios: `tests/manual/ipv4-ipv6-forwarding.md` in the product repo
 
 - [Rules and actions](/policy-routing/rules-and-actions.md) — `set_source_v4`, `set_source_v6`
 - [Rhai transaction API](/rhai/transaction-api.md) — script equivalents
-- [Extensibility](/concepts/extensibility.md) — policy hooks overview
+- [Policy & routing](/policy-routing/index.md) — rules and scripted policy hooks
