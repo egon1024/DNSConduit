@@ -171,5 +171,5 @@ You can adjust response metadata before [Send](/concepts/architecture-and-packet
 - [Rules and actions](/policy-routing/rules-and-actions.md) — `retry`, `retry_pool`, `set_rcode`, response [selectors](/glossary/index.md#selector)
 - [Pools and backends](/policy-routing/pools-and-backends.md) — pool names, weights, default pool
 - [Architecture and packet path](/concepts/architecture-and-packet-path.md) — [Response rules](/concepts/architecture-and-packet-path.md#response-rules), [Send](/concepts/architecture-and-packet-path.md#send), timeouts
-- [Extensibility](/concepts/extensibility.md) — built-in rules vs [Rhai](/glossary/index.md#rhai)
+- [Rhai](/rhai/index.md) — `retry()` from response scripts
 - [Built-in metrics](/observability/built-in-metrics.md) — counters, profiles, and pipeline mapping

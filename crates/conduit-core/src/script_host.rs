@@ -61,14 +61,6 @@ impl HostTransaction for Transaction {
         Transaction::set_rcode_name(self, name);
     }
 
-    fn set_rd(&mut self, value: bool) {
-        self.set_rd_override(value);
-    }
-
-    fn clear_rd(&mut self) {
-        self.clear_rd_override();
-    }
-
     fn set_source_v4(&mut self, addr: &str) {
         if let Ok(ip) = addr.parse() {
             self.set_source_override_v4(ip);

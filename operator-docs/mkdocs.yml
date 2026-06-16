@@ -72,7 +72,7 @@ nav:
   - Concepts:
       - Overview: concepts/index.md
       - Architecture and packet path: concepts/architecture-and-packet-path.md
-      - Extensibility: concepts/extensibility.md
+      - Planned plugin models: concepts/planned-plugin-models.md
   - Policy & routing:
       - Overview: policy-routing/index.md
       - Rules and actions: policy-routing/rules-and-actions.md

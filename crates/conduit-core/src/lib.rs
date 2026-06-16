@@ -16,8 +16,7 @@ pub mod transaction;
 
 pub use clock::{Clock, SystemClock};
 pub use conduit_config::forward::{
-    CompiledForward, CompiledPoolForward, RecursionDesired, DEFAULT_SOURCE_SELECTION,
-    MAX_SOURCES_V4,
+    CompiledForward, CompiledPoolForward, DEFAULT_SOURCE_SELECTION, MAX_SOURCES_V4,
 };
 pub use configurator::{
     spawn as spawn_configurator, ApplyResult, ConfiguratorHandle, ConfiguratorSpawn,

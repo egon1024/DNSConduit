@@ -1,5 +1,4 @@
 pub mod egress;
-pub mod rd;
 pub mod tcp;
 pub mod transport;
 pub mod txn_table;

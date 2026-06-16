@@ -313,5 +313,6 @@ For reload, in-flight queries, and validation failures, see [Runtime snapshot](#
 - [Configuration model](/control-plane/configuration-model.md) — snapshots and effective config
 - [Observability](/observability/index.md) — metrics, tracing, event export, logging
 - [Built-in metrics](/observability/built-in-metrics.md) — Prometheus series and pipeline mapping
-- [Extensibility](/concepts/extensibility.md) — built-in rules and plugin models ([Rhai](/glossary/index.md#rhai), [WASM](/glossary/index.md#wasm), [sidecar](/glossary/index.md#sidecar))
+- [Planned plugin models](/concepts/planned-plugin-models.md) — [WASM](/glossary/index.md#wasm), [sidecar](/glossary/index.md#sidecar), processor chains (not yet shipped)
+- [Rhai](/rhai/index.md) — scripted policy on rules today
 - [Glossary](/glossary/index.md) — [dataplane](/glossary/index.md#dataplane), [transaction](/glossary/index.md#transaction), [runtime snapshot](/glossary/index.md#runtime-snapshot), [tags](/glossary/index.md#tags)

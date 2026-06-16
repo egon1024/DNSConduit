@@ -1,7 +1,6 @@
 //! Upstream forward transport (UDP + TCP, phase 1b).
 
 use crate::forward::egress::{EgressSourceSelection, WorkerForwardEgress};
-use crate::forward::rd::build_upstream_wire;
 use crate::forward::tcp::forward_tcp;
 use crate::forward::{ForwardKey, TxnTable};
 use conduit_config::forward::UpstreamTransport;
@@ -145,8 +144,7 @@ impl PipelineStage for ForwardTransport {
         }
 
         let pool = txn.selected_pool.as_deref();
-        let rd = txn.upstream_rd_policy();
-        let upstream_wire = build_upstream_wire(&txn.query_wire, rd);
+        let upstream_wire = &txn.query_wire;
         let sources_v4 = snapshot.sources_v4_for_pool(pool);
         let sources_v6 = snapshot.sources_v6_for_pool(pool);
         let allowed_v4 = snapshot.allowed_sources_v4_for_pool(pool);
@@ -171,7 +169,7 @@ impl PipelineStage for ForwardTransport {
         let try_tcp = self.use_tcp_for_attempt(txn, false);
 
         if try_tcp {
-            match forward_tcp(backend, &upstream_wire, self.timeout(), bind_v4, bind_v6) {
+            match forward_tcp(backend, upstream_wire, self.timeout(), bind_v4, bind_v6) {
                 Ok(wire) => return self.finish_response(txn, key, wire, started),
                 Err(e) => {
                     tracing::warn!(txn_id = txn.id, %backend, error = %e, "tcp forward failed");
@@ -195,12 +193,11 @@ impl PipelineStage for ForwardTransport {
             txn_id = txn.id,
             dns_id = txn.dns_id,
             %backend,
-            rd = %rd.as_str(),
             transport = "udp",
             "forwarding query"
         );
 
-        if socket.send_to(&upstream_wire, backend).is_err() {
+        if socket.send_to(upstream_wire, backend).is_err() {
             tracing::warn!(txn_id = txn.id, dns_id = txn.dns_id, %backend, "forward send failed");
             return self.servfail(txn, Some(key), "send_error", started);
         }
@@ -223,7 +220,7 @@ impl PipelineStage for ForwardTransport {
                             );
                             match forward_tcp(
                                 backend,
-                                &upstream_wire,
+                                upstream_wire,
                                 self.timeout(),
                                 bind_v4,
                                 bind_v6,
