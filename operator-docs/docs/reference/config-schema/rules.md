@@ -24,6 +24,8 @@ Schema reference for the top-level `rules:` block. Operator-oriented behavior: [
 |-------|------|----------|---------|
 | `type` | string | yes | Selector type (see groups below) |
 | `value` | string | yes | Selector-specific match string |
+| `key` | string | no | `sample_percent` only: static salt (mutually exclusive with `key_from`) |
+| `key_from` | string | no | `sample_percent` only: `qname`, `rule_name` (rules only), or `sink_name` (event sink selectors only) |
 
 **Query identity:** `qname_exact`, `qname_suffix`, `qtype`
 

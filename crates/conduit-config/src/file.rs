@@ -134,6 +134,10 @@ pub(crate) struct YamlSelector {
     #[serde(rename = "type")]
     selector_type: String,
     value: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    key: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    key_from: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -345,6 +349,10 @@ pub(crate) struct YamlEventSinkFilters {
     selectors: Vec<YamlSelector>,
     #[serde(default)]
     sample_percent: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    sample_key: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    sample_key_from: Option<String>,
     #[serde(default)]
     pool: Option<String>,
     #[serde(default)]
@@ -355,6 +363,8 @@ fn yaml_event_filters_nonempty(f: &YamlEventSinkFilters) -> bool {
     f.tag_required.is_some()
         || !f.selectors.is_empty()
         || f.sample_percent.is_some()
+        || f.sample_key.as_ref().is_some_and(|k| !k.is_empty())
+        || f.sample_key_from.as_ref().is_some_and(|k| !k.is_empty())
         || f.pool.as_ref().is_some_and(|p| !p.is_empty())
         || f.backend.as_ref().is_some_and(|b| !b.is_empty())
 }
@@ -533,6 +543,10 @@ pub(crate) struct YamlTracingActivation {
     selectors: Vec<YamlSelector>,
     #[serde(default)]
     sample_percent: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    sample_key: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    sample_key_from: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Default)]
@@ -687,6 +701,8 @@ impl From<YamlTracingActivation> for TracingActivation {
             tag: y.tag,
             selectors: y.selectors.into_iter().map(Into::into).collect(),
             sample_percent: y.sample_percent,
+            sample_key: y.sample_key,
+            sample_key_from: y.sample_key_from,
         }
     }
 }
@@ -733,6 +749,8 @@ impl From<YamlSelector> for Selector {
         Selector {
             r#type: y.selector_type,
             value: y.value,
+            key: y.key,
+            key_from: y.key_from,
         }
     }
 }
@@ -813,9 +831,13 @@ impl From<YamlEventSink> for conduit_proto::config::EventSink {
                     .map(|s| Selector {
                         r#type: s.selector_type.clone(),
                         value: s.value.clone(),
+                        key: s.key.clone(),
+                        key_from: s.key_from.clone(),
                     })
                     .collect(),
                 sample_percent: y.filters.sample_percent,
+                sample_key: y.filters.sample_key.clone(),
+                sample_key_from: y.filters.sample_key_from.clone(),
                 pool: y.filters.pool.clone(),
                 backend: y.filters.backend.clone(),
             })
@@ -1025,6 +1047,8 @@ impl From<&TracingActivation> for YamlTracingActivation {
             tag: a.tag.clone(),
             selectors: a.selectors.iter().map(YamlSelector::from).collect(),
             sample_percent: a.sample_percent,
+            sample_key: a.sample_key.clone(),
+            sample_key_from: a.sample_key_from.clone(),
         }
     }
 }
@@ -1087,6 +1111,8 @@ impl From<&Selector> for YamlSelector {
         YamlSelector {
             selector_type: s.r#type.clone(),
             value: s.value.clone(),
+            key: s.key.clone(),
+            key_from: s.key_from.clone(),
         }
     }
 }
@@ -1189,6 +1215,8 @@ impl From<&conduit_proto::config::EventSink> for YamlEventSink {
                     tag_required: f.tag_required.clone(),
                     selectors: f.selectors.iter().map(YamlSelector::from).collect(),
                     sample_percent: f.sample_percent,
+                    sample_key: f.sample_key.clone(),
+                    sample_key_from: f.sample_key_from.clone(),
                     pool: f.pool.clone(),
                     backend: f.backend.clone(),
                 })

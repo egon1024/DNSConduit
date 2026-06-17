@@ -56,7 +56,9 @@ Both blocks are **file-layer only** — [overlay](/glossary/index.md#overlay) pa
 |-------|------|---------|-------------|
 | `tag` | string | — | Transaction must have this tag key |
 | `selectors` | list | `[]` | [Selector](/glossary/index.md#selector) objects; same types as [rules](/reference/config-schema/rules.md). All must match |
-| `sample_percent` | float | **100** | Must be in **[0, 100]**; deterministic per-transaction sampling |
+| `sample_percent` | float | **100** | Must be in **[0, 100]**; deterministic sampling |
+| `sample_key` | string | — | Optional static salt for `sample_percent` |
+| `sample_key_from` | string | — | Optional `qname` for `sample_percent` |
 
 Evaluated after [Request rules](/concepts/architecture-and-packet-path.md#request-rules). See [Tracing — Activation](/observability/tracing.md#activation).
 

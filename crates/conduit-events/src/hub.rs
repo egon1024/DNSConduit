@@ -418,6 +418,8 @@ mod tests {
                     tag_required: Some("vip".into()),
                     selectors: vec![],
                     sample_percent: None,
+                    sample_key: None,
+                    sample_key_from: None,
                     pool: None,
                     backend: None,
                 }),
@@ -446,8 +448,12 @@ mod tests {
                 selectors: vec![Selector {
                     r#type: "qtype".into(),
                     value: "AAAA".into(),
+                    key: None,
+                    key_from: None,
                 }],
                 sample_percent: None,
+                sample_key: None,
+                sample_key_from: None,
                 pool: None,
                 backend: None,
             }),
@@ -464,6 +470,37 @@ mod tests {
     }
 
     #[test]
+    fn sample_key_from_sink_name_compiles() {
+        let instance = crate::compile::compile_one_sink(
+            &EventSink {
+                r#type: "dnstap".into(),
+                export_id: "x".into(),
+                name: Some("my-sink".into()),
+                destinations: vec!["unix:/tmp/x".into()],
+                emit: vec!["query".into()],
+                filters: Some(EventSinkFilters {
+                    tag_required: None,
+                    selectors: vec![],
+                    sample_percent: Some(100.0),
+                    sample_key: None,
+                    sample_key_from: Some("sink_name".into()),
+                    pool: None,
+                    backend: None,
+                }),
+                extra_fields: vec![],
+                extra_tags: vec![],
+                connect_retry: None,
+            },
+            None,
+        )
+        .unwrap();
+        assert!(matches!(
+            instance.filters.sample_key,
+            crate::selectors::SampleKey::Literal(ref k) if k == "my-sink"
+        ));
+    }
+
+    #[test]
     fn sample_percent_reduces_enqueued_volume() {
         let cfg = test_config(vec![EventSink {
             r#type: "dnstap".into(),
@@ -474,6 +511,8 @@ mod tests {
                 tag_required: None,
                 selectors: vec![],
                 sample_percent: Some(1.0),
+                sample_key: None,
+                sample_key_from: None,
                 pool: None,
                 backend: None,
             }),

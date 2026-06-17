@@ -1,6 +1,8 @@
 //! Rule-style selectors shared by built-in rules and observation sink filters.
 
 use conduit_proto::config::Selector;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CompiledSelector {
@@ -9,9 +11,28 @@ pub enum CompiledSelector {
     Qtype(String),
     Rcode(String),
     Tag(String),
-    SamplePercent(PercentKey),
+    SamplePercent {
+        percent: PercentKey,
+        key: SampleKey,
+    },
     EveryNthWorker(u64),
     EveryNthGlobal(u64),
+}
+
+/// Salt for deterministic `sample_percent` bucketing.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub enum SampleKey {
+    #[default]
+    Global,
+    Literal(String),
+    FromQname,
+}
+
+/// Context for resolving `key_from` when compiling selectors.
+#[derive(Debug, Clone, Default)]
+pub struct SelectorCompileCtx {
+    pub rule_name: Option<String>,
+    pub sink_name: Option<String>,
 }
 
 /// Inputs for selector matching without coupling to `conduit-core::Transaction`.
@@ -45,6 +66,10 @@ pub const NON_RULE_SELECTOR_TYPES: &[&str] = &[
     "sample_percent",
 ];
 
+pub const SAMPLE_KEY_FROM_QNAME: &str = "qname";
+pub const SAMPLE_KEY_FROM_RULE_NAME: &str = "rule_name";
+pub const SAMPLE_KEY_FROM_SINK_NAME: &str = "sink_name";
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PercentKey(u16);
 
@@ -67,12 +92,156 @@ pub fn validate_non_rule_selector_type(ty: &str) -> Result<(), String> {
     }
 }
 
+/// Compile selectors for observation sinks and tracing (no `rule_name` binding).
 pub fn compile_selectors(selectors: &[Selector]) -> Vec<CompiledSelector> {
-    selectors.iter().map(CompiledSelector::compile).collect()
+    compile_selectors_with_ctx(selectors, &SelectorCompileCtx::default())
+}
+
+/// Compile selectors for a built-in rule (`key_from: rule_name` resolves here).
+pub fn compile_rule_selectors(rule_name: &str, selectors: &[Selector]) -> Vec<CompiledSelector> {
+    compile_selectors_with_ctx(
+        selectors,
+        &SelectorCompileCtx {
+            rule_name: Some(rule_name.to_string()),
+            sink_name: None,
+        },
+    )
+}
+
+/// Compile selectors for an event sink filter list (`key_from: sink_name` resolves here).
+pub fn compile_sink_selectors(sink_name: &str, selectors: &[Selector]) -> Vec<CompiledSelector> {
+    compile_selectors_with_ctx(
+        selectors,
+        &SelectorCompileCtx {
+            rule_name: None,
+            sink_name: Some(sink_name.to_string()),
+        },
+    )
+}
+
+pub fn compile_selectors_with_ctx(
+    selectors: &[Selector],
+    ctx: &SelectorCompileCtx,
+) -> Vec<CompiledSelector> {
+    selectors
+        .iter()
+        .map(|s| CompiledSelector::compile(s, ctx))
+        .collect()
+}
+
+pub fn compile_sample_key_fields(
+    key: Option<&str>,
+    key_from: Option<&str>,
+    ctx: &SelectorCompileCtx,
+    allow_rule_name: bool,
+    allow_sink_name: bool,
+) -> Result<SampleKey, String> {
+    let key = key.filter(|k| !k.is_empty());
+    let key_from = key_from.filter(|k| !k.is_empty());
+    match (key, key_from) {
+        (Some(_), Some(_)) => Err("sample key and key_from are mutually exclusive".into()),
+        (Some(literal), None) => Ok(SampleKey::Literal(literal.to_string())),
+        (None, Some(from)) => compile_sample_key_from(from, ctx, allow_rule_name, allow_sink_name),
+        (None, None) => Ok(SampleKey::Global),
+    }
+}
+
+fn compile_sample_key_from(
+    key_from: &str,
+    ctx: &SelectorCompileCtx,
+    allow_rule_name: bool,
+    allow_sink_name: bool,
+) -> Result<SampleKey, String> {
+    match key_from {
+        SAMPLE_KEY_FROM_QNAME => Ok(SampleKey::FromQname),
+        SAMPLE_KEY_FROM_RULE_NAME if allow_rule_name => {
+            let name = ctx.rule_name.as_deref().ok_or_else(|| {
+                "sample_percent key_from rule_name requires a rule compile context".to_string()
+            })?;
+            Ok(SampleKey::Literal(name.to_string()))
+        }
+        SAMPLE_KEY_FROM_SINK_NAME if allow_sink_name => {
+            let name = ctx.sink_name.as_deref().ok_or_else(|| {
+                "sample_percent key_from sink_name requires a sink compile context".to_string()
+            })?;
+            Ok(SampleKey::Literal(name.to_string()))
+        }
+        SAMPLE_KEY_FROM_RULE_NAME => Err(format!(
+            "sample_percent key_from '{SAMPLE_KEY_FROM_RULE_NAME}' is only valid on rule selectors"
+        )),
+        SAMPLE_KEY_FROM_SINK_NAME => Err(format!(
+            "sample_percent key_from '{SAMPLE_KEY_FROM_SINK_NAME}' is only valid on event sink filters"
+        )),
+        other => Err(format!(
+            "sample_percent key_from '{other}' must be {SAMPLE_KEY_FROM_QNAME}, {SAMPLE_KEY_FROM_RULE_NAME}, or {SAMPLE_KEY_FROM_SINK_NAME}"
+        )),
+    }
+}
+
+pub fn validate_selector_sample_key_fields(
+    sel: &Selector,
+    allow_rule_name: bool,
+    allow_sink_name: bool,
+) -> Result<(), String> {
+    if sel.r#type != "sample_percent" {
+        if sel.key.as_ref().is_some_and(|k| !k.is_empty())
+            || sel.key_from.as_ref().is_some_and(|k| !k.is_empty())
+        {
+            return Err(format!(
+                "selector type '{}' does not support key or key_from",
+                sel.r#type
+            ));
+        }
+        return Ok(());
+    }
+    let key = sel.key.as_deref().filter(|k| !k.is_empty());
+    let key_from = sel.key_from.as_deref().filter(|k| !k.is_empty());
+    match (key, key_from) {
+        (Some(_), Some(_)) => Err("sample key and key_from are mutually exclusive".into()),
+        (Some(_), None) => Ok(()),
+        (None, Some(from)) => validate_sample_key_from(from, allow_rule_name, allow_sink_name),
+        (None, None) => Ok(()),
+    }
+}
+
+pub fn validate_sample_key_from(
+    key_from: &str,
+    allow_rule_name: bool,
+    allow_sink_name: bool,
+) -> Result<(), String> {
+    match key_from {
+        SAMPLE_KEY_FROM_QNAME => Ok(()),
+        SAMPLE_KEY_FROM_RULE_NAME if allow_rule_name => Ok(()),
+        SAMPLE_KEY_FROM_SINK_NAME if allow_sink_name => Ok(()),
+        SAMPLE_KEY_FROM_RULE_NAME => Err(format!(
+            "sample_percent key_from '{SAMPLE_KEY_FROM_RULE_NAME}' is only valid on rule selectors"
+        )),
+        SAMPLE_KEY_FROM_SINK_NAME => Err(format!(
+            "sample_percent key_from '{SAMPLE_KEY_FROM_SINK_NAME}' is only valid on event sink filters"
+        )),
+        other => Err(format!(
+            "sample_percent key_from '{other}' must be {SAMPLE_KEY_FROM_QNAME}, {SAMPLE_KEY_FROM_RULE_NAME}, or {SAMPLE_KEY_FROM_SINK_NAME}"
+        )),
+    }
+}
+
+pub fn validate_top_level_sample_key_fields(
+    key: Option<&str>,
+    key_from: Option<&str>,
+    allow_sink_name: bool,
+) -> Result<(), String> {
+    let key = key.filter(|k| !k.is_empty());
+    let key_from = key_from.filter(|k| !k.is_empty());
+    match (key, key_from) {
+        (Some(_), Some(_)) => Err("sample_key and sample_key_from are mutually exclusive".into()),
+        (Some(_), None) => Ok(()),
+        (None, Some(from)) => validate_sample_key_from(from, false, allow_sink_name),
+        (None, None) => Ok(()),
+    }
 }
 
 impl CompiledSelector {
-    pub fn compile(sel: &Selector) -> Self {
+    pub fn compile(sel: &Selector, ctx: &SelectorCompileCtx) -> Self {
         match sel.r#type.as_str() {
             "qname_exact" => CompiledSelector::QnameExact(sel.value.clone()),
             "qtype" => CompiledSelector::Qtype(sel.value.clone()),
@@ -80,7 +249,15 @@ impl CompiledSelector {
             "tag" => CompiledSelector::Tag(sel.value.clone()),
             "sample_percent" => {
                 let percent = parse_percent_key(sel.value.as_str()).unwrap_or(PercentKey(0));
-                CompiledSelector::SamplePercent(percent)
+                let key = compile_sample_key_fields(
+                    sel.key.as_deref(),
+                    sel.key_from.as_deref(),
+                    ctx,
+                    ctx.rule_name.is_some(),
+                    ctx.sink_name.is_some(),
+                )
+                .unwrap_or(SampleKey::Global);
+                CompiledSelector::SamplePercent { percent, key }
             }
             "every_nth_worker" => {
                 let nth = parse_every_nth(sel.value.as_str()).unwrap_or(1);
@@ -103,14 +280,26 @@ impl CompiledSelector {
             CompiledSelector::Qtype(t) => ctx.qtype_label.as_deref() == Some(t.as_str()),
             CompiledSelector::Rcode(r) => ctx.rcode_label.as_deref() == Some(r.as_str()),
             CompiledSelector::Tag(key) => (ctx.tag_has)(key),
-            CompiledSelector::SamplePercent(percent) => {
-                hash_sample(ctx.txn_id, percent.as_fraction())
+            CompiledSelector::SamplePercent { percent, key } => {
+                if matches!(key, SampleKey::FromQname) && ctx.qname.is_none() {
+                    return false;
+                }
+                let salt = resolve_sample_key(key, ctx);
+                hash_sample_keyed(ctx.txn_id, percent.as_fraction(), salt.as_deref())
             }
             CompiledSelector::EveryNthWorker(n) => ctx.txn_id.checked_rem(*n) == Some(0),
             CompiledSelector::EveryNthGlobal(n) => {
                 ctx.global_query_index.checked_rem(*n) == Some(0)
             }
         }
+    }
+}
+
+pub fn resolve_sample_key(key: &SampleKey, ctx: &SelectorMatchCtx<'_>) -> Option<String> {
+    match key {
+        SampleKey::Global => None,
+        SampleKey::Literal(s) => Some(s.clone()),
+        SampleKey::FromQname => ctx.qname.map(str::to_string),
     }
 }
 
@@ -149,8 +338,13 @@ fn parse_percent_key(value: &str) -> Result<PercentKey, String> {
     Ok(PercentKey((parsed * 100.0).round() as u16))
 }
 
-/// Deterministic per-transaction sampling in `(0, 1]`.
+/// Deterministic per-transaction sampling in `(0, 1]` using the global bucket (no salt).
 pub fn hash_sample(txn_id: u64, rate: f64) -> bool {
+    hash_sample_keyed(txn_id, rate, None)
+}
+
+/// Deterministic sampling: optional `key` salt selects an independent bucket namespace.
+pub fn hash_sample_keyed(txn_id: u64, rate: f64, key: Option<&str>) -> bool {
     if rate >= 1.0 {
         return true;
     }
@@ -158,8 +352,20 @@ pub fn hash_sample(txn_id: u64, rate: f64) -> bool {
         return false;
     }
     let threshold = (rate * 10_000.0).floor() as u64;
-    let bucket = txn_id.wrapping_mul(0x9E37_79B9_7F4A_7C15) % 10_000;
+    let bucket = sample_bucket(txn_id, key);
     bucket < threshold
+}
+
+fn sample_bucket(txn_id: u64, key: Option<&str>) -> u64 {
+    match key.filter(|k| !k.is_empty()) {
+        None => txn_id.wrapping_mul(0x9E37_79B9_7F4A_7C15) % 10_000,
+        Some(salt) => {
+            let mut hasher = DefaultHasher::new();
+            txn_id.hash(&mut hasher);
+            salt.hash(&mut hasher);
+            hasher.finish() % 10_000
+        }
+    }
 }
 
 #[cfg(test)]
@@ -174,6 +380,23 @@ mod tests {
         let a = hash_sample(99, 0.5);
         let b = hash_sample(99, 0.5);
         assert_eq!(a, b);
+    }
+
+    #[test]
+    fn keyed_sample_differs_by_salt_and_is_stable() {
+        let rate = 0.5;
+        let keyed_a = hash_sample_keyed(4242, rate, Some("zone-a"));
+        assert_eq!(keyed_a, hash_sample_keyed(4242, rate, Some("zone-a")));
+        let differs = (1..10_000u64).any(|txn_id| {
+            hash_sample_keyed(txn_id, rate, None)
+                != hash_sample_keyed(txn_id, rate, Some("salt"))
+        });
+        assert!(differs, "keyed and global buckets should diverge for some txn ids");
+        let salt_differs = (1..10_000u64).any(|txn_id| {
+            hash_sample_keyed(txn_id, rate, Some("zone-a"))
+                != hash_sample_keyed(txn_id, rate, Some("zone-b"))
+        });
+        assert!(salt_differs, "different salts should diverge for some txn ids");
     }
 
     #[test]
@@ -192,18 +415,33 @@ mod tests {
 
     #[test]
     fn sample_percent_edges_and_decimals() {
-        let zero = CompiledSelector::compile(&Selector {
-            r#type: "sample_percent".into(),
-            value: "0".into(),
-        });
-        let hundred = CompiledSelector::compile(&Selector {
-            r#type: "sample_percent".into(),
-            value: "100".into(),
-        });
-        let decimal = CompiledSelector::compile(&Selector {
-            r#type: "sample_percent".into(),
-            value: "12.5".into(),
-        });
+        let zero = CompiledSelector::compile(
+            &Selector {
+                r#type: "sample_percent".into(),
+                value: "0".into(),
+                key: None,
+                key_from: None,
+            },
+            &SelectorCompileCtx::default(),
+        );
+        let hundred = CompiledSelector::compile(
+            &Selector {
+                r#type: "sample_percent".into(),
+                value: "100".into(),
+                key: None,
+                key_from: None,
+            },
+            &SelectorCompileCtx::default(),
+        );
+        let decimal = CompiledSelector::compile(
+            &Selector {
+                r#type: "sample_percent".into(),
+                value: "12.5".into(),
+                key: None,
+                key_from: None,
+            },
+            &SelectorCompileCtx::default(),
+        );
         let ctx = SelectorMatchCtx {
             txn_id: 42,
             global_query_index: 42,
@@ -218,15 +456,95 @@ mod tests {
     }
 
     #[test]
+    fn sample_percent_static_key_compiles() {
+        let sel = CompiledSelector::compile(
+            &Selector {
+                r#type: "sample_percent".into(),
+                value: "25".into(),
+                key: Some("internal.example".into()),
+                key_from: None,
+            },
+            &SelectorCompileCtx::default(),
+        );
+        assert!(matches!(
+            sel,
+            CompiledSelector::SamplePercent {
+                key: SampleKey::Literal(ref k),
+                ..
+            } if k == "internal.example"
+        ));
+    }
+
+    #[test]
+    fn sample_percent_key_from_rule_name_bakes_at_compile() {
+        let sel = CompiledSelector::compile(
+            &Selector {
+                r#type: "sample_percent".into(),
+                value: "10".into(),
+                key: None,
+                key_from: Some("rule_name".into()),
+            },
+            &SelectorCompileCtx {
+                rule_name: Some("my-rule".into()),
+                sink_name: None,
+            },
+        );
+        assert!(matches!(
+            sel,
+            CompiledSelector::SamplePercent {
+                key: SampleKey::Literal(ref k),
+                ..
+            } if k == "my-rule"
+        ));
+    }
+
+    #[test]
+    fn sample_percent_key_from_qname_uses_query_name() {
+        let sel = CompiledSelector::compile(
+            &Selector {
+                r#type: "sample_percent".into(),
+                value: "100".into(),
+                key: None,
+                key_from: Some("qname".into()),
+            },
+            &SelectorCompileCtx::default(),
+        );
+        let ctx = SelectorMatchCtx {
+            txn_id: 7,
+            global_query_index: 7,
+            qname: Some("foo.example."),
+            qtype_label: None,
+            rcode_label: None,
+            tag_has: &|_| false,
+        };
+        assert!(sel.matches_ctx(&ctx));
+        let no_qname = SelectorMatchCtx {
+            qname: None,
+            ..ctx.clone()
+        };
+        assert!(!sel.matches_ctx(&no_qname));
+    }
+
+    #[test]
     fn every_nth_worker_and_global_match() {
-        let worker = CompiledSelector::compile(&Selector {
-            r#type: "every_nth_worker".into(),
-            value: "4".into(),
-        });
-        let global = CompiledSelector::compile(&Selector {
-            r#type: "every_nth_global".into(),
-            value: "4".into(),
-        });
+        let worker = CompiledSelector::compile(
+            &Selector {
+                r#type: "every_nth_worker".into(),
+                value: "4".into(),
+                key: None,
+                key_from: None,
+            },
+            &SelectorCompileCtx::default(),
+        );
+        let global = CompiledSelector::compile(
+            &Selector {
+                r#type: "every_nth_global".into(),
+                value: "4".into(),
+                key: None,
+                key_from: None,
+            },
+            &SelectorCompileCtx::default(),
+        );
         let ctx = SelectorMatchCtx {
             txn_id: 8,
             global_query_index: 12,
@@ -237,5 +555,21 @@ mod tests {
         };
         assert!(worker.matches_ctx(&ctx));
         assert!(global.matches_ctx(&ctx));
+    }
+
+    #[test]
+    fn reject_key_on_non_sample_selector() {
+        let err = validate_selector_sample_key_fields(
+            &Selector {
+                r#type: "qname_suffix".into(),
+                value: ".example.".into(),
+                key: Some("x".into()),
+                key_from: None,
+            },
+            true,
+            false,
+        )
+        .unwrap_err();
+        assert!(err.contains("does not support key"));
     }
 }

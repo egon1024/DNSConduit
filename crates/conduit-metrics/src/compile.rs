@@ -1,8 +1,9 @@
 //! Compile metrics and tracing sections from config.
 
 use conduit_events::{
-    compile_selectors, hash_sample, parse_sample_percent, validate_non_rule_selector_type,
-    CompiledSelector, SelectorMatchCtx,
+    compile_sample_key_fields, compile_selectors, hash_sample_keyed, parse_sample_percent,
+    resolve_sample_key, validate_non_rule_selector_type, CompiledSelector, SampleKey,
+    SelectorCompileCtx, SelectorMatchCtx,
 };
 use conduit_proto::config::{Config, MetricsConfig, TracingConfig};
 
@@ -55,6 +56,7 @@ pub struct CompiledTraceActivation {
     pub tag_required: Option<String>,
     pub selectors: Vec<CompiledSelector>,
     pub sample_percent: f64,
+    pub sample_key: SampleKey,
 }
 
 pub fn compile_from_config(config: &Config) -> (CompiledMetrics, CompiledTracing) {
@@ -148,6 +150,18 @@ fn compile_tracing(t: Option<&TracingConfig>) -> CompiledTracing {
     let sample_percent = activation
         .and_then(|a| parse_sample_percent(a.sample_percent).ok())
         .unwrap_or(100.0);
+    let sample_key = activation
+        .map(|a| {
+            compile_sample_key_fields(
+                a.sample_key.as_deref(),
+                a.sample_key_from.as_deref(),
+                &SelectorCompileCtx::default(),
+                false,
+                false,
+            )
+            .unwrap_or(SampleKey::Global)
+        })
+        .unwrap_or_default();
     let tag_required = activation.and_then(|a| a.tag.as_ref().filter(|s| !s.is_empty()).cloned());
     CompiledTracing {
         enabled: true,
@@ -155,6 +169,7 @@ fn compile_tracing(t: Option<&TracingConfig>) -> CompiledTracing {
             tag_required,
             selectors,
             sample_percent,
+            sample_key,
         },
         log_json: t.output.as_ref().map(|o| o.log_json).unwrap_or(false),
     }
@@ -174,20 +189,21 @@ pub fn trace_activation_matches(
             return false;
         }
     }
-    if !activation.selectors.is_empty() {
-        let ctx = SelectorMatchCtx {
-            txn_id,
-            global_query_index: 0,
-            qname,
-            qtype_label,
-            rcode_label,
-            tag_has,
-        };
-        if !activation.selectors.iter().all(|s| s.matches_ctx(&ctx)) {
-            return false;
-        }
+    let ctx = SelectorMatchCtx {
+        txn_id,
+        global_query_index: 0,
+        qname,
+        qtype_label,
+        rcode_label,
+        tag_has,
+    };
+    if !activation.selectors.is_empty()
+        && !activation.selectors.iter().all(|s| s.matches_ctx(&ctx))
+    {
+        return false;
     }
-    hash_sample(txn_id, activation.sample_percent / 100.0)
+    let salt = resolve_sample_key(&activation.sample_key, &ctx);
+    hash_sample_keyed(txn_id, activation.sample_percent / 100.0, salt.as_deref())
 }
 
 pub fn validate_metrics_tracing(cfg: &Config) -> Vec<String> {
@@ -235,11 +251,25 @@ pub fn validate_metrics_tracing(cfg: &Config) -> Vec<String> {
                             "tracing.activation.selectors[{j}] sample_percent must be in [0, 100]"
                         ));
                     }
+                    if let Err(e) = conduit_events::validate_selector_sample_key_fields(
+                        sel,
+                        false,
+                        false,
+                    ) {
+                        errors.push(format!("tracing.activation.selectors[{j}]: {e}"));
+                    }
                 }
                 if let Some(percent) = a.sample_percent {
                     if let Err(e) = parse_sample_percent(Some(percent)) {
                         errors.push(format!("tracing.activation: {e}"));
                     }
+                }
+                if let Err(e) = conduit_events::validate_top_level_sample_key_fields(
+                    a.sample_key.as_deref(),
+                    a.sample_key_from.as_deref(),
+                    false,
+                ) {
+                    errors.push(format!("tracing.activation: {e}"));
                 }
             }
         }
@@ -296,8 +326,12 @@ mod tests {
                     selectors: vec![Selector {
                         r#type: "qtype".into(),
                         value: "A".into(),
+                        key: None,
+                        key_from: None,
                     }],
                     sample_percent: Some(100.0),
+                    sample_key: None,
+                    sample_key_from: None,
                 }),
                 output: Some(TracingOutput { log_json: true }),
             }),

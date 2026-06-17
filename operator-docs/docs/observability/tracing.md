@@ -66,7 +66,9 @@ Non-matching queries pay **no** trace allocation cost.
 |-------|---------|
 | **`activation.tag`** | Transaction must have the named tag key (same semantics as `tag_required` on [event export](/observability/event-export.md) sinks) |
 | **`activation.selectors`** | [Selector](/glossary/index.md#selector) list — same types as [rules](/policy-routing/rules-and-actions.md): `qname_suffix`, `qname_exact`, `qtype`, `rcode`, `tag`. **All** must match |
-| **`activation.sample_percent`** | Float in **[0, 100]**; deterministic per-transaction sampling (default **100**). Uses the same algorithm as event-export `sample_percent` |
+| **`activation.sample_percent`** | Float in **[0, 100]**; deterministic sampling (default **100**). Same algorithm as event-export |
+| **`activation.sample_key`** | Optional static salt for `sample_percent` (mutually exclusive with `sample_key_from`) |
+| **`activation.sample_key_from`** | Optional `qname` — per-query-name salt for `sample_percent` |
 
 When **`activation`** is omitted, every transaction matches (subject to **`sample_percent`** default **100**).
 

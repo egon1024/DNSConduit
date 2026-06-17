@@ -97,9 +97,136 @@ When you reload or apply configuration (**SIGHUP**, `conduitctl reload`, or `con
 
 Queries already in progress keep the rules they started with — they do not switch mid-query to a half-applied config. If validation fails, Conduit keeps the previous working snapshot and DNS keeps flowing. See [Configuration model](/control-plane/configuration-model.md).
 
+## Selectors { #selectors }
+
+Every selector on a rule must match (**logical AND**). Supported types in current releases, grouped by purpose:
+
+### Query identity
+
+Conditions on the question being asked — use on the **request** hook.
+
+| Type | Typical hook | Tests |
+|------|--------------|--------|
+| `qname_exact` | request | Exact query name |
+| `qname_suffix` | request | Query name suffix |
+| `qtype` | request | Query type (for example `A`, `AAAA`) |
+
+### Response outcome
+
+Conditions on the upstream result — use on the **response** hook after [Wait for response](/concepts/architecture-and-packet-path.md#wait-for-response) or timeout.
+
+| Type | Typical hook | Tests |
+|------|--------------|--------|
+| `rcode` | response | Response code (for example `SERVFAIL`, `NXDOMAIN`) |
+
+### Transaction metadata
+
+[Tags](/glossary/index.md#tags) set earlier on the same [transaction](/glossary/index.md#transaction) (for example by a prior rule or [Rule Rhai](/glossary/index.md#rule-rhai)).
+
+| Type | Typical hook | Tests |
+|------|--------------|--------|
+| `tag` | both | Tag presence or value |
+
+### Sampling and cadence { #sampling-and-cadence }
+
+Limit **which queries** the rule applies to. Decisions are **deterministic** per transaction (same transaction always gets the same pass/fail for a given selector).
+
+| Type {: .column-no-wrap } | Typical hook | Tests |
+|------|--------------|--------|
+| `every_nth_global` | both | Process-wide query index `% N == 0` (`N >= 1`) |
+| `every_nth_worker` | both | Worker-local transaction id `% N == 0` (`N >= 1`) |
+| `sample_percent` | both | ~`value`% of transactions (`0..100`); optional `key` / `key_from` — see below |
+
+`sample_percent` accepts optional **salt** fields (mutually exclusive):
+
+| Field | Where | Meaning |
+|-------|--------|---------|
+| *(omit both)* | everywhere | Global bucket from transaction id only (legacy behavior) |
+| `key: "…"` | rule selectors; tracing/event top-level `sample_key` | Static salt — independent ~N% slice for this policy |
+| `key_from: qname` | rule selectors; tracing `sample_key_from`; event selectors | Per-query-name salt (canonical wire qname) |
+| `key_from: rule_name` | **rule selectors only** | Salt is the rule’s `name` (resolved at compile time) |
+| `key_from: sink_name` | **event sink filters only** (selectors or top-level) | Salt is the sink’s canonical `name` |
+
+Use **`key`** for a shared slice across a zone (for example `key: "internal.example"` with `qname_suffix`). Use **`key_from: qname`** when each qname should get its own ~N% slice. Different keys at the same percentage are **independent** — a transaction can pass one rule’s sample and fail another’s.
+
+Rhai: `txn.sample_percent(percent)` uses the global bucket; `txn.sample_percent(percent, key)` uses the same keyed hash as YAML `key`.
+
+`every_nth_worker` uses the per-worker transaction counter that starts at **1**, so `N=4` matches ids **4, 8, 12, …** on each worker thread.
+
+`every_nth_global` uses a process-wide query index incremented **once** when each query transaction is created, before selector evaluation.
+
+#### Examples
+
+**`sample_percent` only** — tag roughly 10% of all queries on the request hook (deterministic per transaction id):
+
+```yaml
+    - name: sample-audit-tag
+      hook: request
+      selectors:
+        - type: sample_percent
+          value: "10"
+      actions:
+        - type: set_tag
+          value: audit=1
+```
+
+**AND with query identity** — only queries under this suffix *and* in the sample pass (~25% of suffix matches when using a zone `key`):
+
+```yaml
+    - name: sample-internal-zone
+      hook: request
+      selectors:
+        - type: qname_suffix
+          value: ".internal.example."
+        - type: sample_percent
+          value: "25"
+          key: "internal.example"
+      actions:
+        - type: set_tag
+          value: sampled_internal=1
+```
+
+**Per-rule salt** — `key_from: rule_name` binds the sample to this rule’s `name` (independent from other rules at the same percentage):
+
+```yaml
+    - name: audit-canary
+      hook: request
+      selectors:
+        - type: sample_percent
+          value: "10"
+          key_from: rule_name
+      actions:
+        - type: set_tag
+          value: audit_canary=1
+```
+
+**Every Nth on worker vs process-wide** — same `N`, different scope (only the selector type changes):
+
+```yaml
+    - name: canary-every-fourth-worker
+      hook: request
+      selectors:
+        - type: every_nth_worker
+          value: "4"
+      actions:
+        - type: set_pool
+          value: canary
+
+    - name: canary-every-fourth-global
+      hook: request
+      selectors:
+        - type: every_nth_global
+          value: "4"
+      actions:
+        - type: set_pool
+          value: canary
+```
+
+For **`sample_percent` on tracing or event export** (no rule required), see [Tracing](/observability/tracing.md) and [Event export](/observability/event-export.md).
+
 ## Action order on one rule { #action-order-on-one-rule }
 
-**Every action on a matching rule runs in list order** (top to bottom) — built-in actions and **`type: rhai`** steps are interleaved exactly as written.
+When every selector on a rule matches, Conduit runs that rule’s **`actions:`** list. **Every action runs in list order** (top to bottom) — built-in actions and **`type: rhai`** steps are interleaved exactly as written.
 
 Order matters when multiple actions touch the same [transaction](/glossary/index.md#transaction) fields. Put safety-critical or cheap built-in effects **above** a **`rhai`** step when they must run before script logic or when the script might fail ([sandbox limits](/rhai/sandbox-limits.md) — further actions on that rule are skipped after a script error).
 
@@ -184,7 +311,7 @@ Use on `hook: response` — after an upstream answer or forward timeout, before 
 
 **`set_source_v4` / `set_source_v6`** are not supported on the response hook (egress is chosen before [Forward](/concepts/architecture-and-packet-path.md#forward); same as [Rhai](/rhai/index.md)).
 
-## Scripted policy (Rule Rhai)
+## Scripted policy (Rule Rhai) { #scripted-policy-rule-rhai }
 
 When built-in actions are not enough, add **`type: rhai`** anywhere in a matching rule’s `actions:` list. Conduit runs each **`rhai`** step **at that position** in the list — not after all built-ins.
 
@@ -233,106 +360,6 @@ The script receives a sandboxed **`txn`** object — policy fields only ([pool](
 When [processor chains](/concepts/planned-plugin-models.md#processor-chains-planned) ship, they are planned to refine policy **after** rules on the same [transaction](/glossary/index.md#transaction) — alongside wire editing. See [Policy refinement (planned)](/concepts/planned-plugin-models.md#policy-refinement-planned).
 
 Overview and when to use scripts: [Rhai](/rhai/index.md).
-
-## Selectors
-
-Every selector on a rule must match (**logical AND**). Supported types in current releases, grouped by purpose:
-
-### Query identity
-
-Conditions on the question being asked — use on the **request** hook.
-
-| Type | Typical hook | Tests |
-|------|--------------|--------|
-| `qname_exact` | request | Exact query name |
-| `qname_suffix` | request | Query name suffix |
-| `qtype` | request | Query type (for example `A`, `AAAA`) |
-
-### Response outcome
-
-Conditions on the upstream result — use on the **response** hook after [Wait for response](/concepts/architecture-and-packet-path.md#wait-for-response) or timeout.
-
-| Type | Typical hook | Tests |
-|------|--------------|--------|
-| `rcode` | response | Response code (for example `SERVFAIL`, `NXDOMAIN`) |
-
-### Transaction metadata
-
-[Tags](/glossary/index.md#tags) set earlier on the same [transaction](/glossary/index.md#transaction) (for example by a prior rule or [Rule Rhai](/glossary/index.md#rule-rhai)).
-
-| Type | Typical hook | Tests |
-|------|--------------|--------|
-| `tag` | both | Tag presence or value |
-
-### Sampling and cadence { #sampling-and-cadence }
-
-Limit **which queries** the rule applies to. Decisions are **deterministic** per transaction (same transaction always gets the same pass/fail for a given selector).
-
-| Type | Typical hook | Tests |
-|------|--------------|--------|
-| `every_nth_global` | both | Process-wide query index `% N == 0` (`N >= 1`) |
-| `every_nth_worker` | both | Worker-local transaction id `% N == 0` (`N >= 1`) |
-| `sample_percent` | both | ~`value`% of transactions by id (`0..100`) |
-
-`every_nth_worker` uses the per-worker transaction counter that starts at **1**, so `N=4` matches ids **4, 8, 12, …** on each worker thread.
-
-`every_nth_global` uses a process-wide query index incremented **once** when each query transaction is created, before selector evaluation.
-
-#### Examples
-
-**`sample_percent` only** — tag roughly 10% of all queries on the request hook (deterministic per transaction id):
-
-```yaml
-    - name: sample-audit-tag
-      hook: request
-      selectors:
-        - type: sample_percent
-          value: "10"
-      actions:
-        - type: set_tag
-          value: audit=1
-```
-
-**AND with query identity** — only queries under this suffix *and* in the sample pass:
-
-```yaml
-    - name: sample-internal-zone
-      hook: request
-      selectors:
-        - type: qname_suffix
-          value: ".internal.example."
-        - type: sample_percent
-          value: "25"
-      actions:
-        - type: set_tag
-          value: sampled_internal=1
-```
-
-**Every Nth on worker vs process-wide** — same `N`, different scope (only the selector type changes):
-
-```yaml
-    - name: canary-every-fourth-worker
-      hook: request
-      selectors:
-        - type: every_nth_worker
-          value: "4"
-      actions:
-        - type: set_pool
-          value: canary
-
-    - name: canary-every-fourth-global
-      hook: request
-      selectors:
-        - type: every_nth_global
-          value: "4"
-      actions:
-        - type: set_pool
-          value: canary
-```
-
-For **`sample_percent` on tracing or event export** (no rule required), see [Tracing](/observability/tracing.md) and [Event export](/observability/event-export.md).
-
-An empty `selectors:` list matches every query on that hook (no conditions from this rule). See [Request and response hooks](#request-and-response-hooks) for the response-hook caveat.
 
 ## Validation errors (common)
 

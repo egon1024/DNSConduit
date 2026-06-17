@@ -191,11 +191,27 @@ pub fn validate(cfg: &Config) -> ValidationResult {
                             "events.sinks[{i}].filters.selectors[{j}] sample_percent must be in [0, 100]"
                         ));
                     }
+                    if let Err(e) = conduit_events::validate_selector_sample_key_fields(
+                        sel,
+                        false,
+                        true,
+                    ) {
+                        errors.push(format!(
+                            "events.sinks[{i}].filters.selectors[{j}]: {e}"
+                        ));
+                    }
                 }
                 if let Some(percent) = filters.sample_percent {
                     if let Err(e) = conduit_events::parse_sample_percent(Some(percent)) {
                         errors.push(format!("events.sinks[{i}].filters: {e}"));
                     }
+                }
+                if let Err(e) = conduit_events::validate_top_level_sample_key_fields(
+                    filters.sample_key.as_deref(),
+                    filters.sample_key_from.as_deref(),
+                    true,
+                ) {
+                    errors.push(format!("events.sinks[{i}].filters: {e}"));
                 }
                 if filters.pool.as_ref().is_some_and(|p| p.is_empty()) {
                     errors.push(format!("events.sinks[{i}].filters.pool must not be empty"));
@@ -256,6 +272,11 @@ pub fn validate(cfg: &Config) -> ValidationResult {
                         "rule '{}' selector sample_percent must be a float in [0, 100]",
                         rule.name
                     ));
+                }
+                if let Err(e) =
+                    conduit_events::validate_selector_sample_key_fields(sel, true, false)
+                {
+                    errors.push(format!("rule '{}': {e}", rule.name));
                 }
                 if matches!(sel.r#type.as_str(), "every_nth_worker" | "every_nth_global")
                     && conduit_events::parse_every_nth(&sel.value).is_err()
@@ -619,6 +640,8 @@ control:
             .push(conduit_proto::config::Selector {
                 r#type: "every_nth_worker".into(),
                 value: "4".into(),
+                key: None,
+                key_from: None,
             });
         let result = validate(&cfg);
         assert!(!result.ok);
@@ -642,6 +665,8 @@ control:
             .push(conduit_proto::config::Selector {
                 r#type: "every_nth_global".into(),
                 value: "8".into(),
+                key: None,
+                key_from: None,
             });
         let result = validate(&cfg);
         assert!(!result.ok);
@@ -649,6 +674,50 @@ control:
             .errors
             .iter()
             .any(|e| e.contains("only valid in rules selectors")));
+    }
+
+    #[test]
+    fn accept_with_sample_key_config() {
+        let yaml = include_str!("../../../tests/fixtures/config/with-sample-key.yaml");
+        let cfg = load_yaml(yaml).unwrap();
+        let result = validate(&cfg);
+        assert!(result.ok, "{:?}", result.errors);
+    }
+
+    #[test]
+    fn reject_sample_percent_key_and_key_from_together() {
+        let yaml = include_str!("../../../tests/fixtures/config/with-sample-key.yaml");
+        let mut cfg = load_yaml(yaml).unwrap();
+        cfg.rules.as_mut().unwrap().rules[0].selectors[1].key = Some("x".into());
+        cfg.rules.as_mut().unwrap().rules[0].selectors[1].key_from = Some("qname".into());
+        let result = validate(&cfg);
+        assert!(!result.ok);
+        assert!(result.errors.iter().any(|e| e.contains("mutually exclusive")));
+    }
+
+    #[test]
+    fn reject_rule_name_key_from_on_tracing_selector() {
+        let yaml = include_str!("../../../tests/fixtures/config/with-tracing-selectors.yaml");
+        let mut cfg = load_yaml(yaml).unwrap();
+        cfg.tracing
+            .as_mut()
+            .unwrap()
+            .activation
+            .as_mut()
+            .unwrap()
+            .selectors
+            .push(conduit_proto::config::Selector {
+                r#type: "sample_percent".into(),
+                value: "10".into(),
+                key: None,
+                key_from: Some("rule_name".into()),
+            });
+        let result = validate(&cfg);
+        assert!(!result.ok);
+        assert!(result
+            .errors
+            .iter()
+            .any(|e| e.contains("only valid on rule selectors")));
     }
 
     #[test]

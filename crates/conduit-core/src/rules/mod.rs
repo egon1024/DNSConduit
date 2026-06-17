@@ -1,7 +1,7 @@
 //! Built-in selector/action rules compiled at snapshot build (spec §6).
 
 use crate::transaction::Transaction;
-use conduit_events::{compile_selectors, CompiledSelector, SelectorMatchCtx};
+use conduit_events::{compile_rule_selectors, CompiledSelector, SelectorMatchCtx};
 use conduit_metrics::UserRegistry;
 use conduit_proto::config::{Action, Rule, RulesConfig};
 use conduit_script::{run_scripts, CompiledScripting, ScriptPhase, ScriptRunOutcome};
@@ -152,7 +152,7 @@ impl CompiledRule {
         Self {
             name: rule.name.clone(),
             hook,
-            selectors: compile_selectors(&rule.selectors),
+            selectors: compile_rule_selectors(&rule.name, &rule.selectors),
             actions,
         }
     }
@@ -683,10 +683,14 @@ pools:
                         Selector {
                             r#type: "every_nth_worker".into(),
                             value: "4".into(),
+                            key: None,
+                            key_from: None,
                         },
                         Selector {
                             r#type: "qtype".into(),
                             value: "A".into(),
+                            key: None,
+                            key_from: None,
                         },
                     ],
                     actions: vec![Action {
@@ -729,6 +733,8 @@ pools:
                     selectors: vec![Selector {
                         r#type: "every_nth_global".into(),
                         value: "4".into(),
+                        key: None,
+                        key_from: None,
                     }],
                     actions: vec![Action {
                         r#type: "set_tag".into(),
@@ -751,5 +757,64 @@ pools:
         rules.eval(RuleHook::Request, &mut txn, &scripting, None);
         assert!(txn.tags.has("global"));
         assert_eq!(txn.global_query_index, 8);
+    }
+
+    #[test]
+    fn keyed_sample_percent_rules_use_independent_buckets() {
+        use conduit_events::hash_sample_keyed;
+
+        let scripting = empty_scripting();
+        let rules = CompiledRules::compile(
+            Some(&RulesConfig {
+                match_mode: "first_match".into(),
+                rules: vec![
+                    Rule {
+                        name: "zone-a".into(),
+                        hook: "request".into(),
+                        selectors: vec![Selector {
+                            r#type: "sample_percent".into(),
+                            value: "50".into(),
+                            key: Some("zone-a".into()),
+                            key_from: None,
+                        }],
+                        actions: vec![Action {
+                            r#type: "set_tag".into(),
+                            value: "a=true".into(),
+                        }],
+                    },
+                    Rule {
+                        name: "zone-b".into(),
+                        hook: "request".into(),
+                        selectors: vec![Selector {
+                            r#type: "sample_percent".into(),
+                            value: "50".into(),
+                            key: Some("zone-b".into()),
+                            key_from: None,
+                        }],
+                        actions: vec![Action {
+                            r#type: "set_tag".into(),
+                            value: "b=true".into(),
+                        }],
+                    },
+                ],
+            }),
+            &scripting,
+        );
+
+        let txn_id = (1..10_000u64)
+            .find(|id| {
+                !hash_sample_keyed(*id, 0.5, Some("zone-a"))
+                    && hash_sample_keyed(*id, 0.5, Some("zone-b"))
+            })
+            .expect("some txn should pass zone-b but not zone-a");
+
+        let mut txn = Transaction::new(
+            txn_id,
+            "127.0.0.1:53".parse::<SocketAddr>().unwrap(),
+            ClientProtocol::Udp,
+        );
+        rules.eval(RuleHook::Request, &mut txn, &scripting, None);
+        assert!(txn.tags.has("b"));
+        assert!(!txn.tags.has("a"));
     }
 }
