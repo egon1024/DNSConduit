@@ -94,11 +94,13 @@ An empty `listeners.listeners` list may pass validation but Conduit will not acc
 conduitctl validate --file conduit.yaml
 ```
 
-On success it prints `ok` to stdout. On failure it prints each error to stderr and exits non-zero. Use this in CI or before reload.
+On success it prints `ok` to stdout. On failure it prints each error to stderr and exits non-zero. Use this in CI or before reload — a passing validate is a strong signal that startup or reload will succeed for compile-time dependencies.
 
 ### What validation checks
 
-Validation is structural and cross-field — examples of what fails:
+Validation has two stages:
+
+1. **Structural and cross-field** — examples of what fails:
 
 - Unsupported `schema_version`
 - `listeners.threads` = **0**, empty listener addresses, duplicate pool names, pools with no backends
@@ -108,19 +110,25 @@ Validation is structural and cross-field — examples of what fails:
 - Invalid `control.listen_address`, `metrics` / `tracing` profile and endpoint fields
 - Unsupported `rules.match_mode` (only **`first_match`** today)
 
+2. **Runtime snapshot compile** — the same step Conduit runs after YAML validation at startup and on reload:
+
+- Rhai scripts referenced by rules are read, compiled, and checked for metric registration
+- [Data sources](/rhai/data-sources-and-lookups.md) (for example CSV lookup tables) are loaded from disk
+- Forward and pool-forward settings are compiled
+
+Compile errors use prefixed messages such as `script 'path': …`, `rule 'name': …`, and `data source 'name': …`.
+
 Full rules evolve with the product; [Reference: config schema](/reference/config-schema/index.md) lists fields and constraints per block.
 
 ### What validation does not check
 
-`conduitctl validate` does **not** read Rhai scripts, CSV data sources, TLS files, or open dnstap socket paths. A file can pass validate while those paths are missing on disk. Conduit resolves and opens them when building the [runtime snapshot](/glossary/index.md#runtime-snapshot) at startup and on reload — ensure files exist relative to the config directory (or use absolute paths) before deploying.
-
-Similarly, upstream [backends](/glossary/index.md#backend) need not be reachable at validate time; Conduit only checks address format.
+`conduitctl validate` does **not** open TLS PEM files, bind listener sockets, or open dnstap socket paths. It does not verify that upstream [backends](/glossary/index.md#backend) are reachable — Conduit only checks address format in YAML.
 
 ## Startup vs reload
 
-| Event | Config path | On parse/validate failure | On success |
-|-------|-------------|---------------------------|------------|
-| **Process start** | Path recorded at start | Exit before DNS | Install snapshot, start [dataplane](/glossary/index.md#dataplane) |
+| Event | Config path | On parse/validate/compile failure | On success |
+|-------|-------------|-----------------------------------|------------|
+| **Process start** | Path recorded at start | Exit before DNS (YAML or compile error printed to stderr) | Install snapshot, start [dataplane](/glossary/index.md#dataplane) |
 | **SIGHUP** (Unix) | Same path re-read from disk | Log error; keep last-good snapshot | New snapshot for later queries; clear [overlay](/glossary/index.md#overlay) |
 | **`conduitctl reload`** | Same path on server | RPC error; keep last-good snapshot | Same as SIGHUP |
 | **`conduitctl apply --clear`** | Startup path unchanged (not re-read) | RPC error; keep last-good snapshot | Clear [overlay](/glossary/index.md#overlay) only; [file layer](/glossary/index.md#file-layer) stays as last loaded |

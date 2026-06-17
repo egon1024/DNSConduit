@@ -468,6 +468,7 @@ dependencies = [
  "anyhow",
  "clap",
  "conduit-config",
+ "conduit-core",
  "conduit-proto",
  "prost",
  "tokio",

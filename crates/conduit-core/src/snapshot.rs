@@ -234,7 +234,8 @@ impl SnapshotStore {
         if !result.ok {
             return Err(result.errors);
         }
-        let mut snap = RuntimeSnapshot::from_config(cfg);
+        let mut snap = RuntimeSnapshot::try_from_config_with_base(cfg, None)
+            .map_err(|e| vec![e.to_string()])?;
         snap.generation = self.generation() + 1;
         self.swap(snap);
         Ok(())
@@ -249,7 +250,8 @@ impl SnapshotStore {
         if !result.ok {
             return Err(result.errors);
         }
-        let mut snap = RuntimeSnapshot::from_config_with_base(cfg, base_dir);
+        let mut snap = RuntimeSnapshot::try_from_config_with_base(cfg, base_dir)
+            .map_err(|e| vec![e.to_string()])?;
         snap.generation = self.generation() + 1;
         self.swap(snap);
         Ok(())
@@ -269,6 +271,7 @@ impl SnapshotStore {
 mod tests {
     use super::*;
     use conduit_config::load_yaml;
+    use std::path::PathBuf;
 
     #[test]
     fn swap_snapshot_updates_generation() {
@@ -325,5 +328,40 @@ mod tests {
         store.install_validated(cfg2).unwrap();
         assert_eq!(store.load().config.listeners.as_ref().unwrap().threads, 8);
         assert_eq!(store.generation(), 1);
+    }
+
+    #[test]
+    fn install_validated_rejects_compile_error_without_swap() {
+        let yaml = include_str!("../../../tests/fixtures/config/with-rhai-syntax-error.yaml");
+        let cfg = load_yaml(yaml).unwrap();
+        assert!(validate(&cfg).ok);
+        let fixtures_base =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/config");
+        let store = SnapshotStore::new(
+            RuntimeSnapshot::try_from_config_with_base(
+                load_yaml(include_str!("../../../tests/fixtures/config/minimal.yaml")).unwrap(),
+                Some(&fixtures_base),
+            )
+            .unwrap(),
+        );
+        let gen0 = store.generation();
+        let err = store
+            .install_validated_with_base(cfg, Some(&fixtures_base))
+            .unwrap_err();
+        assert!(err.iter().any(|e| e.contains("script")));
+        assert_eq!(store.generation(), gen0);
+    }
+
+    #[test]
+    fn try_from_config_rejects_rhai_syntax_error() {
+        let yaml = include_str!("../../../tests/fixtures/config/with-rhai-syntax-error.yaml");
+        let cfg = load_yaml(yaml).unwrap();
+        let fixtures_base =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/config");
+        let err = match RuntimeSnapshot::try_from_config_with_base(cfg, Some(&fixtures_base)) {
+            Err(e) => e.to_string(),
+            Ok(_) => panic!("expected rhai compile failure"),
+        };
+        assert!(err.contains("script"));
     }
 }

@@ -3,6 +3,7 @@
 use anyhow::Context;
 use clap::{Parser, Subcommand};
 use conduit_config::{load_overlay_patch, load_yaml, validate};
+use conduit_core::RuntimeSnapshot;
 use conduit_proto::config::Config as RuntimeConfig;
 use conduit_proto::control::conduit_control_client::ConduitControlClient;
 use conduit_proto::control::Config as ControlConfig;
@@ -168,6 +169,11 @@ async fn main() -> anyhow::Result<()> {
                 }
                 anyhow::bail!("validation failed");
             }
+            let base_dir = file.parent();
+            RuntimeSnapshot::try_from_config_with_base(cfg, base_dir).map_err(|e| {
+                eprintln!("{e}");
+                anyhow::anyhow!("compile failed")
+            })?;
             println!("ok");
         }
         Commands::Reload => {

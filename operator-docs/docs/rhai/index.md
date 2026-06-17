@@ -91,7 +91,7 @@ After **SIGHUP**, `conduitctl reload`, or `conduitctl apply`, Conduit compiles t
 |---------|-------|------------|
 | Sandbox limits (operations, call depth, hook timeout) | `rhai:` | [Sandbox limits](/rhai/sandbox-limits.md) |
 | Script path on a rule | `rules:` → `type: rhai` | [Rules and actions](/policy-routing/rules-and-actions.md), [Reference: rules](/reference/config-schema/rules.md) |
-| Lookup tables for `table_lookup` | `data_sources:` | [Data sources and lookups](/rhai/data-sources-and-lookups.md) |
+| Lookup tables for scripts | `data_sources:` | [Data sources and lookups](/rhai/data-sources-and-lookups.md) |
 | Custom metric names and labels | Declared in script source at compile time | [User metrics](/rhai/user-metrics.md) |
 
 When you omit the top-level **`rhai:`** block, Conduit still applies default sandbox limits (**10000** operations, call depth **32**, **50** ms hook timeout). You only need **`rhai:`** in the file when you want to tune those limits.
@@ -102,7 +102,7 @@ Omitting **`rules:`** entirely means no scripts run — Rhai is opt-in per rule.
 
 Conduit **reads and compiles** `.rhai` files when it builds a [runtime snapshot](/glossary/index.md#runtime-snapshot) — at process start and on each successful reload or apply. Editing a script on disk has **no** effect on live queries until that snapshot swap succeeds.
 
-- **`conduitctl validate`** checks YAML structure only; it does **not** open script files. Use reload (or startup) to catch missing paths or compile errors.
+- **`conduitctl validate`** runs the same YAML checks and snapshot compile as startup/reload — use it to catch missing script paths or Rhai syntax errors before deploy.
 - [Transactions](/glossary/index.md#transaction) already in flight keep the scripts they started with.
 - If reload validation fails (bad script syntax, missing file, invalid metric registration), Conduit keeps the previous working snapshot and DNS keeps flowing. See [Configuration model](/control-plane/configuration-model.md).
 
