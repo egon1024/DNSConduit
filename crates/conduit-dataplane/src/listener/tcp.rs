@@ -9,6 +9,7 @@ use conduit_proto::config::Listener;
 use socket2::{Domain, Protocol, Socket, Type};
 use std::io::{Read, Write};
 use std::net::SocketAddr;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -38,6 +39,7 @@ pub fn run_worker(
     orchestrator: Arc<Orchestrator>,
     observation: Arc<EventHub>,
     shutdown: DataplaneShutdown,
+    global_query_counter: Arc<AtomicU64>,
 ) -> std::io::Result<()> {
     tcp.set_nonblocking(true)?;
     let mut next_id = 1u64;
@@ -65,7 +67,9 @@ pub fn run_worker(
                     continue;
                 }
                 let snap = store.load();
+                let global_query_index = global_query_counter.fetch_add(1, Ordering::Relaxed) + 1;
                 let mut txn = Transaction::new(next_id, peer, ClientProtocol::Tcp)
+                    .with_global_query_index(global_query_index)
                     .with_listener_label(listener.address.clone())
                     .with_query_wire(buf);
                 next_id = next_id.wrapping_add(1);

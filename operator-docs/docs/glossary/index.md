@@ -108,6 +108,18 @@ Condition on a [rule](/policy-routing/rules-and-actions.md) that tests query or 
 
 → [Rules and actions](/policy-routing/rules-and-actions.md)
 
+### sample_percent
+
+Deterministic selector/filter sampling control with a **`0..100`** percentage scale. `0` never matches and `100` always matches for sampling checks. On [rules](/policy-routing/rules-and-actions.md), use selector type **`sample_percent`**. On [tracing](/observability/tracing.md) and [event export](/observability/event-export.md), use top-level **`sample_percent`** on activation or sink filters.
+
+→ [Sampling and cadence](/policy-routing/rules-and-actions.md#sampling-and-cadence), [Event export](/observability/event-export.md), [Tracing](/observability/tracing.md)
+
+### every_nth selectors
+
+Rule selectors that match every Nth query: **`every_nth_worker`** uses the worker-local transaction id; **`every_nth_global`** uses a process-wide query index incremented once per query. Rules only — not valid on tracing or event filter selectors.
+
+→ [Sampling and cadence](/policy-routing/rules-and-actions.md#sampling-and-cadence)
+
 ### Action
 
 Built-in effect on a matching [rule](/policy-routing/rules-and-actions.md) (for example `set_pool`, `set_tag`, `set_source_v4`, `set_source_v6`, `drop`, `retry`, `retry_pool`, `rhai`) — applied before optional [Rule Rhai](/glossary/index.md#rule-rhai) on the same rule.

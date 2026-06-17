@@ -27,6 +27,7 @@ fn extra_source(txn: &Transaction, include_tags: bool) -> TxnExtraSource {
 pub fn txn_view<'a>(txn: &'a Transaction, snapshot: &RuntimeSnapshot) -> TxnView<'a> {
     TxnView {
         txn_id: txn.id,
+        global_query_index: txn.global_query_index,
         client_addr: txn.client_addr,
         protocol_udp: txn.protocol == ClientProtocol::Udp,
         qname: txn.qname.as_deref(),

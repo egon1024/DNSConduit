@@ -9,6 +9,7 @@ use conduit_events::EventHub;
 use conduit_metrics::{MetricsHub, TracingHub};
 use socket2::Socket;
 use std::net::Shutdown;
+use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 use std::thread;
 
@@ -89,6 +90,7 @@ pub fn start(
     };
 
     let timeout_ms = snap.forward.timeout_ms;
+    let global_query_counter = Arc::new(AtomicU64::new(0));
 
     let mut thread_handles = Vec::new();
     let mut listener_closers = Vec::new();
@@ -108,6 +110,7 @@ pub fn start(
             let reuse = listeners.reuse_port;
             let rcvbuf = listeners.rcvbuf;
             let worker_shutdown = shutdown.clone();
+            let global_query_counter = global_query_counter.clone();
 
             let (closer, worker) = if proto == "tcp" {
                 let (socket, addr) = tcp::bind_socket(&ln)?;
@@ -161,12 +164,24 @@ pub fn start(
                 let orchestrator = Arc::new(orchestrator);
 
                 let result = match worker {
-                    WorkerKind::Tcp(listener) => {
-                        tcp::run_worker(listener, ln, store, orchestrator, obs, worker_shutdown)
-                    }
-                    WorkerKind::Udp(udp) => {
-                        udp::run_worker(udp, ln, store, orchestrator, obs, worker_shutdown)
-                    }
+                    WorkerKind::Tcp(listener) => tcp::run_worker(
+                        listener,
+                        ln,
+                        store,
+                        orchestrator,
+                        obs,
+                        worker_shutdown,
+                        global_query_counter,
+                    ),
+                    WorkerKind::Udp(udp) => udp::run_worker(
+                        udp,
+                        ln,
+                        store,
+                        orchestrator,
+                        obs,
+                        worker_shutdown,
+                        global_query_counter,
+                    ),
                 };
                 if let Err(e) = result {
                     tracing::error!(error = %e, "listener worker exited");

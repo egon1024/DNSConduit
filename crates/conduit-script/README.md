@@ -26,7 +26,7 @@ Rhai scripting for DNS Conduit: compile scripts at snapshot build, run at Reques
 | `set_rcode(name)` | response | |
 | `table_lookup(table, key)` | both | global; host-loaded `data_sources` only |
 | `question_qname(txn)` | both | global helper |
-| `sample_include(rate)` | both | deterministic on txn id; may set `sampled` tag |
+| `sample_percent(percent)` | both | deterministic on txn id; `percent` is 0-100 and may set `sampled` tag |
 | `metric_inc(name, delta)` | both | registered at script load |
 | `metric_inc_labels(name, delta, labels)` | both | bounded label keys only |
 | `elapsed_ms()` | response | |

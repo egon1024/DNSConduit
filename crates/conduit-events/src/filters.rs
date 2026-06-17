@@ -19,6 +19,8 @@ pub fn sink_event_matches(
 
     if !filters.selectors.is_empty() {
         let ctx = SelectorMatchCtx {
+            txn_id: view.txn_id,
+            global_query_index: view.global_query_index,
             qname: view.qname,
             qtype_label: view.qtype_label.clone(),
             rcode_label: view.extra.rcode_label.clone(),
@@ -42,5 +44,5 @@ pub fn sink_event_matches(
         }
     }
 
-    hash_sample(view.txn_id, filters.sample_rate)
+    hash_sample(view.txn_id, filters.sample_percent / 100.0)
 }

@@ -594,14 +594,14 @@ mod tests {
     }
 
     #[test]
-    fn rhai_sample_include_stable_per_txn() {
+    fn rhai_sample_percent_stable_per_txn() {
         use conduit_events::hash_sample;
 
         let yaml = include_str!("../../../tests/fixtures/config/with-rhai-sample.yaml");
         let snap = snapshot_from_fixture(yaml);
         let txn_id = 4242_u64;
-        let rate = 0.05;
-        let expected = hash_sample(txn_id, rate);
+        let percent = 5.0;
+        let expected = hash_sample(txn_id, percent / 100.0);
 
         let scripting = &snap.scripting;
         let script_id = scripting.rules_scripts[0].script_id;

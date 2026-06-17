@@ -10,7 +10,7 @@ A **rule** is a named piece of policy with:
 - **[Selectors](/glossary/index.md#selector)** — conditions on the [transaction](/glossary/index.md#transaction) (query name, type, response code, [tags](/glossary/index.md#tags), …)
 - **[Actions](/glossary/index.md#action)** — built-in effects when every selector on that rule matches
 
-Rules live under the top-level **`rules:`** key. In current releases, **`match_mode: first_match`** is the only supported mode: on each hook, Conduit walks the rule list from top to bottom and stops at the **first** rule whose selectors all match. Later rules on that hook are skipped for that query.
+Rules live under the top-level **`rules:`** key. In current releases, **`match_mode: first_match`** is the only supported mode: on each hook, Conduit walks the rule list from top to bottom and stops at the **first** rule whose selectors all match. Later rules on that hook are skipped for that query. Other **`match_mode`** values may be supported in a future release; until then, only **`first_match`** is accepted at config load.
 
 When **no** rule matches on the request hook, Conduit continues to [Route](/concepts/architecture-and-packet-path.md#route) with the default [pool](/glossary/index.md#pool) path ([Pools and backends](/policy-routing/pools-and-backends.md)). When no rule matches on the response hook, Conduit continues to [Send](/concepts/architecture-and-packet-path.md#send) with the upstream answer or error already on the transaction.
 
@@ -108,19 +108,103 @@ Full reference: [Rhai](/rhai/index.md) (Rule Rhai).
 
 ## Selectors
 
-Every selector on a rule must match (**logical AND**). Supported types in current releases:
+Every selector on a rule must match (**logical AND**). Supported types in current releases, grouped by purpose:
+
+### Query identity
+
+Conditions on the question being asked — use on the **request** hook.
 
 | Type | Typical hook | Tests |
 |------|--------------|--------|
-| `qname_suffix` | request | Query name suffix |
 | `qname_exact` | request | Exact query name |
+| `qname_suffix` | request | Query name suffix |
 | `qtype` | request | Query type (for example `A`, `AAAA`) |
+
+### Response outcome
+
+Conditions on the upstream result — use on the **response** hook after [Wait for response](/concepts/architecture-and-packet-path.md#wait-for-response) or timeout.
+
+| Type | Typical hook | Tests |
+|------|--------------|--------|
 | `rcode` | response | Response code (for example `SERVFAIL`, `NXDOMAIN`) |
-| `tag` | both | [Tag](/glossary/index.md#tags) presence or value |
 
-An empty `selectors:` list matches every query on that hook.
+### Transaction metadata
 
-Put **`rcode`** selectors on **response** rules — they test the response code on the transaction after [Wait for response](/concepts/architecture-and-packet-path.md#wait-for-response) or timeout.
+[Tags](/glossary/index.md#tags) set earlier on the same [transaction](/glossary/index.md#transaction) (for example by a prior rule or [Rule Rhai](/glossary/index.md#rule-rhai)).
+
+| Type | Typical hook | Tests |
+|------|--------------|--------|
+| `tag` | both | Tag presence or value |
+
+### Sampling and cadence { #sampling-and-cadence }
+
+Limit **which queries** the rule applies to. Decisions are **deterministic** per transaction (same transaction always gets the same pass/fail for a given selector).
+
+| Type | Typical hook | Tests |
+|------|--------------|--------|
+| `every_nth_global` | both | Process-wide query index `% N == 0` (`N >= 1`) |
+| `every_nth_worker` | both | Worker-local transaction id `% N == 0` (`N >= 1`) |
+| `sample_percent` | both | ~`value`% of transactions by id (`0..100`) |
+
+`every_nth_worker` uses the per-worker transaction counter that starts at **1**, so `N=4` matches ids **4, 8, 12, …** on each worker thread.
+
+`every_nth_global` uses a process-wide query index incremented **once** when each query transaction is created, before selector evaluation.
+
+#### Examples
+
+**`sample_percent` only** — tag roughly 10% of all queries on the request hook (deterministic per transaction id):
+
+```yaml
+    - name: sample-audit-tag
+      hook: request
+      selectors:
+        - type: sample_percent
+          value: "10"
+      actions:
+        - type: set_tag
+          value: audit=1
+```
+
+**AND with query identity** — only queries under this suffix *and* in the sample pass:
+
+```yaml
+    - name: sample-internal-zone
+      hook: request
+      selectors:
+        - type: qname_suffix
+          value: ".internal.example."
+        - type: sample_percent
+          value: "25"
+      actions:
+        - type: set_tag
+          value: sampled_internal=1
+```
+
+**Every Nth on worker vs process-wide** — same `N`, different scope (only the selector type changes):
+
+```yaml
+    - name: canary-every-fourth-worker
+      hook: request
+      selectors:
+        - type: every_nth_worker
+          value: "4"
+      actions:
+        - type: set_pool
+          value: canary
+
+    - name: canary-every-fourth-global
+      hook: request
+      selectors:
+        - type: every_nth_global
+          value: "4"
+      actions:
+        - type: set_pool
+          value: canary
+```
+
+For **`sample_percent` on tracing or event export** (no rule required), see [Tracing](/observability/tracing.md) and [Event export](/observability/event-export.md).
+
+An empty `selectors:` list matches every query on that hook (no conditions from this rule).
 
 ## Validation errors (common)
 
@@ -143,7 +227,9 @@ Full validation rules: [Reference: rules](/reference/config-schema/rules.md).
 
 - [Architecture and packet path](/concepts/architecture-and-packet-path.md) — [Request rules](/concepts/architecture-and-packet-path.md#request-rules) and [Response rules](/concepts/architecture-and-packet-path.md#response-rules) in the pipeline
 - [Pools and backends](/policy-routing/pools-and-backends.md) — `set_pool`, default pool, backend weights
-- [Retries and transactions](/policy-routing/retries-and-transactions.md) — `retry_pool`, attempt limits
+- [Retries and transactions](/policy-routing/retries-and-transactions.md) — `retry_pool`, attempt limits; full request/response rule examples
+- [Event export](/observability/event-export.md) — request `set_tag` plus sink filters
+- [Tracing](/observability/tracing.md) — `activation.sample_percent` and selectors without a matching rule
 - [Dual-stack forwarding](/guides/dual-stack-forwarding.md) — `set_source_v4` / `set_source_v6`
 - [Rhai](/rhai/index.md) — Rule Rhai on matching rules
 - [Planned plugin models](/concepts/planned-plugin-models.md) — [WASM](/glossary/index.md#wasm), [sidecar](/glossary/index.md#sidecar) (not yet shipped)

@@ -344,7 +344,7 @@ pub(crate) struct YamlEventSinkFilters {
     #[serde(default)]
     selectors: Vec<YamlSelector>,
     #[serde(default)]
-    sample_rate: Option<f64>,
+    sample_percent: Option<f64>,
     #[serde(default)]
     pool: Option<String>,
     #[serde(default)]
@@ -354,7 +354,7 @@ pub(crate) struct YamlEventSinkFilters {
 fn yaml_event_filters_nonempty(f: &YamlEventSinkFilters) -> bool {
     f.tag_required.is_some()
         || !f.selectors.is_empty()
-        || f.sample_rate.is_some()
+        || f.sample_percent.is_some()
         || f.pool.as_ref().is_some_and(|p| !p.is_empty())
         || f.backend.as_ref().is_some_and(|b| !b.is_empty())
 }
@@ -532,7 +532,7 @@ pub(crate) struct YamlTracingActivation {
     #[serde(default)]
     selectors: Vec<YamlSelector>,
     #[serde(default)]
-    sample_rate: Option<f64>,
+    sample_percent: Option<f64>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Default)]
@@ -686,7 +686,7 @@ impl From<YamlTracingActivation> for TracingActivation {
         TracingActivation {
             tag: y.tag,
             selectors: y.selectors.into_iter().map(Into::into).collect(),
-            sample_rate: y.sample_rate,
+            sample_percent: y.sample_percent,
         }
     }
 }
@@ -815,7 +815,7 @@ impl From<YamlEventSink> for conduit_proto::config::EventSink {
                         value: s.value.clone(),
                     })
                     .collect(),
-                sample_rate: y.filters.sample_rate,
+                sample_percent: y.filters.sample_percent,
                 pool: y.filters.pool.clone(),
                 backend: y.filters.backend.clone(),
             })
@@ -1024,7 +1024,7 @@ impl From<&TracingActivation> for YamlTracingActivation {
         YamlTracingActivation {
             tag: a.tag.clone(),
             selectors: a.selectors.iter().map(YamlSelector::from).collect(),
-            sample_rate: a.sample_rate,
+            sample_percent: a.sample_percent,
         }
     }
 }
@@ -1188,7 +1188,7 @@ impl From<&conduit_proto::config::EventSink> for YamlEventSink {
                 .map(|f| YamlEventSinkFilters {
                     tag_required: f.tag_required.clone(),
                     selectors: f.selectors.iter().map(YamlSelector::from).collect(),
-                    sample_rate: f.sample_rate,
+                    sample_percent: f.sample_percent,
                     pool: f.pool.clone(),
                     backend: f.backend.clone(),
                 })

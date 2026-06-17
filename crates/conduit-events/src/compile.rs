@@ -3,7 +3,7 @@
 use crate::connect_retry::ConnectRetryConfig;
 use crate::metrics::SinkMetrics;
 use crate::queue::DropPolicy;
-use crate::selectors::{compile_selectors, validate_selector_type, CompiledSelector};
+use crate::selectors::{compile_selectors, validate_non_rule_selector_type, CompiledSelector};
 use conduit_proto::config::{Config, EventSink, EventSinkFilters, EventsConfig};
 use conduit_proto::paths::resolve_config_path;
 use std::collections::HashMap;
@@ -179,7 +179,7 @@ pub struct CompiledEvents {
 pub struct CompiledSinkFilters {
     pub selectors: Vec<CompiledSelector>,
     pub tag_required: Option<String>,
-    pub sample_rate: f64,
+    pub sample_percent: f64,
     pub pool: Option<String>,
     pub backend: Option<String>,
 }
@@ -189,30 +189,30 @@ impl Default for CompiledSinkFilters {
         Self {
             selectors: Vec::new(),
             tag_required: None,
-            sample_rate: 1.0,
+            sample_percent: 100.0,
             pool: None,
             backend: None,
         }
     }
 }
 
-pub fn parse_sample_rate(rate: Option<f64>) -> Result<f64, String> {
-    match rate {
-        None => Ok(1.0),
-        Some(r) if r > 0.0 && r <= 1.0 => Ok(r),
-        Some(_) => Err("events filters.sample_rate must be in (0, 1]".into()),
+pub fn parse_sample_percent(percent: Option<f64>) -> Result<f64, String> {
+    match percent {
+        None => Ok(100.0),
+        Some(p) if (0.0..=100.0).contains(&p) => Ok(p),
+        Some(_) => Err("events filters.sample_percent must be in [0, 100]".into()),
     }
 }
 
 pub fn parse_sink_filters(f: Option<&EventSinkFilters>) -> Result<CompiledSinkFilters, String> {
     let Some(f) = f else {
         return Ok(CompiledSinkFilters {
-            sample_rate: 1.0,
+            sample_percent: 100.0,
             ..Default::default()
         });
     };
     for sel in &f.selectors {
-        validate_selector_type(sel.r#type.as_str())?;
+        validate_non_rule_selector_type(sel.r#type.as_str())?;
     }
     if f.pool.as_ref().is_some_and(|p| p.is_empty()) {
         return Err("events filters.pool must not be empty".into());
@@ -224,7 +224,7 @@ pub fn parse_sink_filters(f: Option<&EventSinkFilters>) -> Result<CompiledSinkFi
     Ok(CompiledSinkFilters {
         selectors: compile_selectors(&f.selectors),
         tag_required,
-        sample_rate: parse_sample_rate(f.sample_rate)?,
+        sample_percent: parse_sample_percent(f.sample_percent)?,
         pool: f.pool.clone().filter(|p| !p.is_empty()),
         backend: f.backend.clone().filter(|b| !b.is_empty()),
     })

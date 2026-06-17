@@ -6,7 +6,7 @@ Schema reference for the top-level `rules:` block. Operator-oriented behavior: [
 
 | Field | Type | Required | Default | Meaning |
 |-------|------|----------|---------|---------|
-| `match_mode` | string | no | `first_match` | Rule evaluation mode. Only **`first_match`** is supported in current releases. |
+| `match_mode` | string | no | `first_match` | Rule evaluation mode. Only **`first_match`** is supported today; other modes may be added in a future release. |
 | `rules` | list of rule objects | no | `[]` | Ordered list of rules |
 
 ## Rule object
@@ -22,8 +22,22 @@ Schema reference for the top-level `rules:` block. Operator-oriented behavior: [
 
 | Field | Type | Required | Meaning |
 |-------|------|----------|---------|
-| `type` | string | yes | `qname_suffix`, `qname_exact`, `qtype`, `rcode`, or `tag` |
+| `type` | string | yes | Selector type (see groups below) |
 | `value` | string | yes | Selector-specific match string |
+
+**Query identity:** `qname_exact`, `qname_suffix`, `qtype`
+
+**Response outcome:** `rcode`
+
+**Transaction metadata:** `tag`
+
+**Sampling and cadence:** `every_nth_global`, `every_nth_worker`, `sample_percent` — see [Rules and actions — Sampling and cadence](/policy-routing/rules-and-actions.md#sampling-and-cadence)
+
+`sample_percent` expects a float in **`[0, 100]`**.
+
+`every_nth_worker` and `every_nth_global` expect an integer **`N >= 1`**.
+
+Full operator-oriented grouping: [Rules and actions — Selectors](/policy-routing/rules-and-actions.md#selectors).
 
 ## Action object
 

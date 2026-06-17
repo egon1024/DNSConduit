@@ -56,7 +56,7 @@ Both blocks are **file-layer only** — [overlay](/glossary/index.md#overlay) pa
 |-------|------|---------|-------------|
 | `tag` | string | — | Transaction must have this tag key |
 | `selectors` | list | `[]` | [Selector](/glossary/index.md#selector) objects; same types as [rules](/reference/config-schema/rules.md). All must match |
-| `sample_rate` | float | **1.0** | Must be in **(0, 1]**; deterministic per-transaction sampling |
+| `sample_percent` | float | **100** | Must be in **[0, 100]**; deterministic per-transaction sampling |
 
 Evaluated after [Request rules](/concepts/architecture-and-packet-path.md#request-rules). See [Tracing — Activation](/observability/tracing.md#activation).
 
@@ -74,7 +74,7 @@ Evaluated after [Request rules](/concepts/architecture-and-packet-path.md#reques
 | `metrics.prometheus.listen_address` | Must parse as socket address when non-empty |
 | `metrics.otel.endpoint` | Must be `http://` or `https://` when non-empty |
 | `metrics.otel.push_interval_ms` | Must be **≥ 1000** when non-zero |
-| `tracing.activation.sample_rate` | Must be in **(0, 1]** |
+| `tracing.activation.sample_percent` | Must be in **[0, 100]** |
 | Selector `type` in `tracing.activation.selectors` | Must be a known selector type |
 | `metrics` or `tracing` in overlay patch | Overlay rejected |
 
@@ -101,7 +101,7 @@ tracing:
     selectors:
       - type: qtype
         value: A
-    sample_rate: 1.0
+    sample_percent: 100
   output:
     log_json: false
 ```

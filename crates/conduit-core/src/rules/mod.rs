@@ -109,6 +109,8 @@ impl CompiledRule {
             return true;
         }
         let ctx = SelectorMatchCtx {
+            txn_id: txn.id,
+            global_query_index: txn.global_query_index,
             qname: txn.qname.as_deref(),
             qtype_label: txn.qtype_label(),
             rcode_label: txn.rcode_label(),
@@ -184,7 +186,7 @@ impl CompiledAction {
 mod tests {
     use super::*;
     use crate::transaction::{ClientProtocol, Transaction};
-    use conduit_proto::config::{Action, Rule, RulesConfig};
+    use conduit_proto::config::{Action, Rule, RulesConfig, Selector};
     use std::net::SocketAddr;
 
     fn compile_request_rule(actions: Vec<Action>) -> CompiledRules {
@@ -260,5 +262,81 @@ mod tests {
         rules.eval(RuleHook::Request, &mut txn);
         assert_eq!(txn.selected_pool.as_deref(), Some("internal"));
         assert_eq!(txn.source_override_v4, Some("192.0.2.1".parse().unwrap()));
+    }
+
+    #[test]
+    fn every_nth_worker_and_qtype_use_and_semantics() {
+        let rules = CompiledRules::compile(Some(&RulesConfig {
+            match_mode: "first_match".into(),
+            rules: vec![Rule {
+                name: "sampled-a".into(),
+                hook: "request".into(),
+                selectors: vec![
+                    Selector {
+                        r#type: "every_nth_worker".into(),
+                        value: "4".into(),
+                    },
+                    Selector {
+                        r#type: "qtype".into(),
+                        value: "A".into(),
+                    },
+                ],
+                actions: vec![Action {
+                    r#type: "set_tag".into(),
+                    value: "hit=true".into(),
+                }],
+            }],
+        }));
+
+        let mut hit = Transaction::new(
+            8,
+            "127.0.0.1:53".parse::<SocketAddr>().unwrap(),
+            ClientProtocol::Udp,
+        );
+        hit.qtype = Some(1);
+        rules.eval(RuleHook::Request, &mut hit);
+        assert!(hit.tags.has("hit"));
+
+        let mut miss = Transaction::new(
+            8,
+            "127.0.0.1:53".parse::<SocketAddr>().unwrap(),
+            ClientProtocol::Udp,
+        );
+        miss.qtype = Some(28);
+        rules.eval(RuleHook::Request, &mut miss);
+        assert!(!miss.tags.has("hit"));
+    }
+
+    #[test]
+    fn every_nth_global_uses_stored_index() {
+        let rules = CompiledRules::compile(Some(&RulesConfig {
+            match_mode: "first_match".into(),
+            rules: vec![Rule {
+                name: "global-4th".into(),
+                hook: "request".into(),
+                selectors: vec![Selector {
+                    r#type: "every_nth_global".into(),
+                    value: "4".into(),
+                }],
+                actions: vec![Action {
+                    r#type: "set_tag".into(),
+                    value: "global=true".into(),
+                }],
+            }],
+        }));
+
+        let mut txn = Transaction::new(
+            1,
+            "127.0.0.1:53".parse::<SocketAddr>().unwrap(),
+            ClientProtocol::Udp,
+        )
+        .with_global_query_index(8);
+        rules.eval(RuleHook::Request, &mut txn);
+        assert!(txn.tags.has("global"));
+
+        // Evaluating the same transaction again reuses the stored index.
+        rules.eval(RuleHook::Request, &mut txn);
+        assert!(txn.tags.has("global"));
+        assert_eq!(txn.global_query_index, 8);
     }
 }

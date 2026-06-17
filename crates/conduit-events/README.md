@@ -47,7 +47,7 @@ events:
           - type: qtype
             value: "A"
         tag_required: audit       # optional; AND with selectors
-        sample_rate: 0.1          # optional; (0, 1]; stable per txn_id
+        sample_percent: 10        # optional; [0, 100]; stable per txn_id
         pool: default             # response/retry only
         backend: "10.0.0.1:53"    # response/retry only
 ```

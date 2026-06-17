@@ -8,6 +8,7 @@ use conduit_events::EventHub;
 use conduit_proto::config::Listener;
 use socket2::{Domain, Protocol, Socket, Type};
 use std::net::SocketAddr;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -47,6 +48,7 @@ pub fn run_worker(
     orchestrator: Arc<Orchestrator>,
     observation: Arc<EventHub>,
     shutdown: DataplaneShutdown,
+    global_query_counter: Arc<AtomicU64>,
 ) -> std::io::Result<()> {
     udp.set_read_timeout(Some(Duration::from_secs(1)))?;
 
@@ -59,7 +61,9 @@ pub fn run_worker(
         match udp.recv_from(&mut buf) {
             Ok((len, peer)) => {
                 let snap = store.load();
+                let global_query_index = global_query_counter.fetch_add(1, Ordering::Relaxed) + 1;
                 let mut txn = Transaction::new(next_id, peer, ClientProtocol::Udp)
+                    .with_global_query_index(global_query_index)
                     .with_listener_label(listener.address.clone())
                     .with_query_wire(buf[..len].to_vec());
                 next_id = next_id.wrapping_add(1);

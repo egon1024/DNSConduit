@@ -38,7 +38,7 @@ tracing:
     selectors:
       - type: qtype
         value: A
-    sample_rate: 1.0
+    sample_percent: 100
   output:
     log_json: false
 logging:
@@ -50,7 +50,7 @@ logging:
 |-------|------------------|
 | `control:` | Required for `conduitctl trace` |
 | `metrics:` | Hot-path recording + Prometheus scrape on **`19090`** |
-| `tracing:` | Trace every **`A`** query (`sample_rate: 1.0`) |
+| `tracing:` | Trace every **`A`** query (`sample_percent: 100`) |
 | `logging:` | Default **`info`** — quiet under load; bump to **`debug`** if you need `txn_id` on each query |
 
 Validate before start:
