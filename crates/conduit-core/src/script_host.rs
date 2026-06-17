@@ -53,8 +53,21 @@ impl HostTransaction for Transaction {
         self.retry_pool = Some(name.to_string());
     }
 
+    fn set_soft_drop(&mut self) {
+        self.soft_drop = true;
+    }
+
+    fn clear_soft_drop(&mut self) {
+        self.soft_drop = false;
+        self.dropped = false;
+    }
+
+    fn clear_retry_pool(&mut self) {
+        self.retry_pool = None;
+    }
+
     fn drop_query(&mut self) {
-        self.dropped = true;
+        self.set_soft_drop();
     }
 
     fn set_rcode_name(&mut self, name: &str) {

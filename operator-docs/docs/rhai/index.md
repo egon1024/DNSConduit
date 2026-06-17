@@ -9,7 +9,7 @@ This section documents **Rule Rhai** (`txn` policy API). It is not [Processor-ch
 Built-in [selectors](/glossary/index.md#selector) and [actions](/glossary/index.md#action) cover most routing — pool choice, [tags](/glossary/index.md#tags), egress overrides, **drop**, and [retry](/glossary/index.md#retry). Reach for Rule Rhai when you need logic on top of that, for example:
 
 - Branch on a [lookup table](/rhai/data-sources-and-lookups.md) (`table_lookup`) on the **request** hook — for example map qname to a pool before [Route](/concepts/architecture-and-packet-path.md#route), instead of a long static rule list
-- Combine several checks in one script — for example upstream [rcode](/glossary/index.md#rcode) **and** a [tag](/glossary/index.md#tags) set on the request hook → `retry_pool("backup")` on the **response** hook
+- Combine several checks in one script — for example upstream [rcode](/glossary/index.md#rcode) **and** a [tag](/glossary/index.md#tags) set on the request hook → `set_retry_pool("backup")` and `request_retry()` on the **response** hook
 - Set [tags](/glossary/index.md#tags) that drive [event export](/observability/event-export.md) filters or [tracing](/observability/tracing.md) activation
 - Apply deterministic per-transaction sampling in scripts with `txn.sample_percent(percent)` (`0..100`)
 - Publish custom counters (`conduit_user_*`) from policy — [User metrics](/rhai/user-metrics.md)
@@ -20,24 +20,22 @@ If declarative YAML is enough, prefer [Rules and actions](/policy-routing/rules-
 
 Rhai does **not** run on every query by default. A script runs only when a **matching** rule on that hook includes a **`rhai`** [action](/glossary/index.md#action) whose `value` is the script path.
 
-On each hook, Conduit still uses **`match_mode: first_match`**: it walks rules top to bottom and stops at the first rule whose selectors all match. For that rule:
+On each hook, Conduit still uses **`match_mode: first_match`**: it walks rules top to bottom and stops at the first rule whose selectors all match. On that rule, **every action** — built-in and **`type: rhai`** — runs in **list order** at the position where it appears.
 
-1. Built-in **actions** run in list order.
-2. If the rule includes **`type: rhai`**, Conduit runs the linked script **after** those actions.
-
-The script receives a sandboxed **`txn`** object for the current [transaction](/glossary/index.md#transaction). It can refine what built-in actions already set — for example override [pool](/glossary/index.md#pool) choice or add [tags](/glossary/index.md#tags) — or **drop** / request **retry** on its own.
+The script receives a sandboxed **`txn`** object for the current [transaction](/glossary/index.md#transaction). It can refine what earlier actions already set — for example override [pool](/glossary/index.md#pool) choice or add [tags](/glossary/index.md#tags) — or **drop** / request **retry** on its own.
 
 ```mermaid
 sequenceDiagram
   participant Hook as Request or response hook
   participant Rule as First matching rule
-  participant Builtin as Built-in actions
-  participant Script as Rhai script
+  participant Step as Next action in list
 
   Hook->>Rule: Selectors match?
-  Rule->>Builtin: Run actions in order
-  Builtin->>Script: rhai action present?
-  Script-->>Hook: txn effects (pool, tags, drop, retry, …)
+  loop Each action in order
+    Rule->>Step: built-in or rhai
+    Step-->>Rule: txn effects
+  end
+  Rule-->>Hook: resolve drop / retry / continue
 ```
 
 Hook timing, first-match rules, and YAML wiring: [Rules and actions](/policy-routing/rules-and-actions.md). Phase guards and pairing request/response scripts: [Hooks and phases](/rhai/hooks-and-phases.md). Method-level detail: [Transaction API](/rhai/transaction-api.md).

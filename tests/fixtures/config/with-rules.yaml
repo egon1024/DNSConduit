@@ -44,7 +44,8 @@ rules:
         - type: rcode
           value: SERVFAIL
       actions:
-        - type: retry_pool
+        - type: set_retry_pool
           value: secondary
+        - type: retry
 control:
   listen_address: "127.0.0.1:5199"

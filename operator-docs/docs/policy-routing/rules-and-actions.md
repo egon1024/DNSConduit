@@ -55,14 +55,20 @@ For sequence diagrams and the full packet path, see [Architecture and packet pat
 flowchart TD
   Start[Hook runs] --> Walk[Next rule in list]
   Walk --> Match{All selectors match?}
-  Match -->|yes| Actions[Built-in actions in list order]
-  Actions --> Rhai{Rhai action on rule?}
-  Rhai -->|yes| Script[Run script]
-  Rhai -->|no| Done[Continue pipeline]
-  Script --> Done
-  Match -->|no| More{More rules?}
-  More -->|yes| Walk
-  More -->|no| Done
+  Match -->|yes| Next[Next action in list]
+  Next --> Kind{Action type?}
+  Kind -->|built-in| Builtin[Apply built-in effect]
+  Kind -->|rhai| Script[Run script at this step]
+  Builtin --> MoreActions{More actions?}
+  Script -->|error| Done[Stop rule / continue pipeline]
+  Script -->|drop_now| DropNode[Drop]
+  Script --> MoreActions
+  MoreActions -->|yes| Next
+  MoreActions -->|no| Resolve[Resolve soft drop / retry / continue]
+  Resolve --> Done
+  Match -->|no| MoreRules{More rules?}
+  MoreRules -->|yes| Walk
+  MoreRules -->|no| Done
 ```
 
 Minimal example — route internal `A` queries to a pool and pin egress:
@@ -93,9 +99,45 @@ Queries already in progress keep the rules they started with — they do not swi
 
 ## Action order on one rule { #action-order-on-one-rule }
 
-**Actions on a single rule run in list order** (top to bottom). Order matters when multiple actions touch the same [transaction](/glossary/index.md#transaction) fields.
+**Every action on a matching rule runs in list order** (top to bottom) — built-in actions and **`type: rhai`** steps are interleaved exactly as written.
+
+Order matters when multiple actions touch the same [transaction](/glossary/index.md#transaction) fields. Put safety-critical or cheap built-in effects **above** a **`rhai`** step when they must run before script logic or when the script might fail ([sandbox limits](/rhai/sandbox-limits.md) — further actions on that rule are skipped after a script error).
 
 When you use **`set_pool`** and **`set_source_v4`** / **`set_source_v6`** on the **same** rule, list **`set_pool` first**, then the source action — so [Forward](/concepts/architecture-and-packet-path.md#forward) checks the override against the allowed addresses for the pool you just selected.
+
+### Outcome at end of rule { #outcome-at-end-of-rule }
+
+Soft **`drop`** and soft **`retry`** are resolved **after** all actions on the rule have run. Conduit then applies **one** of these results:
+
+1. **Drop** — if soft drop is set at the end of the rule, or the rule already stopped with **`drop_now`**
+2. **Retry** — otherwise, if soft retry is set (response hook only)
+3. **Continue** — otherwise, proceed to the next pipeline phase
+
+If both soft drop and soft retry are set, **drop takes precedence** over retry.
+
+**`retry_now`** and Rhai **`txn.request_retry_now()`** do **not** clear soft drop. If an earlier action on the same rule set soft drop (`drop` or `txn.drop_query()`), **`retry_now` still results in drop**, not retry. Call **`clear_drop`** first only when you mean to cancel that soft drop on this rule — Conduit does not do that implicitly.
+
+### Drop actions
+
+| Action {: .column-no-wrap } | Effect |
+|--------|--------|
+| `clear_drop` | Clears soft-drop intent from an earlier `drop` or Rhai `txn.drop_query()` on this rule |
+| `drop` | **Soft** drop — later actions on this rule still run; if drop is still set at the end of the rule, the query stops at this hook with **no** DNS reply |
+| `drop_now` | **Hard** drop — stop immediately; no further actions on this rule run |
+
+[Rhai](/rhai/index.md) equivalents: `txn.drop_query()` (soft), `txn.drop_query_now()` (hard), `txn.clear_drop()`. See [Outcome at end of rule](#outcome-at-end-of-rule).
+
+### Retry actions { #retry-actions }
+
+| Action {: .column-no-wrap } | Effect |
+|--------|--------|
+| `clear_retry` | Clears soft-retry intent from an earlier `retry` or Rhai `txn.request_retry()` on this rule (response hook only) |
+| `clear_retry_pool` | Clears `retry_pool` on the [transaction](/glossary/index.md#transaction) |
+| `retry` | **Soft** retry (response hook only) — later actions on this rule still run; if retry is still requested at the end of the rule, re-enter [Route](/concepts/architecture-and-packet-path.md#route) |
+| `retry_now` | **Hard** retry (response hook only) — stop immediately and re-enter [Route](/concepts/architecture-and-packet-path.md#route); blocked by soft drop unless **`clear_drop`** ran earlier on this rule |
+| `set_retry_pool` | Pool used on retry [Route](/concepts/architecture-and-packet-path.md#route) if retry occurs — first [Route](/concepts/architecture-and-packet-path.md#route) ignores it |
+
+[Rhai](/rhai/index.md) equivalents: `txn.set_retry_pool(name)` (same as **`set_retry_pool`** above), `txn.request_retry()` (soft), `txn.request_retry_now()` (hard), `txn.clear_retry()` (soft retry only), `txn.clear_retry_pool()`. See [Outcome at end of rule](#outcome-at-end-of-rule). To fail over to another pool on the response hook, use **`set_retry_pool`** then **`retry`** or **`retry_now`**.
 
 The selected [pool](/glossary/index.md#pool) can also come from an **earlier** matching rule or from the default pool when no rule sets one. At [Forward](/concepts/architecture-and-packet-path.md#forward), Conduit still requires the override to be in the **allowed set for that pool** (global `forward.sources_*` ∪ that pool’s `sources_*`). If the override is not allowed, Conduit **falls back to round-robin** among configured sources — same behavior as [Rhai](/rhai/index.md) `set_source_v4` / `set_source_v6`. See [Dual-stack forwarding](/guides/dual-stack-forwarding.md#choosing-an-egress-source).
 
@@ -105,16 +147,20 @@ Use on `hook: request` — after [Parse](/concepts/architecture-and-packet-path.
 
 | Action {: .column-no-wrap } | `value` | Effect |
 |--------|---------|--------|
-| `set_pool` | Pool name | Sets the target [pool](/glossary/index.md#pool) for [Route](/concepts/architecture-and-packet-path.md#route) |
-| `set_tag` | `key=value` or `key` (→ `true`) | Sets a [tag](/glossary/index.md#tags) on the [transaction](/glossary/index.md#transaction) |
+| `clear_drop` | — | Clear soft-drop intent on this rule |
+| `clear_retry_pool` | — | Clears `retry_pool` — see [Retry actions](#retry-actions) |
+| `drop` | — | Soft drop — see [Drop actions](#action-order-on-one-rule) |
+| `drop_now` | — | Hard drop — stop further actions on this rule |
+| `rhai` | Script path | Runs the linked [Rhai](/rhai/index.md) script at this position in the list |
+| `set_pool` | Pool name | Sets the target [pool](/glossary/index.md#pool) for the first [Route](/concepts/architecture-and-packet-path.md#route) |
+| `set_retry_pool` | Pool name | Pool for retry Route if retry occurs; first Route ignores — see [Retry actions](#retry-actions) |
 | `set_source_v4` | IPv4 address | Pins upstream egress to this local IPv4 address for this query |
 | `set_source_v6` | IPv6 address | Pins upstream egress to this local IPv6 address for this query |
-| `drop` | (ignored) | Ends the query with **no** DNS reply ([policy drop](/observability/built-in-metrics.md#policy-drops-no-built-in-counter)) |
-| `rhai` | Script path | Runs a [Rhai](/rhai/index.md) request script after built-in actions |
+| `set_tag` | `key=value` or `key` (→ `true`) | Sets a [tag](/glossary/index.md#tags) on the [transaction](/glossary/index.md#transaction) |
 
 **`set_source_v4` / `set_source_v6`** — request hook only. The address must appear in **`forward.sources_v4`** / **`forward.sources_v6`** or a pool’s **`sources_v4`** / **`sources_v6`** (union checked when config is validated).
 
-When a matching rule includes **`rhai`**, Conduit runs the script **after** built-in actions on that rule. The script can refine [pool](/glossary/index.md#pool) choice, set [tags](/glossary/index.md#tags), pin egress, or **drop** the query. API detail: [Rhai](/rhai/index.md).
+**`set_retry_pool`** / **`clear_retry_pool`** — writes or clears the shared `retry_pool` field on the [transaction](/glossary/index.md#transaction). See [Retries and transactions](/policy-routing/retries-and-transactions.md).
 
 ## Response-hook actions
 
@@ -122,27 +168,27 @@ Use on `hook: response` — after an upstream answer or forward timeout, before 
 
 | Action {: .column-no-wrap } | `value` | Effect |
 |--------|---------|--------|
-| `retry` | (ignored) | [Retry](/glossary/index.md#retry) in the current [pool](/glossary/index.md#pool) — re-enter [Route](/concepts/architecture-and-packet-path.md#route) and pick another [backend](/glossary/index.md#backend) in that pool when possible |
-| `retry_pool` | Pool name | [Retry](/glossary/index.md#retry) to the named pool on the next [Route](/concepts/architecture-and-packet-path.md#route) (one-shot override) |
-| `set_tag` | `key=value` or `key` (→ `true`) | Sets a [tag](/glossary/index.md#tags) on the [transaction](/glossary/index.md#transaction) |
+| `clear_drop` | — | Clear soft-drop intent on this rule |
+| `clear_retry` | — | Clear soft-retry intent on this rule — see [Retry actions](#retry-actions) |
+| `clear_retry_pool` | — | Clears `retry_pool` — see [Retry actions](#retry-actions) |
+| `drop` | — | Soft drop — see [Drop actions](#action-order-on-one-rule) |
+| `drop_now` | — | Hard drop — stop further actions on this rule |
+| `retry` | — | Soft retry in the current [pool](/glossary/index.md#pool) — see [Retry actions](#retry-actions) |
+| `retry_now` | — | Hard retry — see [Retry actions](#retry-actions); blocked by soft drop unless **`clear_drop`** ran earlier on this rule |
+| `rhai` | Script path | Runs the linked [Rhai](/rhai/index.md) script at this position in the list |
 | `set_rcode` | RCODE name | Sets response code metadata (for example before [Send](/concepts/architecture-and-packet-path.md#send)) |
-| `drop` | (ignored) | Ends the query with **no** DNS reply ([policy drop](/observability/built-in-metrics.md#policy-drops-no-built-in-counter)) |
-| `rhai` | Script path | Runs a [Rhai](/rhai/index.md) response script after built-in actions |
+| `set_retry_pool` | Pool name | Pool for retry Route if retry occurs; first Route ignores — see [Retry actions](#retry-actions) |
+| `set_tag` | `key=value` or `key` (→ `true`) | Sets a [tag](/glossary/index.md#tags) on the [transaction](/glossary/index.md#transaction) |
 
-**`retry`** and **`retry_pool`** — request another [Route](/concepts/architecture-and-packet-path.md#route) → [Forward](/concepts/architecture-and-packet-path.md#forward) cycle. Use **`retry`** to stay in the current [pool](/glossary/index.md#pool); use **`retry_pool`** to target a different pool for the next attempt. On retries, Conduit avoids [backends](/glossary/index.md#backend) already used in the target pool on this [transaction](/glossary/index.md#transaction). Global caps, pool exhaustion, and examples: [Retries and transactions](/policy-routing/retries-and-transactions.md).
+**`retry`**, **`retry_now`**, **`clear_retry`**, **`clear_retry_pool`**, and **`set_retry_pool`** — see [Retry actions](#retry-actions) and [Retries and transactions](/policy-routing/retries-and-transactions.md). Use **`retry`** to stay in the current [pool](/glossary/index.md#pool); pair **`set_retry_pool`** with **`retry`** or **`retry_now`** to target a different pool on the next attempt. Use **`clear_retry_pool`** when a pool set for retry Route should not apply (for example same-pool **`retry`** after request policy set **`set_retry_pool`** for another pool).
 
 **`set_source_v4` / `set_source_v6`** are not supported on the response hook (egress is chosen before [Forward](/concepts/architecture-and-packet-path.md#forward); same as [Rhai](/rhai/index.md)).
 
 ## Scripted policy (Rule Rhai)
 
-When built-in actions are not enough, add **`type: rhai`** to a matching rule’s `actions:` list. The rule’s **`hook`** selects request vs response; **`value`** is the script path (relative to the [config file directory](/control-plane/config-file.md#path-resolution-base-directory) unless absolute).
+When built-in actions are not enough, add **`type: rhai`** anywhere in a matching rule’s `actions:` list. Conduit runs each **`rhai`** step **at that position** in the list — not after all built-ins.
 
-Conduit still uses **`match_mode: first_match`** on each hook: only the **first** matching rule runs. On that rule:
-
-1. **Built-in actions** run in list order (`set_pool`, `set_tag`, `drop`, …). Entries with **`type: rhai`** are skipped during this pass — they only mark which script to run.
-2. If the rule includes **`rhai`**, Conduit runs the linked `.rhai` file **after** the full built-in pass. The script sees transaction state after those effects (for example an already-set pool or tag).
-
-The **`rhai`** entry can appear anywhere in the action list; the script always runs after all built-ins on that rule, not inline at the `rhai` line.
+Conduit still uses **`match_mode: first_match`** on each hook: only the **first** matching rule runs. List order example — built-in pool, then script refinement:
 
 ```yaml
     - name: geo-route
@@ -155,9 +201,11 @@ The **`rhai`** entry can appear anywhere in the action list; the script always r
           value: default
         - type: rhai
           value: scripts/geo-pool.rhai
+        - type: set_tag
+          value: geo_routed=true
 ```
 
-A script can override YAML effects (for example `txn.set_pool("vip")` after `set_pool: default`). One `.rhai` file can be referenced from multiple rules; Conduit compiles it once per `(rule_name, path)` and runs it only when that rule wins first-match on the matching hook.
+The script can override earlier YAML effects (for example `txn.set_pool("vip")` after `set_pool: default`). One `.rhai` file can be referenced from multiple rules; Conduit compiles it once per `(rule_name, path)` and runs it only when that rule wins first-match on the matching hook.
 
 Request- and response-hook script examples:
 
@@ -292,8 +340,8 @@ These messages appear when config is loaded or validated (reload, apply, or star
 
 | Message (typical) | Cause |
 |-------------------|--------|
-| `retry … only valid on response hook` | `retry` or `retry_pool` on `hook: request` |
-| `retry_pool requires a pool name in value` | Empty `value` on `retry_pool` |
+| `retry … only valid on response hook` | `retry`, `retry_now`, or `clear_retry` on `hook: request` |
+| `set_retry_pool requires a pool name in value` | Empty `value` on `set_retry_pool` |
 | `set_source_v4 … only valid on request hook` | Source action on `hook: response` |
 | `set_source_v4 … not in configured sources_v4` | Address not in global or pool `sources_v4` union |
 | `set_source_v4 requires forward.sources_v4 or pool sources_v4` | No v4 sources configured anywhere |
@@ -307,7 +355,7 @@ Full validation rules: [Reference: rules](/reference/config-schema/rules.md).
 
 - [Architecture and packet path](/concepts/architecture-and-packet-path.md) — [Request rules](/concepts/architecture-and-packet-path.md#request-rules) and [Response rules](/concepts/architecture-and-packet-path.md#response-rules) in the pipeline
 - [Pools and backends](/policy-routing/pools-and-backends.md) — `set_pool`, default pool, backend weights
-- [Retries and transactions](/policy-routing/retries-and-transactions.md) — `retry_pool`, attempt limits; full request/response rule examples
+- [Retries and transactions](/policy-routing/retries-and-transactions.md) — `set_retry_pool`, `retry`, attempt limits; full request/response rule examples
 - [Event export](/observability/event-export.md) — request `set_tag` plus sink filters
 - [Tracing](/observability/tracing.md) — `activation.sample_percent` and selectors without a matching rule
 - [Dual-stack forwarding](/guides/dual-stack-forwarding.md) — `set_source_v4` / `set_source_v6`

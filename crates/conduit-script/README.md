@@ -1,69 +1,19 @@
 # conduit-script
 
-Rhai scripting for DNS Conduit: compile scripts at snapshot build, run at RequestRules / ResponseRules when a matching rule includes `action: rhai`.
+Rhai scripting for Conduit rule hooks.
 
-## Execution model
+## Transaction API (summary)
 
-- **Compile at snapshot build:** script source is read once, compiled to `AST`, and stored in `CompiledScripting` with shared `Arc<DataSourceStore>` and a monotonic `snapshot_generation`.
-- **One Rhai `Engine` per datapath worker OS thread:** a thread-local `ScriptRuntime` registers the host API once per snapshot generation. Config reload bumps `snapshot_generation` and rebuilds that thread's engine on the next script run.
-- **Per hook invocation:** fresh `Scope`, fresh `txn` bindings, per-run sandbox limits (`max_operations`, `max_call_depth`, `hook_timeout_ms`), and a thread-local pointer to the snapshot's data sources for `table_lookup`. The precompiled `AST` is executed; the engine is not recreated.
-- **Default path:** if no matching rule has `action: rhai`, Rhai is not invoked (no interpreter work on that query).
+| Method | Request hook | Response hook |
+|--------|--------------|---------------|
+| `set_pool(name)` | Yes | Yes |
+| `set_retry_pool(name)` | Pool for retry Route if retry occurs; first Route ignores | Pool for retry Route if retry occurs; first Route ignores |
+| `request_retry()` | No effect | Soft retry |
+| `request_retry_now()` | No effect | Hard retry (stop rule) |
+| `clear_retry()` | No effect | Clear soft retry |
+| `clear_retry_pool()` | Clears `retry_pool` | Clears `retry_pool` |
+| `drop_query()` | Soft drop | Soft drop |
+| `drop_query_now()` | Hard drop | Hard drop |
+| `clear_drop()` | Yes | Yes |
 
-## Transaction API (`txn`)
-
-| Method | Phase | Notes |
-|--------|-------|-------|
-| `question()` | request | Map: `qname`, `qtype`, `id` |
-| `response()` | response | Map: `rcode`, `qname`, `qtype`; errors in request phase |
-| `set_tag(key, value)` | both | bool or string |
-| `has_tag(key)` | both | |
-| `set_pool(name)` | request | |
-| `set_source_v4(addr)` | request | Same as declarative `set_source_v4` [action](/policy-routing/rules-and-actions.md); must be in configured `sources_v4` for pool |
-| `set_source_v6(addr)` | request | Same as declarative `set_source_v6` [action](/policy-routing/rules-and-actions.md); must be in configured `sources_v6` for pool |
-| `set_retry_pool(name)` | response | [retry](/policy-routing/retries-and-transactions.md) to named pool |
-| `request_retry()` | response | [retry](/policy-routing/retries-and-transactions.md) in current pool |
-| `drop_query()` | request | terminate without forward |
-| `set_rcode(name)` | response | |
-| `table_lookup(table, key)` | both | global; host-loaded `data_sources` only |
-| `question_qname(txn)` | both | global helper |
-| `sample_percent(percent)` | both | deterministic on txn id; `percent` is 0-100 and may set `sampled` tag |
-| `metric_inc(name, delta)` | both | registered at script load |
-| `metric_inc_labels(name, delta, labels)` | both | bounded label keys only |
-| `elapsed_ms()` | response | |
-| `get_attempt_count()` | response | use this name in scripts (not `attempt_count()`) |
-
-## Sandbox
-
-From config `rhai:` section:
-
-- `max_operations` — Rhai operation budget per hook
-- `max_call_depth` — call stack depth
-- `hook_timeout_ms` — wall time per hook (default 50ms)
-
-On trap, timeout, or limit exceeded: log warning, increment script error counter, **fail-open** (forward path continues without further script effects for that hook).
-
-## Performance (local, optional)
-
-Correctness of thread-local Rhai engine reuse is covered by unit tests (for example `thread_local_engine_reused_for_same_snapshot` in `runtime.rs`).
-
-Optional throughput micro-benchmark (not run by `make test` or CI):
-
-```bash
-make performance
-```
-
-Equivalent:
-
-```bash
-cargo bench -p conduit-script --bench thread_local_runtime --features test-util
-```
-
-Sample output shape: `thread_local_runtime: 10000 runs in … (… runs/sec)`. Compare on your hardware; debug builds are much slower than the release bench profile.
-
-### Future
-
-Flesh out a workspace-wide performance test suite invoked via `make performance`: dataplane UDP/TCP forward throughput, config reload and snapshot swap, metrics/tracing hot paths, and additional Rhai scenarios — with optional local regression baselines. Default CI (`make test`) stays correctness-only.
-
-## Examples
-
-See [tests/fixtures/rhai/README.md](../../tests/fixtures/rhai/README.md).
+See operator docs in `operator-docs/docs/rhai/hooks-and-phases.md`.

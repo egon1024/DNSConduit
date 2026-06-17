@@ -518,7 +518,18 @@ ctl validate --file tests/manual/config/phase-5-base.yaml ; echo ok=$?
 ctl validate --file tests/manual/config/phase-5-overlay-invalid.yaml ; echo bad=$?
 ```
 
-**Expect:** first exits 0 / prints `ok`; second fails with validation errors.
+**Expect:** first exits 0 / prints `ok=0`; second fails with validation errors.
+
+### Rhai compile (full snapshot)
+
+`validate` also compiles Rhai scripts referenced by `rules:` (same path as startup/reload). A structurally valid YAML file with a broken script must **fail**:
+
+```bash
+ctl validate --file tests/fixtures/config/with-rhai-syntax-error.yaml ; echo syntax_bad=$?
+ctl validate --file tests/manual/config/09-ordered-actions.yaml ; echo ordered_ok=$?
+```
+
+**Expect:** `syntax_bad` non-zero (script compile error); `ordered_ok=0`. See also [`ordered-rule-actions.md`](ordered-rule-actions.md) §6.
 
 ---
 

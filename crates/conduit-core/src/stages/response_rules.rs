@@ -1,12 +1,11 @@
-//! ResponseRules hook — built-in rule evaluation, Rhai scripts, and retry intent.
+//! ResponseRules hook — ordered built-in and Rhai rule actions, and retry intent.
 
 use crate::phase::Phase;
 use crate::pipeline::{PipelineStage, StageOutcome};
-use crate::rules::{RuleEvalResult, RuleHook, RuleOutcome};
+use crate::rules::{RuleHook, RuleOutcome};
 use crate::snapshot::RuntimeSnapshot;
 use crate::transaction::Transaction;
 use conduit_metrics::MetricsHub;
-use conduit_script::{run_scripts, ScriptPhase, ScriptRunOutcome};
 use std::sync::Arc;
 
 #[derive(Default)]
@@ -20,38 +19,16 @@ impl PipelineStage for ResponseRulesStage {
     }
 
     fn handle(&self, txn: &mut Transaction, snapshot: &Arc<RuntimeSnapshot>) -> StageOutcome {
-        let RuleEvalResult {
-            outcome,
-            matched_rule_name,
-        } = snapshot.rules.eval(RuleHook::Response, txn);
+        let user_export = self.metrics.as_ref().map(|m| m.user.as_ref());
+        let result = snapshot
+            .rules
+            .eval(RuleHook::Response, txn, &snapshot.scripting, user_export);
 
-        let mut script_retry = false;
-        if let Some(rule_name) = matched_rule_name {
-            let script_ids = snapshot
-                .scripting
-                .script_ids_for_rule(&rule_name, ScriptPhase::Response);
-            if !script_ids.is_empty() {
-                let user_export = self.metrics.as_ref().map(|m| m.user.as_ref());
-                let (script_outcome, _) = run_scripts(
-                    &snapshot.scripting,
-                    &script_ids,
-                    txn,
-                    ScriptPhase::Response,
-                    user_export,
-                );
-                match script_outcome {
-                    ScriptRunOutcome::Drop => return StageOutcome::Drop,
-                    ScriptRunOutcome::Retry => script_retry = true,
-                    ScriptRunOutcome::Ok | ScriptRunOutcome::Error => {}
-                }
-            }
-        }
-
-        if script_retry || outcome == RuleOutcome::Retry {
+        if result.outcome == RuleOutcome::Retry {
             return StageOutcome::Continue(Phase::Route);
         }
 
-        match outcome {
+        match result.outcome {
             RuleOutcome::Drop => StageOutcome::Drop,
             RuleOutcome::Continue | RuleOutcome::Retry => StageOutcome::Continue(Phase::Send),
         }

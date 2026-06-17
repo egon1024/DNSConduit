@@ -28,7 +28,7 @@ pools:
 
 | Field | Meaning |
 |-------|---------|
-| `name` | Pool identifier used by [rules](/policy-routing/rules-and-actions.md) (`set_pool`, `retry_pool`), [Rhai](/rhai/index.md), and as the `pool` label on [metrics](/observability/metrics.md). |
+| `name` | Pool identifier used by [rules](/policy-routing/rules-and-actions.md) (`set_pool`, `set_retry_pool`), [Rhai](/rhai/index.md), and as the `pool` label on [metrics](/observability/metrics.md). |
 | `backends` | One or more upstream destinations in this pool. |
 | `address` | Upstream resolver as `ip:port` (IPv6 addresses use bracket notation, for example `[2001:db8::1]:53`). |
 | `weight` | Optional load-balancing weight; see [Backend weights](#backend-weights). |
@@ -91,7 +91,7 @@ rules:
 
 Queries for names ending in `.corp.example.` use the **internal** pool; all other queries use **default** without an extra catch-all rule.
 
-The pool name in `set_pool`, `retry_pool` (or in Rhai’s `set_pool(...)` / `set_retry_pool(...)`) must match a `name` under `pools:`. Additional [selectors](/glossary/index.md#selector) — query name, query type, response code, tags, and others — are covered on [Rules and actions](/policy-routing/rules-and-actions.md). [Retries](/policy-routing/retries-and-transactions.md) can send a later attempt to a different pool when an upstream fails.
+The pool name in `set_pool`, `set_retry_pool` (or in Rhai’s `set_pool(...)` / `set_retry_pool(...)`) must match a `name` under `pools:`. Additional [selectors](/glossary/index.md#selector) — query name, query type, response code, tags, and others — are covered on [Rules and actions](/policy-routing/rules-and-actions.md). [Retries](/policy-routing/retries-and-transactions.md) can send a later attempt to a different pool when an upstream fails.
 
 ## Related topics
 

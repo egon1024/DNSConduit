@@ -66,9 +66,14 @@ fn register_host_api(engine: &mut Engine) {
         .register_fn("set_tag", RhaiTxn::set_tag)
         .register_fn("has_tag", RhaiTxn::has_tag)
         .register_fn("set_pool", RhaiTxn::set_pool)
-        .register_fn("set_retry_pool", RhaiTxn::retry)
+        .register_fn("set_retry_pool", RhaiTxn::set_retry_pool)
         .register_fn("request_retry", RhaiTxn::request_retry)
-        .register_fn("drop_query", RhaiTxn::drop)
+        .register_fn("request_retry_now", RhaiTxn::request_retry_now)
+        .register_fn("drop_query", RhaiTxn::drop_query)
+        .register_fn("drop_query_now", RhaiTxn::drop_query_now)
+        .register_fn("clear_drop", RhaiTxn::clear_drop)
+        .register_fn("clear_retry", RhaiTxn::clear_retry)
+        .register_fn("clear_retry_pool", RhaiTxn::clear_retry_pool)
         .register_fn("set_rcode", RhaiTxn::set_rcode)
         .register_fn("set_source_v4", RhaiTxn::set_source_v4)
         .register_fn("set_source_v6", RhaiTxn::set_source_v6)
@@ -124,14 +129,22 @@ pub struct UserMetricFlush {
 pub struct ScriptRunStats {
     pub errors: u32,
     pub user_metrics: Vec<UserMetricFlush>,
+    /// Soft-retry intent was cleared in script (`txn.clear_retry()`).
+    pub clear_soft_retry: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ScriptRunOutcome {
     Ok,
     Error,
+    /// Soft drop — caller may continue other actions on the rule.
     Drop,
+    /// Hard drop — stop further actions on the rule.
+    DropNow,
+    /// Soft retry — caller may continue other actions on the rule.
     Retry,
+    /// Hard retry — stop further actions on the rule (soft drop still wins).
+    RetryNow,
 }
 
 #[derive(Debug, Default)]
@@ -139,10 +152,15 @@ struct ScriptEffects {
     pool: Option<String>,
     retry_pool: Option<String>,
     retry_requested: bool,
+    hard_retry: bool,
+    clear_soft_retry: bool,
+    clear_retry_pool: bool,
     tags_bool: HashMap<String, bool>,
     tags_string: HashMap<String, String>,
     rcode: Option<String>,
-    dropped: bool,
+    soft_drop: bool,
+    hard_drop: bool,
+    clear_soft_drop: bool,
     sample_decision: Option<bool>,
     source_override_v4: Option<std::net::Ipv4Addr>,
     source_override_v6: Option<std::net::Ipv6Addr>,
@@ -234,10 +252,9 @@ impl RhaiTxn {
         }
     }
 
-    fn retry(&mut self, pool: &str) {
+    fn set_retry_pool(&mut self, pool: &str) {
         if let Ok(mut fx) = self.effects.lock() {
             fx.retry_pool = Some(pool.to_string());
-            fx.retry_requested = true;
         }
     }
 
@@ -250,9 +267,45 @@ impl RhaiTxn {
         }
     }
 
-    fn drop(&mut self) {
+    fn request_retry_now(&mut self) {
+        if self.phase != ScriptPhase::Response {
+            return;
+        }
         if let Ok(mut fx) = self.effects.lock() {
-            fx.dropped = true;
+            fx.hard_retry = true;
+        }
+    }
+
+    fn drop_query(&mut self) {
+        if let Ok(mut fx) = self.effects.lock() {
+            fx.soft_drop = true;
+        }
+    }
+
+    fn drop_query_now(&mut self) {
+        if let Ok(mut fx) = self.effects.lock() {
+            fx.hard_drop = true;
+        }
+    }
+
+    fn clear_drop(&mut self) {
+        if let Ok(mut fx) = self.effects.lock() {
+            fx.clear_soft_drop = true;
+        }
+    }
+
+    fn clear_retry(&mut self) {
+        if self.phase != ScriptPhase::Response {
+            return;
+        }
+        if let Ok(mut fx) = self.effects.lock() {
+            fx.clear_soft_retry = true;
+        }
+    }
+
+    fn clear_retry_pool(&mut self) {
+        if let Ok(mut fx) = self.effects.lock() {
+            fx.clear_retry_pool = true;
         }
     }
 
@@ -383,10 +436,19 @@ pub fn run_scripts(
                         });
                     }
                 }
-                if fx.dropped {
+                if fx.hard_drop {
+                    return (ScriptRunOutcome::DropNow, stats);
+                }
+                if fx.soft_drop {
                     return (ScriptRunOutcome::Drop, stats);
                 }
-                if fx.retry_requested {
+                if fx.hard_retry {
+                    return (ScriptRunOutcome::RetryNow, stats);
+                }
+                if fx.clear_soft_retry {
+                    stats.clear_soft_retry = true;
+                }
+                if fx.retry_requested && !fx.clear_soft_retry {
                     return (ScriptRunOutcome::Retry, stats);
                 }
             }
@@ -428,7 +490,16 @@ fn apply_effects(host: &mut dyn HostTransaction, fx: &ScriptEffects) {
     if let Some(addr) = fx.source_override_v6 {
         host.set_source_v6(&addr.to_string());
     }
-    if fx.dropped {
+    if fx.clear_soft_drop {
+        host.clear_soft_drop();
+    }
+    if fx.clear_retry_pool {
+        host.clear_retry_pool();
+    }
+    if fx.soft_drop {
+        host.set_soft_drop();
+    }
+    if fx.hard_drop {
         host.mark_dropped();
     }
 }
@@ -489,10 +560,15 @@ fn run_one(
         pool: fx.pool.clone(),
         retry_pool: fx.retry_pool.clone(),
         retry_requested: fx.retry_requested,
+        hard_retry: fx.hard_retry,
+        clear_soft_retry: fx.clear_soft_retry,
+        clear_retry_pool: fx.clear_retry_pool,
         tags_bool: fx.tags_bool.clone(),
         tags_string: fx.tags_string.clone(),
         rcode: fx.rcode.clone(),
-        dropped: fx.dropped,
+        soft_drop: fx.soft_drop,
+        hard_drop: fx.hard_drop,
+        clear_soft_drop: fx.clear_soft_drop,
         sample_decision: fx.sample_decision,
         source_override_v4: fx.source_override_v4,
         source_override_v6: fx.source_override_v6,
@@ -567,6 +643,7 @@ rules:
             pool: None,
             retry: None,
             dropped: false,
+            soft_drop: false,
             source_override_v4: None,
             source_override_v6: None,
             tags: HashMap::new(),
@@ -638,6 +715,7 @@ rules:
             pool: None,
             retry: None,
             dropped: false,
+            soft_drop: false,
             source_override_v4: None,
             source_override_v6: None,
             tags: HashMap::new(),
@@ -692,6 +770,7 @@ rules:
             pool: None,
             retry: None,
             dropped: false,
+            soft_drop: false,
             source_override_v4: None,
             source_override_v6: None,
             tags: HashMap::new(),
@@ -708,7 +787,7 @@ rules:
         );
         assert_eq!(stats.errors, 0, "script should not error");
         assert_eq!(outcome, ScriptRunOutcome::Drop);
-        assert!(host.dropped);
+        assert!(host.soft_drop);
     }
 
     #[test]
@@ -732,6 +811,7 @@ rules:
             pool: Some("primary".into()),
             retry: None,
             dropped: false,
+            soft_drop: false,
             source_override_v4: None,
             source_override_v6: None,
             tags: HashMap::new(),
@@ -815,6 +895,7 @@ rules:
             pool: Some("primary".into()),
             retry: None,
             dropped: false,
+            soft_drop: false,
             source_override_v4: None,
             source_override_v6: None,
             tags: HashMap::new(),
@@ -849,6 +930,7 @@ rules:
             pool: None,
             retry: None,
             dropped: false,
+            soft_drop: false,
             source_override_v4: None,
             source_override_v6: None,
             tags: HashMap::new(),
@@ -878,6 +960,7 @@ rules:
             pool: Some("default".into()),
             retry: None,
             dropped: false,
+            soft_drop: false,
             source_override_v4: None,
             source_override_v6: None,
             tags: HashMap::new(),
@@ -907,6 +990,7 @@ rules:
             pool: None,
             retry: None,
             dropped: false,
+            soft_drop: false,
             source_override_v4: None,
             source_override_v6: None,
             tags: HashMap::new(),
@@ -935,6 +1019,7 @@ rules:
             pool: None,
             retry: None,
             dropped: false,
+            soft_drop: false,
             source_override_v4: None,
             source_override_v6: None,
             tags: HashMap::new(),
@@ -973,6 +1058,7 @@ rules:
             pool: None,
             retry: None,
             dropped: false,
+            soft_drop: false,
             source_override_v4: None,
             source_override_v6: None,
             tags: HashMap::new(),
@@ -1074,6 +1160,7 @@ rules:
             pool: None,
             retry: None,
             dropped: false,
+            soft_drop: false,
             source_override_v4: None,
             source_override_v6: None,
             tags: HashMap::new(),
@@ -1138,6 +1225,7 @@ rules:
             pool: None,
             retry: None,
             dropped: false,
+            soft_drop: false,
             source_override_v4: None,
             source_override_v6: None,
             tags: HashMap::new(),
