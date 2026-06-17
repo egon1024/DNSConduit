@@ -40,7 +40,7 @@ Details: [API keys](/security/api-keys.md), [mTLS](/security/mtls.md).
 | `conduitctl apply` | Yes | Patch the in-memory overlay ([apply modes](/control-plane/reload-and-export.md#apply-modes)) |
 | `conduitctl export` | Yes | Print effective config as YAML |
 | `conduitctl reload` | Yes | [Reload from disk](/glossary/index.md#reload-from-disk); clear overlay |
-| `conduitctl validate --file` | **No** | Offline structural validation of any YAML path |
+| `conduitctl validate --file` | **No** | Offline YAML validation and runtime snapshot compile (Rhai, data sources, forward) |
 | `conduitctl trace` | Yes | Fetch pipeline trace events for a transaction id |
 
 RPC methods and messages: [Reference: gRPC and CLI](/reference/grpc-and-cli.md).
@@ -88,7 +88,9 @@ Re-reads the config path from process startup and clears the overlay. Same seman
 conduitctl validate --file PATH
 ```
 
-Runs locally — no control plane connection. Validates structure only; does not check Rhai script paths, CSV files, or TLS PEM paths on disk. The server also exposes **`ValidateConfig`** over gRPC for automation that already talks to the control plane; the CLI does not call it today.
+Runs locally — no control plane connection. Validates YAML structure, then builds the same [runtime snapshot](/glossary/index.md#runtime-snapshot) Conduit uses at startup and reload: Rhai scripts are read and compiled, [data sources](/rhai/data-sources-and-lookups.md) are loaded, and forward settings are compiled. Paths resolve relative to the config file directory (or as absolute paths). Failures print prefixed errors (for example `script '…': …`, `rule '…': …`, `data source '…': …`) to stderr and exit non-zero.
+
+The server also exposes **`ValidateConfig`** over gRPC for automation that already talks to the control plane; the CLI does not call it today.
 
 ### `trace`
 

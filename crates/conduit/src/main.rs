@@ -40,7 +40,12 @@ async fn main() -> anyhow::Result<()> {
     let tracing_hub = Arc::new(TracingHub::from_config(&file_cfg));
 
     let mut snapshot =
-        RuntimeSnapshot::from_config_with_base(file_cfg.clone(), base_dir.as_deref());
+        RuntimeSnapshot::try_from_config_with_base(file_cfg.clone(), base_dir.as_deref()).map_err(
+            |e| {
+                eprintln!("{e}");
+                anyhow::anyhow!("config compile failed")
+            },
+        )?;
     let store = Arc::new(SnapshotStore::new(snapshot.clone()));
     snapshot.generation = store.generation();
     store.swap(snapshot);

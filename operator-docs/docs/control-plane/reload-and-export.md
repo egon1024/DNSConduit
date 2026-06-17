@@ -58,7 +58,7 @@ Every successful reload or apply runs **validate → compile → swap**. In-flig
 
 **Control plane at process start:** **`conduitctl`** talks to gRPC only when the process **started** with a `control:` block (`listen_address`). If Conduit started without `control:`, adding it in YAML and reloading updates the snapshot but **does not** start the listener — **restart** the process, then use `conduitctl`.
 
-**Optional before reload:** **`conduitctl validate --file`** checks structure offline (any path; no running server). See [Config file — validation](/control-plane/config-file.md#validation). Passing validation does not load that file into Conduit unless it is the startup path and you reload.
+**Optional before reload:** **`conduitctl validate --file`** runs offline YAML validation and snapshot compile (any path; no running server). See [Config file — validation](/control-plane/config-file.md#validation). Passing validate does not load that file into Conduit unless it is the startup path and you reload.
 
 ## Reload from disk (SIGHUP and `conduitctl reload`)
 
@@ -87,7 +87,7 @@ conduitctl reload
 
 Requires the [control plane](#what-each-command-needs) (default endpoint `http://127.0.0.1:5199`; override with `--endpoint` or `CONDUIT_CONTROL`). On success the CLI prints `ok`; on validation failure it exits non-zero with error text.
 
-**Before reload:** save edits to the configured path. **`conduitctl validate --file /path/to/conduit.yaml`** checks structure offline but does not prove Rhai scripts or CSV paths exist — see [Config file — validation](/control-plane/config-file.md#what-validation-does-not-check).
+**Before reload:** save edits to the configured path. **`conduitctl validate --file /path/to/conduit.yaml`** runs offline YAML validation and snapshot compile (Rhai scripts, data sources, forward) — see [Config file — validation](/control-plane/config-file.md#validation).
 
 **On failure while DNS is already running:** the bad file is rejected; the [last-good snapshot](/glossary/index.md#last-good-snapshot) stays active. Check process logs for validation errors. **On failure at first startup:** the process exits before serving DNS (see [Config file — startup vs reload](/control-plane/config-file.md#startup-vs-reload)).
 
