@@ -346,6 +346,8 @@ dig @::1 -p 15354 +time=3 +tries=1 +short manual-v6-07.example.com A
 
 **Proves:** Request-phase script pins IPv6 egress when address is in the allowed set.
 
+**Action order:** The rule lists **`rhai` first**, then **`set_pool`**. Conduit runs them in that order (not “all built-ins, then scripts”). Here the script sets egress (`set_source_v6`); the following `set_pool` selects pool **v6**. Put `set_pool` before `rhai` in the YAML if you need the pool fixed before script logic runs.
+
 | Item | Value |
 |------|-------|
 | Config | [`config/08-rhai-set-source-v6.yaml`](config/08-rhai-set-source-v6.yaml) |
@@ -397,6 +399,8 @@ Log format (`-f log`) prints `client=` and `proto=` on the first line of each fr
 5. Scenario 7 — default v6 bind vs scenario 2  
 6. Scenario 8 — Rhai override  
 
+**Ordered rule actions** (drop family, `set_retry_pool`, list order): [`ordered-rule-actions.md`](ordered-rule-actions.md).
+
 Re-run `tests/manual/scripts/check-ports.sh` if you stop processes mid-session.
 
 ## Troubleshooting
@@ -415,13 +419,18 @@ Re-run `tests/manual/scripts/check-ports.sh` if you stop processes mid-session.
 Validate configs without starting the server:
 
 ```bash
+cargo run -p conduitctl -- validate --file tests/manual/config/01-v4-only.yaml
+cargo run -p conduitctl -- validate --file tests/fixtures/config/with-rhai-syntax-error.yaml  # expect compile failure
+```
+
+Or start `conduit` briefly (loads and validates; stop with Ctrl+C after `dataplane listeners started`):
+
+```bash
 for f in tests/manual/config/*.yaml; do
   echo "== $f =="
   cargo run -p conduit -- "$f" 2>&1 | head -1 || true
 done
 ```
-
-(Starting `conduit` loads and validates; stop immediately with Ctrl+C after `dataplane listeners started`.)
 
 ## Related CI fixtures
 

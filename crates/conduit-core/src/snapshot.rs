@@ -142,7 +142,7 @@ impl RuntimeSnapshot {
                 panic!("forward compile failed at snapshot build: {e}");
             });
         Self {
-            rules: CompiledRules::compile(config.rules.as_ref()),
+            rules: CompiledRules::compile(config.rules.as_ref(), &scripting),
             events,
             scripting: Arc::new(scripting),
             forward,
@@ -168,7 +168,7 @@ impl RuntimeSnapshot {
                 message: e,
             })?;
         Ok(Self {
-            rules: CompiledRules::compile(config.rules.as_ref()),
+            rules: CompiledRules::compile(config.rules.as_ref(), &scripting),
             events,
             scripting: Arc::new(scripting),
             forward,

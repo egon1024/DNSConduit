@@ -11,7 +11,7 @@ For hook timing, pipeline placement, first-match evaluation, built-in actions, a
 | **When your script runs** | Before [Route](/concepts/architecture-and-packet-path.md#route) and [Forward](/concepts/architecture-and-packet-path.md#forward) | After [Wait for response](/concepts/architecture-and-packet-path.md#wait-for-response) (answer or timeout) |
 | **Runs again on retry?** | No — once per transaction | Yes — once per forward attempt |
 | **Upstream answer / rcode** | Not available yet | Available (`txn.response()`, `txn.response_rcode()`) |
-| **Retry / failover** | Not available (`txn.request_retry()` has no effect) | Available (`txn.set_retry_pool`, `txn.request_retry()`) |
+| **Retry / failover** | `txn.set_retry_pool` sets pool for retry Route if retry occurs; first Route ignores; `txn.request_retry()` / `request_retry_now()` have no effect | `txn.set_retry_pool` sets pool for retry Route if retry occurs; first Route ignores; `txn.request_retry()` soft-retry; `txn.request_retry_now()` hard-retry |
 | **Egress override** | Yes (`txn.set_source_v4` / `set_source_v6`) | Phase error — source was chosen before Forward |
 | **Typical use** | Classify, route, tag, block before upstream | Act on rcode, timeout, latency; retry or metric |
 
@@ -27,11 +27,20 @@ Some `txn` methods and helpers are restricted to one hook. Calling them on the w
 | `txn.response()`, `txn.response_rcode()` | Error / empty | Yes |
 | `txn.set_pool`, `txn.set_tag`, `txn.has_tag` | Yes | Yes |
 | `txn.set_source_v4`, `txn.set_source_v6` | Yes | Phase error |
-| `txn.set_retry_pool`, `txn.request_retry()` | No effect | Yes |
-| `txn.drop_query()`, `txn.set_rcode()` | Yes | Yes |
+| `txn.set_retry_pool` | Pool for retry Route if retry occurs; first Route ignores | Pool for retry Route if retry occurs; first Route ignores |
+| `txn.request_retry()` | No effect | Soft retry |
+| `txn.request_retry_now()` | No effect | Hard retry (stop rule); does not clear soft drop |
+| `txn.clear_retry()` | No effect | Clear soft retry |
+| `txn.clear_retry_pool()` | Clears `retry_pool` | Clears `retry_pool` |
+| `txn.drop_query()` | Soft drop | Soft drop |
+| `txn.drop_query_now()` | Hard drop (stop rule) | Hard drop (stop rule) |
+| `txn.clear_drop()` | Clears soft drop | Clears soft drop |
+| `txn.set_rcode()` | Yes | Yes |
 | `txn.sample_percent`, `table_lookup` | Yes | Yes |
 | `txn.elapsed_ms()`, `txn.get_attempt_count()` | Yes | Yes |
 | `txn.metric_inc` / `metric_inc_labels` | Yes | Yes |
+
+**`txn.request_retry_now()`** does not clear soft drop. If `txn.drop_query()` ran earlier on the same rule, the outcome is still **drop** unless you call **`txn.clear_drop()`** first. See [Outcome at end of rule](/policy-routing/rules-and-actions.md#outcome-at-end-of-rule).
 
 Full reference: [Transaction API](/rhai/transaction-api.md).
 
@@ -78,5 +87,5 @@ Built-in actions on the same rule have **already run** by then — see [Scripted
 - [Transaction API](/rhai/transaction-api.md) — `txn` methods and YAML equivalents
 - [Rules and actions](/policy-routing/rules-and-actions.md) — hooks, selectors, built-in actions, `rhai` wiring
 - [Architecture and packet path](/concepts/architecture-and-packet-path.md) — full pipeline and phases
-- [Retries and transactions](/policy-routing/retries-and-transactions.md) — `retry_pool`, attempt limits, pool exhaustion
+- [Retries and transactions](/policy-routing/retries-and-transactions.md) — `set_retry_pool`, `retry`, attempt limits, pool exhaustion
 - [Event export](/observability/event-export.md) — request tags + sink filters

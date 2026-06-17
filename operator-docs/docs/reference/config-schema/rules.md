@@ -50,15 +50,20 @@ Full operator-oriented grouping: [Rules and actions — Selectors](/policy-routi
 
 | `type` | Valid hooks | `value` |
 |--------|-------------|---------|
+| `clear_drop` | request, response | Clear soft-drop intent (`value` —) |
+| `clear_retry` | response | Clear soft-retry intent (`value` —) |
+| `clear_retry_pool` | request, response | Clears `retry_pool` (`value` —) |
+| `drop` | request, response | Soft drop (`value` —) |
+| `drop_now` | request, response | Hard drop — stop further actions on this rule (`value` —) |
+| `retry` | response | Soft [retry](/glossary/index.md#retry) in the current [pool](/glossary/index.md#pool) (`value` —) |
+| `retry_now` | response | Hard retry — stop further actions on this rule (`value` —) |
+| `rhai` | request, response | Path to `.rhai` script (non-empty); runs at this position in the action list |
 | `set_pool` | request | Pool name |
-| `set_tag` | request, response | `key=value` or `key` |
+| `set_rcode` | response | RCODE name (for example `SERVFAIL`) |
+| `set_retry_pool` | request, response | Pool name — pool for retry [Route](/concepts/architecture-and-packet-path.md#route) if retry occurs; first [Route](/concepts/architecture-and-packet-path.md#route) ignores (`value` required) |
 | `set_source_v4` | **request only** | IPv4 address in configured `sources_v4` union |
 | `set_source_v6` | **request only** | IPv6 address in configured `sources_v6` union |
-| `retry` | response | [Retry](/glossary/index.md#retry) in the current [pool](/glossary/index.md#pool) (`value` ignored) |
-| `retry_pool` | response | Pool name — one-shot [retry](/glossary/index.md#retry) target (`value` required) |
-| `set_rcode` | response | RCODE name (for example `SERVFAIL`) |
-| `drop` | request, response | Ignored |
-| `rhai` | request, response | Path to `.rhai` script (non-empty) |
+| `set_tag` | request, response | `key=value` or `key` |
 
 ### `set_source_v4` / `set_source_v6` validation
 

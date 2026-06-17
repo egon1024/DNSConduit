@@ -90,7 +90,7 @@ message Selector {
 }
 
 message Action {
-  string type = 1;   // set_pool | set_tag | retry_pool | drop | set_rcode | rhai
+  string type = 1;   // set_pool | set_tag | set_retry_pool | retry | retry_now | clear_retry | clear_retry_pool | drop | set_rcode | rhai
   string value = 2;
 }
 

@@ -28,10 +28,12 @@ stateDiagram-v2
 
 | Mechanism | Pool for the next attempt |
 |-----------|---------------------------|
-| **`retry`** action | Keeps the [pool](/glossary/index.md#pool) already on the [transaction](/glossary/index.md#transaction) (`selected_pool` from [request rules](/policy-routing/rules-and-actions.md) or the default pool) |
-| **`retry_pool`** action | Uses the pool name in `value` (one-shot override for that [Route](/concepts/architecture-and-packet-path.md#route) only) |
-| **`txn.request_retry()`** in Rhai | Same as **`retry`** — stay in the current pool |
-| **`txn.set_retry_pool("name")`** in Rhai | Same as **`retry_pool`** |
+| **`retry`** or **`retry_now`** action (response) | Keeps the [pool](/glossary/index.md#pool) already on the [transaction](/glossary/index.md#transaction) (`selected_pool` from [request rules](/policy-routing/rules-and-actions.md) or the default pool) |
+| **`set_retry_pool`** + **`retry`** or **`retry_now`** (either hook for `set_retry_pool`; response for retry) | Uses `retry_pool` on the next retry [Route](/concepts/architecture-and-packet-path.md#route) if retry occurs |
+| **`txn.request_retry()`** or **`txn.request_retry_now()`** in Rhai (response) | Same as **`retry`** / **`retry_now`** — stay in the current pool |
+| **`txn.set_retry_pool("name")`** in Rhai | Pool for retry Route if retry occurs; first Route ignores (both hooks) — pair with **`txn.request_retry()`** on the response hook to fail over |
+
+At [Route](/concepts/architecture-and-packet-path.md#route), when `attempt_count > 0` (retry re-entry), Conduit uses `retry_pool` if set, then falls back to `selected_pool`, then the default pool. On the **first** forward (`attempt_count == 0`), `retry_pool` is ignored.
 
 [Response rules](/concepts/architecture-and-packet-path.md#response-rules) run after an upstream answer **or** after a forward **timeout** (still with no stored answer). That lets you retry on **SERVFAIL**, **NXDOMAIN**, slow upstreams, and other conditions you express with [selectors](/glossary/index.md#selector) such as `rcode`.
 
@@ -69,8 +71,9 @@ rules:
         - type: rcode
           value: SERVFAIL
       actions:
-        - type: retry_pool
+        - type: set_retry_pool
           value: secondary
+        - type: retry
 ```
 
 Retry within the same pool (try another [backend](/glossary/index.md#backend) in that pool):
@@ -95,14 +98,15 @@ rules:
         - type: retry
 ```
 
-On **SERVFAIL**, Conduit re-enters at [Route](/concepts/architecture-and-packet-path.md#route). With **`retry_pool`**, the next forward uses that pool’s [backends](/glossary/index.md#backend). With **`retry`**, Conduit keeps the pool from the first attempt and selects a different backend there when more than one is configured.
+On **SERVFAIL**, Conduit re-enters at [Route](/concepts/architecture-and-packet-path.md#route). With **`set_retry_pool`** + **`retry`**, the next forward uses that pool’s [backends](/glossary/index.md#backend). With **`retry`** alone, Conduit keeps the pool from the first attempt and selects a different backend there when more than one is configured.
 
 ### Rhai
 
 On the response hook:
 
-- **`txn.request_retry()`** — retry in the current pool (same as **`retry`** in YAML).
-- **`txn.set_retry_pool("pool-name")`** — retry to a specific pool (same as **`retry_pool`** in YAML).
+- **`txn.request_retry()`** — soft retry in the current pool (same as **`retry`** in YAML).
+- **`txn.request_retry_now()`** — hard retry in the current pool (same as **`retry_now`** in YAML).
+- **`txn.set_retry_pool("pool-name")`** — pool for retry Route if retry occurs; first Route ignores. Add **`txn.request_retry()`** or **`txn.request_retry_now()`** to trigger failover.
 
 See [Rhai](/rhai/index.md) (reference pages in progress).
 
@@ -168,7 +172,7 @@ You can adjust response metadata before [Send](/concepts/architecture-and-packet
 
 ## Related topics
 
-- [Rules and actions](/policy-routing/rules-and-actions.md) — `retry`, `retry_pool`, `set_rcode`, response [selectors](/glossary/index.md#selector)
+- [Rules and actions](/policy-routing/rules-and-actions.md) — `retry`, `retry_now`, `set_retry_pool`, `set_rcode`, response [selectors](/glossary/index.md#selector)
 - [Pools and backends](/policy-routing/pools-and-backends.md) — pool names, weights, default pool
 - [Architecture and packet path](/concepts/architecture-and-packet-path.md) — [Response rules](/concepts/architecture-and-packet-path.md#response-rules), [Send](/concepts/architecture-and-packet-path.md#send), timeouts
 - [Rhai](/rhai/index.md) — `retry()` from response scripts

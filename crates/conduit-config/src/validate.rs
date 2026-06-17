@@ -272,8 +272,13 @@ pub fn validate(cfg: &Config) -> ValidationResult {
                     "set_pool"
                         | "set_tag"
                         | "retry"
-                        | "retry_pool"
+                        | "retry_now"
+                        | "set_retry_pool"
                         | "drop"
+                        | "drop_now"
+                        | "clear_drop"
+                        | "clear_retry"
+                        | "clear_retry_pool"
                         | "set_rcode"
                         | "rhai"
                         | "set_source_v4"
@@ -290,17 +295,19 @@ pub fn validate(cfg: &Config) -> ValidationResult {
                         rule.name
                     ));
                 }
-                if matches!(act.r#type.as_str(), "retry" | "retry_pool" | "set_rcode")
-                    && rule.hook != "response"
+                if matches!(
+                    act.r#type.as_str(),
+                    "retry" | "retry_now" | "clear_retry" | "set_rcode"
+                ) && rule.hook != "response"
                 {
                     errors.push(format!(
                         "rule '{}' action '{}' is only valid on response hook",
                         rule.name, act.r#type
                     ));
                 }
-                if act.r#type == "retry_pool" && act.value.is_empty() {
+                if act.r#type == "set_retry_pool" && act.value.is_empty() {
                     errors.push(format!(
-                        "rule '{}' retry_pool requires a pool name in value",
+                        "rule '{}' set_retry_pool requires a pool name in value",
                         rule.name
                     ));
                 }

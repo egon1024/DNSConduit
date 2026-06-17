@@ -14,6 +14,7 @@ pub struct MockHost {
     pub pool: Option<String>,
     pub retry: Option<String>,
     pub dropped: bool,
+    pub soft_drop: bool,
     pub source_override_v4: Option<Ipv4Addr>,
     pub source_override_v6: Option<Ipv6Addr>,
     pub tags: HashMap<String, bool>,
@@ -65,7 +66,22 @@ impl HostTransaction for MockHost {
         self.retry = Some(name.to_string());
     }
 
-    fn drop_query(&mut self) {}
+    fn set_soft_drop(&mut self) {
+        self.soft_drop = true;
+    }
+
+    fn clear_soft_drop(&mut self) {
+        self.soft_drop = false;
+        self.dropped = false;
+    }
+
+    fn clear_retry_pool(&mut self) {
+        self.retry = None;
+    }
+
+    fn drop_query(&mut self) {
+        self.set_soft_drop();
+    }
 
     fn set_rcode_name(&mut self, name: &str) {
         self.rcode = Some(name.to_string());

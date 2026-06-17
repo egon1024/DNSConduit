@@ -19,6 +19,9 @@ pub trait HostTransaction {
     fn set_tag_string(&mut self, key: &str, value: &str);
     fn set_pool(&mut self, name: &str);
     fn set_retry_pool(&mut self, name: &str);
+    fn set_soft_drop(&mut self);
+    fn clear_soft_drop(&mut self);
+    fn clear_retry_pool(&mut self);
     fn drop_query(&mut self);
     fn set_rcode_name(&mut self, name: &str);
     fn set_source_v4(&mut self, addr: &str);

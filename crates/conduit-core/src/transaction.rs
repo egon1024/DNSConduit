@@ -78,6 +78,8 @@ pub struct Transaction {
     pub started_at: Instant,
     pub snapshot_generation: u64,
     pub dropped: bool,
+    /// Soft drop intent from `drop` / `drop_query()`; resolved at end of the current rule.
+    pub soft_drop: bool,
     /// Rhai/script override for IPv4 egress source (`set_source_v4`).
     pub source_override_v4: Option<std::net::Ipv4Addr>,
     /// Rhai/script override for IPv6 egress source (`set_source_v6`).
@@ -113,6 +115,7 @@ impl Transaction {
             started_at: Instant::now(),
             snapshot_generation: 0,
             dropped: false,
+            soft_drop: false,
             source_override_v4: None,
             source_override_v6: None,
             trace_log: None,
@@ -205,5 +208,18 @@ impl Transaction {
 
     pub fn take_retry_pool(&mut self) -> Option<String> {
         self.retry_pool.take()
+    }
+
+    pub fn set_soft_drop(&mut self) {
+        self.soft_drop = true;
+    }
+
+    pub fn clear_soft_drop(&mut self) {
+        self.soft_drop = false;
+        self.dropped = false;
+    }
+
+    pub fn clear_retry_pool(&mut self) {
+        self.retry_pool = None;
     }
 }

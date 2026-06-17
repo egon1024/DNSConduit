@@ -49,7 +49,7 @@ Example 5: `sample_percent(percent)` uses the same deterministic hash as observa
 |---|--------|--------|----------------|
 | 1 | `set-vip-pool.rhai` | `with-rhai-vip-pool.yaml` (or `with-rhai-minimal.yaml`) | VIP pool routing |
 | 2 | `blocklist.rhai` | `with-rhai-blocklist.yaml` | CSV `table_lookup` + drop |
-| 3 | `servfail-retry.rhai` | `with-rhai-servfail-retry.yaml` | SERVFAIL retry pool |
+| 3 | `servfail-retry.rhai` | `with-rhai-servfail-retry.yaml` | Request `set_retry_pool` + response SERVFAIL retry to backup pool |
 | 4 | `mark-for-dnstap.rhai` | `with-rhai-dnstap-tag.yaml` | Tag-gated dnstap |
 | 5 | `smart-sample.rhai` | `with-rhai-sample.yaml` | Script sampling + `tag_required: sampled` |
 | 6 | `tag-suspicious.rhai` + `slow-login-alert.rhai` | `with-rhai-slow-login.yaml` | Request tag + response metric on slow path |
@@ -57,18 +57,30 @@ Example 5: `sample_percent(percent)` uses the same deterministic hash as observa
 | 8 | `bad-phase.rhai` | `with-rhai-bad-phase.yaml` | Phase guard: `response()` in request hook (fail-open) |
 | 9 | `lookup-demo.rhai` | `with-rhai-lookup-demo.yaml` | Only configured `data_sources` visible to `table_lookup` |
 
+**Manual lab** for ordered actions (`drop`, `drop_now`, `clear_drop`, `set_retry_pool`, rhai interleaving): [`tests/manual/ordered-rule-actions.md`](../../manual/ordered-rule-actions.md) and [`tests/manual/config/09-ordered-actions.yaml`](../../manual/config/09-ordered-actions.yaml).
+
+## Action list order
+
+On a matching rule, **every** `actions:` entry runs top to bottom — built-ins and `type: rhai` are interleaved at the position written. Put critical built-ins **above** a `rhai` step when they must run before script logic or when the script might fail.
+
+Example 3 (`with-rhai-servfail-retry.yaml`): request rule sets `set_pool: primary` and **`set_retry_pool: secondary`** (pool for retry Route if retry occurs — first Route ignores; no retry yet). Response rule runs `servfail-retry.rhai` on **SERVFAIL**, which calls `txn.set_retry_pool("secondary")` and `txn.request_retry()`; the next **Route** uses `retry_pool` when `attempt_count > 0`.
+
 ## Rhai API notes
 
 Some Rhai reserved words require different names in scripts:
 
-| Design / doc name | Script name |
-|-------------------|-------------|
-| `retry(pool)` | `set_retry_pool(pool)` |
-| `retry()` (same pool) | `request_retry()` |
-| `drop()` | `drop_query()` |
-| `lookup(table, key)` | `table_lookup(table, key)` |
-| `question().qname` | `question_qname(txn)` global |
-| `attempt_count()` in `if` | `get_attempt_count()` method |
+| Design / doc name | Script name | Notes |
+|-------------------|-------------|-------|
+| `retry(pool)` | `set_retry_pool(pool)` + `request_retry()` | Pool for retry Route if retry occurs; first Route ignores — pair with `request_retry()` / `request_retry_now()` on response |
+| `retry()` (same pool) | `request_retry()` | Response hook only |
+| `drop()` (soft) | `drop_query()` | Later actions on the rule still run |
+| `drop_now()` (hard) | `drop_query_now()` | Stops further actions on the rule |
+| `clear_drop()` | Clears soft-drop intent on the rule |
+| `clear_retry()` | Clears soft-retry intent on the rule (response hook) |
+| `clear_retry_pool()` | Clears `retry_pool` on the transaction |
+| `lookup(table, key)` | `table_lookup(table, key)` | |
+| `question().qname` | `question_qname(txn)` global | |
+| `attempt_count()` in `if` | `get_attempt_count()` method | |
 
 ## Lookup grant model
 

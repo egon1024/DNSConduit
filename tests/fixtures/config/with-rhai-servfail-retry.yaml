@@ -39,6 +39,8 @@ rules:
       actions:
         - type: set_pool
           value: primary
+        - type: set_retry_pool
+          value: secondary
     - name: servfail-retry
       hook: response
       selectors:

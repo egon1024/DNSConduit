@@ -31,10 +31,10 @@ flowchart TD
 
 1. **[Request rules](/concepts/architecture-and-packet-path.md#request-rules)** run **once** after [Parse](/concepts/architecture-and-packet-path.md#parse). [Selectors](/glossary/index.md#selector) test the query; [actions](/glossary/index.md#action) can set [pool](/glossary/index.md#pool), [tags](/glossary/index.md#tags), upstream egress source, or **drop**. No match → default [pool](/glossary/index.md#pool) path at [Route](/concepts/architecture-and-packet-path.md#route).
 2. **[Route](/concepts/architecture-and-packet-path.md#route)** picks a [backend](/glossary/index.md#backend) in the selected pool (sticky weighted choice on the first attempt).
-3. After an upstream answer or forward timeout, **[Response rules](/concepts/architecture-and-packet-path.md#response-rules)** continue to [Send](/concepts/architecture-and-packet-path.md#send), **drop**, or request a **retry** (`retry` / `retry_pool`) — looping back to **Route**, not re-running request rules.
+3. After an upstream answer or forward timeout, **[Response rules](/concepts/architecture-and-packet-path.md#response-rules)** continue to [Send](/concepts/architecture-and-packet-path.md#send), **drop**, or request a **retry** (`retry` / `retry_now`) — looping back to **Route**, not re-running request rules.
 4. **[Send](/concepts/architecture-and-packet-path.md#send)** returns the final answer (or the transaction ends with drop or synthesized **SERVFAIL** when limits or pool exhaustion apply).
 
-[Rules and actions](/policy-routing/rules-and-actions.md) use **`match_mode: first_match`**: on each hook, Conduit walks the rule list top to bottom and stops at the first rule whose selectors all match. Optional [Rule Rhai](/glossary/index.md#rule-rhai) on a rule runs after built-in actions on that same rule — see [Rhai](/rhai/index.md).
+[Rules and actions](/policy-routing/rules-and-actions.md) use **`match_mode: first_match`**: on each hook, Conduit walks the rule list top to bottom and stops at the first rule whose selectors all match. Actions on that rule — built-in and optional [Rule Rhai](/glossary/index.md#rule-rhai) — run in **list order**. See [Rhai](/rhai/index.md).
 
 ## Read in order
 
