@@ -40,7 +40,7 @@ sequenceDiagram
   Script-->>Hook: txn effects (pool, tags, drop, retry, …)
 ```
 
-Hook placement and what each phase can change: [Hooks and phases](/rhai/hooks-and-phases.md). Method-level detail: [Transaction API](/rhai/transaction-api.md).
+Hook timing, first-match rules, and YAML wiring: [Rules and actions](/policy-routing/rules-and-actions.md). Phase guards and pairing request/response scripts: [Hooks and phases](/rhai/hooks-and-phases.md). Method-level detail: [Transaction API](/rhai/transaction-api.md).
 
 ## Minimal example
 
@@ -114,7 +114,7 @@ Built-in actions on the same rule still ran before the script. Use [Logging](/ob
 
 ## Read in order
 
-1. [Hooks and phases](/rhai/hooks-and-phases.md) — request vs response hook, interaction with built-in actions and first-match rules
+1. [Hooks and phases](/rhai/hooks-and-phases.md) — request vs response from a script author’s view, phase guards, pairing scripts
 2. [Transaction API](/rhai/transaction-api.md) — `txn` methods, phase guards, YAML equivalents
 3. [Sandbox limits](/rhai/sandbox-limits.md) — `rhai:` fields, defaults, tuning and failure behavior
 4. [Data sources and lookups](/rhai/data-sources-and-lookups.md) — `data_sources:` and `table_lookup`
