@@ -14,6 +14,43 @@ Rules live under the top-level **`rules:`** key. In current releases, **`match_m
 
 When **no** rule matches on the request hook, Conduit continues to [Route](/concepts/architecture-and-packet-path.md#route) with the default [pool](/glossary/index.md#pool) path ([Pools and backends](/policy-routing/pools-and-backends.md)). When no rule matches on the response hook, Conduit continues to [Send](/concepts/architecture-and-packet-path.md#send) with the upstream answer or error already on the transaction.
 
+## Request and response hooks
+
+Every query walks the [pipeline phases](/concepts/architecture-and-packet-path.md#pipeline-phases) in order. **Rules** (built-in actions and optional [Rhai](/rhai/index.md) scripts) run only at **Request rules** and **Response rules** — the rule’s `hook:` must match that phase.
+
+| Hook | Pipeline phase | When it runs | Runs again on retry? |
+|------|----------------|--------------|----------------------|
+| **Request** (`hook: request`) | [Request rules](/concepts/architecture-and-packet-path.md#request-rules) | After [Parse](/concepts/architecture-and-packet-path.md#parse), before [Route](/concepts/architecture-and-packet-path.md#route) | **No** — once per transaction |
+| **Response** (`hook: response`) | [Response rules](/concepts/architecture-and-packet-path.md#response-rules) | After [Wait for response](/concepts/architecture-and-packet-path.md#wait-for-response) (answer or timeout), before [Send](/concepts/architecture-and-packet-path.md#send) or another [Route](/concepts/architecture-and-packet-path.md#route) | **Yes** — once per forward attempt |
+
+### Pipeline placement
+
+| Phase {: .column-no-wrap } | Rules run here? |
+|-------|-----------------|
+| [Receive](/concepts/architecture-and-packet-path.md#receive) | No |
+| [Parse](/concepts/architecture-and-packet-path.md#parse) | No |
+| [Request rules](/concepts/architecture-and-packet-path.md#request-rules) | **Yes — request hook** |
+| [Route](/concepts/architecture-and-packet-path.md#route) | No |
+| [Forward](/concepts/architecture-and-packet-path.md#forward) | No |
+| [Wait for response](/concepts/architecture-and-packet-path.md#wait-for-response) | No |
+| [Response rules](/concepts/architecture-and-packet-path.md#response-rules) | **Yes — response hook** |
+| [Send](/concepts/architecture-and-packet-path.md#send) | No |
+
+### Outcomes after each hook
+
+Both hooks can **drop** the query (`drop` action or Rhai `txn.drop_query()` — no DNS reply). There is no separate **accept** action: when policy does not drop, Conduit continues the pipeline.
+
+| Hook | Drop? | If not dropped, continue to… | Retry? |
+|------|-------|------------------------------|--------|
+| **Request rules** | Yes | [Route](/concepts/architecture-and-packet-path.md#route) → Forward → … | No |
+| **Response rules** | Yes | [Send](/concepts/architecture-and-packet-path.md#send) | Yes → [Route](/concepts/architecture-and-packet-path.md#route) (Forward through Response rules again) |
+
+On **retry**, the **request hook does not re-run**; [tags](/glossary/index.md#tags) and pool choice from the first request pass stay on the [transaction](/glossary/index.md#transaction) unless response policy changes them. Global limits and examples: [Retries and transactions](/policy-routing/retries-and-transactions.md).
+
+For sequence diagrams and the full packet path, see [Architecture and packet path](/concepts/architecture-and-packet-path.md).
+
+**Empty selectors** (`selectors: []`) match every query on that hook. Use with care on the response hook: a catch-all response rule runs after **every** forward attempt unless a more specific rule above it matches first.
+
 ```mermaid
 flowchart TD
   Start[Hook runs] --> Walk[Next rule in list]
@@ -98,13 +135,56 @@ Use on `hook: response` — after an upstream answer or forward timeout, before 
 
 ## Scripted policy (Rule Rhai)
 
-When built-in actions are not enough, add **`type: rhai`** to a matching rule’s `actions:` list. Conduit still uses **`match_mode: first_match`** on each hook: only the **first** matching rule runs, and on that rule built-in actions run in list order **before** the script.
+When built-in actions are not enough, add **`type: rhai`** to a matching rule’s `actions:` list. The rule’s **`hook`** selects request vs response; **`value`** is the script path (relative to the [config file directory](/control-plane/config-file.md#path-resolution-base-directory) unless absolute).
 
-The script receives a sandboxed **`txn`** object — policy fields only ([pool](/glossary/index.md#pool), [tags](/glossary/index.md#tags), egress, drop, retry). It does **not** edit DNS wire bytes.
+Conduit still uses **`match_mode: first_match`** on each hook: only the **first** matching rule runs. On that rule:
+
+1. **Built-in actions** run in list order (`set_pool`, `set_tag`, `drop`, …). Entries with **`type: rhai`** are skipped during this pass — they only mark which script to run.
+2. If the rule includes **`rhai`**, Conduit runs the linked `.rhai` file **after** the full built-in pass. The script sees transaction state after those effects (for example an already-set pool or tag).
+
+The **`rhai`** entry can appear anywhere in the action list; the script always runs after all built-ins on that rule, not inline at the `rhai` line.
+
+```yaml
+    - name: geo-route
+      hook: request
+      selectors:
+        - type: qname_suffix
+          value: ".example."
+      actions:
+        - type: set_pool
+          value: default
+        - type: rhai
+          value: scripts/geo-pool.rhai
+```
+
+A script can override YAML effects (for example `txn.set_pool("vip")` after `set_pool: default`). One `.rhai` file can be referenced from multiple rules; Conduit compiles it once per `(rule_name, path)` and runs it only when that rule wins first-match on the matching hook.
+
+Request- and response-hook script examples:
+
+```yaml
+    - name: block-on-list
+      hook: request
+      selectors:
+        - type: qname_suffix
+          value: ".blocked."
+      actions:
+        - type: rhai
+          value: scripts/blocklist.rhai
+    - name: servfail-failover
+      hook: response
+      selectors:
+        - type: rcode
+          value: SERVFAIL
+      actions:
+        - type: rhai
+          value: scripts/servfail-retry.rhai
+```
+
+The script receives a sandboxed **`txn`** object — policy fields only ([pool](/glossary/index.md#pool), [tags](/glossary/index.md#tags), egress, drop, retry). It does **not** edit DNS wire bytes. Phase-specific behavior, guards, and pairing request/response scripts: [Hooks and phases](/rhai/hooks-and-phases.md). Method reference: [Transaction API](/rhai/transaction-api.md).
 
 When [processor chains](/concepts/planned-plugin-models.md#processor-chains-planned) ship, they are planned to refine policy **after** rules on the same [transaction](/glossary/index.md#transaction) — alongside wire editing. See [Policy refinement (planned)](/concepts/planned-plugin-models.md#policy-refinement-planned).
 
-Full reference: [Rhai](/rhai/index.md) (Rule Rhai).
+Overview and when to use scripts: [Rhai](/rhai/index.md).
 
 ## Selectors
 
@@ -204,7 +284,7 @@ Limit **which queries** the rule applies to. Decisions are **deterministic** per
 
 For **`sample_percent` on tracing or event export** (no rule required), see [Tracing](/observability/tracing.md) and [Event export](/observability/event-export.md).
 
-An empty `selectors:` list matches every query on that hook (no conditions from this rule).
+An empty `selectors:` list matches every query on that hook (no conditions from this rule). See [Request and response hooks](#request-and-response-hooks) for the response-hook caveat.
 
 ## Validation errors (common)
 
@@ -231,5 +311,5 @@ Full validation rules: [Reference: rules](/reference/config-schema/rules.md).
 - [Event export](/observability/event-export.md) — request `set_tag` plus sink filters
 - [Tracing](/observability/tracing.md) — `activation.sample_percent` and selectors without a matching rule
 - [Dual-stack forwarding](/guides/dual-stack-forwarding.md) — `set_source_v4` / `set_source_v6`
-- [Rhai](/rhai/index.md) — Rule Rhai on matching rules
+- [Rhai](/rhai/index.md) — Rule Rhai; [Hooks and phases](/rhai/hooks-and-phases.md) for script-specific phase behavior
 - [Planned plugin models](/concepts/planned-plugin-models.md) — [WASM](/glossary/index.md#wasm), [sidecar](/glossary/index.md#sidecar) (not yet shipped)
