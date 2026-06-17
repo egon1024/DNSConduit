@@ -3,7 +3,10 @@
 use crate::connect_retry::ConnectRetryConfig;
 use crate::metrics::SinkMetrics;
 use crate::queue::DropPolicy;
-use crate::selectors::{compile_selectors, validate_non_rule_selector_type, CompiledSelector};
+use crate::selectors::{
+    compile_sample_key_fields, compile_sink_selectors, validate_non_rule_selector_type,
+    CompiledSelector, SampleKey, SelectorCompileCtx,
+};
 use conduit_proto::config::{Config, EventSink, EventSinkFilters, EventsConfig};
 use conduit_proto::paths::resolve_config_path;
 use std::collections::HashMap;
@@ -180,6 +183,7 @@ pub struct CompiledSinkFilters {
     pub selectors: Vec<CompiledSelector>,
     pub tag_required: Option<String>,
     pub sample_percent: f64,
+    pub sample_key: SampleKey,
     pub pool: Option<String>,
     pub backend: Option<String>,
 }
@@ -190,6 +194,7 @@ impl Default for CompiledSinkFilters {
             selectors: Vec::new(),
             tag_required: None,
             sample_percent: 100.0,
+            sample_key: SampleKey::Global,
             pool: None,
             backend: None,
         }
@@ -204,7 +209,10 @@ pub fn parse_sample_percent(percent: Option<f64>) -> Result<f64, String> {
     }
 }
 
-pub fn parse_sink_filters(f: Option<&EventSinkFilters>) -> Result<CompiledSinkFilters, String> {
+pub fn parse_sink_filters(
+    f: Option<&EventSinkFilters>,
+    sink_name: &str,
+) -> Result<CompiledSinkFilters, String> {
     let Some(f) = f else {
         return Ok(CompiledSinkFilters {
             sample_percent: 100.0,
@@ -221,10 +229,22 @@ pub fn parse_sink_filters(f: Option<&EventSinkFilters>) -> Result<CompiledSinkFi
         return Err("events filters.backend must not be empty".into());
     }
     let tag_required = f.tag_required.clone().filter(|t| !t.is_empty());
+    let ctx = SelectorCompileCtx {
+        rule_name: None,
+        sink_name: Some(sink_name.to_string()),
+    };
+    let sample_key = compile_sample_key_fields(
+        f.sample_key.as_deref(),
+        f.sample_key_from.as_deref(),
+        &ctx,
+        false,
+        true,
+    )?;
     Ok(CompiledSinkFilters {
-        selectors: compile_selectors(&f.selectors),
+        selectors: compile_sink_selectors(sink_name, &f.selectors),
         tag_required,
         sample_percent: parse_sample_percent(f.sample_percent)?,
+        sample_key,
         pool: f.pool.clone().filter(|p| !p.is_empty()),
         backend: f.backend.clone().filter(|b| !b.is_empty()),
     })
@@ -336,7 +356,7 @@ pub(crate) fn compile_one_sink(
         return None;
     }
     let emit = normalize_emit(&s.emit);
-    let filters = parse_sink_filters(s.filters.as_ref()).ok()?;
+    let filters = parse_sink_filters(s.filters.as_ref(), &identity.name).ok()?;
     let extra_fields = parse_extra_fields(&s.extra_fields).ok()?;
     let has_tags = extra_fields.contains(&ExtraField::Tags);
     let tag_export = parse_extra_tags(&s.extra_tags, has_tags).ok()?;

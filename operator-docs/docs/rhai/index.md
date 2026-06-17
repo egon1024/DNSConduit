@@ -11,7 +11,7 @@ Built-in [selectors](/glossary/index.md#selector) and [actions](/glossary/index.
 - Branch on a [lookup table](/rhai/data-sources-and-lookups.md) (`table_lookup`) on the **request** hook — for example map qname to a pool before [Route](/concepts/architecture-and-packet-path.md#route), instead of a long static rule list
 - Combine several checks in one script — for example upstream [rcode](/glossary/index.md#rcode) **and** a [tag](/glossary/index.md#tags) set on the request hook → `set_retry_pool("backup")` and `request_retry()` on the **response** hook
 - Set [tags](/glossary/index.md#tags) that drive [event export](/observability/event-export.md) filters or [tracing](/observability/tracing.md) activation
-- Apply deterministic per-transaction sampling in scripts with `txn.sample_percent(percent)` (`0..100`)
+- Apply deterministic per-transaction sampling in scripts with `txn.sample_percent(percent)` or `txn.sample_percent(percent, key)` (`0..100`; optional key salt matches YAML `key`)
 - Publish custom counters (`conduit_user_*`) from policy — [User metrics](/rhai/user-metrics.md)
 
 If declarative YAML is enough, prefer [Rules and actions](/policy-routing/rules-and-actions.md). Rule Rhai adds flexibility and operational surface (script files, [sandbox limits](/rhai/sandbox-limits.md), compile-time checks on reload), but runs an interpreted script on the query path for each matching rule — **higher per-query cost** than built-in actions alone. Prefer built-in selectors and actions when they express the same policy.

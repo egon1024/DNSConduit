@@ -43,8 +43,10 @@ Unknown names fail validation.
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `tag_required` | string | — | Transaction must have this tag key |
-| `selectors` | list | `[]` | [Selector](/glossary/index.md#selector) objects (`type`, `value`); same types as [rules](/reference/config-schema/rules.md). All must match |
-| `sample_percent` | float | **100** | Must be in **[0, 100]**; deterministic per-transaction sampling |
+| `selectors` | list | `[]` | [Selector](/glossary/index.md#selector) objects (`type`, `value`, optional `key` / `key_from` on `sample_percent`); same types as [rules](/reference/config-schema/rules.md). All must match |
+| `sample_percent` | float | **100** | Must be in **[0, 100]**; deterministic sampling |
+| `sample_key` | string | — | Optional static salt for top-level `sample_percent` |
+| `sample_key_from` | string | — | Optional `qname` or `sink_name` for top-level `sample_percent` |
 | `pool` | string | — | Match selected pool (`response` / `retry` only) |
 | `backend` | string | — | Match selected backend address (`response` / `retry` only) |
 

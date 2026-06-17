@@ -2,7 +2,7 @@
 
 use crate::compile::CompiledSinkFilters;
 use crate::event::EventKind;
-use crate::selectors::{hash_sample, SelectorMatchCtx};
+use crate::selectors::{hash_sample_keyed, resolve_sample_key, SelectorMatchCtx};
 use crate::view::TxnView;
 
 pub fn sink_event_matches(
@@ -44,5 +44,14 @@ pub fn sink_event_matches(
         }
     }
 
-    hash_sample(view.txn_id, filters.sample_percent / 100.0)
+    let ctx = SelectorMatchCtx {
+        txn_id: view.txn_id,
+        global_query_index: view.global_query_index,
+        qname: view.qname,
+        qtype_label: view.qtype_label.clone(),
+        rcode_label: view.extra.rcode_label.clone(),
+        tag_has,
+    };
+    let salt = resolve_sample_key(&filters.sample_key, &ctx);
+    hash_sample_keyed(view.txn_id, filters.sample_percent / 100.0, salt.as_deref())
 }

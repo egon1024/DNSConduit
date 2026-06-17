@@ -1,0 +1,67 @@
+schema_version: 1
+listeners:
+  threads: 1
+  reuse_port: true
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+forward:
+  outstanding_per_backend: 100
+  timeout_ms: 2000
+orchestrator:
+  max_attempts: 3
+  max_txn_duration_ms: 5000
+  txn_table_capacity: 1024
+rules:
+  match_mode: first_match
+  rules:
+    - name: sample-internal-zone
+      hook: request
+      selectors:
+        - type: qname_suffix
+          value: ".internal.example."
+        - type: sample_percent
+          value: "25"
+          key: "internal.example"
+      actions:
+        - type: set_tag
+          value: sampled_internal=true
+    - name: sample-per-qname
+      hook: request
+      selectors:
+        - type: sample_percent
+          value: "10"
+          key_from: rule_name
+      actions:
+        - type: set_tag
+          value: rule_sampled=true
+events:
+  queue_depth: 8192
+  drop_policy: drop_oldest
+  sinks:
+    - type: dnstap
+      name: keyed-tap
+      destinations:
+        - "unix:/tmp/conduit-dnstap-keyed.sock"
+      emit:
+        - query
+      filters:
+        sample_percent: 100
+        sample_key_from: sink_name
+rhai:
+  max_operations: 10000
+  max_call_depth: 32
+tracing:
+  enabled: true
+  activation:
+    sample_percent: 50
+    sample_key_from: qname
+  output:
+    log_json: true
+pools:
+  - name: default
+    backends:
+      - address: "127.0.0.1:5300"
+        weight: 100
+control:
+  listen_address: "127.0.0.1:5199"

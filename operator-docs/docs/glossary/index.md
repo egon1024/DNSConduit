@@ -110,7 +110,9 @@ Condition on a [rule](/policy-routing/rules-and-actions.md) that tests query or 
 
 ### sample_percent
 
-Deterministic selector/filter sampling control with a **`0..100`** percentage scale. `0` never matches and `100` always matches for sampling checks. On [rules](/policy-routing/rules-and-actions.md), use selector type **`sample_percent`**. On [tracing](/observability/tracing.md) and [event export](/observability/event-export.md), use top-level **`sample_percent`** on activation or sink filters.
+Deterministic sampling on a **`0..100`** scale. `0` never matches; `100` always matches. By default the hash uses the transaction id only. Optional **`key`** (static string) or **`key_from`** (`qname`, `rule_name` on rules, `sink_name` on event sinks) selects an independent bucket namespace — see [Sampling and cadence](/policy-routing/rules-and-actions.md#sampling-and-cadence).
+
+On [rules](/policy-routing/rules-and-actions.md), use selector type **`sample_percent`** with optional `key` / `key_from`. On [tracing](/observability/tracing.md) and [event export](/observability/event-export.md), use top-level **`sample_percent`** with optional **`sample_key`** / **`sample_key_from`**. Rhai: `txn.sample_percent(percent)` or `txn.sample_percent(percent, key)`.
 
 → [Sampling and cadence](/policy-routing/rules-and-actions.md#sampling-and-cadence), [Event export](/observability/event-export.md), [Tracing](/observability/tracing.md)
 

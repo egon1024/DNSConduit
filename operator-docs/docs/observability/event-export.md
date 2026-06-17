@@ -111,7 +111,9 @@ Per-sink **`filters`** limit which transactions reach that sink. All configured 
 |--------|------------|---------|
 | **`tag_required`** | All emit kinds | Transaction must have the named [tag](/glossary/index.md#tags) (key presence; set via `set_tag` / Rhai) |
 | **`selectors`** | All emit kinds | Same [selector](/glossary/index.md#selector) types as [rules](/policy-routing/rules-and-actions.md): `qname_suffix`, `qname_exact`, `qtype`, `rcode`, `tag`. **All** selectors must match |
-| **`sample_percent`** | All emit kinds | Float in **[0, 100]**; deterministic per-transaction sampling (default **100** = no sampling) |
+| **`sample_percent`** | All emit kinds | Float in **[0, 100]**; deterministic sampling (default **100** = no sampling) |
+| **`sample_key`** | All emit kinds | Optional static salt for top-level `sample_percent` |
+| **`sample_key_from`** | All emit kinds | Optional `qname` or `sink_name` — dynamic salt for top-level `sample_percent` |
 | **`pool`** | **`response`** and **`retry`** only | Selected pool name must match |
 | **`backend`** | **`response`** and **`retry`** only | Selected backend address must match (`ip:port` string) |
 

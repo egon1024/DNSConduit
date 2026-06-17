@@ -26,10 +26,14 @@ pub use hub::EventHub;
 pub use metrics::{SinkMetrics, SinkMetricsSnapshot};
 pub use queue::DropPolicy;
 pub use selectors::{
-    compile_selectors, hash_sample, parse_every_nth,
-    parse_sample_percent as parse_selector_sample_percent, validate_non_rule_selector_type,
-    validate_selector_type, CompiledSelector, SelectorMatchCtx, NON_RULE_SELECTOR_TYPES,
-    SELECTOR_TYPES,
+    compile_rule_selectors, compile_sample_key_fields, compile_selectors,
+    compile_selectors_with_ctx, compile_sink_selectors, hash_sample, hash_sample_keyed,
+    parse_every_nth, parse_sample_percent as parse_selector_sample_percent,
+    resolve_sample_key, validate_non_rule_selector_type, validate_sample_key_from,
+    validate_selector_sample_key_fields, validate_top_level_sample_key_fields,
+    validate_selector_type, CompiledSelector, PercentKey, SampleKey, SelectorCompileCtx,
+    SelectorMatchCtx, NON_RULE_SELECTOR_TYPES, SAMPLE_KEY_FROM_QNAME,
+    SAMPLE_KEY_FROM_RULE_NAME, SAMPLE_KEY_FROM_SINK_NAME, SELECTOR_TYPES,
 };
 pub use sink::EventSink;
 pub use view::{TxnExtraSource, TxnView};

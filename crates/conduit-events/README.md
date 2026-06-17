@@ -47,14 +47,14 @@ events:
           - type: qtype
             value: "A"
         tag_required: audit       # optional; AND with selectors
-        sample_percent: 10        # optional; [0, 100]; stable per txn_id
+        sample_percent: 10        # optional; [0, 100]; stable per txn_id (optional sample_key / sample_key_from)
         pool: default             # response/retry only
         backend: "10.0.0.1:53"    # response/retry only
 ```
 
 Selector types match built-in rules: `qname_suffix`, `qname_exact`, `qtype`, `rcode`, `tag`. **Query** dnstap is emitted after **RequestRules**, so request-phase tags can gate query export.
 
-Fixtures: `tests/fixtures/config/with-dnstap-filters.yaml`, `with-dnstap-sample.yaml`.
+Fixtures: `tests/fixtures/config/with-dnstap-filters.yaml`, `with-dnstap-sample.yaml`, `with-sample-key.yaml`.
 
 ## Per-sink metrics snapshot
 

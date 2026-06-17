@@ -52,6 +52,8 @@ message TracingActivation {
   optional string tag = 1;
   repeated Selector selectors = 2;
   optional double sample_percent = 3;  // 0-100 deterministic sampling
+  optional string sample_key = 4;    // static salt for sample_percent (optional)
+  optional string sample_key_from = 5; // qname — dynamic salt for sample_percent
 }
 
 message TracingOutput {
@@ -87,6 +89,8 @@ message Rule {
 message Selector {
   string type = 1;   // qname_suffix | qname_exact | qtype | rcode | tag | sample_percent | every_nth_worker | every_nth_global
   string value = 2;
+  optional string key = 3;       // sample_percent only: static salt (optional)
+  optional string key_from = 4;  // sample_percent only: qname | rule_name | sink_name
 }
 
 message Action {
@@ -135,6 +139,8 @@ message EventSinkFilters {
   optional double sample_percent = 3;  // 0-100 deterministic sampling
   optional string pool = 4;
   optional string backend = 5;
+  optional string sample_key = 6;    // static salt for sample_percent (optional)
+  optional string sample_key_from = 7; // qname | sink_name — dynamic salt for sample_percent
 }
 
 message ConnectRetry {

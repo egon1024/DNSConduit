@@ -2,7 +2,7 @@ use crate::compile::{CompiledScript, CompiledScripting, ScriptLimits};
 use crate::data_sources::DataSourceStore;
 use crate::host::{HostTransaction, ScriptPhase};
 use crate::metrics::MetricRegistry;
-use conduit_events::hash_sample;
+use conduit_events::hash_sample_keyed;
 use rhai::{Dynamic, Engine, EvalAltResult, Scope};
 #[cfg(test)]
 use std::cell::Cell;
@@ -78,6 +78,7 @@ fn register_host_api(engine: &mut Engine) {
         .register_fn("set_source_v4", RhaiTxn::set_source_v4)
         .register_fn("set_source_v6", RhaiTxn::set_source_v6)
         .register_fn("sample_percent", RhaiTxn::sample_percent)
+        .register_fn("sample_percent", RhaiTxn::sample_percent_keyed)
         .register_fn("metric_inc", RhaiTxn::metric_inc)
         .register_fn("metric_inc_labels", RhaiTxn::metric_inc_labels)
         .register_fn("elapsed_ms", RhaiTxn::elapsed_ms)
@@ -161,7 +162,7 @@ struct ScriptEffects {
     soft_drop: bool,
     hard_drop: bool,
     clear_soft_drop: bool,
-    sample_decision: Option<bool>,
+    sample_decisions: HashMap<(u16, String), bool>,
     source_override_v4: Option<std::net::Ipv4Addr>,
     source_override_v6: Option<std::net::Ipv6Addr>,
     user_metric_flushes: Vec<UserMetricFlush>,
@@ -340,15 +341,22 @@ impl RhaiTxn {
     }
 
     fn sample_percent(&mut self, percent: f64) -> bool {
+        self.sample_percent_keyed(percent, "")
+    }
+
+    fn sample_percent_keyed(&mut self, percent: f64, key: &str) -> bool {
         let Ok(mut fx) = self.effects.lock() else {
             return false;
         };
-        if let Some(decision) = fx.sample_decision {
-            return decision;
-        }
         let clamped = percent.clamp(0.0, 100.0);
-        let decision = hash_sample(self.txn_id, clamped / 100.0);
-        fx.sample_decision = Some(decision);
+        let percent_key = (clamped * 100.0).round() as u16;
+        let cache_key = (percent_key, key.to_string());
+        if let Some(decision) = fx.sample_decisions.get(&cache_key) {
+            return *decision;
+        }
+        let salt = if key.is_empty() { None } else { Some(key) };
+        let decision = hash_sample_keyed(self.txn_id, clamped / 100.0, salt);
+        fx.sample_decisions.insert(cache_key, decision);
         if decision {
             fx.tags_bool.insert("sampled".into(), true);
         }
@@ -569,7 +577,7 @@ fn run_one(
         soft_drop: fx.soft_drop,
         hard_drop: fx.hard_drop,
         clear_soft_drop: fx.clear_soft_drop,
-        sample_decision: fx.sample_decision,
+        sample_decisions: HashMap::new(),
         source_override_v4: fx.source_override_v4,
         source_override_v6: fx.source_override_v6,
         user_metric_flushes: fx.user_metric_flushes.clone(),
