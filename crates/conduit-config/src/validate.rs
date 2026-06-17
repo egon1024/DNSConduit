@@ -179,12 +179,21 @@ pub fn validate(cfg: &Config) -> ValidationResult {
             }
             if let Some(ref filters) = sink.filters {
                 for (j, sel) in filters.selectors.iter().enumerate() {
-                    if let Err(e) = conduit_events::validate_selector_type(sel.r#type.as_str()) {
+                    if let Err(e) =
+                        conduit_events::validate_non_rule_selector_type(sel.r#type.as_str())
+                    {
                         errors.push(format!("events.sinks[{i}].filters.selectors[{j}]: {e}"));
                     }
+                    if sel.r#type == "sample_percent"
+                        && conduit_events::parse_selector_sample_percent(&sel.value).is_err()
+                    {
+                        errors.push(format!(
+                            "events.sinks[{i}].filters.selectors[{j}] sample_percent must be in [0, 100]"
+                        ));
+                    }
                 }
-                if let Some(rate) = filters.sample_rate {
-                    if let Err(e) = conduit_events::parse_sample_rate(Some(rate)) {
+                if let Some(percent) = filters.sample_percent {
+                    if let Err(e) = conduit_events::parse_sample_percent(Some(percent)) {
                         errors.push(format!("events.sinks[{i}].filters: {e}"));
                     }
                 }
@@ -226,10 +235,33 @@ pub fn validate(cfg: &Config) -> ValidationResult {
             for sel in &rule.selectors {
                 if !matches!(
                     sel.r#type.as_str(),
-                    "qname_suffix" | "qname_exact" | "qtype" | "rcode" | "tag"
+                    "qname_suffix"
+                        | "qname_exact"
+                        | "qtype"
+                        | "rcode"
+                        | "tag"
+                        | "sample_percent"
+                        | "every_nth_worker"
+                        | "every_nth_global"
                 ) {
                     errors.push(format!(
                         "rule '{}' has unknown selector type '{}'",
+                        rule.name, sel.r#type
+                    ));
+                }
+                if sel.r#type == "sample_percent"
+                    && conduit_events::parse_selector_sample_percent(&sel.value).is_err()
+                {
+                    errors.push(format!(
+                        "rule '{}' selector sample_percent must be a float in [0, 100]",
+                        rule.name
+                    ));
+                }
+                if matches!(sel.r#type.as_str(), "every_nth_worker" | "every_nth_global")
+                    && conduit_events::parse_every_nth(&sel.value).is_err()
+                {
+                    errors.push(format!(
+                        "rule '{}' selector '{}' requires integer value >= 1",
                         rule.name, sel.r#type
                     ));
                 }
@@ -506,22 +538,22 @@ control:
         let cfg = load_yaml(yaml).unwrap();
         assert!(validate(&cfg).ok);
         let snap = conduit_events::compile_from_config(&cfg, None);
-        assert!((snap.sinks[0].filters.sample_rate - 0.1).abs() < f64::EPSILON);
+        assert!((snap.sinks[0].filters.sample_percent - 10.0).abs() < f64::EPSILON);
         assert_eq!(snap.sinks[0].filters.pool.as_deref(), Some("default"));
     }
 
     #[test]
-    fn reject_invalid_sample_rate() {
+    fn reject_invalid_sample_percent() {
         let yaml = include_str!("../../../tests/fixtures/config/with-dnstap-sample.yaml");
         let mut cfg = load_yaml(yaml).unwrap();
         cfg.events.as_mut().unwrap().sinks[0]
             .filters
             .as_mut()
             .unwrap()
-            .sample_rate = Some(0.0);
+            .sample_percent = Some(101.0);
         let result = validate(&cfg);
         assert!(!result.ok);
-        assert!(result.errors.iter().any(|e| e.contains("sample_rate")));
+        assert!(result.errors.iter().any(|e| e.contains("sample_percent")));
     }
 
     #[test]
@@ -553,7 +585,7 @@ control:
     }
 
     #[test]
-    fn reject_invalid_tracing_sample_rate() {
+    fn reject_invalid_tracing_sample_percent() {
         let yaml = include_str!("../../../tests/fixtures/config/with-tracing-selectors.yaml");
         let mut cfg = load_yaml(yaml).unwrap();
         cfg.tracing
@@ -562,10 +594,54 @@ control:
             .activation
             .as_mut()
             .unwrap()
-            .sample_rate = Some(0.0);
+            .sample_percent = Some(101.0);
         let result = validate(&cfg);
         assert!(!result.ok);
-        assert!(result.errors.iter().any(|e| e.contains("sample_rate")));
+        assert!(result.errors.iter().any(|e| e.contains("sample_percent")));
+    }
+
+    #[test]
+    fn reject_every_nth_selector_in_events_filters() {
+        let yaml = include_str!("../../../tests/fixtures/config/with-dnstap-filters.yaml");
+        let mut cfg = load_yaml(yaml).unwrap();
+        cfg.events.as_mut().unwrap().sinks[0]
+            .filters
+            .as_mut()
+            .unwrap()
+            .selectors
+            .push(conduit_proto::config::Selector {
+                r#type: "every_nth_worker".into(),
+                value: "4".into(),
+            });
+        let result = validate(&cfg);
+        assert!(!result.ok);
+        assert!(result
+            .errors
+            .iter()
+            .any(|e| e.contains("only valid in rules selectors")));
+    }
+
+    #[test]
+    fn reject_every_nth_selector_in_tracing_activation() {
+        let yaml = include_str!("../../../tests/fixtures/config/with-tracing-selectors.yaml");
+        let mut cfg = load_yaml(yaml).unwrap();
+        cfg.tracing
+            .as_mut()
+            .unwrap()
+            .activation
+            .as_mut()
+            .unwrap()
+            .selectors
+            .push(conduit_proto::config::Selector {
+                r#type: "every_nth_global".into(),
+                value: "8".into(),
+            });
+        let result = validate(&cfg);
+        assert!(!result.ok);
+        assert!(result
+            .errors
+            .iter()
+            .any(|e| e.contains("only valid in rules selectors")));
     }
 
     #[test]

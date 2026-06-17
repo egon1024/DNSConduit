@@ -21,7 +21,7 @@ tracing:
     selectors:
       - type: qtype
         value: A
-    sample_rate: 1.0
+    sample_percent: 100
   output:
     log_json: false
 ```
@@ -66,9 +66,9 @@ Non-matching queries pay **no** trace allocation cost.
 |-------|---------|
 | **`activation.tag`** | Transaction must have the named tag key (same semantics as `tag_required` on [event export](/observability/event-export.md) sinks) |
 | **`activation.selectors`** | [Selector](/glossary/index.md#selector) list — same types as [rules](/policy-routing/rules-and-actions.md): `qname_suffix`, `qname_exact`, `qtype`, `rcode`, `tag`. **All** must match |
-| **`activation.sample_rate`** | Float in **(0, 1]**; deterministic per-transaction sampling (default **1.0**). Uses the same algorithm as event-export `sample_rate` |
+| **`activation.sample_percent`** | Float in **[0, 100]**; deterministic per-transaction sampling (default **100**). Uses the same algorithm as event-export `sample_percent` |
 
-When **`activation`** is omitted, every transaction matches (subject to **`sample_rate`** default **1.0**).
+When **`activation`** is omitted, every transaction matches (subject to **`sample_percent`** default **100**).
 
 Example — trace only `A` queries that carry a `debug` tag:
 
@@ -80,7 +80,7 @@ tracing:
     selectors:
       - type: qtype
         value: A
-    sample_rate: 0.25
+    sample_percent: 25
 ```
 
 Tag the transaction in [Request rules](/policy-routing/rules-and-actions.md) (or [Rhai](/rhai/index.md)) before activation runs:
@@ -161,7 +161,7 @@ Use this for ad hoc debugging or shipping traces to a log aggregator. It is sepa
 | **Enabled, activation does not match** | Activation check only |
 | **Enabled, trace captured** | Per-phase append + store insert at completion |
 
-Keep tracing **disabled** in production unless you need it. Use **activation** (`tag`, selectors, **`sample_rate`**) to limit volume — same spirit as [event export](/observability/event-export.md) filters.
+Keep tracing **disabled** in production unless you need it. Use **activation** (`tag`, selectors, **`sample_percent`**) to limit volume — same spirit as [event export](/observability/event-export.md) filters.
 
 Built-in [phase histograms](/observability/built-in-metrics.md) (`conduit_phase_duration_seconds`, **`full`** profile) provide aggregate timing without per-query storage.
 

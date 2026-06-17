@@ -210,6 +210,7 @@ mod tests {
     fn sample_view(id: u64) -> TxnView<'static> {
         TxnView {
             txn_id: id,
+            global_query_index: id,
             client_addr: SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 53),
             protocol_udp: true,
             qname: Some("x"),
@@ -416,7 +417,7 @@ mod tests {
                 filters: Some(EventSinkFilters {
                     tag_required: Some("vip".into()),
                     selectors: vec![],
-                    sample_rate: None,
+                    sample_percent: None,
                     pool: None,
                     backend: None,
                 }),
@@ -446,7 +447,7 @@ mod tests {
                     r#type: "qtype".into(),
                     value: "AAAA".into(),
                 }],
-                sample_rate: None,
+                sample_percent: None,
                 pool: None,
                 backend: None,
             }),
@@ -463,7 +464,7 @@ mod tests {
     }
 
     #[test]
-    fn sample_rate_zero_enqueues_none_at_rate_zero_validation() {
+    fn sample_percent_reduces_enqueued_volume() {
         let cfg = test_config(vec![EventSink {
             r#type: "dnstap".into(),
             export_id: "sample".into(),
@@ -472,7 +473,7 @@ mod tests {
             filters: Some(EventSinkFilters {
                 tag_required: None,
                 selectors: vec![],
-                sample_rate: Some(0.01),
+                sample_percent: Some(1.0),
                 pool: None,
                 backend: None,
             }),

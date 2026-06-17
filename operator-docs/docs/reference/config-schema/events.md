@@ -44,7 +44,7 @@ Unknown names fail validation.
 |-------|------|---------|-------------|
 | `tag_required` | string | — | Transaction must have this tag key |
 | `selectors` | list | `[]` | [Selector](/glossary/index.md#selector) objects (`type`, `value`); same types as [rules](/reference/config-schema/rules.md). All must match |
-| `sample_rate` | float | **1.0** | Must be in **(0, 1]**; deterministic per-transaction sampling |
+| `sample_percent` | float | **100** | Must be in **[0, 100]**; deterministic per-transaction sampling |
 | `pool` | string | — | Match selected pool (`response` / `retry` only) |
 | `backend` | string | — | Match selected backend address (`response` / `retry` only) |
 
@@ -71,7 +71,7 @@ Unknown names fail validation.
 | Valid `extra_fields` names | `unknown events extra_fields entry '…'` |
 | `extra_tags` without `tags` in `extra_fields` | `extra_tags requires 'tags' in extra_fields` |
 | `extra_tags` cannot mix `*` with other keys | validation error |
-| `sample_rate` in (0, 1] | `sample_rate must be in (0, 1]` |
+| `sample_percent` in [0, 100] | `sample_percent must be in [0, 100]` |
 | Valid selector `type` in filters | `unknown selector type '…'` |
 
 Validate with `conduitctl validate --file …` or load via the running process; see [Config file](/control-plane/config-file.md).
@@ -94,7 +94,7 @@ events:
         - response
         - retry
       filters:
-        sample_rate: 0.25
+        sample_percent: 25
         selectors:
           - type: qname_suffix
             value: "corp.example."

@@ -109,7 +109,7 @@ tracing:
     selectors:
       - type: qtype
         value: A
-    sample_rate: 1.0
+    sample_percent: 100
   output:
     log_json: false
 ```

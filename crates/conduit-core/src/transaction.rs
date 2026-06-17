@@ -54,6 +54,7 @@ impl TagSet {
 
 pub struct Transaction {
     pub id: u64,
+    pub global_query_index: u64,
     pub tags: TagSet,
     pub current_phase: Phase,
     pub query_wire: Vec<u8>,
@@ -90,6 +91,7 @@ impl Transaction {
     pub fn new(id: u64, client_addr: SocketAddr, protocol: ClientProtocol) -> Self {
         Self {
             id,
+            global_query_index: 0,
             tags: TagSet::default(),
             current_phase: Phase::Receive,
             query_wire: Vec::new(),
@@ -145,6 +147,11 @@ impl Transaction {
 
     pub fn with_listener_label(mut self, label: impl Into<String>) -> Self {
         self.listener_label = Some(label.into());
+        self
+    }
+
+    pub fn with_global_query_index(mut self, global_query_index: u64) -> Self {
+        self.global_query_index = global_query_index;
         self
     }
 

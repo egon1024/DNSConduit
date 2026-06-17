@@ -23,7 +23,7 @@ events:
       emit:
         - response
       filters:
-        sample_rate: 0.1
+        sample_percent: 10
         pool: default
       extra_fields:
         - pool

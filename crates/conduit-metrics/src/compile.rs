@@ -1,8 +1,8 @@
 //! Compile metrics and tracing sections from config.
 
 use conduit_events::{
-    compile_selectors, hash_sample, parse_sample_rate, validate_selector_type, CompiledSelector,
-    SelectorMatchCtx,
+    compile_selectors, hash_sample, parse_sample_percent, validate_non_rule_selector_type,
+    CompiledSelector, SelectorMatchCtx,
 };
 use conduit_proto::config::{Config, MetricsConfig, TracingConfig};
 
@@ -54,7 +54,7 @@ pub struct CompiledTracing {
 pub struct CompiledTraceActivation {
     pub tag_required: Option<String>,
     pub selectors: Vec<CompiledSelector>,
-    pub sample_rate: f64,
+    pub sample_percent: f64,
 }
 
 pub fn compile_from_config(config: &Config) -> (CompiledMetrics, CompiledTracing) {
@@ -135,18 +135,26 @@ fn compile_tracing(t: Option<&TracingConfig>) -> CompiledTracing {
     }
     let activation = t.activation.as_ref();
     let selectors = activation
-        .map(|a| compile_selectors(&a.selectors))
+        .map(|a| {
+            let allowed: Vec<_> = a
+                .selectors
+                .iter()
+                .filter(|sel| validate_non_rule_selector_type(sel.r#type.as_str()).is_ok())
+                .cloned()
+                .collect();
+            compile_selectors(&allowed)
+        })
         .unwrap_or_default();
-    let sample_rate = activation
-        .and_then(|a| parse_sample_rate(a.sample_rate).ok())
-        .unwrap_or(1.0);
+    let sample_percent = activation
+        .and_then(|a| parse_sample_percent(a.sample_percent).ok())
+        .unwrap_or(100.0);
     let tag_required = activation.and_then(|a| a.tag.as_ref().filter(|s| !s.is_empty()).cloned());
     CompiledTracing {
         enabled: true,
         activation: CompiledTraceActivation {
             tag_required,
             selectors,
-            sample_rate,
+            sample_percent,
         },
         log_json: t.output.as_ref().map(|o| o.log_json).unwrap_or(false),
     }
@@ -168,6 +176,8 @@ pub fn trace_activation_matches(
     }
     if !activation.selectors.is_empty() {
         let ctx = SelectorMatchCtx {
+            txn_id,
+            global_query_index: 0,
             qname,
             qtype_label,
             rcode_label,
@@ -177,7 +187,7 @@ pub fn trace_activation_matches(
             return false;
         }
     }
-    hash_sample(txn_id, activation.sample_rate)
+    hash_sample(txn_id, activation.sample_percent / 100.0)
 }
 
 pub fn validate_metrics_tracing(cfg: &Config) -> Vec<String> {
@@ -215,12 +225,19 @@ pub fn validate_metrics_tracing(cfg: &Config) -> Vec<String> {
         if t.enabled {
             if let Some(a) = &t.activation {
                 for (j, sel) in a.selectors.iter().enumerate() {
-                    if let Err(e) = validate_selector_type(sel.r#type.as_str()) {
+                    if let Err(e) = validate_non_rule_selector_type(sel.r#type.as_str()) {
                         errors.push(format!("tracing.activation.selectors[{j}]: {e}"));
                     }
+                    if sel.r#type == "sample_percent"
+                        && conduit_events::parse_selector_sample_percent(&sel.value).is_err()
+                    {
+                        errors.push(format!(
+                            "tracing.activation.selectors[{j}] sample_percent must be in [0, 100]"
+                        ));
+                    }
                 }
-                if let Some(rate) = a.sample_rate {
-                    if let Err(e) = parse_sample_rate(Some(rate)) {
+                if let Some(percent) = a.sample_percent {
+                    if let Err(e) = parse_sample_percent(Some(percent)) {
                         errors.push(format!("tracing.activation: {e}"));
                     }
                 }
@@ -238,7 +255,7 @@ mod tests {
     #[test]
     fn trace_sample_stable() {
         let activation = CompiledTraceActivation {
-            sample_rate: 0.5,
+            sample_percent: 50.0,
             ..Default::default()
         };
         let id = 42u64;
@@ -280,7 +297,7 @@ mod tests {
                         r#type: "qtype".into(),
                         value: "A".into(),
                     }],
-                    sample_rate: Some(1.0),
+                    sample_percent: Some(100.0),
                 }),
                 output: Some(TracingOutput { log_json: true }),
             }),

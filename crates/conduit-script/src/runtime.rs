@@ -72,7 +72,7 @@ fn register_host_api(engine: &mut Engine) {
         .register_fn("set_rcode", RhaiTxn::set_rcode)
         .register_fn("set_source_v4", RhaiTxn::set_source_v4)
         .register_fn("set_source_v6", RhaiTxn::set_source_v6)
-        .register_fn("sample_include", RhaiTxn::sample_include)
+        .register_fn("sample_percent", RhaiTxn::sample_percent)
         .register_fn("metric_inc", RhaiTxn::metric_inc)
         .register_fn("metric_inc_labels", RhaiTxn::metric_inc_labels)
         .register_fn("elapsed_ms", RhaiTxn::elapsed_ms)
@@ -286,14 +286,15 @@ impl RhaiTxn {
         Ok(())
     }
 
-    fn sample_include(&mut self, rate: f64) -> bool {
+    fn sample_percent(&mut self, percent: f64) -> bool {
         let Ok(mut fx) = self.effects.lock() else {
             return false;
         };
         if let Some(decision) = fx.sample_decision {
             return decision;
         }
-        let decision = hash_sample(self.txn_id, rate);
+        let clamped = percent.clamp(0.0, 100.0);
+        let decision = hash_sample(self.txn_id, clamped / 100.0);
         fx.sample_decision = Some(decision);
         if decision {
             fx.tags_bool.insert("sampled".into(), true);

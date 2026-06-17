@@ -37,11 +37,11 @@ Paths in configs are relative to `tests/fixtures/config/`.
 
 ## Dnstap via tags (phase 2.7 + Rhai)
 
-Declarative sink filters stay in YAML (`filters.tag_required`, `selectors`, `sample_rate`). Rhai sets tags; sinks gate export on those tags.
+Declarative sink filters stay in YAML (`filters.tag_required`, `selectors`, `sample_percent`). Rhai sets tags; sinks gate export on those tags.
 
 Example 4: script sets `dnstap` tag; sink uses `tag_required: dnstap`.
 
-Example 5: `sample_include(rate)` uses the same deterministic hash as observation `sample_rate`; tag `sampled` gates export.
+Example 5: `sample_percent(percent)` uses the same deterministic hash as observation `sample_percent`; tag `sampled` gates export.
 
 ## Examples
 

@@ -95,7 +95,7 @@ Per-sink **`filters`** limit which transactions reach that sink. All configured 
 ```yaml
       filters:
         tag_required: audit
-        sample_rate: 0.1
+        sample_percent: 10
         pool: default
         backend: "127.0.0.1:5300"
         selectors:
@@ -111,7 +111,7 @@ Per-sink **`filters`** limit which transactions reach that sink. All configured 
 |--------|------------|---------|
 | **`tag_required`** | All emit kinds | Transaction must have the named [tag](/glossary/index.md#tags) (key presence; set via `set_tag` / Rhai) |
 | **`selectors`** | All emit kinds | Same [selector](/glossary/index.md#selector) types as [rules](/policy-routing/rules-and-actions.md): `qname_suffix`, `qname_exact`, `qtype`, `rcode`, `tag`. **All** selectors must match |
-| **`sample_rate`** | All emit kinds | Float in **(0, 1]**; deterministic per-transaction sampling (default **1.0** = no sampling) |
+| **`sample_percent`** | All emit kinds | Float in **[0, 100]**; deterministic per-transaction sampling (default **100** = no sampling) |
 | **`pool`** | **`response`** and **`retry`** only | Selected pool name must match |
 | **`backend`** | **`response`** and **`retry`** only | Selected backend address must match (`ip:port` string) |
 

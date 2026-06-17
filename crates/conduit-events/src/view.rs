@@ -6,6 +6,7 @@ use std::net::SocketAddr;
 #[derive(Debug, Clone)]
 pub struct TxnView<'a> {
     pub txn_id: u64,
+    pub global_query_index: u64,
     pub client_addr: SocketAddr,
     pub protocol_udp: bool,
     pub qname: Option<&'a str>,
