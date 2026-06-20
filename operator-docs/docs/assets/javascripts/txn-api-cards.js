@@ -18,9 +18,18 @@
     return chevron;
   }
 
+  function wrapPanelInner(panel) {
+    if (panel.querySelector(":scope > .txn-api-reference-panel__inner")) return;
+    const inner = document.createElement("div");
+    inner.className = "txn-api-reference-panel__inner";
+    while (panel.firstChild) {
+      inner.appendChild(panel.firstChild);
+    }
+    panel.appendChild(inner);
+  }
+
   function isEntryOpen(entry) {
-    const panel = referencePanel(entry);
-    return panel ? !panel.hidden : false;
+    return entry.classList.contains("txn-api-entry--open");
   }
 
   function setEntryOpen(entry, open) {
@@ -28,8 +37,10 @@
     const button = entry.querySelector(".txn-api-reference-toggle");
     if (!panel) return;
 
-    panel.hidden = !open;
+    panel.removeAttribute("hidden");
     entry.classList.toggle("txn-api-entry--open", open);
+    panel.classList.toggle("txn-api-reference-panel--open", open);
+    panel.setAttribute("aria-hidden", open ? "false" : "true");
 
     if (button) {
       button.setAttribute("aria-label", open ? "Hide reference" : "Show reference");
@@ -47,7 +58,6 @@
 
     panel = document.createElement("div");
     panel.className = "txn-api-reference-panel";
-    panel.hidden = true;
     while (details.firstChild) {
       panel.appendChild(details.firstChild);
     }
@@ -64,7 +74,11 @@
     if (!panel) return;
 
     entry.dataset.txnApiInit = "true";
-    panel.hidden = !isEntryOpen(entry);
+    wrapPanelInner(panel);
+    panel.removeAttribute("hidden");
+
+    const startOpen = entry.classList.contains("txn-api-entry--open");
+    setEntryOpen(entry, startOpen);
 
     let header = entry.querySelector(":scope > .txn-api-entry-header");
     if (!header) {
@@ -166,6 +180,11 @@
     document.querySelectorAll(".txn-api-reference-panel").forEach((panel) => {
       const entry = panel.closest(".txn-api-entry");
       if (!entry) return;
+      const inner = panel.querySelector(":scope > .txn-api-reference-panel__inner");
+      if (inner) {
+        while (inner.firstChild) panel.appendChild(inner.firstChild);
+        inner.remove();
+      }
       const details = document.createElement("details");
       const summary = document.createElement("summary");
       summary.textContent = "Reference";
