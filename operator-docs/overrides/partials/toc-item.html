@@ -1,31 +1,53 @@
 {#-
-  Page-specific TOC depth: set `toc_depth: N` in a page's YAML front matter to cap
-  the right-hand table of contents at heading level N (e.g. 3 = through ### only).
+  Page-specific TOC:
+  - `toc_depth: N` caps heading levels in the right-hand TOC.
+  - `toc_collapsible: true` enables branch toggles (collapsed by default).
 -#}
 {% if page.meta.toc_depth and toc_item.level > page.meta.toc_depth %}
 {# omit #}
 {% else %}
-<li class="md-nav__item">
+{% set ns = namespace(visible_children=false) %}
+{% if toc_item.children %}
+  {% for child in toc_item.children %}
+    {% if not page.meta.toc_depth or child.level <= page.meta.toc_depth %}
+      {% set ns.visible_children = true %}
+    {% endif %}
+  {% endfor %}
+{% endif %}
+{% set collapsible = page and page.meta.toc_collapsible and ns.visible_children %}
+{% if collapsible %}
+  {% set checkbox_id = "toc-" ~ (toc_item.url | replace('#', '') | replace('/', '-') | replace('.', '-') | replace(' ', '') | replace('`', '')) %}
+{% endif %}
+<li class="md-nav__item{% if collapsible %} md-nav__item--nested md-toc__branch{% endif %}">
+  {% if collapsible %}
+  <input class="md-nav__toggle md-toggle" type="checkbox" id="{{ checkbox_id }}">
+  <div class="md-toc__branch-row">
+    <a href="{{ toc_item.url }}" class="md-nav__link md-toc__branch-link">
+      <span class="md-ellipsis">
+        {% if toc_item.typeset %}
+          <span class="md-typeset">{{ toc_item.typeset.title }}</span>
+        {% else %}
+          {{ toc_item.title }}
+        {% endif %}
+      </span>
+    </a>
+    <label class="md-toc__branch-toggle" for="{{ checkbox_id }}" aria-label="Toggle {{ toc_item.title | striptags | e }} section">
+      <span class="md-nav__icon md-icon"></span>
+    </label>
+  </div>
+  {% else %}
   <a href="{{ toc_item.url }}" class="md-nav__link">
     <span class="md-ellipsis">
       {% if toc_item.typeset %}
-        <span class="md-typeset">
-          {{ toc_item.typeset.title }}
-        </span>
+        <span class="md-typeset">{{ toc_item.typeset.title }}</span>
       {% else %}
         {{ toc_item.title }}
       {% endif %}
     </span>
   </a>
-  {% if toc_item.children %}
-    {% set ns = namespace(visible=false) %}
-    {% for child in toc_item.children %}
-      {% if not page.meta.toc_depth or child.level <= page.meta.toc_depth %}
-        {% set ns.visible = true %}
-      {% endif %}
-    {% endfor %}
-    {% if ns.visible %}
-    <nav class="md-nav" aria-label="{{ toc_item.title | striptags | e }}">
+  {% endif %}
+  {% if toc_item.children and ns.visible_children %}
+    <nav class="md-nav md-toc__branch-children" aria-label="{{ toc_item.title | striptags | e }}">
       <ul class="md-nav__list">
         {% for toc_item in toc_item.children %}
           {% if not page.meta.toc_depth or toc_item.level <= page.meta.toc_depth %}
@@ -34,7 +56,6 @@
         {% endfor %}
       </ul>
     </nav>
-    {% endif %}
   {% endif %}
 </li>
 {% endif %}

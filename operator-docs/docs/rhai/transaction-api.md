@@ -1,28 +1,26 @@
 ---
 toc_depth: 3
+toc_collapsible: true
 ---
 
 # Transaction API
 
 **Rhai for rules** ([Rule Rhai](/rhai/rule-rhai.md)) scripts receive a sandboxed **`txn`** object. Methods on **`txn`** set policy on the current [transaction](/glossary/index.md#transaction) — pools, [tags](/glossary/index.md#tags), drop/retry intent, egress overrides, and observability side effects. They do **not** edit DNS wire bytes (see [Rhai for processor chains](/rhai/processor-chain-rhai.md) for wire editing).
 
-For which hook each API allows, see [Hooks and phases](/rhai/hooks-and-phases.md#phase-guards) (summary table) and [Request vs response](/rhai/hooks-and-phases.md#request-vs-response-script-perspective) (when each hook runs). This page documents each method in depth: arguments, behavior, YAML equivalents, and examples.
+For which hook each API allows, see [Hooks and phases](/rhai/hooks-and-phases.md#phase-guards) (summary table) and [Request vs response](/rhai/hooks-and-phases.md#request-vs-response-script-perspective) (when each hook runs). This page documents each method: a one-line **Brief** per method; expand **Reference** for full hooks, arguments, summary, behavior, YAML, and examples.
 
 ## How to read this page
 
-Each entry uses the same sections:
+Each entry uses the same layout:
 
 | Section | Meaning |
 |---------|---------|
-| **Hooks** | Whether the method is available on the [request hook](/rhai/hooks-and-phases.md#request-hook), [response hook](/rhai/hooks-and-phases.md#response-hook), or both |
-| **Arguments / return** | Rhai types and what the call returns |
-| **Behavior** | What changes on the transaction and how it interacts with the pipeline |
-| **YAML equivalent** | Built-in action on a rule’s `actions:` list, if one exists |
-| **Example** | Typical script usage |
+| **Brief** | Hooks, signature, return, and a one-line summary — visible when the reference block is collapsed (method titles in the TOC omit the argument list) |
+| **Reference** | Chevron toggle opens full **Hooks**, **Arguments / return**, **Summary**, **Behavior**, YAML/config, and **Example** (replaces the brief while open) |
 
 **Hook names** — Rhai for rules runs at two pipeline points. The [request hook](/rhai/hooks-and-phases.md#request-hook) runs once per transaction before upstream [Route](/concepts/architecture-and-packet-path.md#route); the [response hook](/rhai/hooks-and-phases.md#response-hook) runs after each forward attempt. For script-author detail (retry behavior, phase guards, pairing request/response scripts), see [Hooks and phases](/rhai/hooks-and-phases.md#request-vs-response-script-perspective). For YAML `hook: request` / `hook: response` wiring and outcomes after each hook, see [Rules and actions — Request and response hooks](/policy-routing/rules-and-actions.md#request-and-response-hooks).
 
-Methods are grouped by purpose inside bordered cards. Groups appear in **alphabetical** order; each group lists its methods under the group heading. Entries marked *in progress* do not have full cards yet.
+Methods are grouped by purpose inside bordered cards. Groups appear in **alphabetical** order; each group lists its methods under the group heading. Use **Expand all** / **Collapse all** above a group to open or close every method’s reference block at once. The right-hand table of contents collapses group branches by default — click a **section name** or chevron to expand a branch (stays open until you close it); scrolling opens the current section temporarily. Entries marked *in progress* do not have full cards yet.
 
 ---
 
@@ -38,13 +36,23 @@ Pool choice and egress source are **decoupled** — per-pool `sources_v4` / `sou
 
 <p class="txn-api-index" markdown="1">
 
-**Methods:** [`txn.set_source_v4(addr)`](#txnset_source_v4addr) · [`txn.set_source_v6(addr)`](#txnset_source_v6addr) · [`txn.set_retry_source_v4(addr)`](#txnset_retry_source_v4addr) · [`txn.set_retry_source_v6(addr)`](#txnset_retry_source_v6addr) · [`txn.clear_retry_source_v4()`](#txnclear_retry_source_v4) · [`txn.clear_retry_source_v6()`](#txnclear_retry_source_v6)
+**Methods:** [`txn.set_source_v4`](#txnset_source_v4addr) · [`txn.set_source_v6`](#txnset_source_v6addr) · [`txn.set_retry_source_v4`](#txnset_retry_source_v4addr) · [`txn.set_retry_source_v6`](#txnset_retry_source_v6addr) · [`txn.clear_retry_source_v4`](#txnclear_retry_source_v4) · [`txn.clear_retry_source_v6`](#txnclear_retry_source_v6)
 
 </p>
 
 <div class="txn-api-entry" markdown="1">
 
-### `txn.set_source_v4(addr)`
+### `txn.set_source_v4` {#txnset_source_v4addr}
+
+<div class="txn-api-brief" markdown="1">
+
+Request hook only · `addr`: string (IPv4) · no return; script error on response hook or invalid address
+
+Sets the standing local IPv4 bind for every forward attempt on this transaction.
+
+</div>
+
+<div class="txn-api-reference-panel" markdown="1" hidden>
 
 #### Hooks
 
@@ -58,6 +66,12 @@ Pool choice and egress source are **decoupled** — per-pool `sources_v4` / `sou
 | *return* | — | No return value on success |
 
 Returns a **script error** (phase guard or parse failure) when called on the wrong hook or with an invalid address — see **Behavior**.
+
+<p class="txn-api-summary" markdown="1">
+
+**Summary:** Sets the standing local IPv4 bind for every forward attempt on this transaction (request hook only). Conduit checks the address against pool/global allowed sources at Forward — disallowed values fail open to round-robin.
+
+</p>
 
 #### Behavior
 
@@ -95,11 +109,23 @@ txn.set_source_v4("127.0.0.1");
 
 </div>
 
+</div>
+
 ---
 
 <div class="txn-api-entry" markdown="1">
 
-### `txn.set_source_v6(addr)`
+### `txn.set_source_v6` {#txnset_source_v6addr}
+
+<div class="txn-api-brief" markdown="1">
+
+Request hook only · `addr`: string (IPv6) · no return; script error on response hook or invalid address
+
+Sets the standing local IPv6 bind for every forward attempt on this transaction.
+
+</div>
+
+<div class="txn-api-reference-panel" markdown="1" hidden>
 
 #### Hooks
 
@@ -113,6 +139,12 @@ txn.set_source_v4("127.0.0.1");
 | *return* | — | No return value on success |
 
 Returns a **script error** (phase guard or parse failure) when called on the wrong hook or with an invalid address — see **Behavior**.
+
+<p class="txn-api-summary" markdown="1">
+
+**Summary:** Sets the standing local IPv6 bind for every forward attempt on this transaction (request hook only). Same allowed-source and fail-open rules as `set_source_v4`, for IPv6 backends.
+
+</p>
 
 #### Behavior
 
@@ -144,11 +176,23 @@ if question_qname(txn).ends_with(".v6.example.") {
 
 </div>
 
+</div>
+
 ---
 
 <div class="txn-api-entry" markdown="1">
 
-### `txn.set_retry_source_v4(addr)`
+### `txn.set_retry_source_v4` {#txnset_retry_source_v4addr}
+
+<div class="txn-api-brief" markdown="1">
+
+Request + response hook · `addr`: string (IPv4) · one-shot retry egress; pair with `request_retry`
+
+Stashes a one-shot IPv4 egress override consumed on the next retry forward only.
+
+</div>
+
+<div class="txn-api-reference-panel" markdown="1" hidden>
 
 #### Hooks
 
@@ -162,6 +206,12 @@ if question_qname(txn).ends_with(".v6.example.") {
 | *return* | — | No return value on success |
 
 Returns a **script error** on invalid address parse failure.
+
+<p class="txn-api-summary" markdown="1">
+
+**Summary:** Stashes a one-shot IPv4 egress used only on the next retry forward (`attempt_count > 1`). Does not trigger retry — pair with `request_retry` on the response hook when needed.
+
+</p>
 
 #### Behavior
 
@@ -192,11 +242,23 @@ if txn.response_rcode() == "SERVFAIL" {
 
 </div>
 
+</div>
+
 ---
 
 <div class="txn-api-entry" markdown="1">
 
-### `txn.set_retry_source_v6(addr)`
+### `txn.set_retry_source_v6` {#txnset_retry_source_v6addr}
+
+<div class="txn-api-brief" markdown="1">
+
+Request + response hook · `addr`: string (IPv6) · one-shot retry egress; pair with `request_retry`
+
+Stashes a one-shot IPv6 egress override consumed on the next retry forward only.
+
+</div>
+
+<div class="txn-api-reference-panel" markdown="1" hidden>
 
 #### Hooks
 
@@ -210,6 +272,12 @@ if txn.response_rcode() == "SERVFAIL" {
 | *return* | — | No return value on success |
 
 Returns a **script error** on invalid address parse failure.
+
+<p class="txn-api-summary" markdown="1">
+
+**Summary:** Stashes a one-shot IPv6 egress for the next retry forward only. Independent of the v4 retry stash; only the family matching the backend is used.
+
+</p>
 
 #### Behavior
 
@@ -236,11 +304,23 @@ txn.set_retry_source_v6("::1");
 
 </div>
 
+</div>
+
 ---
 
 <div class="txn-api-entry" markdown="1">
 
-### `txn.clear_retry_source_v4()`
+### `txn.clear_retry_source_v4` {#txnclear_retry_source_v4}
+
+<div class="txn-api-brief" markdown="1">
+
+Request + response hook · no args · clears stashed retry IPv4 override
+
+Clears a stashed retry IPv4 egress override without affecting standing overrides.
+
+</div>
+
+<div class="txn-api-reference-panel" markdown="1" hidden>
 
 #### Hooks
 
@@ -249,6 +329,12 @@ txn.set_retry_source_v6("::1");
 #### Arguments / return
 
 No arguments. No return value.
+
+<p class="txn-api-summary" markdown="1">
+
+**Summary:** Clears `retry_source_override_v4` without changing standing `source_override_v4` from `set_source_v4`.
+
+</p>
 
 #### Behavior
 
@@ -271,11 +357,23 @@ txn.clear_retry_source_v4();
 
 </div>
 
+</div>
+
 ---
 
 <div class="txn-api-entry" markdown="1">
 
-### `txn.clear_retry_source_v6()`
+### `txn.clear_retry_source_v6` {#txnclear_retry_source_v6}
+
+<div class="txn-api-brief" markdown="1">
+
+Request + response hook · no args · clears stashed retry IPv6 override
+
+Clears a stashed retry IPv6 egress override without affecting standing overrides.
+
+</div>
+
+<div class="txn-api-reference-panel" markdown="1" hidden>
 
 #### Hooks
 
@@ -284,6 +382,12 @@ txn.clear_retry_source_v4();
 #### Arguments / return
 
 No arguments. No return value.
+
+<p class="txn-api-summary" markdown="1">
+
+**Summary:** Clears `retry_source_override_v6` without changing standing `source_override_v6` from `set_source_v6`.
+
+</p>
 
 #### Behavior
 
@@ -305,6 +409,8 @@ txn.clear_retry_source_v6();
 
 </div>
 
+</div>
+
 ---
 
 ## Lookups
@@ -319,7 +425,17 @@ Host-owned lookup tables from **`data_sources:`** in config. **`table_lookup`** 
 
 <div class="txn-api-entry" markdown="1">
 
-### `table_lookup(table, key)`
+### `table_lookup` {#table_lookuptable-key}
+
+<div class="txn-api-brief" markdown="1">
+
+Request + response hook · `table`: string, `key`: string · returns string (`""` on miss)
+
+Looks up a string value from a configured data source table by key.
+
+</div>
+
+<div class="txn-api-reference-panel" markdown="1" hidden>
 
 #### Hooks
 
@@ -334,6 +450,12 @@ Host-owned lookup tables from **`data_sources:`** in config. **`table_lookup`** 
 | *return* | string | Value from the table, or **`""`** (empty string) on miss |
 
 There is no YAML equivalent — declare the table under **`data_sources:`** and call **`table_lookup`** from a **`rhai`** action.
+
+<p class="txn-api-summary" markdown="1">
+
+**Summary:** Reads a compile-time `data_sources` CSV table by name and key. Returns the value cell or `""` on miss; unknown table names also return `""` with throttled logging.
+
+</p>
 
 #### Behavior
 
@@ -391,11 +513,13 @@ Runnable configs in the repository: `tests/fixtures/config/with-rhai-blocklist.y
 
 </div>
 
+</div>
+
 ---
 
 ## Metrics and timing
 
-Wall-clock time and forward [attempt](/glossary/index.md#retry) count on the current [transaction](/glossary/index.md#transaction); custom policy counters (`conduit_user_*`). Registration, export tiers, and Prometheus naming: [User metrics](/rhai/user-metrics.md).
+Wall-clock time and forward [attempt](/glossary/index.md#retry) count on the current [transaction](/glossary/index.md#transaction); custom policy counters (`conduit_user_*`). For registration, export tiers, and Prometheus naming, see [User metrics](/rhai/user-metrics.md).
 
 <p class="txn-api-index" markdown="1">
 
@@ -405,7 +529,17 @@ Wall-clock time and forward [attempt](/glossary/index.md#retry) count on the cur
 
 <div class="txn-api-entry" markdown="1">
 
-### `txn.elapsed_ms()`
+### `txn.elapsed_ms` {#txnelapsed_ms}
+
+<div class="txn-api-brief" markdown="1">
+
+Request + response hook · no args · returns `i64` (ms since transaction start)
+
+Returns milliseconds since the transaction started.
+
+</div>
+
+<div class="txn-api-reference-panel" markdown="1" hidden>
 
 #### Hooks
 
@@ -414,6 +548,12 @@ Wall-clock time and forward [attempt](/glossary/index.md#retry) count on the cur
 #### Arguments / return
 
 No arguments. Returns **`i64`** — milliseconds elapsed since the transaction started.
+
+<p class="txn-api-summary" markdown="1">
+
+**Summary:** Wall-clock milliseconds since the transaction started — includes request rules, Route, Forward, wait, and any prior response-rule passes. Not upstream RTT alone.
+
+</p>
 
 #### Behavior
 
@@ -441,11 +581,23 @@ if txn.has_tag("suspicious") && txn.last_forward_ms() > 500 {
 
 </div>
 
+</div>
+
 ---
 
 <div class="txn-api-entry" markdown="1">
 
-### `txn.last_forward_ms()`
+### `txn.last_forward_ms` {#txnlast_forward_ms}
+
+<div class="txn-api-brief" markdown="1">
+
+Request + response hook · no args · returns `i64` (latest upstream RTT; `0` on request hook)
+
+Returns upstream RTT in ms for the latest forward attempt (`0` on request hook).
+
+</div>
+
+<div class="txn-api-reference-panel" markdown="1" hidden>
 
 #### Hooks
 
@@ -454,6 +606,12 @@ if txn.has_tag("suspicious") && txn.last_forward_ms() > 500 {
 #### Arguments / return
 
 No arguments. Returns **`i64`** — milliseconds for the **most recent** upstream forward attempt on this transaction.
+
+<p class="txn-api-summary" markdown="1">
+
+**Summary:** Upstream send→answer-or-timeout time for the most recent forward attempt. Always `0` on the request hook; overwritten on each retry attempt on the response hook.
+
+</p>
 
 #### Behavior
 
@@ -483,11 +641,23 @@ if txn.last_forward_ms() > 800 && txn.get_attempt_count() == 1 {
 
 </div>
 
+</div>
+
 ---
 
 <div class="txn-api-entry" markdown="1">
 
-### `txn.get_attempt_count()`
+### `txn.get_attempt_count` {#txnget_attempt_count}
+
+<div class="txn-api-brief" markdown="1">
+
+Request + response hook · no args · returns `i64` (forward attempt count at hook entry)
+
+Returns how many forward attempts have started when the hook runs.
+
+</div>
+
+<div class="txn-api-reference-panel" markdown="1" hidden>
 
 #### Hooks
 
@@ -496,6 +666,12 @@ if txn.last_forward_ms() > 800 && txn.get_attempt_count() == 1 {
 #### Arguments / return
 
 No arguments. Returns **`i64`** — the transaction’s forward **attempt count** at hook entry.
+
+<p class="txn-api-summary" markdown="1">
+
+**Summary:** Forward attempt count at hook entry: `0` on request hook, `1` after the first Route/Forward round trip, and so on for retries.
+
+</p>
 
 #### Behavior
 
@@ -523,11 +699,23 @@ if txn.get_attempt_count() == 1 && txn.response_rcode() == "SERVFAIL" {
 
 </div>
 
+</div>
+
 ---
 
 <div class="txn-api-entry" markdown="1">
 
-### `txn.metric_inc(name, delta)`
+### `txn.metric_inc` {#txnmetric_incname-delta}
+
+<div class="txn-api-brief" markdown="1">
+
+Request + response hook · `name`: string, `delta`: integer (≥ 0) · no return
+
+Increments a user-defined counter metric by a non-negative delta.
+
+</div>
+
+<div class="txn-api-reference-panel" markdown="1" hidden>
 
 #### Hooks
 
@@ -541,6 +729,12 @@ if txn.get_attempt_count() == 1 && txn.response_rcode() == "SERVFAIL" {
 | `delta` | integer | Non-negative increment; values **&lt; 0** are treated as **0** |
 | *return* | — | No return value on success |
 
+<p class="txn-api-summary" markdown="1">
+
+**Summary:** Increments a compile-registered user counter (`conduit_user_<name>`) with no labels. Buffered until successful script completion; export obeys metrics profile and tier.
+
+</p>
+
 #### Behavior
 
 - Increments a **user-defined counter** discovered at snapshot compile from `metric_inc("name", …)` in Rhai source. Full registration rules: [User metrics — Declaring metrics](/rhai/user-metrics.md#declaring-metrics-in-scripts).
@@ -548,8 +742,8 @@ if txn.get_attempt_count() == 1 && txn.response_rcode() == "SERVFAIL" {
 - Increments are **buffered** for the current hook run and flushed after a **successful** script completion when `metrics.enabled` is true and the metric’s [export tier](/rhai/user-metrics.md#export-tier) matches `metrics.profile`. Filtered metrics are dropped silently at export — the call still succeeds.
 - Scripts **cannot read** counter values back; use [tags](/rhai/transaction-api.md#tags) or txn state for per-query policy.
 - **Errors** (failed script evaluation — see [Script errors on a hook](/rhai/hooks-and-phases.md#script-errors-on-a-hook)):
-  - Unknown `name` (not registered at compile)
-  - Disallowed or unexpected label keys (unlabeled form only passes when the metric has no registered label keys)
+- Unknown `name` (not registered at compile)
+- Disallowed or unexpected label keys (unlabeled form only passes when the metric has no registered label keys)
 - Counts toward [sandbox limits](/rhai/sandbox-limits.md) like any host call.
 
 #### YAML equivalent
@@ -564,11 +758,23 @@ txn.metric_inc("slow_login", 1);
 
 </div>
 
+</div>
+
 ---
 
 <div class="txn-api-entry" markdown="1">
 
-### `txn.metric_inc_labels(name, delta, labels)`
+### `txn.metric_inc_labels` {#txnmetric_inc_labelsname-delta-labels}
+
+<div class="txn-api-brief" markdown="1">
+
+Request + response hook · `name`: string, `delta`: integer, `labels`: map · no return
+
+Increments a labeled user-defined counter metric by a non-negative delta.
+
+</div>
+
+<div class="txn-api-reference-panel" markdown="1" hidden>
 
 #### Hooks
 
@@ -582,6 +788,12 @@ txn.metric_inc("slow_login", 1);
 | `delta` | integer | Non-negative increment; values **&lt; 0** are treated as **0** |
 | `labels` | map | Rhai map literal `#{ key: value, … }` — label keys must match compile-time registration |
 | *return* | — | No return value on success |
+
+<p class="txn-api-summary" markdown="1">
+
+**Summary:** Same as `metric_inc`, but attaches a label map whose keys must match compile-time registration for that metric name.
+
+</p>
 
 #### Behavior
 
@@ -608,6 +820,8 @@ if cat == "eu" {
     txn.metric_inc_labels("block_hits", 1, #{ category: "us" });
 }
 ```
+
+</div>
 
 </div>
 
@@ -653,7 +867,7 @@ Method cards for this group are not written yet. Hook availability: [Hooks and p
 
 <p class="txn-api-index" markdown="1">
 
-**Methods:** [`txn.clear_retry_pool()`](#txnclear_retry_pool) · [`txn.set_pool(name)`](#txnset_poolname) · [`txn.set_retry_pool(name)`](#txnset_retry_poolname)
+**Methods:** [`txn.clear_retry_pool`](#txnclear_retry_pool) · [`txn.set_pool`](#txnset_poolname) · [`txn.set_retry_pool`](#txnset_retry_poolname)
 
 </p>
 
@@ -665,7 +879,17 @@ Method cards for this group are not written yet. Hook availability: [Hooks and p
 
 <div class="txn-api-entry" markdown="1">
 
-### `txn.clear_retry_pool()`
+### `txn.clear_retry_pool` {#txnclear_retry_pool}
+
+<div class="txn-api-brief" markdown="1">
+
+Request + response hook · no args · clears `retry_pool` stash only
+
+Clears the `retry_pool` stash from `set_retry_pool` without clearing soft-retry intent.
+
+</div>
+
+<div class="txn-api-reference-panel" markdown="1" hidden>
 
 #### Hooks
 
@@ -677,6 +901,12 @@ Method cards for this group are not written yet. Hook availability: [Hooks and p
 |-----------|------|-------|
 | *none* | — | |
 | *return* | — | No return value |
+
+<p class="txn-api-summary" markdown="1">
+
+**Summary:** Clears the `retry_pool` stash from `set_retry_pool` without clearing soft-retry intent or `selected_pool`.
+
+</p>
 
 #### Behavior
 
@@ -705,11 +935,23 @@ if txn.response_rcode() == "SERVFAIL" {
 
 </div>
 
+</div>
+
 ---
 
 <div class="txn-api-entry" markdown="1">
 
-### `txn.set_pool(name)`
+### `txn.set_pool` {#txnset_poolname}
+
+<div class="txn-api-brief" markdown="1">
+
+Request + response hook · `name`: string (pool) · no return
+
+Sets `selected_pool` for Route — first forward and later attempts when `retry_pool` is absent.
+
+</div>
+
+<div class="txn-api-reference-panel" markdown="1" hidden>
 
 #### Hooks
 
@@ -721,6 +963,12 @@ if txn.response_rcode() == "SERVFAIL" {
 |-----------|------|-------|
 | `name` | string | [Pool](/glossary/index.md#pool) name from config |
 | *return* | — | No return value |
+
+<p class="txn-api-summary" markdown="1">
+
+**Summary:** Sets `selected_pool` for Route — used on the first forward and on later attempts when `retry_pool` is absent.
+
+</p>
 
 #### Behavior
 
@@ -753,11 +1001,23 @@ if qname.ends_with(".vip.example.") {
 
 </div>
 
+</div>
+
 ---
 
 <div class="txn-api-entry" markdown="1">
 
-### `txn.set_retry_pool(name)`
+### `txn.set_retry_pool` {#txnset_retry_poolname}
+
+<div class="txn-api-brief" markdown="1">
+
+Request + response hook · `name`: string (pool) · stashes pool for next retry Route
+
+Stashes a pool name consumed once on the next retry Route; does not trigger retry alone.
+
+</div>
+
+<div class="txn-api-reference-panel" markdown="1" hidden>
 
 #### Hooks
 
@@ -769,6 +1029,12 @@ if qname.ends_with(".vip.example.") {
 |-----------|------|-------|
 | `name` | string | [Pool](/glossary/index.md#pool) name from config |
 | *return* | — | No return value |
+
+<p class="txn-api-summary" markdown="1">
+
+**Summary:** Stashes a pool name consumed once on the next retry Route. Does not trigger retry by itself.
+
+</p>
 
 #### Behavior
 
@@ -808,6 +1074,8 @@ txn.set_retry_pool("secondary");
 
 </div>
 
+</div>
+
 ---
 
 ## Sampling
@@ -838,7 +1106,17 @@ Method cards for this group are not written yet. Hook availability: [Hooks and p
 
 <div class="txn-api-entry" markdown="1">
 
-### `txn.clear_tag(key)`
+### `txn.clear_tag` {#txnclear_tagkey}
+
+<div class="txn-api-brief" markdown="1">
+
+Request + response hook · `key`: string · no return
+
+Removes a tag key from the transaction tag map.
+
+</div>
+
+<div class="txn-api-reference-panel" markdown="1" hidden>
 
 #### Hooks
 
@@ -850,6 +1128,12 @@ Method cards for this group are not written yet. Hook availability: [Hooks and p
 |-----------|------|-------|
 | `key` | string | Tag name to remove |
 | *return* | — | No return value |
+
+<p class="txn-api-summary" markdown="1">
+
+**Summary:** Removes a tag key (boolean or string) from the transaction. Use explicitly instead of `set_tag(key, false)` when you mean removal.
+
+</p>
 
 #### Behavior
 
@@ -875,11 +1159,23 @@ if txn.has_tag("temporary") {
 
 </div>
 
+</div>
+
 ---
 
 <div class="txn-api-entry" markdown="1">
 
-### `txn.has_tag(key)`
+### `txn.has_tag` {#txnhas_tagkey}
+
+<div class="txn-api-brief" markdown="1">
+
+Request + response hook · `key`: string · returns `bool`
+
+Returns whether a tag key is present on the transaction.
+
+</div>
+
+<div class="txn-api-reference-panel" markdown="1" hidden>
 
 #### Hooks
 
@@ -892,12 +1188,18 @@ if txn.has_tag("temporary") {
 | `key` | string | Tag name |
 | *return* | `bool` | `true` when the tag is present under the rules below |
 
+<p class="txn-api-summary" markdown="1">
+
+**Summary:** Read-only check for a tag: script effects from earlier in the run win, then tags present at hook entry.
+
+</p>
+
 #### Behavior
 
 - Read-only — does not change the [transaction](/glossary/index.md#transaction).
 - Returns `true` when:
-  - A **`txn.set_tag`** or **`txn.clear_tag`** earlier **in this script run** left the key present (last write wins within the script), or
-  - The key was already on the transaction at **hook entry** (from built-in **`set_tag`** / **`clear_tag`** on this or an earlier matching rule, or from a prior hook on the same transaction).
+- A **`txn.set_tag`** or **`txn.clear_tag`** earlier **in this script run** left the key present (last write wins within the script), or
+- The key was already on the transaction at **hook entry** (from built-in **`set_tag`** / **`clear_tag`** on this or an earlier matching rule, or from a prior hook on the same transaction).
 - For **boolean** tags: `true` only when the bool flag is `true`. `txn.set_tag(key, false)` yields `false` for that key until a later `set_tag` or `clear_tag` in the same script.
 - For **string** tags: `true` when any string value is stored for the key (including values set by YAML `set_tag: key=value`).
 - Tags from the [request hook](/rhai/hooks-and-phases.md#request-hook) are still visible on the [response hook](/rhai/hooks-and-phases.md#response-hook) (the request hook does not re-run on [retry](/glossary/index.md#retry)).
@@ -927,11 +1229,23 @@ if txn.has_tag("suspicious") {
 
 </div>
 
+</div>
+
 ---
 
 <div class="txn-api-entry" markdown="1">
 
-### `txn.set_tag(key, value)`
+### `txn.set_tag` {#txnset_tagkey-value}
+
+<div class="txn-api-brief" markdown="1">
+
+Request + response hook · `key`: string, `value`: bool or string · no return
+
+Sets a bool or string tag on the transaction for rules, metrics, and export.
+
+</div>
+
+<div class="txn-api-reference-panel" markdown="1" hidden>
 
 #### Hooks
 
@@ -944,6 +1258,12 @@ if txn.has_tag("suspicious") {
 | `key` | string | Tag name |
 | `value` | bool or string | `true` / `false` for boolean tags; any other value is stored as a string |
 | *return* | — | No return value |
+
+<p class="txn-api-summary" markdown="1">
+
+**Summary:** Sets a boolean or string tag that persists for the rest of the transaction, including across retries and into the response hook.
+
+</p>
 
 #### Behavior
 
@@ -971,6 +1291,8 @@ if question_qname(txn).ends_with(".corp.example.") {
     txn.set_tag("tier", "internal");
 }
 ```
+
+</div>
 
 </div>
 
