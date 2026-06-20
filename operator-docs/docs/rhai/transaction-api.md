@@ -1300,7 +1300,7 @@ On the **request hook**, only the question is meaningful — upstream has not an
 
 Rule Rhai global · static module · DNS QTYPE enum
 
-Named constants and **`TYPE{n}`** aliases for every known record type; use for **`qtype`** comparisons and **`RecordType::from_number(n)`** for arbitrary wire numbers.
+Named constants and **`TYPE{n}`** aliases for every IANA-assigned RR type (plus Conduit-specific **`ANAME`**); use for **`qtype`** comparisons and **`RecordType::from_number(n)`** for arbitrary wire numbers.
 
 </div>
 
@@ -1319,7 +1319,7 @@ Each known type appears twice in the **`RecordType`** module:
 | Name | **`RecordType::A`**, **`RecordType::HTTPS`** | 1, 65, … |
 | **`TYPE{n}`** alias | **`RecordType::TYPE1`**, **`RecordType::TYPE65`** | same |
 
-Known names include **`A`**, **`AAAA`**, **`CNAME`**, **`MX`**, **`NS`**, **`PTR`**, **`SOA`**, **`SRV`**, **`TXT`**, **`HTTPS`**, **`SVCB`**, **`DNSKEY`**, **`DS`**, **`TLSA`**, **`CAA`**, **`ANY`**, and others aligned with Conduit’s parse table. Unknown numbers are still valid via **`RecordType::from_number(n)`**; **`name()`** on such values returns **`TYPE{n}`**.
+Known names follow the IANA DNS RR type registry (for example **`A`**, **`AAAA`**, **`CNAME`**, **`MX`**, **`NS`**, **`PTR`**, **`SOA`**, **`SRV`**, **`TXT`**, **`HTTPS`**, **`SVCB`**, **`DNSKEY`**, **`DS`**, **`TLSA`**, **`CAA`**, **`ANY`**, **`ANAME`**). Unknown numbers are still valid via **`RecordType::from_number(n)`**; **`name()`** on such values returns **`TYPE{n}`**.
 
 #### Methods on values
 
@@ -1360,7 +1360,7 @@ if q.qtype == RecordType::AAAA {
 
 Rule Rhai global · static module · DNS RCODE enum
 
-Response codes for **`txn.response().rcode`**, **`txn.response_rcode()`**, and **`txn.set_rcode(...)`** — each with a name (`SERVFAIL`, `NXDOMAIN`, …) and matching **`RCODE{n}`** alias.
+Response codes for **`txn.response().rcode`**, **`txn.response_rcode()`**, and **`txn.set_rcode(...)`** — every IANA-assigned RCODE with a name (`SERVFAIL`, `NXDOMAIN`, `DSOTYPENI`, …) and matching **`RCODE{n}`** alias.
 
 </div>
 
@@ -1400,7 +1400,7 @@ Same **`number()`**, **`name()`**, **`==`**, and **`from_number(n)`** pattern as
 
 Rule Rhai global · static module · DNS QCLASS enum
 
-Query class on **`txn.question().qclass`** — **`IN`**, **`CH`**, **`HS`**, **`NONE`**, **`ANY`**, plus **`CLASS{n}`** aliases.
+Query class on **`txn.question().qclass`** — all IANA scalar class assignments (**`IN`**, **`CH`**, **`HS`**, **`NONE`**, **`ANY`**, …), plus **`CLASS{n}`** aliases.
 
 </div>
 
@@ -1430,7 +1430,7 @@ Same **`number()`**, **`name()`**, **`==`**, and **`from_number(n)`** pattern as
 
 Rule Rhai global · static module · DNS opcode enum
 
-Message opcode from the query header — **`txn.question().opcode`**. Known values include **`QUERY`**, **`STATUS`**, **`NOTIFY`**, **`UPDATE`**, and obsolete **`IQUERY`**, each with an **`OPCODE{n}`** alias.
+Message opcode from the query header — **`txn.question().opcode`**. IANA-assigned opcodes include **`QUERY`**, **`STATUS`**, **`NOTIFY`**, **`UPDATE`**, obsolete **`IQUERY`**, and **`DNS_STATEFUL_OPERATIONS`** (alias **`DSO`**), each with an **`OPCODE{n}`** alias.
 
 </div>
 
@@ -1460,7 +1460,7 @@ Same **`number()`**, **`name()`**, **`==`**, and **`from_number(n)`** pattern as
 
 Rule Rhai global · static module · EDNS(0) option code enum
 
-Option codes present on the client OPT record — **`txn.question().edns_options`** is an array of **`EdnsOptionCode`** values (empty when the query has no EDNS). Constants include **`COOKIE`**, **`CLIENT_SUBNET`**, **`PADDING`**, **`EDE`**, each with a **`CODE{n}`** alias.
+Option codes present on the client OPT record — **`txn.question().edns_options`** is an array of **`EdnsOptionCode`** values (empty when the query has no EDNS). Named constants cover every IANA-assigned EDNS option code, including **`COOKIE`**, **`EDNS_CLIENT_SUBNET`** (alias **`CLIENT_SUBNET`**), **`PADDING`**, **`EXTENDED_DNS_ERROR`** (alias **`EDE`**), **`REPORT_CHANNEL`**, and Cisco **`UMBRELLA_IDENT`** (alias **`UMBRELLA`**), each with a **`CODE{n}`** alias.
 
 </div>
 
@@ -1473,6 +1473,10 @@ let q = txn.question();
 for opt in q.edns_options {
     if opt == EdnsOptionCode::COOKIE {
         // client sent DNS cookies
+    } else if opt == EdnsOptionCode::UMBRELLA {
+        // Cisco Umbrella network-device identification (wire 20292)
+    } else if opt == EdnsOptionCode::REPORT_CHANNEL {
+        // RFC 9567 report channel (wire 18)
     }
 }
 ```
