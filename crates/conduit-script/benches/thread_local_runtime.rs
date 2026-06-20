@@ -18,23 +18,7 @@ fn main() {
     let mut host = MockHost {
         id: 99,
         qname: "foo.vip.example.".into(),
-        qtype: "A".into(),
-        dns_id: 1,
-        rcode: None,
-        pool: None,
-        retry: None,
-        dropped: false,
-        soft_drop: false,
-        source_override_v4: None,
-        source_override_v6: None,
-        retry_source_override_v4: None,
-        retry_source_override_v6: None,
-        tags: HashMap::new(),
-        tag_strings: HashMap::new(),
-        attempts: 0,
-        started: Instant::now(),
-        last_forward_ms: 0,
-        phase: ScriptPhase::Request,
+        ..Default::default()
     };
 
     let n = 10_000u32;

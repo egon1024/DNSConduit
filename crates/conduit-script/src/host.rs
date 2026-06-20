@@ -11,9 +11,20 @@ pub trait HostTransaction {
     fn txn_id(&self) -> u64;
     fn phase(&self) -> ScriptPhase;
     fn question_qname(&self) -> Option<&str>;
-    fn question_qtype_label(&self) -> Option<String>;
+    fn question_qtype(&self) -> Option<u16>;
+    fn question_qclass(&self) -> Option<u16> {
+        None
+    }
+    fn question_opcode(&self) -> Option<u8> {
+        None
+    }
+    fn question_edns_option_codes(&self) -> &[u16] {
+        &[]
+    }
     fn question_id(&self) -> u16;
-    fn response_rcode_label(&self) -> Option<String>;
+    fn response_rcode_number(&self) -> Option<u16> {
+        None
+    }
     fn has_tag(&self, key: &str) -> bool;
     fn set_tag_bool(&mut self, key: &str, value: bool);
     fn set_tag_string(&mut self, key: &str, value: &str);
@@ -25,6 +36,9 @@ pub trait HostTransaction {
     fn clear_retry_pool(&mut self);
     fn drop_query(&mut self);
     fn set_rcode_name(&mut self, name: &str);
+    fn set_rcode_number(&mut self, code: u16) {
+        let _ = code;
+    }
     fn set_source_v4(&mut self, addr: &str);
     fn set_source_v6(&mut self, addr: &str);
     fn set_retry_source_v4(&mut self, addr: &str);

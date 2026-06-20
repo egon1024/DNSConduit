@@ -1,6 +1,7 @@
 use crate::compile::{CompiledScript, CompiledScripting, ScriptLimits};
 use crate::data_sources::DataSourceStore;
 use crate::host::{HostTransaction, ScriptPhase};
+use crate::dns_wire::{self, DnsOpcode, EdnsOptionCode, QueryClass, Rcode, RecordType};
 use crate::metrics::MetricRegistry;
 use crate::script_errors::{report_lookup_unknown_table, report_script_eval_error};
 use conduit_events::hash_sample_keyed;
@@ -102,7 +103,8 @@ fn register_host_api(engine: &mut Engine) {
         .register_fn("clear_drop", RhaiTxn::clear_drop)
         .register_fn("clear_retry", RhaiTxn::clear_retry)
         .register_fn("clear_retry_pool", RhaiTxn::clear_retry_pool)
-        .register_fn("set_rcode", RhaiTxn::set_rcode)
+        .register_fn("set_rcode", RhaiTxn::set_rcode_enum)
+        .register_fn("set_rcode", RhaiTxn::set_rcode_name)
         .register_fn("set_source_v4", RhaiTxn::set_source_v4)
         .register_fn("set_source_v6", RhaiTxn::set_source_v6)
         .register_fn("set_retry_source_v4", RhaiTxn::set_retry_source_v4)
@@ -116,6 +118,8 @@ fn register_host_api(engine: &mut Engine) {
         .register_fn("elapsed_ms", RhaiTxn::elapsed_ms)
         .register_fn("get_attempt_count", RhaiTxn::attempt_count)
         .register_fn("last_forward_ms", RhaiTxn::last_forward_ms);
+
+    dns_wire::register_dns_wire_api(engine);
 }
 
 fn with_runtime<F, R>(scripting: &CompiledScripting, f: F) -> R
@@ -186,7 +190,7 @@ struct ScriptEffects {
     clear_soft_retry: bool,
     clear_retry_pool: bool,
     tag_ops: HashMap<String, TagOp>,
-    rcode: Option<String>,
+    rcode: Option<u16>,
     soft_drop: bool,
     hard_drop: bool,
     clear_soft_drop: bool,
@@ -212,9 +216,12 @@ struct RhaiTxn {
     phase: ScriptPhase,
     txn_id: u64,
     qname: Option<String>,
-    qtype: Option<String>,
+    qtype: Option<u16>,
+    qclass: Option<u16>,
+    opcode: Option<u8>,
+    edns_option_codes: Vec<u16>,
     dns_id: u16,
-    rcode: Option<String>,
+    rcode: Option<u16>,
     attempt_count: u32,
     started_at: Instant,
     last_forward_ms: u64,
@@ -225,15 +232,33 @@ struct RhaiTxn {
 }
 
 impl RhaiTxn {
-    fn question(&mut self) -> Dynamic {
-        let mut map = rhai::Map::new();
+    fn insert_question_fields(&self, map: &mut rhai::Map) {
         if let Some(ref qname) = self.qname {
             map.insert("qname".into(), Dynamic::from(qname.clone()));
         }
-        if let Some(ref qtype) = self.qtype {
-            map.insert("qtype".into(), Dynamic::from(qtype.clone()));
+        if let Some(qtype) = self.qtype {
+            map.insert("qtype".into(), Dynamic::from(RecordType(qtype)));
+        }
+        if let Some(qclass) = self.qclass {
+            map.insert("qclass".into(), Dynamic::from(QueryClass(qclass)));
+        }
+        if let Some(opcode) = self.opcode {
+            map.insert("opcode".into(), Dynamic::from(DnsOpcode(opcode)));
+        }
+        if !self.edns_option_codes.is_empty() {
+            let options: rhai::Array = self
+                .edns_option_codes
+                .iter()
+                .map(|&code| Dynamic::from(EdnsOptionCode(code)))
+                .collect();
+            map.insert("edns_options".into(), Dynamic::from(options));
         }
         map.insert("id".into(), Dynamic::from(self.dns_id as i64));
+    }
+
+    fn question(&mut self) -> Dynamic {
+        let mut map = rhai::Map::new();
+        self.insert_question_fields(&mut map);
         Dynamic::from(map)
     }
 
@@ -246,23 +271,20 @@ impl RhaiTxn {
             return Err("response() is not available in request phase".into());
         }
         let mut map = rhai::Map::new();
-        if let Some(ref rcode) = self.rcode {
-            map.insert("rcode".into(), Dynamic::from(rcode.clone()));
+        if let Some(rcode) = self.rcode {
+            map.insert("rcode".into(), Dynamic::from(Rcode(rcode)));
         }
-        if let Some(ref qname) = self.qname {
-            map.insert("qname".into(), Dynamic::from(qname.clone()));
-        }
-        if let Some(ref qtype) = self.qtype {
-            map.insert("qtype".into(), Dynamic::from(qtype.clone()));
-        }
+        self.insert_question_fields(&mut map);
         Ok(Dynamic::from(map))
     }
 
-    fn response_rcode(&mut self) -> String {
+    fn response_rcode(&mut self) -> Dynamic {
         if self.phase != ScriptPhase::Response {
-            return String::new();
+            return Dynamic::UNIT;
         }
-        self.rcode.clone().unwrap_or_default()
+        self.rcode
+            .map(|rcode| Dynamic::from(Rcode(rcode)))
+            .unwrap_or(Dynamic::UNIT)
     }
 
     fn set_tag(&mut self, key: &str, value: Dynamic) -> Result<(), Box<EvalAltResult>> {
@@ -364,9 +386,15 @@ impl RhaiTxn {
         }
     }
 
-    fn set_rcode(&mut self, name: &str) {
+    fn set_rcode_enum(&mut self, rcode: Rcode) {
         if let Ok(mut fx) = self.effects.lock() {
-            fx.rcode = Some(name.to_string());
+            fx.rcode = Some(rcode.number());
+        }
+    }
+
+    fn set_rcode_name(&mut self, name: &str) {
+        if let Ok(mut fx) = self.effects.lock() {
+            fx.rcode = Rcode::parse_name(name).map(Rcode::number);
         }
     }
 
@@ -583,8 +611,8 @@ fn apply_effects(host: &mut dyn HostTransaction, fx: &ScriptEffects) {
             TagOp::Clear => host.clear_tag(&key),
         }
     }
-    if let Some(ref rc) = fx.rcode {
-        host.set_rcode_name(rc);
+    if let Some(rc) = fx.rcode {
+        host.set_rcode_number(rc);
     }
     if let Some(addr) = fx.source_override_v4 {
         host.set_source_v4(&addr.to_string());
@@ -637,9 +665,12 @@ fn run_one(
         phase,
         txn_id: host.txn_id(),
         qname: host.question_qname().map(str::to_string),
-        qtype: host.question_qtype_label(),
+        qtype: host.question_qtype(),
+        qclass: host.question_qclass(),
+        opcode: host.question_opcode(),
+        edns_option_codes: host.question_edns_option_codes().to_vec(),
         dns_id: host.question_id(),
-        rcode: host.response_rcode_label(),
+        rcode: host.response_rcode_number(),
         attempt_count: host.attempt_count(),
         started_at: host.started_at(),
         last_forward_ms: host.last_forward_ms(),
@@ -774,7 +805,10 @@ rules:
         let mut host = MockHost {
             id: 51,
             qname: "test.example.".into(),
-            qtype: "A".into(),
+            qtype: 1,
+            qclass: 1,
+            opcode: 0,
+            edns_option_codes: vec![],
             dns_id: 1,
             rcode: None,
             pool: None,
@@ -858,7 +892,10 @@ rules:
         let mut host = MockHost {
             id: 52,
             qname: "test.example.".into(),
-            qtype: "A".into(),
+            qtype: 1,
+            qclass: 1,
+            opcode: 0,
+            edns_option_codes: vec![],
             dns_id: 1,
             rcode: None,
             pool: None,
@@ -942,7 +979,10 @@ rules:
         let mut host = MockHost {
             id: 53,
             qname: "test.example.".into(),
-            qtype: "A".into(),
+            qtype: 1,
+            qclass: 1,
+            opcode: 0,
+            edns_option_codes: vec![],
             dns_id: 1,
             rcode: None,
             pool: None,
@@ -987,6 +1027,9 @@ rules:
             txn_id: 1,
             qname: None,
             qtype: None,
+            qclass: None,
+            opcode: None,
+            edns_option_codes: Vec::new(),
             dns_id: 0,
             rcode: None,
             attempt_count: 0,
@@ -1014,7 +1057,10 @@ rules:
         let mut host = MockHost {
             id: 3,
             qname: "bad.example.".into(),
-            qtype: "A".into(),
+            qtype: 1,
+            qclass: 1,
+            opcode: 0,
+            edns_option_codes: vec![],
             dns_id: 1,
             rcode: None,
             pool: None,
@@ -1061,9 +1107,12 @@ rules:
         let mut host = MockHost {
             id: 2,
             qname: "test.example.".into(),
-            qtype: "A".into(),
+            qtype: 1,
+            qclass: 1,
+            opcode: 0,
+            edns_option_codes: vec![],
             dns_id: 1,
-            rcode: Some("SERVFAIL".into()),
+            rcode: Some(2),
             pool: Some("primary".into()),
             retry: None,
             dropped: false,
@@ -1151,9 +1200,12 @@ rules:
         let mut host = MockHost {
             id: 3,
             qname: "test.example.".into(),
-            qtype: "A".into(),
+            qtype: 1,
+            qclass: 1,
+            opcode: 0,
+            edns_option_codes: vec![],
             dns_id: 1,
-            rcode: Some("SERVFAIL".into()),
+            rcode: Some(2),
             pool: Some("primary".into()),
             retry: None,
             dropped: false,
@@ -1192,7 +1244,10 @@ rules:
         let mut host = MockHost {
             id: 1,
             qname: "foo.vip.example.".into(),
-            qtype: "A".into(),
+            qtype: 1,
+            qclass: 1,
+            opcode: 0,
+            edns_option_codes: vec![],
             dns_id: 42,
             rcode: None,
             pool: None,
@@ -1234,7 +1289,10 @@ rules:
         let mut host = MockHost {
             id: 9,
             qname: "test.example.".into(),
-            qtype: "A".into(),
+            qtype: 1,
+            qclass: 1,
+            opcode: 0,
+            edns_option_codes: vec![],
             dns_id: 1,
             rcode: None,
             pool: Some("default".into()),
@@ -1276,7 +1334,10 @@ rules:
         let mut host = MockHost {
             id: 10,
             qname: "loop.example.".into(),
-            qtype: "A".into(),
+            qtype: 1,
+            qclass: 1,
+            opcode: 0,
+            edns_option_codes: vec![],
             dns_id: 1,
             rcode: None,
             pool: None,
@@ -1317,7 +1378,10 @@ rules:
         let mut host = MockHost {
             id: 11,
             qname: "eu.example.".into(),
-            qtype: "A".into(),
+            qtype: 1,
+            qclass: 1,
+            opcode: 0,
+            edns_option_codes: vec![],
             dns_id: 1,
             rcode: None,
             pool: None,
@@ -1368,7 +1432,10 @@ rules:
         let mut host = MockHost {
             id: 20,
             qname: "foo.vip.example.".into(),
-            qtype: "A".into(),
+            qtype: 1,
+            qclass: 1,
+            opcode: 0,
+            edns_option_codes: vec![],
             dns_id: 1,
             rcode: None,
             pool: None,
@@ -1490,7 +1557,10 @@ rules:
         let mut host = MockHost {
             id: 21,
             qname: "eu.example.".into(),
-            qtype: "A".into(),
+            qtype: 1,
+            qclass: 1,
+            opcode: 0,
+            edns_option_codes: vec![],
             dns_id: 1,
             rcode: None,
             pool: None,
@@ -1575,9 +1645,12 @@ rules:
         let mut host = MockHost {
             id: 12,
             qname: "login.suspicious.example.".into(),
-            qtype: "A".into(),
+            qtype: 1,
+            qclass: 1,
+            opcode: 0,
+            edns_option_codes: vec![],
             dns_id: 1,
-            rcode: Some("NOERROR".into()),
+            rcode: Some(0),
             pool: None,
             retry: None,
             dropped: false,
@@ -1631,9 +1704,12 @@ rules:
         let mut host = MockHost {
             id: 20,
             qname: "slow.example.".into(),
-            qtype: "A".into(),
+            qtype: 1,
+            qclass: 1,
+            opcode: 0,
+            edns_option_codes: vec![],
             dns_id: 1,
-            rcode: Some("NOERROR".into()),
+            rcode: Some(0),
             pool: None,
             retry: None,
             dropped: false,
@@ -1738,7 +1814,10 @@ rules:
         let mut host = MockHost {
             id: 30,
             qname: "test.example.".into(),
-            qtype: "A".into(),
+            qtype: 1,
+            qclass: 1,
+            opcode: 0,
+            edns_option_codes: vec![],
             dns_id: 1,
             rcode: None,
             pool: None,
@@ -1768,7 +1847,10 @@ rules:
         let mut host = MockHost {
             id: 31,
             qname: "test.example.".into(),
-            qtype: "A".into(),
+            qtype: 1,
+            qclass: 1,
+            opcode: 0,
+            edns_option_codes: vec![],
             dns_id: 1,
             rcode: None,
             pool: None,
@@ -1798,7 +1880,10 @@ rules:
         let mut host = MockHost {
             id: 32,
             qname: "test.example.".into(),
-            qtype: "A".into(),
+            qtype: 1,
+            qclass: 1,
+            opcode: 0,
+            edns_option_codes: vec![],
             dns_id: 1,
             rcode: None,
             pool: None,
@@ -1887,7 +1972,10 @@ rules:
         let mut host = MockHost {
             id: 90,
             qname: "test.example.".into(),
-            qtype: "A".into(),
+            qtype: 1,
+            qclass: 1,
+            opcode: 0,
+            edns_option_codes: vec![],
             dns_id: 1,
             rcode: None,
             pool: None,

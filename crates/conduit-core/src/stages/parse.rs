@@ -6,7 +6,6 @@ use crate::pipeline::{PipelineStage, StageOutcome};
 use crate::snapshot::RuntimeSnapshot;
 use crate::transaction::Transaction;
 use hickory_proto::op::{Message, MessageType};
-use hickory_proto::rr::RecordType;
 use std::sync::Arc;
 
 pub struct ParseStage;
@@ -42,29 +41,23 @@ impl PipelineStage for ParseStage {
             return Self::drop_with(txn, ParseRejectReason::MultiQuestion);
         }
         txn.dns_id = message.id();
+        txn.opcode = Some(u8::from(message.header().op_code()));
         let query = &queries[0];
         txn.qname = Some(query.name().to_utf8());
-        txn.qtype = Some(record_type_to_u16(query.query_type()));
+        txn.qtype = Some(u16::from(query.query_type()));
         txn.qclass = Some(u16::from(query.query_class()));
-        if message.extensions().is_some() {
-            txn.client_udp_payload_size = Some(message.max_payload());
+        if let Some(edns) = message.extensions() {
+            txn.client_udp_payload_size = Some(edns.max_payload());
+            txn.edns_option_codes = edns
+                .options()
+                .as_ref()
+                .keys()
+                .map(|code| u16::from(*code))
+                .collect();
+            txn.edns_option_codes.sort_unstable();
+            txn.edns_option_codes.dedup();
         }
         StageOutcome::Continue(Phase::RequestRules)
-    }
-}
-
-fn record_type_to_u16(rt: RecordType) -> u16 {
-    match rt {
-        RecordType::A => 1,
-        RecordType::AAAA => 28,
-        RecordType::TXT => 16,
-        RecordType::MX => 15,
-        RecordType::NS => 2,
-        RecordType::CNAME => 5,
-        RecordType::SOA => 6,
-        RecordType::PTR => 12,
-        RecordType::SRV => 33,
-        _ => 255,
     }
 }
 
@@ -117,6 +110,8 @@ mod tests {
             .as_deref()
             .is_some_and(|q| q.trim_end_matches('.') == "www.example.com"));
         assert_eq!(txn.qclass, Some(1));
+        assert_eq!(txn.opcode, Some(0));
+        assert!(txn.edns_option_codes.is_empty());
     }
 
     #[test]

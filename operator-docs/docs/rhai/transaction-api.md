@@ -234,7 +234,7 @@ Returns a **script error** on invalid address parse failure.
 Response hook — alternate egress on SERVFAIL retry:
 
 ```rhai
-if txn.response_rcode() == "SERVFAIL" {
+if txn.response_rcode() == Rcode::SERVFAIL {
     txn.set_retry_source_v4("10.0.0.5");
     txn.request_retry();
 }
@@ -692,7 +692,7 @@ None. Declarative rules do not expose attempt count as a selector today.
 Response script — act only on the first upstream failure:
 
 ```rhai
-if txn.get_attempt_count() == 1 && txn.response_rcode() == "SERVFAIL" {
+if txn.get_attempt_count() == 1 && txn.response_rcode() == Rcode::SERVFAIL {
     txn.request_retry();
 }
 ```
@@ -1010,7 +1010,7 @@ Clears soft-drop intent set earlier on this rule pass.
 Response script — cancel an earlier soft drop and retry instead:
 
 ```rhai
-if txn.response_rcode() == "SERVFAIL" {
+if txn.response_rcode() == Rcode::SERVFAIL {
     txn.clear_drop();
     txn.request_retry();
 }
@@ -1220,7 +1220,7 @@ if txn.get_attempt_count() >= 2 {
 
 <div class="txn-api-brief" markdown="1">
 
-Request + response hook · `name`: string (RCODE name) · no return
+Request + response hook · `rcode`: [`Rcode`](#rcode) or string · no return
 
 Sets response RCODE metadata on the transaction before Send.
 
@@ -1238,7 +1238,7 @@ Sets response RCODE metadata on the transaction before Send.
 
 | Parameter | Type | Notes |
 |-----------|------|-------|
-| `name` | string | RCODE name (case-insensitive), for example `"SERVFAIL"`, `"NXDOMAIN"` |
+| `rcode` | [`Rcode`](#rcode) or string | Prefer **`Rcode::SERVFAIL`**; strings such as **`"SERVFAIL"`** still accepted (case-insensitive) |
 | *return* | — | No return value |
 
 <p class="txn-api-summary" markdown="1">
@@ -1250,7 +1250,7 @@ Sets response RCODE metadata on the transaction before Send.
 #### Behavior
 
 - Writes **`rcode`** on the [transaction](/glossary/index.md#transaction). Downstream phases use this when building the client response.
-- Recognized names (case-insensitive): **`NOERROR`**, **`FORMERR`**, **`SERVFAIL`**, **`NXDOMAIN`**, **`REFUSED`**. Any other string maps to **`SERVFAIL`** (fail-safe default).
+- Accepts a [`Rcode`](#rcode) value or a case-insensitive string name / **`RCODE{n}`** alias. Unrecognized strings map to **`SERVFAIL`** (fail-safe default).
 - Does **not** by itself trigger drop or retry — pair with outcome methods when policy should fail over instead of accepting.
 - On the **response hook**, commonly used after inspecting **`txn.response_rcode()`** when rewriting metadata for the client. On the **request hook**, rare — prefer response-hook scripts unless you need to pre-stage metadata before upstream.
 - Within one rule, later **`set_rcode`** (built-in or Rhai) overrides an earlier value on the same hook pass.
@@ -1269,8 +1269,8 @@ Response hook only in config.
 Response script — normalize a policy outcome before Send:
 
 ```rhai
-if txn.response_rcode() == "SERVFAIL" && txn.get_attempt_count() >= 3 {
-    txn.set_rcode("REFUSED");
+if txn.response_rcode() == Rcode::SERVFAIL && txn.get_attempt_count() >= 3 {
+    txn.set_rcode(Rcode::REFUSED);
 }
 ```
 
@@ -1280,21 +1280,467 @@ if txn.response_rcode() == "SERVFAIL" && txn.get_attempt_count() >= 3 {
 
 ---
 
-## Query and response
+## Query and response { #query-and-response }
+
+Read-only access to the **client question** and, on the [response hook](/rhai/hooks-and-phases.md#response-hook), the **upstream outcome metadata** Conduit recorded after [Wait for response](/concepts/architecture-and-packet-path.md#wait-for-response). These APIs expose qname, typed DNS wire enums ([`RecordType`](#recordtype), [`QueryClass`](#queryclass), [`DnsOpcode`](#dnsopcode), [`EdnsOptionCode`](#ednsoptioncode)), message **ID**, and [`Rcode`](#rcode) — not full answer records or wire bytes. For editing DNS payloads, see [Rhai for processor chains](/rhai/processor-chain-rhai.md).
+
+On the **request hook**, only the question is meaningful — upstream has not answered yet. On the **response hook**, the question is unchanged and **`txn.response()`** / **`txn.response_rcode()`** reflect the outcome of the **current** forward attempt (including timeout or pool exhaustion, which Conduit typically records as **`SERVFAIL`**). See [Hooks and phases — phase guards](/rhai/hooks-and-phases.md#phase-guards).
 
 <p class="txn-api-index" markdown="1">
 
-**Methods:** `question_qname(txn)` · `txn.question()` · `txn.response()` · `txn.response_rcode()` *in progress*
+**Functions:** [`question_qname(txn)`](#question_qnametxn) · **Methods:** [`txn.question()`](#txnquestion) · [`txn.response()`](#txnresponse) · [`txn.response_rcode()`](#txnresponse_rcode) · **Types:** [`RecordType`](#recordtype) · [`Rcode`](#rcode) · [`QueryClass`](#queryclass) · [`DnsOpcode`](#dnsopcode) · [`EdnsOptionCode`](#ednsoptioncode)
 
 </p>
 
-<p class="txn-api-stub" markdown="1">
+<div class="txn-api-entry" markdown="1">
 
-Read-only access to the client question and (on the [response hook](/rhai/hooks-and-phases.md#response-hook)) upstream outcome. `txn.response()` is not available on the [request hook](/rhai/hooks-and-phases.md#request-hook); `txn.response_rcode()` returns an empty string on the request hook.
+### `RecordType` {#recordtype}
 
-Method cards for this group are not written yet. Hook availability: [Hooks and phases — phase guards](/rhai/hooks-and-phases.md#phase-guards).
+<div class="txn-api-brief" markdown="1">
+
+Rule Rhai global · static module · DNS QTYPE enum
+
+Named constants and **`TYPE{n}`** aliases for every known record type; use for **`qtype`** comparisons and **`RecordType::from_number(n)`** for arbitrary wire numbers.
+
+</div>
+
+<div class="txn-api-reference-panel" markdown="1" hidden>
+
+#### Availability
+
+Registered on the Rule Rhai engine — available in every **`type: rhai`** script without import.
+
+#### Constants
+
+Each known type appears twice in the **`RecordType`** module:
+
+| Form | Example | Wire number |
+|------|---------|-------------|
+| Name | **`RecordType::A`**, **`RecordType::HTTPS`** | 1, 65, … |
+| **`TYPE{n}`** alias | **`RecordType::TYPE1`**, **`RecordType::TYPE65`** | same |
+
+Known names include **`A`**, **`AAAA`**, **`CNAME`**, **`MX`**, **`NS`**, **`PTR`**, **`SOA`**, **`SRV`**, **`TXT`**, **`HTTPS`**, **`SVCB`**, **`DNSKEY`**, **`DS`**, **`TLSA`**, **`CAA`**, **`ANY`**, and others aligned with Conduit’s parse table. Unknown numbers are still valid via **`RecordType::from_number(n)`**; **`name()`** on such values returns **`TYPE{n}`**.
+
+#### Methods on values
+
+| Method | Returns | Notes |
+|--------|---------|-------|
+| **`number()`** | **`i64`** | IANA type number (0–65535) |
+| **`name()`** | string | **`A`**, **`HTTPS`**, or **`TYPE{n}`** for unknown types |
+| **`==`**, **`!=`** | bool | Compare wire numbers — **`RecordType::A == RecordType::TYPE1`** is **`true`** |
+
+#### Constructor
+
+| Call | Notes |
+|------|-------|
+| **`RecordType::from_number(n)`** | Build from wire number; error if **`n`** ∉ 0…65535 |
+
+#### Example
+
+```rhai
+let q = txn.question();
+if q.qtype == RecordType::AAAA {
+    txn.set_pool("v6-only");
+} else if q.qtype == RecordType::from_number(99) {
+    // custom TYPE99 policy
+}
+```
+
+</div>
+
+</div>
+
+---
+
+<div class="txn-api-entry" markdown="1">
+
+### `Rcode` {#rcode}
+
+<div class="txn-api-brief" markdown="1">
+
+Rule Rhai global · static module · DNS RCODE enum
+
+Response codes for **`txn.response().rcode`**, **`txn.response_rcode()`**, and **`txn.set_rcode(...)`** — each with a name (`SERVFAIL`, `NXDOMAIN`, …) and matching **`RCODE{n}`** alias.
+
+</div>
+
+<div class="txn-api-reference-panel" markdown="1" hidden>
+
+#### Constants
+
+| Form | Example |
+|------|---------|
+| Name | **`Rcode::NOERROR`**, **`Rcode::SERVFAIL`**, **`Rcode::NXDOMAIN`** |
+| **`RCODE{n}`** | **`Rcode::RCODE0`**, **`Rcode::RCODE2`** |
+
+Also **`Rcode::BADSIG`** as an alias for wire **16** (same as **`Rcode::BADVERS`** / **`Rcode::RCODE16`**). Unknown codes use **`Rcode::from_number(n)`**; **`name()`** returns **`RCODE{n}`**.
+
+#### Example
+
+```rhai
+if txn.response_rcode() == Rcode::SERVFAIL {
+    txn.request_retry();
+}
+txn.set_rcode(Rcode::REFUSED);
+```
+
+Same **`number()`**, **`name()`**, **`==`**, and **`from_number(n)`** pattern as [`RecordType`](#recordtype).
+
+</div>
+
+</div>
+
+---
+
+<div class="txn-api-entry" markdown="1">
+
+### `QueryClass` {#queryclass}
+
+<div class="txn-api-brief" markdown="1">
+
+Rule Rhai global · static module · DNS QCLASS enum
+
+Query class on **`txn.question().qclass`** — **`IN`**, **`CH`**, **`HS`**, **`NONE`**, **`ANY`**, plus **`CLASS{n}`** aliases.
+
+</div>
+
+<div class="txn-api-reference-panel" markdown="1" hidden>
+
+#### Example
+
+```rhai
+if txn.question().qclass == QueryClass::IN {
+    // typical Internet class
+}
+```
+
+Same **`number()`**, **`name()`**, **`==`**, and **`from_number(n)`** pattern as [`RecordType`](#recordtype).
+
+</div>
+
+</div>
+
+---
+
+<div class="txn-api-entry" markdown="1">
+
+### `DnsOpcode` {#dnsopcode}
+
+<div class="txn-api-brief" markdown="1">
+
+Rule Rhai global · static module · DNS opcode enum
+
+Message opcode from the query header — **`txn.question().opcode`**. Known values include **`QUERY`**, **`STATUS`**, **`NOTIFY`**, **`UPDATE`**, and obsolete **`IQUERY`**, each with an **`OPCODE{n}`** alias.
+
+</div>
+
+<div class="txn-api-reference-panel" markdown="1" hidden>
+
+#### Example
+
+```rhai
+if txn.question().opcode != DnsOpcode::QUERY {
+    txn.drop_query();
+}
+```
+
+Same **`number()`**, **`name()`**, **`==`**, and **`from_number(n)`** pattern as [`RecordType`](#recordtype).
+
+</div>
+
+</div>
+
+---
+
+<div class="txn-api-entry" markdown="1">
+
+### `EdnsOptionCode` {#ednsoptioncode}
+
+<div class="txn-api-brief" markdown="1">
+
+Rule Rhai global · static module · EDNS(0) option code enum
+
+Option codes present on the client OPT record — **`txn.question().edns_options`** is an array of **`EdnsOptionCode`** values (empty when the query has no EDNS). Constants include **`COOKIE`**, **`CLIENT_SUBNET`**, **`PADDING`**, **`EDE`**, each with a **`CODE{n}`** alias.
+
+</div>
+
+<div class="txn-api-reference-panel" markdown="1" hidden>
+
+#### Example
+
+```rhai
+let q = txn.question();
+for opt in q.edns_options {
+    if opt == EdnsOptionCode::COOKIE {
+        // client sent DNS cookies
+    }
+}
+```
+
+Same **`number()`**, **`name()`**, **`==`**, and **`from_number(n)`** pattern as [`RecordType`](#recordtype).
+
+</div>
+
+</div>
+
+---
+
+<div class="txn-api-entry" markdown="1">
+
+### `question_qname(txn)` {#question_qnametxn}
+
+<div class="txn-api-brief" markdown="1">
+
+Request + response hook · `txn`: Transaction · returns string (qname)
+
+Shorthand for the client query name — same value as `txn.question().qname`.
+
+</div>
+
+<div class="txn-api-reference-panel" markdown="1" hidden>
+
+#### Hooks
+
+[Request hook](/rhai/hooks-and-phases.md#request-hook) and [response hook](/rhai/hooks-and-phases.md#response-hook)
+
+#### Arguments / return
+
+| Parameter | Type | Notes |
+|-----------|------|-------|
+| `txn` | Transaction | Current **`txn`** object passed into the script |
+| *return* | string | Query name (FQDN-style, usually with trailing dot), or **`""`** if unavailable |
+
+There is no YAML equivalent — call from a **`rhai`** action.
+
+<p class="txn-api-summary" markdown="1">
+
+**Summary:** Returns the client question name as a string. Preferred when you only need the qname for lookups or pattern matching.
 
 </p>
+
+#### Behavior
+
+- Top-level Rhai function (not a method on **`txn`**) — same **`txn`** handle your script already receives.
+- Equivalent to **`txn.question().qname`** when the question is present. Use **`txn.question()`** when you also need **`qtype`** or **`id`** in one call.
+- The string is the **exact** name Conduit parsed from the client query — typically a fully qualified domain name **with a trailing dot** (for example `"www.example."`). Match CSV keys and literal comparisons accordingly; see [Data sources and lookups — Key matching](/rhai/data-sources-and-lookups.md#table_lookup-behavior).
+- On the **response hook**, the qname is still the **client** question — it does not change when upstream returns a different outcome.
+- Returns **`""`** when the question name is not on the transaction (unexpected after successful [Parse](/concepts/architecture-and-packet-path.md#parse); treat as “no qname”).
+- Common uses: **`table_lookup`** keys, suffix/prefix checks before **`txn.set_pool`**, block/allow lists. Pair with the request hook before [Route](/concepts/architecture-and-packet-path.md#route).
+
+#### Example
+
+Request hook — blocklist and VIP routing (repository fixtures `blocklist.rhai`, `set-vip-pool.rhai`):
+
+```rhai
+if table_lookup("blocklist", question_qname(txn)) == "block" {
+    txn.drop_query();
+}
+
+if question_qname(txn).ends_with(".vip.example.") {
+    txn.set_pool("vip");
+}
+```
+
+</div>
+
+</div>
+
+---
+
+<div class="txn-api-entry" markdown="1">
+
+### `txn.question()` {#txnquestion}
+
+<div class="txn-api-brief" markdown="1">
+
+Request + response hook · no args · returns map
+
+Returns a map of client question fields: `qname`, `qtype`, `qclass`, `opcode`, `edns_options`, and DNS message `id` (typed enums where noted below).
+
+</div>
+
+<div class="txn-api-reference-panel" markdown="1" hidden>
+
+#### Hooks
+
+[Request hook](/rhai/hooks-and-phases.md#request-hook) and [response hook](/rhai/hooks-and-phases.md#response-hook)
+
+#### Arguments / return
+
+| Parameter | Type | Notes |
+|-----------|------|-------|
+| *none* | — | |
+| *return* | map | Question metadata (see **Behavior**) |
+
+There is no YAML equivalent.
+
+<p class="txn-api-summary" markdown="1">
+
+**Summary:** Structured read of the client question — qname, typed wire enums, and DNS message ID — as a Rhai map.
+
+</p>
+
+#### Behavior
+
+- Always available on both hooks. On the **response hook**, values describe the **original client question**, not upstream answer data.
+- Map keys (each present only when Conduit has a value):
+  - **`qname`** — string, same as **`question_qname(txn)`**
+  - **`qtype`** — [`RecordType`](#recordtype)
+  - **`qclass`** — [`QueryClass`](#queryclass)
+  - **`opcode`** — [`DnsOpcode`](#dnsopcode)
+  - **`edns_options`** — array of [`EdnsOptionCode`](#ednsoptioncode) (omitted when empty — no EDNS on the query)
+  - **`id`** — integer DNS message ID from the client query (16-bit; exposed as Rhai **`i64`**)
+- Each wire enum uses its static module for constants (name + numeric alias, e.g. **`RecordType::A`** / **`RecordType::TYPE1`**, **`QueryClass::IN`** / **`QueryClass::CLASS1`**). Compare with **`==`**, or use **`from_number(n)`** for arbitrary wire values; **`.name()`** returns the selector-friendly string.
+- Missing fields are **omitted** from the map rather than set to empty values — use **`question_qname(txn)`** or check map membership when you need a default.
+- Does **not** include client address, EDNS options, or answer records — only parsed question metadata from [Parse](/concepts/architecture-and-packet-path.md#parse).
+- Prefer **`question_qname(txn)`** when the script only branches on name; use **`txn.question()`** when **`qtype`** or **`id`** matter (for example metrics labels or TYPE-specific policy).
+
+#### Example
+
+Request hook — route HTTPS queries differently:
+
+```rhai
+let q = txn.question();
+if q.qtype == RecordType::HTTPS || q.qtype == RecordType::TYPE65 {
+    txn.set_pool("doh-helper");
+} else if q.qname.ends_with(".slow.example.") {
+    txn.set_pool("bulk");
+}
+```
+
+</div>
+
+</div>
+
+---
+
+<div class="txn-api-entry" markdown="1">
+
+### `txn.response()` {#txnresponse}
+
+<div class="txn-api-brief" markdown="1">
+
+Response hook only · no args · returns map; script error on request hook
+
+Returns upstream outcome metadata for the current forward attempt (`rcode`, question fields).
+
+</div>
+
+<div class="txn-api-reference-panel" markdown="1" hidden>
+
+#### Hooks
+
+[Response hook](/rhai/hooks-and-phases.md#response-hook) only
+
+#### Arguments / return
+
+| Parameter | Type | Notes |
+|-----------|------|-------|
+| *none* | — | |
+| *return* | map | Response metadata for this attempt (see **Behavior**) |
+
+There is no YAML equivalent.
+
+<p class="txn-api-summary" markdown="1">
+
+**Summary:** Map view of upstream outcome metadata after the latest forward — primarily **`rcode`**, plus the question fields for context. Not available on the request hook.
+
+</p>
+
+#### Behavior
+
+- **Response hook only.** On the **request hook**, calling **`txn.response()`** returns a **script error** (`response() is not available in request phase`). Conduit logs the error, skips further script effects for that hook invocation, and continues the pipeline ([Sandbox limits](/rhai/sandbox-limits.md) — fail-open). Repository fixture: `bad-phase.rhai` / `with-rhai-bad-phase.yaml`.
+- Reflects the outcome Conduit recorded for the **current** forward attempt — after timeout, connection failure, or an upstream DNS response. Conduit often sets **`SERVFAIL`** for timeout and pool exhaustion before your script runs; see [Retries and transactions](/policy-routing/retries-and-transactions.md).
+- Map keys (each present only when available):
+  - **`rcode`** — [`Rcode`](#rcode) for this forward attempt
+  - **`qname`**, **`qtype`**, **`qclass`**, **`opcode`**, **`edns_options`** — same as **`txn.question()`**
+- Does **not** expose answer RRs, TTLs, or wire bytes — only transaction-level metadata scripts use for policy. For packet editing, see [Rhai for processor chains](/rhai/processor-chain-rhai.md).
+- On a retried query, the map reflects **this attempt only** — compare with **`txn.get_attempt_count()`** when policy depends on retry generation.
+- For simple **`rcode`** branching, **`txn.response_rcode()`** is usually clearer and is safe to call on both hooks (returns **`()`** on the request hook when no rcode is available).
+
+#### Example
+
+Response hook — branch on rcode and attempt count:
+
+```rhai
+let resp = txn.response();
+if resp.rcode == Rcode::SERVFAIL && txn.get_attempt_count() == 1 {
+    txn.set_retry_pool("secondary");
+    txn.request_retry();
+}
+```
+
+</div>
+
+</div>
+
+---
+
+<div class="txn-api-entry" markdown="1">
+
+### `txn.response_rcode()` {#txnresponse_rcode}
+
+<div class="txn-api-brief" markdown="1">
+
+Request + response hook · no args · returns [`Rcode`](#rcode) or `()`
+
+Returns upstream RCODE on the response hook; **`()`** on the request hook when no rcode is available.
+
+</div>
+
+<div class="txn-api-reference-panel" markdown="1" hidden>
+
+#### Hooks
+
+[Request hook](/rhai/hooks-and-phases.md#request-hook) and [response hook](/rhai/hooks-and-phases.md#response-hook)
+
+#### Arguments / return
+
+| Parameter | Type | Notes |
+|-----------|------|-------|
+| *none* | — | |
+| *return* | [`Rcode`](#rcode) or **`()`** | Upstream RCODE on response hook; **`()`** on request hook |
+
+There is no YAML equivalent.
+
+<p class="txn-api-summary" markdown="1">
+
+**Summary:** Convenience accessor for upstream **`rcode`** — the most common response-hook branch condition. Returns **`()`** on the request hook (no script error).
+
+</p>
+
+#### Behavior
+
+- On the **response hook**, returns the **RCODE** Conduit recorded for the **current** forward attempt — same value as **`txn.response().rcode`** when that field is present.
+- Compare with **`==`** against **`Rcode::SERVFAIL`**, **`Rcode::RCODE2`**, etc.
+- Returns **`()`** when:
+  - Called on the **request hook** (upstream outcome not available yet) — **does not** raise a phase error (unlike **`txn.response()`**)
+  - No **RCODE** is set on the transaction yet for this attempt
+- Typical uses: retry/failover on **`SERVFAIL`**, accept or rewrite on **`NOERROR`**, client-facing **`txn.set_rcode`** after inspection. Often paired with **`txn.request_retry()`**, **`txn.set_retry_pool`**, or **`txn.set_rcode`**. See [Outcomes](/rhai/transaction-api.md#outcomes) and [Routing](/rhai/transaction-api.md#routing).
+- Runs **once per response-hook invocation** — on retries, each forward attempt gets a fresh evaluation with the rcode for that attempt.
+
+#### Example
+
+Response hook — servfail retry (repository fixture `servfail-retry.rhai` / `with-rhai-servfail-retry.yaml`):
+
+```rhai
+if txn.response_rcode() == Rcode::SERVFAIL {
+    txn.set_retry_pool("secondary");
+    txn.request_retry();
+}
+```
+
+Accept only after upstream success:
+
+```rhai
+if txn.response_rcode() == Rcode::NOERROR {
+    txn.set_tag("upstream_ok", true);
+}
+```
+
+</div>
+
+</div>
 
 ---
 
@@ -1362,7 +1808,7 @@ Clears the `retry_pool` stash from `set_retry_pool` without clearing soft-retry 
 Response script — retry in the current pool even though request policy stashed a backup pool:
 
 ```rhai
-if txn.response_rcode() == "SERVFAIL" {
+if txn.response_rcode() == Rcode::SERVFAIL {
     txn.clear_retry_pool();
     txn.request_retry();
 }
@@ -1494,7 +1940,7 @@ Pair with **`retry`** or **`retry_now`** on a response rule to fail over — see
 Response script — fail over to a backup pool on **SERVFAIL** (same pattern as `tests/fixtures/rhai/servfail-retry.rhai` in the repository):
 
 ```rhai
-if txn.response_rcode() == "SERVFAIL" {
+if txn.response_rcode() == Rcode::SERVFAIL {
     txn.set_retry_pool("secondary");
     txn.request_retry();
 }
