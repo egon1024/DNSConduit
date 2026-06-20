@@ -21,16 +21,28 @@ impl HostTransaction for Transaction {
         self.qname.as_deref()
     }
 
-    fn question_qtype_label(&self) -> Option<String> {
-        self.qtype_label()
+    fn question_qtype(&self) -> Option<u16> {
+        self.qtype
+    }
+
+    fn question_qclass(&self) -> Option<u16> {
+        self.qclass
+    }
+
+    fn question_opcode(&self) -> Option<u8> {
+        self.opcode
+    }
+
+    fn question_edns_option_codes(&self) -> &[u16] {
+        &self.edns_option_codes
     }
 
     fn question_id(&self) -> u16 {
         self.dns_id
     }
 
-    fn response_rcode_label(&self) -> Option<String> {
-        self.rcode_label()
+    fn response_rcode_number(&self) -> Option<u16> {
+        self.rcode()
     }
 
     fn has_tag(&self, key: &str) -> bool {
@@ -76,6 +88,10 @@ impl HostTransaction for Transaction {
 
     fn set_rcode_name(&mut self, name: &str) {
         Transaction::set_rcode_name(self, name);
+    }
+
+    fn set_rcode_number(&mut self, code: u16) {
+        Transaction::set_rcode(self, code);
     }
 
     fn set_source_v4(&mut self, addr: &str) {

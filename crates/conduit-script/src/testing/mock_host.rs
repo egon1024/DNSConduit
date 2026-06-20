@@ -8,9 +8,12 @@ use std::time::Instant;
 pub struct MockHost {
     pub id: u64,
     pub qname: String,
-    pub qtype: String,
+    pub qtype: u16,
+    pub qclass: u16,
+    pub opcode: u8,
+    pub edns_option_codes: Vec<u16>,
     pub dns_id: u16,
-    pub rcode: Option<String>,
+    pub rcode: Option<u16>,
     pub pool: Option<String>,
     pub retry: Option<String>,
     pub dropped: bool,
@@ -27,6 +30,35 @@ pub struct MockHost {
     pub phase: ScriptPhase,
 }
 
+impl Default for MockHost {
+    fn default() -> Self {
+        Self {
+            id: 1,
+            qname: "test.example.".into(),
+            qtype: 1,
+            qclass: 1,
+            opcode: 0,
+            edns_option_codes: Vec::new(),
+            dns_id: 1,
+            rcode: None,
+            pool: None,
+            retry: None,
+            dropped: false,
+            soft_drop: false,
+            source_override_v4: None,
+            source_override_v6: None,
+            retry_source_override_v4: None,
+            retry_source_override_v6: None,
+            tags: HashMap::new(),
+            tag_strings: HashMap::new(),
+            attempts: 0,
+            started: Instant::now(),
+            last_forward_ms: 0,
+            phase: ScriptPhase::Request,
+        }
+    }
+}
+
 impl HostTransaction for MockHost {
     fn txn_id(&self) -> u64 {
         self.id
@@ -40,16 +72,28 @@ impl HostTransaction for MockHost {
         Some(&self.qname)
     }
 
-    fn question_qtype_label(&self) -> Option<String> {
-        Some(self.qtype.clone())
+    fn question_qtype(&self) -> Option<u16> {
+        Some(self.qtype)
+    }
+
+    fn question_qclass(&self) -> Option<u16> {
+        Some(self.qclass)
+    }
+
+    fn question_opcode(&self) -> Option<u8> {
+        Some(self.opcode)
+    }
+
+    fn question_edns_option_codes(&self) -> &[u16] {
+        &self.edns_option_codes
     }
 
     fn question_id(&self) -> u16 {
         self.dns_id
     }
 
-    fn response_rcode_label(&self) -> Option<String> {
-        self.rcode.clone()
+    fn response_rcode_number(&self) -> Option<u16> {
+        self.rcode
     }
 
     fn has_tag(&self, key: &str) -> bool {
@@ -95,7 +139,11 @@ impl HostTransaction for MockHost {
     }
 
     fn set_rcode_name(&mut self, name: &str) {
-        self.rcode = Some(name.to_string());
+        self.rcode = crate::Rcode::parse_name(name).map(crate::Rcode::number);
+    }
+
+    fn set_rcode_number(&mut self, code: u16) {
+        self.rcode = Some(code);
     }
 
     fn set_source_v4(&mut self, addr: &str) {

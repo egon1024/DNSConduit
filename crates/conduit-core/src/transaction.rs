@@ -68,6 +68,10 @@ pub struct Transaction {
     pub qname: Option<String>,
     pub qtype: Option<u16>,
     pub qclass: Option<u16>,
+    /// DNS opcode from the query header (0–15).
+    pub opcode: Option<u8>,
+    /// EDNS option codes present on the client query (empty when no OPT).
+    pub edns_option_codes: Vec<u16>,
     pub client_addr: SocketAddr,
     /// Set when parse stage drops the query (for metrics).
     pub parse_reject_reason: Option<ParseRejectReason>,
@@ -115,6 +119,8 @@ impl Transaction {
             qname: None,
             qtype: None,
             qclass: None,
+            opcode: None,
+            edns_option_codes: Vec::new(),
             client_addr,
             parse_reject_reason: None,
             listener_label: None,
@@ -234,32 +240,19 @@ impl Transaction {
     }
 
     pub fn qtype_label(&self) -> Option<String> {
-        self.qtype.map(|t| match t {
-            1 => "A".into(),
-            28 => "AAAA".into(),
-            _ => format!("TYPE{t}"),
-        })
+        self.qtype.map(conduit_script::qtype_canonical_name)
     }
 
     pub fn rcode_label(&self) -> Option<String> {
-        self.rcode.map(|r| match r {
-            0 => "NOERROR".into(),
-            2 => "SERVFAIL".into(),
-            3 => "NXDOMAIN".into(),
-            5 => "REFUSED".into(),
-            _ => format!("RCODE{r}"),
-        })
+        self.rcode.map(conduit_script::rcode_canonical_name)
     }
 
     pub fn set_rcode_name(&mut self, name: &str) {
-        self.rcode = Some(match name.to_uppercase().as_str() {
-            "NOERROR" => 0,
-            "SERVFAIL" => 2,
-            "NXDOMAIN" => 3,
-            "REFUSED" => 5,
-            "FORMERR" => 1,
-            _ => 2,
-        });
+        self.rcode = Some(
+            conduit_script::Rcode::parse_name(name)
+                .map(conduit_script::Rcode::number)
+                .unwrap_or(2),
+        );
     }
 
     pub fn set_rcode(&mut self, code: u16) {
