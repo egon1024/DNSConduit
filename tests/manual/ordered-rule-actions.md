@@ -103,7 +103,19 @@ To see **vip** routing instead, swap the two actions in the YAML (or remove the 
 
 ---
 
-## 6. `conduitctl validate` — Rhai compile failure
+## 6. Request `set_retry_source_v4` — stash for retry forward; first forward ignores
+
+```bash
+dig @127.0.0.1 -p 15353 +time=2 +tries=1 +tcp +ignore retry-src.manual-order.example A
+```
+
+**Expect:** `192.0.2.10` from **default** (`127.0.0.1:15300`). Request policy stashes `retry_source_override_v4` for use **only if** a later retry forward occurs; the first forward still uses standing pool/global egress (no standing `set_source_v4` on this rule).
+
+**Full retry egress change:** pair response **`set_retry_source_v4`** + **`retry`** (or Rhai equivalent) — see [Source selection lifecycle](/operator-docs/docs/policy-routing/retries-and-transactions.md#source-selection-lifecycle) and fixture [`with-rules-set-retry-source-v4.yaml`](../fixtures/config/with-rules-set-retry-source-v4.yaml).
+
+---
+
+## 7. `conduitctl validate` — Rhai compile failure
 
 With Conduit stopped:
 

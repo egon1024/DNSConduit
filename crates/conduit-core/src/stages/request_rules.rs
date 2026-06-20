@@ -19,10 +19,12 @@ impl PipelineStage for RequestRulesStage {
     }
 
     fn handle(&self, txn: &mut Transaction, snapshot: &Arc<RuntimeSnapshot>) -> StageOutcome {
-        let user_export = self.metrics.as_ref().map(|m| m.user.as_ref());
-        let result = snapshot
-            .rules
-            .eval(RuleHook::Request, txn, &snapshot.scripting, user_export);
+        let result = snapshot.rules.eval(
+            RuleHook::Request,
+            txn,
+            &snapshot.scripting,
+            self.metrics.as_deref(),
+        );
 
         match result.outcome {
             RuleOutcome::Drop => StageOutcome::Drop,

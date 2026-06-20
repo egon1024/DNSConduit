@@ -26,6 +26,13 @@ message MetricsConfig {
   string profile = 2;              // "full" | "minimal" | "off"; default full when enabled
   optional PrometheusMetricsConfig prometheus = 3;
   optional OtelMetricsConfig otel = 4;
+  repeated UserMetricExportConfig user_metrics = 5;  // per-metric export tier overrides
+}
+
+// Export tier for Rhai conduit_user_* metrics (default: full = full profile only).
+message UserMetricExportConfig {
+  string name = 1;    // metric name from metric_inc (without conduit_user_ prefix)
+  string export = 2;  // "minimal" | "full"
 }
 
 message PrometheusMetricsConfig {
@@ -94,7 +101,7 @@ message Selector {
 }
 
 message Action {
-  string type = 1;   // set_pool | set_tag | set_retry_pool | retry | retry_now | clear_retry | clear_retry_pool | drop | set_rcode | rhai
+  string type = 1;   // set_pool | set_tag | clear_tag | set_retry_pool | retry | retry_now | clear_retry | clear_retry_pool | drop | set_rcode | rhai | set_source_v4 | set_source_v6 | set_retry_source_v4 | set_retry_source_v6 | clear_retry_source_v4 | clear_retry_source_v6
   string value = 2;
 }
 

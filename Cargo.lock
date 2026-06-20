@@ -455,6 +455,7 @@ dependencies = [
  "conduit-events",
  "conduit-metrics",
  "conduit-proto",
+ "prometheus",
  "rhai",
  "tempfile",
  "thiserror 2.0.18",

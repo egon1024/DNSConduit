@@ -11,7 +11,7 @@ use conduit_proto::config::{
     Action, Backend, Config, ControlConfig, ControlTlsConfig, DataSource, EventSinkFilters,
     EventsConfig, ForwardConfig, Listener, ListenersConfig, LoggingConfig, MetricsConfig,
     OrchestratorConfig, OtelMetricsConfig, Pool, PrometheusMetricsConfig, RhaiConfig, Rule,
-    RulesConfig, Selector, TracingActivation, TracingConfig, TracingOutput,
+    RulesConfig, Selector, TracingActivation, TracingConfig, TracingOutput, UserMetricExportConfig,
 };
 use serde::{Deserialize, Serialize};
 
@@ -482,6 +482,13 @@ pub(crate) struct YamlBackend {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
+pub(crate) struct YamlUserMetricExport {
+    name: String,
+    #[serde(default)]
+    export: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
 pub(crate) struct YamlMetrics {
     #[serde(default)]
     enabled: bool,
@@ -491,6 +498,8 @@ pub(crate) struct YamlMetrics {
     prometheus: Option<YamlPrometheusMetrics>,
     #[serde(default)]
     otel: Option<YamlOtelMetrics>,
+    #[serde(default)]
+    user_metrics: Vec<YamlUserMetricExport>,
 }
 
 fn default_metrics_profile() -> String {
@@ -660,6 +669,14 @@ impl From<YamlMetrics> for MetricsConfig {
             profile: y.profile,
             prometheus: y.prometheus.map(Into::into),
             otel: y.otel.map(Into::into),
+            user_metrics: y
+                .user_metrics
+                .into_iter()
+                .map(|u| UserMetricExportConfig {
+                    name: u.name,
+                    export: u.export,
+                })
+                .collect(),
         }
     }
 }
@@ -994,6 +1011,14 @@ impl From<&MetricsConfig> for YamlMetrics {
             profile: m.profile.clone(),
             prometheus: m.prometheus.as_ref().map(YamlPrometheusMetrics::from),
             otel: m.otel.as_ref().map(YamlOtelMetrics::from),
+            user_metrics: m
+                .user_metrics
+                .iter()
+                .map(|u| YamlUserMetricExport {
+                    name: u.name.clone(),
+                    export: u.export.clone(),
+                })
+                .collect(),
         }
     }
 }

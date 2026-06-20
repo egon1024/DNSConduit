@@ -45,6 +45,10 @@ impl HostTransaction for Transaction {
         self.tags.set_string(key, value);
     }
 
+    fn clear_tag(&mut self, key: &str) {
+        self.tags.clear(key);
+    }
+
     fn set_pool(&mut self, name: &str) {
         self.selected_pool = Some(name.to_string());
     }
@@ -86,12 +90,36 @@ impl HostTransaction for Transaction {
         }
     }
 
+    fn set_retry_source_v4(&mut self, addr: &str) {
+        if let Ok(ip) = addr.parse() {
+            self.set_retry_source_override_v4(ip);
+        }
+    }
+
+    fn set_retry_source_v6(&mut self, addr: &str) {
+        if let Ok(ip) = addr.parse() {
+            self.set_retry_source_override_v6(ip);
+        }
+    }
+
+    fn clear_retry_source_v4(&mut self) {
+        self.clear_retry_source_override_v4();
+    }
+
+    fn clear_retry_source_v6(&mut self) {
+        self.clear_retry_source_override_v6();
+    }
+
     fn attempt_count(&self) -> u32 {
         self.attempt_count
     }
 
     fn started_at(&self) -> std::time::Instant {
         self.started_at
+    }
+
+    fn last_forward_ms(&self) -> u64 {
+        self.last_forward_ms()
     }
 
     fn is_dropped(&self) -> bool {
@@ -104,5 +132,9 @@ impl HostTransaction for Transaction {
 
     fn script_tag_bools(&self) -> HashMap<String, bool> {
         self.tags.bool_flags().clone()
+    }
+
+    fn script_tag_strings(&self) -> HashMap<String, String> {
+        self.tags.export_all_tags().1.into_iter().collect()
     }
 }

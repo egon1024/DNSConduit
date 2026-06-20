@@ -24,4 +24,5 @@ tracing = { workspace = true }
 
 [dev-dependencies]
 conduit-config = { path = "../conduit-config" }
+prometheus = { workspace = true }
 tempfile = "3"

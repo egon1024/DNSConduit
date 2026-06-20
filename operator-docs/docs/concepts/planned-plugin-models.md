@@ -1,10 +1,10 @@
 # Planned plugin models
 
-[WASM](/glossary/index.md#wasm), [sidecar](/glossary/index.md#sidecar), and **processor chains** are **not yet shipped**. This page describes what is planned — not what you can configure today.
+[WASM](/glossary/index.md#wasm), [sidecar](/glossary/index.md#sidecar), and **[processor chains](/processor-chains/index.md)** are **not yet shipped**. This page describes what is planned — not what you can configure today.
 
-**Shipped today:** declarative [rules](/policy-routing/rules-and-actions.md) and **[Rule Rhai](/glossary/index.md#rule-rhai)** on the same request/response hooks. That is documented under [Policy & routing](/policy-routing/index.md) and [Rhai](/rhai/index.md), not here.
+**Shipped today:** declarative [rules](/policy-routing/rules-and-actions.md) and **Rhai for rules** ([Rule Rhai](/glossary/index.md#rule-rhai)) on the same request/response hooks. Behavioral home: [Policy & routing](/policy-routing/index.md). Rhai reference: [Rhai for rules](/rhai/rule-rhai.md) under [Rhai](/rhai/index.md). The [Rhai](/rhai/index.md) section covers script APIs; [Processor chains](/processor-chains/index.md) covers planned `processors:` wiring and backends.
 
-## WASM (planned)
+## WASM (planned) { #wasm-planned }
 
 **[WASM](/glossary/index.md#wasm)** is a planned in-process plugin model: compiled `.wasm` files loaded inside `conduit` on the same [Request rules](/concepts/architecture-and-packet-path.md#request-rules) and [Response rules](/concepts/architecture-and-packet-path.md#response-rules) hooks as [Rule Rhai](/glossary/index.md#rule-rhai).
 
@@ -12,7 +12,7 @@ Operators would deploy plugin artifacts, grant access to named lookup tables, an
 
 Configuration and workflows will be documented when the feature ships.
 
-## Sidecar (planned)
+## Sidecar (planned) { #sidecar-planned }
 
 **[Sidecar](/glossary/index.md#sidecar)** is a planned plugin model: separate processes Conduit calls over gRPC or a Unix-domain socket on the same logical policy hooks as [Rule Rhai](/glossary/index.md#rule-rhai) and [WASM](/glossary/index.md#wasm).
 
@@ -20,46 +20,47 @@ Sidecars trade per-query latency for running code in another language or an exis
 
 **Not yet shipped.**
 
-## Processor chains (planned)
+## Processor chains (planned) { #processor-chains-planned }
 
-**Processor chains** are a planned datapath feature — separate from `rules:` — with their own `processors:` config and named pipeline attachment points (for example after [Request rules](/concepts/architecture-and-packet-path.md#request-rules) and after upstream response).
+**Processor chains** are a planned datapath feature — separate from `rules:` — documented as a feature section when they ship. **Feature home:** [Processor chains](/processor-chains/index.md).
 
-They are the planned home for **DNS wire editing**: ingress query changes (including qname rewrite), egress response mutation, EDNS/EDE, and conveniences such as RD-bit control that [Rule Rhai](/glossary/index.md#rule-rhai) does not provide today. Processor chains may use [Processor-chain Rhai](/glossary/index.md#processor-chain-rhai) with a **message API** (`conduit-dns`), not the rule `txn` policy surface. The same chain links are planned to support **WASM** and **sidecar** backends when those runtimes ship.
+They attach at named pipeline points (for example after [Request rules](/concepts/architecture-and-packet-path.md#request-rules) and after upstream response) and are the planned home for **DNS wire editing**: ingress query changes (including qname rewrite), egress response mutation, EDNS/EDE, and conveniences such as RD-bit control that Rhai for rules does not provide today.
 
-[Rule Rhai](/glossary/index.md#rule-rhai) and [Processor-chain Rhai](/glossary/index.md#processor-chain-rhai) are **different** config and APIs; both may coexist when processor chains ship.
+Backends in a chain may include:
+
+| Backend | Reference |
+|---------|-----------|
+| [Processor-chain Rhai](/glossary/index.md#processor-chain-rhai) | [Rhai for processor chains](/rhai/processor-chain-rhai.md), [Message API](/rhai/message-api.md) (`conduit-dns`) |
+| [WASM](/glossary/index.md#wasm) | This page — WASM (planned) |
+| [Sidecar](/glossary/index.md#sidecar) | This page — Sidecar (planned) |
+
+Rhai for rules and Rhai for processor chains are **different** config and APIs; both may coexist when processor chains ship.
 
 ### Policy refinement (planned)
 
 Processor chains are **not** a replacement for [rules](/policy-routing/rules-and-actions.md). [Request rules](/concepts/architecture-and-packet-path.md#request-rules) and [Response rules](/concepts/architecture-and-packet-path.md#response-rules) still run first on their hooks. Processors run at fixed pipeline slots **after** those phases and may **refine** the [transaction](/glossary/index.md#transaction) before [Route](/concepts/architecture-and-packet-path.md#route) or before [Response rules](/concepts/architecture-and-packet-path.md#response-rules).
 
-When processor chains ship, links are planned to support **policy effects** on the shared transaction in addition to wire edits:
+Full table and notes: [Processor chains — policy refinement](/processor-chains/index.md#policy-refinement-planned).
 
-| Effect | Ingress (`post_request_rules`) | Egress (`post_wait`) | Notes |
-|--------|-------------------------------|----------------------|--------|
-| **`set_tag`** | Planned | Planned | [Tags](/glossary/index.md#tags) set here are visible to later hooks — for example [response rules](/policy-routing/rules-and-actions.md) `tag` selectors after `post_wait` |
-| **`set_pool`** | Planned | — | Applies before [Route](/concepts/architecture-and-packet-path.md#route); may override pool chosen in request rules |
-| **Drop** | Planned | Planned | Same semantics as rule `drop` |
-| **Retry** | — | Planned | Re-enters [Route](/concepts/architecture-and-packet-path.md#route) (egress only), like response-hook `retry` |
+Use **tags** to tie rules and processors to one logical decision: a rule (or Rhai for rules) matches on the **client** query and sets tags; a processor link runs with a matching `when:` guard (or checks tags in script) and rewrites wire or refines pool/tags before routing or response policy.
 
-Use **tags** to tie rules and processors to one logical decision: a rule (or [Rule Rhai](/glossary/index.md#rule-rhai)) matches on the **client** query and sets tags; a processor link runs with a matching `when:` guard (or checks tags in script) and rewrites wire or refines pool/tags before routing or response policy.
-
-[Rule Rhai](/glossary/index.md#rule-rhai) cannot set pool from wire inspection after rewrite — processor chains are the planned place for that combined behavior without overloading `rules:`.
+Rhai for rules cannot set pool from wire inspection after rewrite — processor chains are the planned place for that combined behavior without overloading `rules:`.
 
 ## Lookup tables (host feature)
 
-Lookup tables under **`data_sources:`** are host-owned data loaded at [runtime snapshot](/glossary/index.md#runtime-snapshot) build. In current releases, only [Rule Rhai](/glossary/index.md#rule-rhai) calls **`table_lookup`**; planned [WASM](/glossary/index.md#wasm) and [sidecar](/glossary/index.md#sidecar) plugins would share the same host lookup surface.
+Lookup tables under **`data_sources:`** are host-owned data loaded at [runtime snapshot](/glossary/index.md#runtime-snapshot) build. In current releases, only Rhai for rules calls **`table_lookup`**; planned [WASM](/glossary/index.md#wasm), [sidecar](/glossary/index.md#sidecar), and processor-chain backends would share the same host lookup surface.
 
 Current behavior and config paths: [Data sources and lookups](/rhai/data-sources-and-lookups.md).
 
 ## Policy metrics (planned sharing)
 
-In current releases, only [Rule Rhai](/glossary/index.md#rule-rhai) can publish custom policy metrics (`metric_inc` → `conduit_user_*`). See [User metrics](/rhai/user-metrics.md).
+In current releases, only Rhai for rules can publish custom policy metrics (`metric_inc` → `conduit_user_*`). See [User metrics](/rhai/user-metrics.md).
 
 | Mechanism | Custom metrics (write) | In current releases |
 |-----------|------------------------|---------------------|
 | Built-in [rules](/policy-routing/rules-and-actions.md) | No | Yes (rules only) |
 | [Rule Rhai](/glossary/index.md#rule-rhai) | Yes | Yes |
-| [WASM](/glossary/index.md#wasm) | Planned — same host APIs as Rule Rhai | No |
+| [WASM](/glossary/index.md#wasm) | Planned — same host APIs as Rhai for rules | No |
 | [Sidecar](/glossary/index.md#sidecar) | Planned — deltas via hook protocol | No |
 | Processor chains | Planned | No |
 
@@ -67,6 +68,7 @@ Built-in [metrics](/observability/metrics.md) on the [dataplane](/glossary/index
 
 ## Related
 
-- [Policy & routing](/policy-routing/index.md) — declarative and scripted policy today
-- [Rhai](/rhai/index.md) — Rule Rhai reference
+- [Processor chains](/processor-chains/index.md)
+- [Policy & routing](/policy-routing/index.md) — declarative policy and Rhai for rules today
+- [Rhai](/rhai/index.md) — Rhai for rules and Rhai for processor chains
 - [Architecture and packet path](/concepts/architecture-and-packet-path.md) — pipeline phases

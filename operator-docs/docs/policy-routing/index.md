@@ -9,7 +9,7 @@ Read [Architecture and packet path](/concepts/architecture-and-packet-path.md) f
 | Concern | Config | Topic page |
 |---------|--------|------------|
 | Match queries; set pool, tags, egress, or drop | `rules:` | [Rules and actions](/policy-routing/rules-and-actions.md) |
-| Scripted policy on matching rules | `rules:` + `type: rhai` | [Rhai](/rhai/index.md) (Rule Rhai) |
+| Scripted policy on matching rules | `rules:` + `type: rhai` | [Rhai for rules](/rhai/rule-rhai.md) ([Rhai](/rhai/index.md)) |
 | Group upstream resolvers and load-balance | `pools:` | [Pools and backends](/policy-routing/pools-and-backends.md) |
 | Caps and behavior on repeat attempts | `orchestrator:` | [Retries and transactions](/policy-routing/retries-and-transactions.md) |
 | Default upstream timeout and egress address lists | `forward:` | [Dual-stack forwarding](/guides/dual-stack-forwarding.md) |
@@ -34,12 +34,12 @@ flowchart TD
 3. After an upstream answer or forward timeout, **[Response rules](/concepts/architecture-and-packet-path.md#response-rules)** continue to [Send](/concepts/architecture-and-packet-path.md#send), **drop**, or request a **retry** (`retry` / `retry_now`) — looping back to **Route**, not re-running request rules.
 4. **[Send](/concepts/architecture-and-packet-path.md#send)** returns the final answer (or the transaction ends with drop or synthesized **SERVFAIL** when limits or pool exhaustion apply).
 
-[Rules and actions](/policy-routing/rules-and-actions.md) use **`match_mode: first_match`**: on each hook, Conduit walks the rule list top to bottom and stops at the first rule whose selectors all match. Actions on that rule — built-in and optional [Rule Rhai](/glossary/index.md#rule-rhai) — run in **list order**. See [Rhai](/rhai/index.md).
+[Rules and actions](/policy-routing/rules-and-actions.md) use **`match_mode: first_match`**: on each hook, Conduit walks the rule list top to bottom and stops at the first rule whose selectors all match. Actions on that rule — built-in and optional Rhai for rules — run in **list order**. See [Rhai](/rhai/index.md).
 
 ## Read in order
 
 1. [Rules and actions](/policy-routing/rules-and-actions.md) — `rules:` hooks, selectors, built-in actions, reload behavior
-2. [Rhai](/rhai/index.md) — Rule Rhai when built-in actions are not enough
+2. [Rhai for rules](/rhai/rule-rhai.md) — scripted policy when built-in actions are not enough
 3. [Pools and backends](/policy-routing/pools-and-backends.md) — `pools:` layout, weights, default pool, **SERVFAIL** when routing fails
 4. [Retries and transactions](/policy-routing/retries-and-transactions.md) — response-hook retries, backend exclusion per attempt, `orchestrator` caps
 
@@ -62,5 +62,6 @@ Rule and pool changes load into the [runtime snapshot](/glossary/index.md#runtim
 ## Related
 
 - [Dual-stack forwarding](/guides/dual-stack-forwarding.md) — `forward.sources_*`, pool `sources_*`, per-query `set_source_v4` / `set_source_v6`
-- [Rhai](/rhai/index.md) — Rule Rhai on request and response hooks
+- [Rhai](/rhai/index.md) — Rhai for rules and Rhai for processor chains
+- [Rhai for rules](/rhai/rule-rhai.md) — scripted policy on request and response hooks
 - [Built-in metrics](/observability/built-in-metrics.md) — `pool` labels and forward health after you add pools and rules

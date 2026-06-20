@@ -27,6 +27,13 @@ pub use task::{OtelPushHandle, PrometheusServerHandle};
 pub use trace::{TraceEvent, TraceLog, TraceStore};
 pub use user::{UserMetricDelta, UserRegistry};
 
+/// `reason` label values for [`BuiltinRegistry::record_script_error`].
+pub const SCRIPT_ERROR_LOOKUP_UNKNOWN_TABLE: &str = "lookup_unknown_table";
+pub const SCRIPT_ERROR_PHASE_GUARD: &str = "phase_guard";
+pub const SCRIPT_ERROR_TIMEOUT: &str = "timeout";
+pub const SCRIPT_ERROR_OPERATION_LIMIT: &str = "operation_limit";
+pub const SCRIPT_ERROR_EVAL: &str = "eval";
+
 use std::sync::Arc;
 
 /// Process-wide metrics state shared by dataplane and export sinks.

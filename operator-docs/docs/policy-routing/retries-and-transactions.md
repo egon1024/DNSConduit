@@ -28,12 +28,14 @@ stateDiagram-v2
 
 | Mechanism | Pool for the next attempt |
 |-----------|---------------------------|
-| **`retry`** or **`retry_now`** action (response) | Keeps the [pool](/glossary/index.md#pool) already on the [transaction](/glossary/index.md#transaction) (`selected_pool` from [request rules](/policy-routing/rules-and-actions.md) or the default pool) |
+| **`retry`** or **`retry_now`** action (response) | Uses **`selected_pool`** on the next retry [Route](/concepts/architecture-and-packet-path.md#route) — the pool from the last Route on this transaction (see [Pool selection lifecycle](#pool-selection-lifecycle)) |
 | **`set_retry_pool`** + **`retry`** or **`retry_now`** (either hook for `set_retry_pool`; response for retry) | Uses `retry_pool` on the next retry [Route](/concepts/architecture-and-packet-path.md#route) if retry occurs |
 | **`txn.request_retry()`** or **`txn.request_retry_now()`** in Rhai (response) | Same as **`retry`** / **`retry_now`** — stay in the current pool |
 | **`txn.set_retry_pool("name")`** in Rhai | Pool for retry Route if retry occurs; first Route ignores (both hooks) — pair with **`txn.request_retry()`** on the response hook to fail over |
+| **`set_retry_source_v4`** / **`set_retry_source_v6`** + **`retry`** (request or response for source; response for retry) | One-shot egress bind on the **next retry forward** only — see [Source selection lifecycle](#source-selection-lifecycle) |
+| **`txn.set_retry_source_v4(addr)`** / **`txn.set_retry_source_v6(addr)`** in Rhai | Same as **`set_retry_source_*`** — does not trigger retry; pair with **`txn.request_retry()`** on the response hook |
 
-At [Route](/concepts/architecture-and-packet-path.md#route), when `attempt_count > 0` (retry re-entry), Conduit uses `retry_pool` if set, then falls back to `selected_pool`, then the default pool. On the **first** forward (`attempt_count == 0`), `retry_pool` is ignored.
+At [Route](/concepts/architecture-and-packet-path.md#route), when `attempt_count > 0` (retry re-entry), Conduit uses `retry_pool` if set (then clears it), then falls back to `selected_pool`, then the default pool. On the **first** forward (`attempt_count == 0`), `retry_pool` is ignored. Full lifecycle: [Pool selection lifecycle](#pool-selection-lifecycle).
 
 [Response rules](/concepts/architecture-and-packet-path.md#response-rules) run after an upstream answer **or** after a forward **timeout** (still with no stored answer). That lets you retry on **SERVFAIL**, **NXDOMAIN**, slow upstreams, and other conditions you express with [selectors](/glossary/index.md#selector) such as `rcode`.
 
@@ -114,13 +116,91 @@ See [Rhai](/rhai/index.md) (reference pages in progress).
 
 Each time Conduit enters [Route](/concepts/architecture-and-packet-path.md#route):
 
-1. **Pool selection** — if the transaction has a one-shot retry pool from the last [Response rules](/concepts/architecture-and-packet-path.md#response-rules) pass, Conduit uses that name for this attempt and clears it. Otherwise it keeps the pool already selected (from [request rules](/concepts/architecture-and-packet-path.md#request-rules) or the default pool).
+1. **Pool selection** — see [Pool selection lifecycle](#pool-selection-lifecycle) below.
 2. **Backend selection** — see [Backend selection on retries](#backend-selection-on-retries).
 3. **Attempt counter** — Conduit increments the attempt count for this transaction before [Forward](/concepts/architecture-and-packet-path.md#forward).
 
 [`conduit_queries_by_pool_total`](/observability/built-in-metrics.md#conduit_queries_by_pool_total) increments for **each** attempt that reaches [Route](/concepts/architecture-and-packet-path.md#route) → [Forward](/concepts/architecture-and-packet-path.md#forward), including retries.
 
 [Tags](/glossary/index.md#tags) set on [request rules](/concepts/architecture-and-packet-path.md#request-rules) or earlier [response rules](/concepts/architecture-and-packet-path.md#response-rules) **persist** across retries unless a script clears them. You can branch later rules on tags (for example “already retried”).
+
+### Pool selection lifecycle { #pool-selection-lifecycle }
+
+Each [transaction](/glossary/index.md#transaction) carries two pool-related fields set by policy:
+
+| Field | Set by | Role |
+|-------|--------|------|
+| **`selected_pool`** | **`set_pool`** / **`txn.set_pool`**, request rules, or default pool | Primary pool for routing |
+| **`retry_pool`** | **`set_retry_pool`** / **`txn.set_retry_pool`** | Optional **one-shot** override for the **next** retry [Route](/concepts/architecture-and-packet-path.md#route) only |
+
+At each [Route](/concepts/architecture-and-packet-path.md#route), Conduit resolves the pool name, picks a [backend](/glossary/index.md#backend), then **updates `selected_pool`** to the pool that attempt actually used. That update matters on later retries: after a cross-pool failover, **`selected_pool`** reflects the failover pool even though request rules originally chose another name.
+
+**First attempt** (`attempt_count == 0` before Route):
+
+- Uses **`selected_pool`** (from request policy or default). **`retry_pool` is ignored**, even if stashed on the request hook.
+
+**Retry re-entry** (`attempt_count > 0`):
+
+- If **`retry_pool`** is set → use that name for this attempt, then **clear** it (consumed).
+- Else → use **`selected_pool`** (the pool from the last successful Route on this transaction).
+- Else → default pool.
+
+So **`retry_pool` is not a standing “retry target” for every subsequent attempt.** You do **not** need to call **`set_retry_pool`** again on each response pass just to **stay** on a pool you already failed over to — after the one-shot stash is consumed, later retries follow **`selected_pool`**, which Route already updated to that pool.
+
+**When to set `retry_pool` again:**
+
+- You want a **different** pool on the **next** retry than **`selected_pool`** would give (for example tertiary after secondary).
+- You called **`clear_retry_pool`** / **`txn.clear_retry_pool()`** and later need a new override.
+- Response policy sets a fresh stash on each response pass that requests retry (unusual; only when each retry should honor a newly chosen override).
+
+**Worked example** — request rule sets **`set_pool: primary`** and **`set_retry_pool: secondary`**, response rule retries on **SERVFAIL**:
+
+| Step | `attempt_count` before Route | `retry_pool` | `selected_pool` before Route | Pool used |
+|------|------------------------------|--------------|------------------------------|-----------|
+| First Route | 0 | secondary (ignored) | primary | **primary** |
+| Response: retry | — | secondary (unchanged) | primary | — |
+| Second Route | 1 | secondary → cleared | primary | **secondary** |
+| Response: retry again (no new `set_retry_pool`) | — | — | secondary (updated at Route) | — |
+| Third Route | 2 | — | secondary | **secondary** |
+
+Further retries in **secondary** use another backend there when available; they do **not** snap back to **primary** unless policy changes **`selected_pool`** or stashes a new **`retry_pool`**.
+
+Rhai reference: [Transaction API — Routing](/rhai/transaction-api.md#routing). Pipeline detail: [Architecture — Route](/concepts/architecture-and-packet-path.md#route).
+
+### Source selection lifecycle { #source-selection-lifecycle }
+
+Egress bind IP is separate from pool choice. Each [transaction](/glossary/index.md#transaction) carries up to four egress-related fields:
+
+| Field | Set by | Role |
+|-------|--------|------|
+| **`source_override_v4`** / **`source_override_v6`** | **`set_source_v4`** / **`set_source_v6`** or Rhai **`txn.set_source_*`** (request hook only) | Standing local bind for **every** forward attempt (unless retry source wins on that attempt) |
+| **`retry_source_override_v4`** / **`retry_source_override_v6`** | **`set_retry_source_*`** / **`txn.set_retry_source_*`** (request or response hook) | Optional **one-shot** bind for the **next retry forward only** |
+
+At each [Forward](/concepts/architecture-and-packet-path.md#forward), after `attempt_count` is incremented for this attempt:
+
+**First forward** (`attempt_count == 1` at Forward):
+
+- **`retry_source_override_*` is ignored**, even if stashed on the request or an earlier response pass.
+- Uses standing **`source_override_*`** if set, else pool/global round-robin among configured sources.
+
+**Retry forward** (`attempt_count > 1` at Forward):
+
+- If **`retry_source_override_*`** is set for the backend’s address family → use it **once**, then **clear** it (consumed).
+- Else → standing **`source_override_*`** if set.
+- Else → pool/global round-robin.
+
+**`set_retry_source_*` does not trigger retry** and does not affect the first upstream attempt. Pair with **`retry`** / **`retry_now`** or Rhai **`txn.request_retry()`** when outcome-driven failover should use a different bind IP. **`clear_retry_source_*`** removes the stash without clearing standing **`set_source_*`** overrides.
+
+**Worked example** — request rule sets **`set_source_v4: 127.0.0.1`** and **`set_retry_source_v4: 10.0.0.5`**, response rule retries on **SERVFAIL**:
+
+| Step | `attempt_count` at Forward | `retry_source_override_v4` | Bind used (v4 backend) |
+|------|----------------------------|----------------------------|------------------------|
+| First forward | 1 | 10.0.0.5 (stashed) | **127.0.0.1** (standing; stash ignored) |
+| Response: retry | — | — | — |
+| Second forward | 2 | consumed → cleared | **10.0.0.5** (one-shot retry source) |
+| Third forward (if any) | 3 | — | **127.0.0.1** (standing again) |
+
+Allowed-set enforcement at Forward is unchanged. See [Dual-stack forwarding](/guides/dual-stack-forwarding.md#choosing-an-egress-source) and [Transaction API — Egress](/rhai/transaction-api.md#egress).
 
 ### Backend selection on retries
 
@@ -166,7 +246,7 @@ You can adjust response metadata before [Send](/concepts/architecture-and-packet
 
 | Signal | When |
 |--------|------|
-| [`conduit_retries_total{pool}`](/observability/built-in-metrics.md#conduit_retries_total) | [Response rules](/concepts/architecture-and-packet-path.md#response-rules) send the pipeline back to [Route](/concepts/architecture-and-packet-path.md#route); `pool` is the **target** pool for the next attempt (**full** metrics profile only) |
+| [`conduit_retries_total{pool}`](/observability/built-in-metrics.md#conduit_retries_total) | [Response rules](/concepts/architecture-and-packet-path.md#response-rules) send the pipeline back to [Route](/concepts/architecture-and-packet-path.md#route); `pool` is the **target** pool for the next attempt |
 | [`conduit_queries_by_pool_total{pool}`](/observability/built-in-metrics.md#conduit_queries_by_pool_total) | Each attempt that reaches [Forward](/concepts/architecture-and-packet-path.md#forward), including retries |
 | Event export **`retry`** frames | When sinks are configured with retry emission — see [Event export](/observability/event-export.md) |
 
@@ -175,5 +255,6 @@ You can adjust response metadata before [Send](/concepts/architecture-and-packet
 - [Rules and actions](/policy-routing/rules-and-actions.md) — `retry`, `retry_now`, `set_retry_pool`, `set_rcode`, response [selectors](/glossary/index.md#selector)
 - [Pools and backends](/policy-routing/pools-and-backends.md) — pool names, weights, default pool
 - [Architecture and packet path](/concepts/architecture-and-packet-path.md) — [Response rules](/concepts/architecture-and-packet-path.md#response-rules), [Send](/concepts/architecture-and-packet-path.md#send), timeouts
-- [Rhai](/rhai/index.md) — `retry()` from response scripts
+- [Rhai — Transaction API (Routing)](/rhai/transaction-api.md#routing) — `txn.set_pool`, `txn.set_retry_pool`, `txn.clear_retry_pool`
+- [Rhai — Transaction API (Egress)](/rhai/transaction-api.md#egress) — `txn.set_source_*`, `txn.set_retry_source_*`, `txn.clear_retry_source_*`
 - [Built-in metrics](/observability/built-in-metrics.md) — counters, profiles, and pipeline mapping

@@ -19,10 +19,12 @@ impl PipelineStage for ResponseRulesStage {
     }
 
     fn handle(&self, txn: &mut Transaction, snapshot: &Arc<RuntimeSnapshot>) -> StageOutcome {
-        let user_export = self.metrics.as_ref().map(|m| m.user.as_ref());
-        let result = snapshot
-            .rules
-            .eval(RuleHook::Response, txn, &snapshot.scripting, user_export);
+        let result = snapshot.rules.eval(
+            RuleHook::Response,
+            txn,
+            &snapshot.scripting,
+            self.metrics.as_deref(),
+        );
 
         if result.outcome == RuleOutcome::Retry {
             return StageOutcome::Continue(Phase::Route);

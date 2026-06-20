@@ -53,6 +53,7 @@ pub struct BuiltinRegistry {
     forward_errors: IntCounterVec,
     forward_duration: HistogramVec,
     retries_total: IntCounterVec,
+    script_errors_total: Option<IntCounterVec>,
     forward_outstanding: GaugeVec,
     pool_backends_configured: GaugeVec,
     #[allow(dead_code)]
@@ -111,7 +112,7 @@ impl BuiltinRegistry {
             None
         };
 
-        let parse_rejected_total = if effective && is_full {
+        let parse_rejected_total = if effective {
             let v = IntCounterVec::new(
                 Opts::new(
                     "conduit_parse_rejected_total",
@@ -171,6 +172,20 @@ impl BuiltinRegistry {
             &["pool"],
         )
         .expect("metric");
+        let script_errors_total = if effective {
+            let v = IntCounterVec::new(
+                Opts::new(
+                    "conduit_script_errors_total",
+                    "Rhai script errors and lookup faults",
+                ),
+                &["reason", "script", "table"],
+            )
+            .expect("metric");
+            registry.register(Box::new(v.clone())).expect("register");
+            Some(v)
+        } else {
+            None
+        };
         let forward_outstanding = GaugeVec::new(
             Opts::new(
                 "conduit_forward_outstanding",
@@ -277,6 +292,7 @@ impl BuiltinRegistry {
             forward_errors,
             forward_duration,
             retries_total,
+            script_errors_total,
             forward_outstanding,
             pool_backends_configured,
             build_info,
@@ -386,7 +402,7 @@ impl BuiltinRegistry {
     }
 
     pub fn record_forward_error(&self, pool: &str, reason: &str) {
-        if !self.enabled || self.profile == BuiltinProfile::Minimal {
+        if !self.enabled {
             return;
         }
         self.forward_errors.with_label_values(&[pool, reason]).inc();
@@ -402,10 +418,19 @@ impl BuiltinRegistry {
     }
 
     pub fn record_retry(&self, pool: &str) {
-        if !self.enabled || self.profile == BuiltinProfile::Minimal {
+        if !self.enabled {
             return;
         }
         self.retries_total.with_label_values(&[pool]).inc();
+    }
+
+    pub fn record_script_error(&self, reason: &str, script: &str, table: &str) {
+        if !self.enabled {
+            return;
+        }
+        if let Some(ref c) = self.script_errors_total {
+            c.with_label_values(&[reason, script, table]).inc();
+        }
     }
 
     fn refresh_scrape_gauges(&self) {
@@ -516,6 +541,61 @@ mod tests {
                 "missing le={le} in:\n{body}"
             );
         }
+    }
+
+    #[test]
+    fn failure_counters_recorded_on_minimal_and_full() {
+        for profile in [BuiltinProfile::Minimal, BuiltinProfile::Full] {
+            let reg = BuiltinRegistry::new(true, profile);
+            reg.record_script_error(
+                crate::SCRIPT_ERROR_LOOKUP_UNKNOWN_TABLE,
+                "scripts/blocklist.rhai",
+                "typo_table",
+            );
+            reg.record_parse_rejected("wire_error");
+            reg.record_forward_error("default", "timeout");
+            reg.record_retry("default");
+            let body = encode_builtin(reg.gather());
+            assert!(
+                body.contains("conduit_script_errors_total"),
+                "{profile:?} body:\n{body}"
+            );
+            assert!(
+                body.contains(r#"reason="lookup_unknown_table""#),
+                "{profile:?} body:\n{body}"
+            );
+            assert!(
+                body.contains("conduit_parse_rejected_total"),
+                "{profile:?} body:\n{body}"
+            );
+            assert!(
+                body.contains("conduit_forward_errors_total"),
+                "{profile:?} body:\n{body}"
+            );
+            assert!(
+                body.contains("conduit_retries_total"),
+                "{profile:?} body:\n{body}"
+            );
+        }
+    }
+
+    #[test]
+    fn forward_attempts_recorded_only_on_full() {
+        let minimal = BuiltinRegistry::new(true, BuiltinProfile::Minimal);
+        minimal.record_forward_attempt("default", "127.0.0.1:5300", "success");
+        let body_min = encode_builtin(minimal.gather());
+        assert!(
+            !body_min.contains("conduit_forward_attempts_total"),
+            "minimal must not record forward attempts, body:\n{body_min}"
+        );
+
+        let full = BuiltinRegistry::new(true, BuiltinProfile::Full);
+        full.record_forward_attempt("default", "127.0.0.1:5300", "success");
+        let body_full = encode_builtin(full.gather());
+        assert!(
+            body_full.contains("conduit_forward_attempts_total"),
+            "body:\n{body_full}"
+        );
     }
 
     #[test]

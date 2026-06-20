@@ -236,7 +236,7 @@ curl -sS http://127.0.0.1:19090/metrics | rg 'conduit_pool_backends_configured|c
 conduit_queries_total{listener="127.0.0.1:15353",protocol="udp"} 1
 ```
 
-No `qtype=`, `qclass=`, or `ip_family=` on **`conduit_queries_total`**. **`conduit_responses_total`** *is* present on minimal with coarse `rcode` buckets (`NOERROR`, `NXDOMAIN`, …) and **no** `ip_family` label. **`conduit_parse_rejected_total`** is still absent (full profile only).
+No `qtype=`, `qclass=`, or `ip_family=` on **`conduit_queries_total`**. **`conduit_responses_total`** is present on minimal with coarse `rcode` buckets (`NOERROR`, `NXDOMAIN`, …) and **no** `ip_family` label. Failure counters (`conduit_parse_rejected_total`, `conduit_forward_errors_total`, `conduit_retries_total`, `conduit_script_errors_total`) are present on minimal when the corresponding events occur. Phase and forward-duration histograms remain **full** profile only.
 
 **§7b expect:** `conduit_queries_by_pool_total{pool="default",...} 1` (or higher after more queries).
 

@@ -197,8 +197,7 @@ pub fn trace_activation_matches(
         rcode_label,
         tag_has,
     };
-    if !activation.selectors.is_empty()
-        && !activation.selectors.iter().all(|s| s.matches_ctx(&ctx))
+    if !activation.selectors.is_empty() && !activation.selectors.iter().all(|s| s.matches_ctx(&ctx))
     {
         return false;
     }
@@ -235,6 +234,22 @@ pub fn validate_metrics_tracing(cfg: &Config) -> Vec<String> {
                     errors.push("metrics.otel.push_interval_ms must be >= 1000".into());
                 }
             }
+            let mut seen_user_metrics = std::collections::HashSet::new();
+            for (i, u) in m.user_metrics.iter().enumerate() {
+                if u.name.is_empty() {
+                    errors.push(format!("metrics.user_metrics[{i}].name must not be empty"));
+                } else if !seen_user_metrics.insert(u.name.clone()) {
+                    errors.push(format!(
+                        "metrics.user_metrics[{i}]: duplicate name '{}'",
+                        u.name
+                    ));
+                }
+                if !u.export.is_empty() && u.export != "minimal" && u.export != "full" {
+                    errors.push(format!(
+                        "metrics.user_metrics[{i}].export must be 'minimal' or 'full'"
+                    ));
+                }
+            }
         }
     }
     if let Some(t) = &cfg.tracing {
@@ -251,11 +266,9 @@ pub fn validate_metrics_tracing(cfg: &Config) -> Vec<String> {
                             "tracing.activation.selectors[{j}] sample_percent must be in [0, 100]"
                         ));
                     }
-                    if let Err(e) = conduit_events::validate_selector_sample_key_fields(
-                        sel,
-                        false,
-                        false,
-                    ) {
+                    if let Err(e) =
+                        conduit_events::validate_selector_sample_key_fields(sel, false, false)
+                    {
                         errors.push(format!("tracing.activation.selectors[{j}]: {e}"));
                     }
                 }
@@ -371,6 +384,7 @@ mod tests {
                         .into_iter()
                         .collect(),
                 }),
+                user_metrics: vec![],
             }),
             listeners: None,
             forward: None,

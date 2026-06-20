@@ -28,9 +28,10 @@ When the `metrics` section is **omitted**, export is disabled (no scrape listene
 |--------|-------------------|-----------------|-------------|
 | `conduit_queries_total` | `listener`, `protocol` | + `qtype`, `qclass`, `ip_family` | — |
 | `conduit_queries_by_pool_total` | yes (`pool`) | yes | — |
-| `conduit_parse_rejected_total` | no | yes (`reason`) | — |
+| `conduit_parse_rejected_total` | yes (`reason`) | yes | — |
 | `conduit_responses_total` | yes (`listener`, `protocol`, coarse `rcode`) | yes (+ fine `rcode`, `ip_family`) | — |
-| Phase 4 forward/phase/retry histograms & counters | no | no (unchanged) | — |
+| `conduit_forward_errors_total`, `conduit_retries_total`, `conduit_script_errors_total` | yes | yes | — |
+| Phase / forward-attempt / forward-duration histograms | no | yes | — |
 | `conduit_forward_outstanding` | — | — | yes |
 | `conduit_pool_backends_configured` | — | — | yes |
 | `conduit_build_info`, `conduit_start_time_seconds`, `conduit_config_generation` | — | — | yes |
@@ -47,7 +48,8 @@ When the `metrics` section is **omitted**, export is disabled (no scrape listene
 | `conduit_parse_rejected_total` | `reason` | `empty`, `wire_error`, `not_query`, `no_question`, `multi_question` |
 | `conduit_responses_total` | `listener`, `protocol`, `rcode` (+ `ip_family` on `full`) | **`minimal`:** coarse `rcode` (`NOERROR`, `NXDOMAIN`, `SERVFAIL`, `REFUSED`, `OTHER`). **`full`:** per-IANA `rcode` (0–23 names) + `ip_family` |
 | `conduit_phase_duration_seconds` | `phase` | `full` profile only |
-| `conduit_forward_*`, `conduit_retries_total` | (phase 4) | `full` profile only |
+| `conduit_forward_attempts_total`, `conduit_forward_duration_seconds` | (phase 4) | `full` profile only |
+| `conduit_forward_errors_total`, `conduit_retries_total`, `conduit_script_errors_total` | see profile table | `minimal` and `full` |
 | `conduit_build_info` | `version`, `revision`, `dirty`, `profile` | Scrape-only; value `1`. See [Build metadata](#build-metadata). |
 | `conduit_start_time_seconds` | — | Unix timestamp when the process started |
 | `conduit_config_generation` | — | Active config generation (from scrape snapshot) |
@@ -66,6 +68,8 @@ sum(rate(conduit_queries_total[5m])) by (listener, protocol)
 sum(rate(conduit_queries_by_pool_total[5m])) by (pool)
 sum(rate(conduit_parse_rejected_total[5m])) by (reason)
 sum(rate(conduit_responses_total[5m])) by (rcode)
+sum(rate(conduit_forward_errors_total[5m])) by (pool, reason)
+sum(rate(conduit_script_errors_total[5m])) by (reason)
 sum(rate(conduit_responses_total[5m])) by (rcode, ip_family)   # full profile only
 time() - conduit_start_time_seconds
 conduit_config_generation

@@ -1,4 +1,6 @@
 use crate::error::ScriptError;
+use conduit_metrics::BuiltinProfile;
+use conduit_proto::config::MetricsConfig;
 use std::collections::{HashMap, HashSet};
 
 const DISALLOWED_LABEL_KEYS: &[&str] = &[
@@ -22,10 +24,31 @@ pub struct MetricRegistry {
     pub metrics: HashMap<String, UserMetricDef>,
 }
 
+/// When a Rhai user metric is recorded on the hot path.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum UserMetricExportTier {
+    /// Record on `minimal` and `full` built-in profiles.
+    Minimal,
+    /// Record on `full` only (default for script-discovered metrics).
+    #[default]
+    Full,
+}
+
+impl UserMetricExportTier {
+    pub fn exports_at_profile(self, profile: BuiltinProfile) -> bool {
+        match profile {
+            BuiltinProfile::Off => false,
+            BuiltinProfile::Full => true,
+            BuiltinProfile::Minimal => self == UserMetricExportTier::Minimal,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct UserMetricDef {
     pub name: String,
     pub label_keys: HashSet<String>,
+    pub export_tier: UserMetricExportTier,
 }
 
 impl MetricRegistry {
@@ -48,8 +71,53 @@ impl MetricRegistry {
             UserMetricDef {
                 name: name.to_string(),
                 label_keys,
+                export_tier: UserMetricExportTier::Full,
             },
         );
+        Ok(())
+    }
+
+    pub fn exports_at_profile(&self, name: &str, profile: BuiltinProfile) -> bool {
+        self.metrics
+            .get(name)
+            .map(|d| d.export_tier.exports_at_profile(profile))
+            .unwrap_or(false)
+    }
+
+    pub fn apply_user_metric_exports(
+        &mut self,
+        metrics: Option<&MetricsConfig>,
+    ) -> Result<(), ScriptError> {
+        let Some(m) = metrics else {
+            return Ok(());
+        };
+        let mut seen = HashSet::new();
+        for entry in &m.user_metrics {
+            if entry.name.is_empty() {
+                return Err(ScriptError::Metric {
+                    name: String::new(),
+                    message: "user_metrics entry name must not be empty".into(),
+                });
+            }
+            if !seen.insert(entry.name.clone()) {
+                return Err(ScriptError::Metric {
+                    name: entry.name.clone(),
+                    message: "duplicate user_metrics name".into(),
+                });
+            }
+            let tier = parse_user_metric_export_tier(&entry.export)?;
+            if let Some(def) = self.metrics.get_mut(&entry.name) {
+                def.export_tier = tier;
+            } else {
+                return Err(ScriptError::Metric {
+                    name: entry.name.clone(),
+                    message: format!(
+                        "unknown user metric '{}' — not registered by any Rhai script",
+                        entry.name
+                    ),
+                });
+            }
+        }
         Ok(())
     }
 
@@ -72,6 +140,17 @@ impl MetricRegistry {
             }
         }
         Ok(())
+    }
+}
+
+fn parse_user_metric_export_tier(export: &str) -> Result<UserMetricExportTier, ScriptError> {
+    match export {
+        "" | "full" => Ok(UserMetricExportTier::Full),
+        "minimal" => Ok(UserMetricExportTier::Minimal),
+        other => Err(ScriptError::Metric {
+            name: other.into(),
+            message: "user_metrics export must be 'minimal' or 'full'".into(),
+        }),
     }
 }
 
@@ -145,5 +224,53 @@ mod tests {
         let metrics = scan_metrics_from_source(src).unwrap();
         assert_eq!(metrics[0].0, "block_hits");
         assert!(metrics[0].1.contains("category"));
+    }
+
+    #[test]
+    fn export_tier_defaults_to_full() {
+        let mut reg = MetricRegistry::default();
+        reg.register("hits", HashSet::new()).unwrap();
+        assert!(!reg.exports_at_profile("hits", BuiltinProfile::Minimal));
+        assert!(reg.exports_at_profile("hits", BuiltinProfile::Full));
+    }
+
+    #[test]
+    fn apply_user_metric_export_override() {
+        use conduit_proto::config::{MetricsConfig, UserMetricExportConfig};
+
+        let mut reg = MetricRegistry::default();
+        reg.register("block_hits", HashSet::from(["category".into()]))
+            .unwrap();
+        let cfg = MetricsConfig {
+            enabled: true,
+            profile: "minimal".into(),
+            prometheus: None,
+            otel: None,
+            user_metrics: vec![UserMetricExportConfig {
+                name: "block_hits".into(),
+                export: "minimal".into(),
+            }],
+        };
+        reg.apply_user_metric_exports(Some(&cfg)).unwrap();
+        assert!(reg.exports_at_profile("block_hits", BuiltinProfile::Minimal));
+    }
+
+    #[test]
+    fn apply_rejects_unknown_user_metric_name() {
+        use conduit_proto::config::{MetricsConfig, UserMetricExportConfig};
+
+        let mut reg = MetricRegistry::default();
+        let cfg = MetricsConfig {
+            enabled: true,
+            profile: "full".into(),
+            prometheus: None,
+            otel: None,
+            user_metrics: vec![UserMetricExportConfig {
+                name: "missing".into(),
+                export: "minimal".into(),
+            }],
+        };
+        let err = reg.apply_user_metric_exports(Some(&cfg)).unwrap_err();
+        assert!(err.to_string().contains("unknown user metric"));
     }
 }

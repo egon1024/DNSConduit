@@ -20,6 +20,7 @@ hooks:
 
 theme:
   name: material
+  custom_dir: overrides
   palette:
     - scheme: default
       primary: indigo
@@ -48,12 +49,15 @@ extra:
 extra_css:
   - assets/stylesheets/version-label.css
   - assets/stylesheets/column-no-wrap.css
+  - assets/stylesheets/txn-api.css
 
 extra_javascript:
   - assets/javascripts/doc-version.js
 
 markdown_extensions:
+  - meta
   - attr_list
+  - md_in_html
   - admonition
   - pymdownx.details
   - pymdownx.superfences:
@@ -78,6 +82,8 @@ nav:
       - Rules and actions: policy-routing/rules-and-actions.md
       - Pools and backends: policy-routing/pools-and-backends.md
       - Retries and transactions: policy-routing/retries-and-transactions.md
+  - Processor chains:
+      - Overview: processor-chains/index.md
   - Control plane:
       - Overview: control-plane/index.md
       - Configuration model: control-plane/configuration-model.md
@@ -86,8 +92,13 @@ nav:
       - gRPC and conduitctl: control-plane/grpc-and-conduitctl.md
   - Rhai:
       - Overview: rhai/index.md
-      - Hooks and phases: rhai/hooks-and-phases.md
-      - Transaction API: rhai/transaction-api.md
+      - For rules:
+          - Overview: rhai/rule-rhai.md
+          - Hooks and phases: rhai/hooks-and-phases.md
+          - Transaction API: rhai/transaction-api.md
+      - For processor chains:
+          - Overview: rhai/processor-chain-rhai.md
+          - Message API: rhai/message-api.md
       - Data sources and lookups: rhai/data-sources-and-lookups.md
       - User metrics: rhai/user-metrics.md
       - Sandbox limits: rhai/sandbox-limits.md

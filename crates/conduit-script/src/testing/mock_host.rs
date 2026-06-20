@@ -17,9 +17,13 @@ pub struct MockHost {
     pub soft_drop: bool,
     pub source_override_v4: Option<Ipv4Addr>,
     pub source_override_v6: Option<Ipv6Addr>,
+    pub retry_source_override_v4: Option<Ipv4Addr>,
+    pub retry_source_override_v6: Option<Ipv6Addr>,
     pub tags: HashMap<String, bool>,
+    pub tag_strings: HashMap<String, String>,
     pub attempts: u32,
     pub started: Instant,
+    pub last_forward_ms: u64,
     pub phase: ScriptPhase,
 }
 
@@ -49,14 +53,21 @@ impl HostTransaction for MockHost {
     }
 
     fn has_tag(&self, key: &str) -> bool {
-        self.tags.get(key).copied().unwrap_or(false)
+        self.tags.get(key).copied().unwrap_or(false) || self.tag_strings.contains_key(key)
     }
 
     fn set_tag_bool(&mut self, key: &str, value: bool) {
         self.tags.insert(key.to_string(), value);
     }
 
-    fn set_tag_string(&mut self, _key: &str, _value: &str) {}
+    fn set_tag_string(&mut self, key: &str, value: &str) {
+        self.tag_strings.insert(key.to_string(), value.to_string());
+    }
+
+    fn clear_tag(&mut self, key: &str) {
+        self.tags.remove(key);
+        self.tag_strings.remove(key);
+    }
 
     fn set_pool(&mut self, name: &str) {
         self.pool = Some(name.to_string());
@@ -99,12 +110,36 @@ impl HostTransaction for MockHost {
         }
     }
 
+    fn set_retry_source_v4(&mut self, addr: &str) {
+        if let Ok(ip) = addr.parse() {
+            self.retry_source_override_v4 = Some(ip);
+        }
+    }
+
+    fn set_retry_source_v6(&mut self, addr: &str) {
+        if let Ok(ip) = addr.parse() {
+            self.retry_source_override_v6 = Some(ip);
+        }
+    }
+
+    fn clear_retry_source_v4(&mut self) {
+        self.retry_source_override_v4 = None;
+    }
+
+    fn clear_retry_source_v6(&mut self) {
+        self.retry_source_override_v6 = None;
+    }
+
     fn attempt_count(&self) -> u32 {
         self.attempts
     }
 
     fn started_at(&self) -> Instant {
         self.started
+    }
+
+    fn last_forward_ms(&self) -> u64 {
+        self.last_forward_ms
     }
 
     fn is_dropped(&self) -> bool {
@@ -117,5 +152,9 @@ impl HostTransaction for MockHost {
 
     fn script_tag_bools(&self) -> HashMap<String, bool> {
         self.tags.clone()
+    }
+
+    fn script_tag_strings(&self) -> HashMap<String, String> {
+        self.tag_strings.clone()
     }
 }
