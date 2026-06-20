@@ -679,7 +679,7 @@ No arguments. Returns **`i64`** — the transaction’s forward **attempt count*
 - **Request hook:** always **`0`** — no Route has run yet.
 - **First response hook** (after one upstream round trip): **`1`**.
 - **Second response hook** (after one retry): **`2`**, and so on.
-- Use on the response hook to branch on first vs subsequent upstream outcomes (for example only retry once, or different metrics per attempt). Pair with [Retries and transactions](/policy-routing/retries-and-transactions.md) and [`txn.request_retry()`](/rhai/transaction-api.md#outcomes).
+- Use on the response hook to branch on first vs subsequent upstream outcomes (for example only retry once, or different metrics per attempt). Pair with [Retries and transactions](/policy-routing/retries-and-transactions.md) and [`txn.request_retry`](/rhai/transaction-api.md#txnrequest_retry).
 - Read-only — does not change the transaction.
 - The value matches **`attempt_count`** on [event export](/observability/event-export.md) extra fields when that field is enabled.
 
@@ -827,21 +827,456 @@ if cat == "eu" {
 
 ---
 
-## Outcomes
+## Outcomes { #outcomes }
+
+Drop, retry, and response **RCODE** metadata on the [transaction](/glossary/index.md#transaction). **Soft** calls (`drop_query`, `request_retry`) set intent that Conduit resolves **after** the rest of the script (and any later built-in actions on the same rule) finish. **Hard** calls (`drop_query_now`, `request_retry_now`) stop the script immediately — no further Rhai runs on that rule pass. See [Outcome at end of rule](/policy-routing/rules-and-actions.md#outcome-at-end-of-rule) for precedence (drop beats retry; soft drop blocks hard retry unless **`clear_drop`** ran earlier on the rule).
 
 <p class="txn-api-index" markdown="1">
 
-**Methods:** `txn.clear_drop()` · `txn.clear_retry()` · `txn.drop_query()` · `txn.drop_query_now()` · `txn.request_retry()` · `txn.request_retry_now()` · `txn.set_rcode(name)` *in progress*
+**Methods:** [`txn.clear_drop`](#txnclear_drop) · [`txn.clear_retry`](#txnclear_retry) · [`txn.drop_query`](#txndrop_query) · [`txn.drop_query_now`](#txndrop_query_now) · [`txn.request_retry`](#txnrequest_retry) · [`txn.request_retry_now`](#txnrequest_retry_now) · [`txn.set_rcode`](#txnset_rcodename)
 
 </p>
 
-<p class="txn-api-stub" markdown="1">
+<div class="txn-api-entry" markdown="1">
 
-Drop, retry, and response metadata on the [transaction](/glossary/index.md#transaction). Soft vs hard effects and how they combine on one rule: [Outcome at end of rule](/policy-routing/rules-and-actions.md#outcome-at-end-of-rule). Retry caps and pool behavior: [Retries and transactions](/policy-routing/retries-and-transactions.md).
+### `txn.drop_query` {#txndrop_query}
 
-Method cards for this group are not written yet. Hook availability: [Hooks and phases — phase guards](/rhai/hooks-and-phases.md#phase-guards).
+<div class="txn-api-brief" markdown="1">
+
+Request + response hook · no args · no return
+
+Sets soft-drop intent — resolved at end of rule; later script lines still run.
+
+</div>
+
+<div class="txn-api-reference-panel" markdown="1" hidden>
+
+#### Hooks
+
+[Request hook](/rhai/hooks-and-phases.md#request-hook) and [response hook](/rhai/hooks-and-phases.md#response-hook)
+
+#### Arguments / return
+
+| Parameter | Type | Notes |
+|-----------|------|-------|
+| *none* | — | |
+| *return* | — | No return value |
+
+<p class="txn-api-summary" markdown="1">
+
+**Summary:** Soft drop — the query stops at the end of this rule pass with **no** DNS reply if drop intent is still set. Does not stop the script immediately.
 
 </p>
+
+#### Behavior
+
+- Sets **soft-drop** intent on the [transaction](/glossary/index.md#transaction) (same as built-in **`drop`**).
+- Later lines in the **same script** still run. Built-in actions **after** a **`rhai`** step on the same rule also still run when the script does not hard-stop.
+- Conduit resolves outcome **once** after all actions on the rule: if soft drop is still set, the query **drops**; otherwise policy continues. See [Outcome at end of rule](/policy-routing/rules-and-actions.md#outcome-at-end-of-rule).
+- If both soft drop and soft retry are set at the end of a response rule, **drop wins**.
+- On the **request hook**, drop prevents upstream [Forward](/concepts/architecture-and-packet-path.md#forward) for this transaction. On the **response hook**, drop prevents [Send](/concepts/architecture-and-packet-path.md#send) to the client.
+- Use **`txn.clear_drop()`** later on the **same rule** to cancel soft-drop intent from an earlier **`drop`** / **`txn.drop_query()`** call.
+- Pair with **`txn.drop_query_now()`** when policy should stop the script immediately instead — see **`txn.drop_query_now`**.
+
+#### YAML equivalent
+
+```yaml
+- type: drop
+```
+
+#### Example
+
+Request hook — tag and soft-drop a blocked name (repository fixture `blocklist.rhai` / `with-rhai-blocklist.yaml`):
+
+```rhai
+if table_lookup("blocklist", question_qname(txn)) == "block" {
+    txn.set_tag("blocked", true);
+    txn.drop_query();
+}
+```
+
+</div>
+
+</div>
+
+---
+
+<div class="txn-api-entry" markdown="1">
+
+### `txn.drop_query_now` {#txndrop_query_now}
+
+<div class="txn-api-brief" markdown="1">
+
+Request + response hook · no args · no return
+
+Hard drop — stops the script immediately; query drops with no DNS reply.
+
+</div>
+
+<div class="txn-api-reference-panel" markdown="1" hidden>
+
+#### Hooks
+
+[Request hook](/rhai/hooks-and-phases.md#request-hook) and [response hook](/rhai/hooks-and-phases.md#response-hook)
+
+#### Arguments / return
+
+| Parameter | Type | Notes |
+|-----------|------|-------|
+| *none* | — | |
+| *return* | — | No return value |
+
+<p class="txn-api-summary" markdown="1">
+
+**Summary:** Hard drop — same outcome as soft drop (no reply) but **stops the script immediately**; no further Rhai or later built-in actions on this rule run.
+
+</p>
+
+#### Behavior
+
+- Same client-visible outcome as **`txn.drop_query()`** — no DNS answer — but returns **`DropNow`** from the script runner so **no further lines** in this script execute.
+- When a rule lists built-in actions **before** **`rhai`**, those run first; a **`drop_query_now()`** inside the script still prevents any actions **after** the **`rhai`** step on that rule.
+- Does **not** implicitly clear soft retry or pool stashes — it ends the rule pass. Use on both hooks when policy is final on this rule.
+- Prefer **`txn.drop_query()`** when later script logic or a later built-in action on the same rule should still run (for example metrics or tag updates before drop).
+
+#### YAML equivalent
+
+```yaml
+- type: drop_now
+```
+
+#### Example
+
+Request hook — immediate drop when lookup marks the qname as blocked:
+
+```rhai
+if table_lookup("blocklist", question_qname(txn)) == "block" {
+    txn.drop_query_now();
+}
+```
+
+</div>
+
+</div>
+
+---
+
+<div class="txn-api-entry" markdown="1">
+
+### `txn.clear_drop` {#txnclear_drop}
+
+<div class="txn-api-brief" markdown="1">
+
+Request + response hook · no args · no return
+
+Clears soft-drop intent set earlier on this rule pass.
+
+</div>
+
+<div class="txn-api-reference-panel" markdown="1" hidden>
+
+#### Hooks
+
+[Request hook](/rhai/hooks-and-phases.md#request-hook) and [response hook](/rhai/hooks-and-phases.md#response-hook)
+
+#### Arguments / return
+
+| Parameter | Type | Notes |
+|-----------|------|-------|
+| *none* | — | |
+| *return* | — | No return value |
+
+<p class="txn-api-summary" markdown="1">
+
+**Summary:** Cancels soft-drop intent from an earlier **`drop`** / **`txn.drop_query()`** on the same rule — use before **`request_retry_now`** when retry should win over an earlier soft drop.
+
+</p>
+
+#### Behavior
+
+- Clears **soft-drop** intent on the [transaction](/glossary/index.md#transaction) for this rule evaluation (same as built-in **`clear_drop`**).
+- Only affects intent set **on this rule pass** — not drops already committed by an earlier matching rule.
+- Typical use: an earlier action (built-in or Rhai) set soft drop, but later script logic decides to **retry** instead. Call **`txn.clear_drop()`** before **`txn.request_retry()`** / **`txn.request_retry_now()`** — hard retry does **not** clear soft drop automatically. See [Outcome at end of rule](/policy-routing/rules-and-actions.md#outcome-at-end-of-rule).
+- Manual lab with ordered actions: `tests/manual/ordered-rule-actions.md` and `tests/manual/config/09-ordered-actions.yaml` in the repository.
+
+#### YAML equivalent
+
+```yaml
+- type: clear_drop
+```
+
+#### Example
+
+Response script — cancel an earlier soft drop and retry instead:
+
+```rhai
+if txn.response_rcode() == "SERVFAIL" {
+    txn.clear_drop();
+    txn.request_retry();
+}
+```
+
+</div>
+
+</div>
+
+---
+
+<div class="txn-api-entry" markdown="1">
+
+### `txn.request_retry` {#txnrequest_retry}
+
+<div class="txn-api-brief" markdown="1">
+
+Response hook only · no args · no return; no effect on request hook
+
+Soft retry — resolved at end of rule; re-enters Route when still set.
+
+</div>
+
+<div class="txn-api-reference-panel" markdown="1" hidden>
+
+#### Hooks
+
+[Response hook](/rhai/hooks-and-phases.md#response-hook) only
+
+On the [request hook](/rhai/hooks-and-phases.md#request-hook), calls are ignored (no effect, no error).
+
+#### Arguments / return
+
+| Parameter | Type | Notes |
+|-----------|------|-------|
+| *none* | — | |
+| *return* | — | No return value |
+
+<p class="txn-api-summary" markdown="1">
+
+**Summary:** Soft retry — re-enter [Route](/concepts/architecture-and-packet-path.md#route) after this rule if retry intent is still set and the query is not dropped. Does not stop the script immediately.
+
+</p>
+
+#### Behavior
+
+- Sets **soft-retry** intent (same as built-in **`retry`**). Conduit resolves it **after** the rest of the script and any later built-in actions on the rule.
+- Re-enters [Route](/concepts/architecture-and-packet-path.md#route) for another [Forward](/concepts/architecture-and-packet-path.md#forward) attempt when retry wins at end of rule — subject to orchestrator caps ([Retries and transactions](/policy-routing/retries-and-transactions.md)).
+- Does **not** pick a pool by itself — uses **`selected_pool`** unless **`retry_pool`** is set ([Pool selection lifecycle](/policy-routing/retries-and-transactions.md#pool-selection-lifecycle)). Pair with **`txn.set_retry_pool`** when failover should use a different pool.
+- Blocked when soft drop is still set at end of rule — drop wins. Does **not** clear soft drop.
+- **`txn.request_retry_now()`** stops the script immediately instead; use when no further script lines should run.
+- Use **`txn.clear_retry()`** to cancel soft-retry intent from an earlier call on the same rule.
+
+#### YAML equivalent
+
+```yaml
+- type: retry
+```
+
+Response hook only — invalid on `hook: request` (config validation fails).
+
+#### Example
+
+Response hook — retry in a backup pool on **SERVFAIL** (selector on the rule; script from `tests/fixtures/rhai/servfail-retry.rhai` / `with-rhai-servfail-retry.yaml`):
+
+```rhai
+txn.set_retry_pool("secondary");
+txn.request_retry();
+```
+
+</div>
+
+</div>
+
+---
+
+<div class="txn-api-entry" markdown="1">
+
+### `txn.request_retry_now` {#txnrequest_retry_now}
+
+<div class="txn-api-brief" markdown="1">
+
+Response hook only · no args · no return; no effect on request hook
+
+Hard retry — stops the script immediately and re-enters Route (unless soft drop blocks).
+
+</div>
+
+<div class="txn-api-reference-panel" markdown="1" hidden>
+
+#### Hooks
+
+[Response hook](/rhai/hooks-and-phases.md#response-hook) only
+
+On the [request hook](/rhai/hooks-and-phases.md#request-hook), calls are ignored (no effect, no error).
+
+#### Arguments / return
+
+| Parameter | Type | Notes |
+|-----------|------|-------|
+| *none* | — | |
+| *return* | — | No return value |
+
+<p class="txn-api-summary" markdown="1">
+
+**Summary:** Hard retry — same retry outcome as **`request_retry`** when allowed, but **stops the script immediately** after setting intent.
+
+</p>
+
+#### Behavior
+
+- Returns **`RetryNow`** from the script runner — no further lines in this script run, and no built-in actions **after** the **`rhai`** step on this rule.
+- If soft drop is still set on the [transaction](/glossary/index.md#transaction) at retry time, outcome is **drop**, not retry — even after **`request_retry_now()`**. Call **`txn.clear_drop()`** first when retry should override an earlier soft drop on the same rule.
+- Does **not** clear soft drop by itself. See [Outcome at end of rule](/policy-routing/rules-and-actions.md#outcome-at-end-of-rule).
+- Pool selection follows the same rules as **`txn.request_retry()`** — pair with **`txn.set_retry_pool`** / **`txn.set_pool`** as needed.
+
+#### YAML equivalent
+
+```yaml
+- type: retry_now
+```
+
+Response hook only — invalid on `hook: request`.
+
+#### Example
+
+Response script — fail over immediately on timeout with no further bookkeeping:
+
+```rhai
+if txn.last_forward_ms() > 800 {
+    txn.set_retry_pool("secondary");
+    txn.request_retry_now();
+}
+```
+
+</div>
+
+</div>
+
+---
+
+<div class="txn-api-entry" markdown="1">
+
+### `txn.clear_retry` {#txnclear_retry}
+
+<div class="txn-api-brief" markdown="1">
+
+Response hook only · no args · no return; no effect on request hook
+
+Clears soft-retry intent set earlier on this rule pass.
+
+</div>
+
+<div class="txn-api-reference-panel" markdown="1" hidden>
+
+#### Hooks
+
+[Response hook](/rhai/hooks-and-phases.md#response-hook) only
+
+On the [request hook](/rhai/hooks-and-phases.md#request-hook), calls are ignored (no effect, no error).
+
+#### Arguments / return
+
+| Parameter | Type | Notes |
+|-----------|------|-------|
+| *none* | — | |
+| *return* | — | No return value |
+
+<p class="txn-api-summary" markdown="1">
+
+**Summary:** Cancels soft-retry intent from an earlier **`retry`** / **`txn.request_retry()`** on the same rule — the query continues toward Send unless drop intent wins.
+
+</p>
+
+#### Behavior
+
+- Clears **soft-retry** intent for this rule evaluation (same as built-in **`clear_retry`**).
+- Does **not** clear **`retry_pool`** or standing pool choice — use **`txn.clear_retry_pool()`** for the pool stash ([Routing](/rhai/transaction-api.md#routing)).
+- Does **not** undo a retry already committed by **`request_retry_now()`** on an earlier line in the same script (hard retry already stopped the script).
+- Typical use: conditional retry — an earlier branch called **`txn.request_retry()`**, but later logic decides to accept the answer instead.
+
+#### YAML equivalent
+
+```yaml
+- type: clear_retry
+```
+
+Response hook only — invalid on `hook: request`.
+
+#### Example
+
+```rhai
+if txn.get_attempt_count() >= 2 {
+    txn.clear_retry();
+}
+```
+
+</div>
+
+</div>
+
+---
+
+<div class="txn-api-entry" markdown="1">
+
+### `txn.set_rcode` {#txnset_rcodename}
+
+<div class="txn-api-brief" markdown="1">
+
+Request + response hook · `name`: string (RCODE name) · no return
+
+Sets response RCODE metadata on the transaction before Send.
+
+</div>
+
+<div class="txn-api-reference-panel" markdown="1" hidden>
+
+#### Hooks
+
+[Request hook](/rhai/hooks-and-phases.md#request-hook) and [response hook](/rhai/hooks-and-phases.md#response-hook)
+
+(YAML **`set_rcode`** is [response hook](/rhai/hooks-and-phases.md#response-hook) only — config validation rejects it on `hook: request`.)
+
+#### Arguments / return
+
+| Parameter | Type | Notes |
+|-----------|------|-------|
+| `name` | string | RCODE name (case-insensitive), for example `"SERVFAIL"`, `"NXDOMAIN"` |
+| *return* | — | No return value |
+
+<p class="txn-api-summary" markdown="1">
+
+**Summary:** Sets the **RCODE** Conduit attaches to the response metadata for this transaction — for example before [Send](/concepts/architecture-and-packet-path.md#send) when policy accepts an upstream answer.
+
+</p>
+
+#### Behavior
+
+- Writes **`rcode`** on the [transaction](/glossary/index.md#transaction). Downstream phases use this when building the client response.
+- Recognized names (case-insensitive): **`NOERROR`**, **`FORMERR`**, **`SERVFAIL`**, **`NXDOMAIN`**, **`REFUSED`**. Any other string maps to **`SERVFAIL`** (fail-safe default).
+- Does **not** by itself trigger drop or retry — pair with outcome methods when policy should fail over instead of accepting.
+- On the **response hook**, commonly used after inspecting **`txn.response_rcode()`** when rewriting metadata for the client. On the **request hook**, rare — prefer response-hook scripts unless you need to pre-stage metadata before upstream.
+- Within one rule, later **`set_rcode`** (built-in or Rhai) overrides an earlier value on the same hook pass.
+
+#### YAML equivalent
+
+```yaml
+- type: set_rcode
+  value: SERVFAIL
+```
+
+Response hook only in config.
+
+#### Example
+
+Response script — normalize a policy outcome before Send:
+
+```rhai
+if txn.response_rcode() == "SERVFAIL" && txn.get_attempt_count() >= 3 {
+    txn.set_rcode("REFUSED");
+}
+```
+
+</div>
+
+</div>
 
 ---
 

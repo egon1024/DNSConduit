@@ -1,10 +1,17 @@
 /* API reference cards — used on Transaction API and future Message API pages. */
 
 .md-typeset .txn-api-entry {
-  border: 0;
+  --txn-api-expand-duration: 0.24s;
+  --txn-api-expand-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid transparent;
   background: transparent;
   padding: 0.2rem 0;
   margin: 0.85rem 0;
+  transition:
+    background-color var(--txn-api-expand-duration) var(--txn-api-expand-ease),
+    border-color var(--txn-api-expand-duration) var(--txn-api-expand-ease),
+    padding var(--txn-api-expand-duration) var(--txn-api-expand-ease),
+    margin var(--txn-api-expand-duration) var(--txn-api-expand-ease);
 }
 
 .md-typeset .txn-api-entry:not(.txn-api-entry--ready) > .txn-api-reference-panel,
@@ -13,7 +20,7 @@
 }
 
 .md-typeset .txn-api-entry.txn-api-entry--open {
-  border: 1px solid var(--md-default-fg-color--lightest);
+  border-color: var(--md-default-fg-color--lightest);
   border-radius: 0.2rem;
   padding: 0.75rem 1.25rem 1rem;
   margin: 0.85rem 0 1.25rem;
@@ -27,13 +34,18 @@
   gap: 0.75rem;
   margin: 0;
   padding: 0;
-  border-bottom: 0;
+  border-bottom: 0 solid var(--md-primary-fg-color);
+  transition:
+    margin var(--txn-api-expand-duration) var(--txn-api-expand-ease),
+    padding var(--txn-api-expand-duration) var(--txn-api-expand-ease),
+    border-bottom-width var(--txn-api-expand-duration) var(--txn-api-expand-ease),
+    border-bottom-color var(--txn-api-expand-duration) var(--txn-api-expand-ease);
 }
 
 .md-typeset .txn-api-entry.txn-api-entry--open .txn-api-entry-header {
   margin: 0 0 0.65rem;
   padding: 0.35rem 0 0.65rem;
-  border-bottom: 2px solid var(--md-primary-fg-color);
+  border-bottom-width: 2px;
 }
 
 .md-typeset .txn-api-entry-header > h3,
@@ -95,7 +107,7 @@
   border-right: 2px solid currentcolor;
   border-bottom: 2px solid currentcolor;
   transform: rotate(45deg) translate(-1px, -2px);
-  transition: transform 0.2s ease;
+  transition: transform var(--txn-api-expand-duration) var(--txn-api-expand-ease);
 }
 
 .md-typeset .txn-api-entry.txn-api-entry--open .txn-api-reference-chevron {
@@ -127,6 +139,13 @@
   font-size: 0.88em;
   line-height: 1.5;
   color: var(--md-default-fg-color--light);
+  overflow: hidden;
+  max-height: 12rem;
+  opacity: 1;
+  transition:
+    max-height var(--txn-api-expand-duration) var(--txn-api-expand-ease),
+    opacity calc(var(--txn-api-expand-duration) * 0.85) var(--txn-api-expand-ease),
+    margin var(--txn-api-expand-duration) var(--txn-api-expand-ease);
 }
 
 .md-typeset .txn-api-entry .txn-api-brief > p {
@@ -142,7 +161,11 @@
 }
 
 .md-typeset .txn-api-entry.txn-api-entry--open > .txn-api-brief {
-  display: none;
+  max-height: 0;
+  opacity: 0;
+  margin-top: 0;
+  margin-bottom: 0;
+  pointer-events: none;
 }
 
 .md-typeset .txn-api-entry .txn-api-summary {
@@ -162,6 +185,21 @@
 .md-typeset .txn-api-entry > details,
 .md-typeset .txn-api-entry .txn-api-reference-panel > summary {
   display: none;
+}
+
+.md-typeset .txn-api-entry .txn-api-reference-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--txn-api-expand-duration) var(--txn-api-expand-ease);
+}
+
+.md-typeset .txn-api-entry .txn-api-reference-panel.txn-api-reference-panel--open {
+  grid-template-rows: 1fr;
+}
+
+.md-typeset .txn-api-entry .txn-api-reference-panel__inner {
+  overflow: hidden;
+  min-height: 0;
 }
 
 .md-typeset .txn-api-entry .txn-api-reference-panel[hidden] {
@@ -222,6 +260,7 @@
   border-right: 2px solid currentcolor;
   border-bottom: 2px solid currentcolor;
   transform: rotate(45deg);
+  transition: transform var(--txn-api-expand-duration) var(--txn-api-expand-ease);
 }
 
 .md-typeset .txn-api-section-chevron::before {
@@ -266,4 +305,16 @@
 
 .md-typeset .txn-api-stub + hr {
   margin-top: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .md-typeset .txn-api-entry,
+  .md-typeset .txn-api-entry-header,
+  .md-typeset .txn-api-entry .txn-api-brief,
+  .md-typeset .txn-api-entry .txn-api-reference-panel,
+  .md-typeset .txn-api-reference-chevron,
+  .md-typeset .txn-api-section-chevron::before,
+  .md-typeset .txn-api-section-chevron::after {
+    transition: none !important;
+  }
 }
