@@ -1,0 +1,40 @@
+{#-
+  Page-specific TOC depth: set `toc_depth: N` in a page's YAML front matter to cap
+  the right-hand table of contents at heading level N (e.g. 3 = through ### only).
+-#}
+{% if page.meta.toc_depth and toc_item.level > page.meta.toc_depth %}
+{# omit #}
+{% else %}
+<li class="md-nav__item">
+  <a href="{{ toc_item.url }}" class="md-nav__link">
+    <span class="md-ellipsis">
+      {% if toc_item.typeset %}
+        <span class="md-typeset">
+          {{ toc_item.typeset.title }}
+        </span>
+      {% else %}
+        {{ toc_item.title }}
+      {% endif %}
+    </span>
+  </a>
+  {% if toc_item.children %}
+    {% set ns = namespace(visible=false) %}
+    {% for child in toc_item.children %}
+      {% if not page.meta.toc_depth or child.level <= page.meta.toc_depth %}
+        {% set ns.visible = true %}
+      {% endif %}
+    {% endfor %}
+    {% if ns.visible %}
+    <nav class="md-nav" aria-label="{{ toc_item.title | striptags | e }}">
+      <ul class="md-nav__list">
+        {% for toc_item in toc_item.children %}
+          {% if not page.meta.toc_depth or toc_item.level <= page.meta.toc_depth %}
+            {% include "partials/toc-item.html" %}
+          {% endif %}
+        {% endfor %}
+      </ul>
+    </nav>
+    {% endif %}
+  {% endif %}
+</li>
+{% endif %}

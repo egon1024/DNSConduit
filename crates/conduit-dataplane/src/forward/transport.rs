@@ -48,12 +48,13 @@ impl ForwardTransport {
 
     fn record_forward(
         &self,
-        txn: &Transaction,
+        txn: &mut Transaction,
         backend: Option<std::net::SocketAddr>,
         outcome: &str,
         error_reason: Option<&str>,
         started: Instant,
     ) {
+        txn.complete_forward_rtt(started);
         let Some(hub) = self.metrics.as_ref() else {
             return;
         };
@@ -127,6 +128,7 @@ impl PipelineStage for ForwardTransport {
 
     fn handle(&self, txn: &mut Transaction, snapshot: &Arc<RuntimeSnapshot>) -> StageOutcome {
         let started = Instant::now();
+        txn.mark_forward_started(started);
         let Some(backend) = txn.selected_backend else {
             self.record_forward(txn, None, "error", Some("no_backend"), started);
             txn.set_rcode_name("SERVFAIL");
@@ -144,15 +146,17 @@ impl PipelineStage for ForwardTransport {
         }
 
         let pool = txn.selected_pool.as_deref();
-        let upstream_wire = &txn.query_wire;
         let sources_v4 = snapshot.sources_v4_for_pool(pool);
         let sources_v6 = snapshot.sources_v6_for_pool(pool);
         let allowed_v4 = snapshot.allowed_sources_v4_for_pool(pool);
         let allowed_v6 = snapshot.allowed_sources_v6_for_pool(pool);
+        let effective_v4 = txn.take_effective_source_override_v4();
+        let effective_v6 = txn.take_effective_source_override_v6();
+        let upstream_wire = &txn.query_wire;
         let bind_v4 = if backend.is_ipv4() {
             Some(
                 self.egress
-                    .select_source_v4(sources_v4, txn.source_override_v4, &allowed_v4),
+                    .select_source_v4(sources_v4, effective_v4, &allowed_v4),
             )
         } else {
             None
@@ -160,7 +164,7 @@ impl PipelineStage for ForwardTransport {
         let bind_v6 = if backend.is_ipv6() {
             Some(
                 self.egress
-                    .select_source_v6(sources_v6, txn.source_override_v6, &allowed_v6),
+                    .select_source_v6(sources_v6, effective_v6, &allowed_v6),
             )
         } else {
             None
@@ -182,9 +186,9 @@ impl PipelineStage for ForwardTransport {
             pool_sources_v4: sources_v4,
             pool_sources_v6: sources_v6,
             backend,
-            override_v4: txn.source_override_v4,
+            override_v4: effective_v4,
             allowed_v4: &allowed_v4,
-            override_v6: txn.source_override_v6,
+            override_v6: effective_v6,
             allowed_v6: &allowed_v6,
         };
         let socket = self.egress.udp_socket_for(&sel);

@@ -11,10 +11,7 @@ pub enum CompiledSelector {
     Qtype(String),
     Rcode(String),
     Tag(String),
-    SamplePercent {
-        percent: PercentKey,
-        key: SampleKey,
-    },
+    SamplePercent { percent: PercentKey, key: SampleKey },
     EveryNthWorker(u64),
     EveryNthGlobal(u64),
 }
@@ -388,15 +385,20 @@ mod tests {
         let keyed_a = hash_sample_keyed(4242, rate, Some("zone-a"));
         assert_eq!(keyed_a, hash_sample_keyed(4242, rate, Some("zone-a")));
         let differs = (1..10_000u64).any(|txn_id| {
-            hash_sample_keyed(txn_id, rate, None)
-                != hash_sample_keyed(txn_id, rate, Some("salt"))
+            hash_sample_keyed(txn_id, rate, None) != hash_sample_keyed(txn_id, rate, Some("salt"))
         });
-        assert!(differs, "keyed and global buckets should diverge for some txn ids");
+        assert!(
+            differs,
+            "keyed and global buckets should diverge for some txn ids"
+        );
         let salt_differs = (1..10_000u64).any(|txn_id| {
             hash_sample_keyed(txn_id, rate, Some("zone-a"))
                 != hash_sample_keyed(txn_id, rate, Some("zone-b"))
         });
-        assert!(salt_differs, "different salts should diverge for some txn ids");
+        assert!(
+            salt_differs,
+            "different salts should diverge for some txn ids"
+        );
     }
 
     #[test]

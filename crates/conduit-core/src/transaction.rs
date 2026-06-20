@@ -32,6 +32,11 @@ impl TagSet {
         self.strings.insert(key.into(), value.into());
     }
 
+    pub fn clear(&mut self, key: &str) {
+        self.flags.remove(key);
+        self.strings.remove(key);
+    }
+
     pub fn has(&self, key: &str) -> bool {
         self.flags.get(key).copied().unwrap_or(false) || self.strings.contains_key(key)
     }
@@ -76,6 +81,10 @@ pub struct Transaction {
     pub attempt_count: u32,
     pub retry_pool: Option<String>,
     pub started_at: Instant,
+    /// Upstream forward RTT in milliseconds for the most recent forward attempt (`0` before any attempt completes).
+    pub last_forward_ms: u64,
+    /// Start time of the in-flight forward attempt; set at send, cleared when RTT is recorded (`split_io` park/resume).
+    pub forward_started_at: Option<Instant>,
     pub snapshot_generation: u64,
     pub dropped: bool,
     /// Soft drop intent from `drop` / `drop_query()`; resolved at end of the current rule.
@@ -84,6 +93,10 @@ pub struct Transaction {
     pub source_override_v4: Option<std::net::Ipv4Addr>,
     /// Rhai/script override for IPv6 egress source (`set_source_v6`).
     pub source_override_v6: Option<std::net::Ipv6Addr>,
+    /// One-shot IPv4 egress for the next retry forward (`set_retry_source_v4`); ignored when `attempt_count <= 1` at Forward.
+    pub retry_source_override_v4: Option<std::net::Ipv4Addr>,
+    /// One-shot IPv6 egress for the next retry forward (`set_retry_source_v6`); ignored when `attempt_count <= 1` at Forward.
+    pub retry_source_override_v6: Option<std::net::Ipv6Addr>,
     /// Pipeline trace buffer; `None` when tracing is off for this transaction.
     pub trace_log: Option<TraceLog>,
     rcode: Option<u16>,
@@ -113,11 +126,15 @@ impl Transaction {
             attempt_count: 0,
             retry_pool: None,
             started_at: Instant::now(),
+            last_forward_ms: 0,
+            forward_started_at: None,
             snapshot_generation: 0,
             dropped: false,
             soft_drop: false,
             source_override_v4: None,
             source_override_v6: None,
+            retry_source_override_v4: None,
+            retry_source_override_v6: None,
             trace_log: None,
             rcode: None,
         }
@@ -135,12 +152,70 @@ impl Transaction {
         }
     }
 
+    /// Mark the start of an upstream forward attempt (send). Used by `split_io` to measure RTT across park/resume.
+    pub fn mark_forward_started(&mut self, at: Instant) {
+        self.forward_started_at = Some(at);
+    }
+
+    /// Record upstream RTT for the most recent forward attempt and clear `forward_started_at`.
+    pub fn complete_forward_rtt(&mut self, started: Instant) {
+        self.last_forward_ms = forward_elapsed_ms(started);
+        self.forward_started_at = None;
+    }
+
+    /// Record upstream RTT from `forward_started_at` (I/O backend completion in `split_io`).
+    pub fn complete_forward_rtt_from_mark(&mut self) {
+        if let Some(started) = self.forward_started_at.take() {
+            self.last_forward_ms = forward_elapsed_ms(started);
+        }
+    }
+
+    pub fn last_forward_ms(&self) -> u64 {
+        self.last_forward_ms
+    }
+
     pub fn set_source_override_v4(&mut self, addr: std::net::Ipv4Addr) {
         self.source_override_v4 = Some(addr);
     }
 
     pub fn set_source_override_v6(&mut self, addr: std::net::Ipv6Addr) {
         self.source_override_v6 = Some(addr);
+    }
+
+    pub fn set_retry_source_override_v4(&mut self, addr: std::net::Ipv4Addr) {
+        self.retry_source_override_v4 = Some(addr);
+    }
+
+    pub fn set_retry_source_override_v6(&mut self, addr: std::net::Ipv6Addr) {
+        self.retry_source_override_v6 = Some(addr);
+    }
+
+    pub fn clear_retry_source_override_v4(&mut self) {
+        self.retry_source_override_v4 = None;
+    }
+
+    pub fn clear_retry_source_override_v6(&mut self) {
+        self.retry_source_override_v6 = None;
+    }
+
+    /// IPv4 egress override at [Forward](crate::phase::Phase::Forward): one-shot `retry_source_override_v4` on retry forwards (`attempt_count > 1`), else `source_override_v4`.
+    pub fn take_effective_source_override_v4(&mut self) -> Option<std::net::Ipv4Addr> {
+        if self.attempt_count > 1 {
+            if let Some(addr) = self.retry_source_override_v4.take() {
+                return Some(addr);
+            }
+        }
+        self.source_override_v4
+    }
+
+    /// IPv6 egress override at Forward: one-shot `retry_source_override_v6` on retry forwards (`attempt_count > 1`), else `source_override_v6`.
+    pub fn take_effective_source_override_v6(&mut self) -> Option<std::net::Ipv6Addr> {
+        if self.attempt_count > 1 {
+            if let Some(addr) = self.retry_source_override_v6.take() {
+                return Some(addr);
+            }
+        }
+        self.source_override_v6
     }
 
     pub fn with_query_wire(mut self, wire: Vec<u8>) -> Self {
@@ -221,5 +296,114 @@ impl Transaction {
 
     pub fn clear_retry_pool(&mut self) {
         self.retry_pool = None;
+    }
+}
+
+fn forward_elapsed_ms(started: Instant) -> u64 {
+    u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::TagSet;
+
+    #[test]
+    fn tag_set_clear_removes_bool_flag() {
+        let mut tags = TagSet::default();
+        tags.set_bool("flag", true);
+        assert!(tags.has("flag"));
+        tags.clear("flag");
+        assert!(!tags.has("flag"));
+    }
+
+    #[test]
+    fn tag_set_clear_removes_string_tag() {
+        let mut tags = TagSet::default();
+        tags.set_string("tier", "vip");
+        assert!(tags.has("tier"));
+        tags.clear("tier");
+        assert!(!tags.has("tier"));
+    }
+
+    #[test]
+    fn tag_set_clear_removes_both_maps_for_key() {
+        let mut tags = TagSet::default();
+        tags.set_bool("mixed", true);
+        tags.set_string("mixed", "value");
+        tags.clear("mixed");
+        assert!(!tags.has("mixed"));
+        assert!(!tags.bool_flags().contains_key("mixed"));
+    }
+
+    #[test]
+    fn take_effective_source_ignores_retry_stash_on_first_forward() {
+        use super::Transaction;
+        use crate::transaction::ClientProtocol;
+        use std::net::SocketAddr;
+
+        let mut txn = Transaction::new(
+            1,
+            "127.0.0.1:53".parse::<SocketAddr>().unwrap(),
+            ClientProtocol::Udp,
+        );
+        txn.source_override_v4 = Some("127.0.0.1".parse().unwrap());
+        txn.retry_source_override_v4 = Some("10.0.0.5".parse().unwrap());
+        txn.attempt_count = 1;
+        assert_eq!(
+            txn.take_effective_source_override_v4(),
+            Some("127.0.0.1".parse().unwrap())
+        );
+        assert_eq!(
+            txn.retry_source_override_v4,
+            Some("10.0.0.5".parse().unwrap())
+        );
+    }
+
+    #[test]
+    fn take_effective_source_consumes_retry_stash_on_retry_forward() {
+        use super::Transaction;
+        use crate::transaction::ClientProtocol;
+        use std::net::SocketAddr;
+
+        let mut txn = Transaction::new(
+            1,
+            "127.0.0.1:53".parse::<SocketAddr>().unwrap(),
+            ClientProtocol::Udp,
+        );
+        txn.set_retry_source_override_v6("::1".parse().unwrap());
+        txn.attempt_count = 2;
+        assert_eq!(
+            txn.take_effective_source_override_v6(),
+            Some("::1".parse().unwrap())
+        );
+        assert!(txn.retry_source_override_v6.is_none());
+    }
+
+    #[test]
+    fn complete_forward_rtt_records_milliseconds() {
+        use super::Transaction;
+        use crate::transaction::ClientProtocol;
+        use std::net::SocketAddr;
+        use std::thread;
+        use std::time::{Duration, Instant};
+
+        let mut txn = Transaction::new(
+            1,
+            "127.0.0.1:53".parse::<SocketAddr>().unwrap(),
+            ClientProtocol::Udp,
+        );
+        assert_eq!(txn.last_forward_ms(), 0);
+
+        let started = Instant::now();
+        txn.mark_forward_started(started);
+        thread::sleep(Duration::from_millis(5));
+        txn.complete_forward_rtt(started);
+        assert!(txn.last_forward_ms() >= 5);
+        assert!(txn.forward_started_at.is_none());
+
+        txn.mark_forward_started(Instant::now());
+        thread::sleep(Duration::from_millis(3));
+        txn.complete_forward_rtt_from_mark();
+        assert!(txn.last_forward_ms() >= 3);
     }
 }

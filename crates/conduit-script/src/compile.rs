@@ -1,6 +1,7 @@
 use crate::data_sources::{load_data_sources, DataSourceStore};
 use crate::error::ScriptError;
 use crate::host::ScriptPhase;
+use crate::lookup_scan::validate_table_lookup_literals;
 use crate::metrics::{scan_metrics_from_source, MetricRegistry};
 use conduit_proto::config::{Config, RhaiConfig, Rule};
 use conduit_proto::paths::resolve_config_path;
@@ -119,6 +120,10 @@ pub fn compile_from_config(
         compile_rule_scripts(rule, base_dir, &mut scripting)?;
     }
 
+    scripting
+        .metrics
+        .apply_user_metric_exports(config.metrics.as_ref())?;
+
     Ok(scripting)
 }
 
@@ -155,6 +160,7 @@ fn compile_rule_scripts(
                 path: path_key.clone(),
                 message: format!("failed to read script: {e}"),
             })?;
+            validate_table_lookup_literals(&source, &path_key, &scripting.data_sources)?;
             for (name, labels) in scan_metrics_from_source(&source)? {
                 scripting.metrics.register(&name, labels)?;
             }
@@ -286,5 +292,90 @@ rules:
         let cfg = load_yaml(yaml).unwrap();
         let compiled = compile_from_config(&cfg, Some(&fixtures_config_dir())).unwrap();
         assert!(compiled.metrics.metrics.contains_key("slow_login"));
+    }
+
+    #[test]
+    fn reject_unknown_table_lookup_literal_at_compile() {
+        let base = fixtures_config_dir();
+        let script_path = base.join("../rhai/bad-table-lookup.rhai");
+        std::fs::write(
+            &script_path,
+            r#"table_lookup("not_a_table", question_qname(txn));"#,
+        )
+        .unwrap();
+        let yaml = r#"schema_version: 1
+listeners:
+  threads: 1
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+forward:
+  outstanding_per_backend: 100
+  timeout_ms: 2000
+pools:
+  - name: default
+    backends:
+      - address: "127.0.0.1:5300"
+data_sources:
+  - name: blocklist
+    type: csv
+    path: ../data/blocklist.csv
+    key_column: qname
+    value_column: action
+rules:
+  match_mode: first_match
+  rules:
+    - name: bad
+      hook: request
+      selectors: []
+      actions:
+        - type: rhai
+          value: ../rhai/bad-table-lookup.rhai
+"#
+        .to_string();
+        let cfg = load_yaml(&yaml).unwrap();
+        let err = compile_from_config(&cfg, Some(&base)).unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("unknown data source 'not_a_table'"));
+        let _ = std::fs::remove_file(script_path);
+    }
+
+    #[test]
+    fn reject_unknown_user_metric_export_name_at_compile() {
+        let base = fixtures_config_dir();
+        let yaml = r#"
+schema_version: 1
+listeners:
+  threads: 1
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+forward:
+  outstanding_per_backend: 100
+  timeout_ms: 2000
+pools:
+  - name: default
+    backends:
+      - address: "127.0.0.1:5300"
+metrics:
+  enabled: true
+  profile: full
+  user_metrics:
+    - name: not_registered
+      export: minimal
+rules:
+  match_mode: first_match
+  rules:
+    - name: src
+      hook: request
+      selectors: []
+      actions:
+        - type: rhai
+          value: ../rhai/set-vip-pool.rhai
+"#;
+        let cfg = load_yaml(yaml).unwrap();
+        let err = compile_from_config(&cfg, Some(&base)).unwrap_err();
+        assert!(err.to_string().contains("unknown user metric"));
     }
 }

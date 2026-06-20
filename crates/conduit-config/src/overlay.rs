@@ -61,6 +61,7 @@ mod tests {
                 profile: "full".into(),
                 prometheus: None,
                 otel: None,
+                user_metrics: vec![],
             }),
             ..Default::default()
         };

@@ -1,0 +1,77 @@
+/* API reference cards — used on Transaction API and future Message API pages. */
+
+.md-typeset .txn-api-entry {
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 0.2rem;
+  padding: 0.75rem 1.25rem 1rem;
+  margin: 1.25rem 0 2rem;
+  background: var(--md-code-bg-color);
+}
+
+.md-typeset .txn-api-entry > h3 {
+  margin-top: 0;
+  margin-bottom: 1rem;
+  padding: 0.35rem 0 0.65rem;
+  border-bottom: 2px solid var(--md-primary-fg-color);
+  font-family: var(--md-code-font-family);
+  font-size: 1.15em;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--md-default-fg-color);
+  letter-spacing: -0.01em;
+}
+
+.md-typeset .txn-api-entry > h3 code {
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+
+.md-typeset .txn-api-entry > h4 {
+  margin-top: 1.1rem;
+  margin-bottom: 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--md-default-fg-color--light);
+}
+
+.md-typeset .txn-api-entry > h4 + p,
+.md-typeset .txn-api-entry > h4 + ul,
+.md-typeset .txn-api-entry > h4 + table {
+  margin-top: 0;
+}
+
+.md-typeset .txn-api-entry > :last-child {
+  margin-bottom: 0;
+}
+
+.md-typeset .txn-api-group + .txn-api-group {
+  margin-top: 0.5rem;
+}
+
+.md-typeset .txn-api-index {
+  margin: -0.15rem 0 1.25rem;
+  font-size: 0.85em;
+  line-height: 1.6;
+  color: var(--md-default-fg-color--light);
+}
+
+.md-typeset .txn-api-index a {
+  font-family: var(--md-code-font-family);
+  font-size: 0.95em;
+}
+
+.md-typeset .txn-api-stub {
+  margin: 0 0 1.5rem;
+  font-size: 0.9em;
+  color: var(--md-default-fg-color--light);
+}
+
+.md-typeset .txn-api-stub + hr {
+  margin-top: 0;
+}

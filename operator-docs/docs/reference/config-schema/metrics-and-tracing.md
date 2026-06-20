@@ -18,6 +18,16 @@ Both blocks are **file-layer only** — [overlay](/glossary/index.md#overlay) pa
 | `profile` | string | no | **`full`** when enabled | **`minimal`**, **`full`**, or **`off`** |
 | `prometheus` | object | no | — | HTTP scrape listener |
 | `otel` | object | no | — | OTLP HTTP metrics push |
+| `user_metrics` | list | no | `[]` | Per-metric export tier overrides for Rhai `conduit_user_*` counters |
+
+### `metrics.user_metrics[]`
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `name` | string | yes | — | Metric name from `metric_inc` (without `conduit_user_` prefix) |
+| `export` | string | no | **`full`** | **`minimal`** (record on `minimal` and `full` profiles) or **`full`** (`full` profile only) |
+
+Script-discovered metrics default to **`export: full`**. Override to **`minimal`** to record on the [minimal built-in profile](/observability/built-in-metrics.md#profiles). See [User metrics](/rhai/user-metrics.md#export-tier).
 
 ### `metrics.prometheus`
 
@@ -76,6 +86,9 @@ Evaluated after [Request rules](/concepts/architecture-and-packet-path.md#reques
 | `metrics.prometheus.listen_address` | Must parse as socket address when non-empty |
 | `metrics.otel.endpoint` | Must be `http://` or `https://` when non-empty |
 | `metrics.otel.push_interval_ms` | Must be **≥ 1000** when non-zero |
+| `metrics.user_metrics[].name` | Must be non-empty; must match a Rhai-registered metric at snapshot build |
+| `metrics.user_metrics[].export` | Must be **`minimal`**, **`full`**, or empty (defaults to **`full`**) |
+| Duplicate `metrics.user_metrics[].name` | Rejected |
 | `tracing.activation.sample_percent` | Must be in **[0, 100]** |
 | Selector `type` in `tracing.activation.selectors` | Must be a known selector type |
 | `metrics` or `tracing` in overlay patch | Overlay rejected |
@@ -87,7 +100,10 @@ Validate with `conduitctl validate --file …` or load via the running process; 
 ```yaml
 metrics:
   enabled: true
-  profile: full
+  profile: minimal
+  user_metrics:
+    - name: block_hits
+      export: minimal
   prometheus:
     listen_address: "127.0.0.1:9090"
     path: /metrics

@@ -2,9 +2,10 @@
 
 use crate::transaction::Transaction;
 use conduit_events::{compile_rule_selectors, CompiledSelector, SelectorMatchCtx};
-use conduit_metrics::UserRegistry;
+use conduit_metrics::{BuiltinProfile, BuiltinRegistry, MetricsHub, UserRegistry};
 use conduit_proto::config::{Action, Rule, RulesConfig};
 use conduit_script::{run_scripts, CompiledScripting, ScriptPhase, ScriptRunOutcome};
+use std::sync::Arc;
 
 #[derive(Debug, Clone)]
 pub struct CompiledRules {
@@ -54,9 +55,19 @@ pub enum CompiledAction {
     ClearRetry,
     /// Clear `retry_pool` on the transaction.
     ClearRetryPool,
+    /// Remove a tag key from the transaction (bool and string).
+    ClearTag(String),
     SetRcode(String),
     SetSourceV4(std::net::Ipv4Addr),
     SetSourceV6(std::net::Ipv6Addr),
+    /// One-shot IPv4 egress for next retry forward if retry occurs; first forward ignores.
+    SetRetrySourceV4(std::net::Ipv4Addr),
+    /// One-shot IPv6 egress for next retry forward if retry occurs; first forward ignores.
+    SetRetrySourceV6(std::net::Ipv6Addr),
+    /// Clear `retry_source_override_v4` on the transaction.
+    ClearRetrySourceV4,
+    /// Clear `retry_source_override_v6` on the transaction.
+    ClearRetrySourceV6,
     Rhai {
         script_id: usize,
     },
@@ -85,11 +96,20 @@ impl CompiledRules {
         hook: RuleHook,
         txn: &mut Transaction,
         scripting: &CompiledScripting,
-        user_export: Option<&UserRegistry>,
+        metrics: Option<&MetricsHub>,
     ) -> RuleEvalResult {
+        let user_export = metrics.map(|m| m.user.as_ref());
+        let builtin_profile = metrics.map(|m| m.compiled.profile);
+        let builtin = metrics.map(|m| Arc::clone(&m.builtin));
         for rule in self.rules.iter().filter(|r| r.hook == hook) {
             if rule.matches(txn) {
-                let outcome = rule.execute_ordered(txn, scripting, user_export);
+                let outcome = rule.execute_ordered(
+                    txn,
+                    scripting,
+                    user_export,
+                    builtin_profile,
+                    builtin.clone(),
+                );
                 if self.match_mode == MatchMode::FirstMatch {
                     return RuleEvalResult {
                         outcome,
@@ -177,6 +197,8 @@ impl CompiledRule {
         txn: &mut Transaction,
         scripting: &CompiledScripting,
         user_export: Option<&UserRegistry>,
+        builtin_profile: Option<BuiltinProfile>,
+        builtin: Option<Arc<BuiltinRegistry>>,
     ) -> RuleOutcome {
         let script_phase = match self.hook {
             RuleHook::Request => ScriptPhase::Request,
@@ -187,8 +209,15 @@ impl CompiledRule {
         for action in &self.actions {
             match action {
                 CompiledAction::Rhai { script_id } => {
-                    let (script_outcome, stats) =
-                        run_scripts(scripting, &[*script_id], txn, script_phase, user_export);
+                    let (script_outcome, stats) = run_scripts(
+                        scripting,
+                        &[*script_id],
+                        txn,
+                        script_phase,
+                        user_export,
+                        builtin_profile,
+                        builtin.clone(),
+                    );
                     match script_outcome {
                         ScriptRunOutcome::DropNow => return RuleOutcome::Drop,
                         ScriptRunOutcome::Drop => {}
@@ -242,9 +271,14 @@ impl CompiledRule {
             CompiledAction::ClearDrop => txn.clear_soft_drop(),
             CompiledAction::ClearRetry => *retry = false,
             CompiledAction::ClearRetryPool => txn.clear_retry_pool(),
+            CompiledAction::ClearTag(key) => txn.tags.clear(key),
             CompiledAction::SetRcode(rc) => txn.set_rcode_name(rc),
             CompiledAction::SetSourceV4(addr) => txn.set_source_override_v4(*addr),
             CompiledAction::SetSourceV6(addr) => txn.set_source_override_v6(*addr),
+            CompiledAction::SetRetrySourceV4(addr) => txn.set_retry_source_override_v4(*addr),
+            CompiledAction::SetRetrySourceV6(addr) => txn.set_retry_source_override_v6(*addr),
+            CompiledAction::ClearRetrySourceV4 => txn.clear_retry_source_override_v4(),
+            CompiledAction::ClearRetrySourceV6 => txn.clear_retry_source_override_v6(),
             CompiledAction::Rhai { .. } => unreachable!(),
         }
         None
@@ -281,6 +315,7 @@ impl CompiledAction {
             "clear_drop" => CompiledAction::ClearDrop,
             "clear_retry" => CompiledAction::ClearRetry,
             "clear_retry_pool" => CompiledAction::ClearRetryPool,
+            "clear_tag" => CompiledAction::ClearTag(act.value.clone()),
             "set_rcode" => CompiledAction::SetRcode(act.value.clone()),
             "set_tag" => {
                 let (key, value) = act
@@ -300,6 +335,18 @@ impl CompiledAction {
                     .parse()
                     .expect("set_source_v6 must be validated before compile"),
             ),
+            "set_retry_source_v4" => CompiledAction::SetRetrySourceV4(
+                act.value
+                    .parse()
+                    .expect("set_retry_source_v4 must be validated before compile"),
+            ),
+            "set_retry_source_v6" => CompiledAction::SetRetrySourceV6(
+                act.value
+                    .parse()
+                    .expect("set_retry_source_v6 must be validated before compile"),
+            ),
+            "clear_retry_source_v4" => CompiledAction::ClearRetrySourceV4,
+            "clear_retry_source_v6" => CompiledAction::ClearRetrySourceV6,
             "rhai" => panic!("rhai actions are compiled via CompiledRule::compile"),
             other => panic!("unknown action type '{other}' must be rejected at validate"),
         }
@@ -628,6 +675,86 @@ pools:
     }
 
     #[test]
+    fn set_retry_source_v4_stashes_without_consuming() {
+        for hook in ["request", "response"] {
+            let rules = compile_hook_rule(
+                hook,
+                vec![Action {
+                    r#type: "set_retry_source_v4".into(),
+                    value: "10.0.0.5".into(),
+                }],
+            );
+            let mut txn = Transaction::new(
+                1,
+                "127.0.0.1:53".parse::<SocketAddr>().unwrap(),
+                ClientProtocol::Udp,
+            );
+            txn.source_override_v4 = Some("127.0.0.1".parse().unwrap());
+            let result = if hook == "request" {
+                eval_request(&rules, &mut txn)
+            } else {
+                eval_response(&rules, &mut txn)
+            };
+            assert_eq!(result.outcome, RuleOutcome::Continue, "hook={hook}");
+            assert_eq!(
+                txn.retry_source_override_v4,
+                Some("10.0.0.5".parse().unwrap())
+            );
+            assert_eq!(
+                txn.take_effective_source_override_v4(),
+                Some("127.0.0.1".parse().unwrap())
+            );
+            assert_eq!(
+                txn.retry_source_override_v4,
+                Some("10.0.0.5".parse().unwrap())
+            );
+        }
+    }
+
+    #[test]
+    fn retry_source_consumed_on_retry_forward() {
+        let mut txn = Transaction::new(
+            1,
+            "127.0.0.1:53".parse::<SocketAddr>().unwrap(),
+            ClientProtocol::Udp,
+        );
+        txn.source_override_v4 = Some("127.0.0.1".parse().unwrap());
+        txn.set_retry_source_override_v4("10.0.0.5".parse().unwrap());
+        txn.attempt_count = 2;
+        assert_eq!(
+            txn.take_effective_source_override_v4(),
+            Some("10.0.0.5".parse().unwrap())
+        );
+        assert!(txn.retry_source_override_v4.is_none());
+        assert_eq!(
+            txn.take_effective_source_override_v4(),
+            Some("127.0.0.1".parse().unwrap())
+        );
+    }
+
+    #[test]
+    fn clear_retry_source_v4_clears_stash() {
+        let rules = compile_response_rule(vec![
+            Action {
+                r#type: "set_retry_source_v4".into(),
+                value: "10.0.0.5".into(),
+            },
+            Action {
+                r#type: "clear_retry_source_v4".into(),
+                value: "".into(),
+            },
+        ]);
+        let mut txn = Transaction::new(
+            1,
+            "127.0.0.1:53".parse::<SocketAddr>().unwrap(),
+            ClientProtocol::Udp,
+        );
+        let result = eval_response(&rules, &mut txn);
+        assert_eq!(result.outcome, RuleOutcome::Continue);
+        assert!(txn.retry_source_override_v4.is_none());
+    }
+
+    #[test]
     fn drop_now_short_circuits_remaining_actions() {
         let rules = compile_request_rule(vec![
             Action {
@@ -757,6 +884,101 @@ pools:
         rules.eval(RuleHook::Request, &mut txn, &scripting, None);
         assert!(txn.tags.has("global"));
         assert_eq!(txn.global_query_index, 8);
+    }
+
+    #[test]
+    fn clear_tag_after_set_tag_removes_tag() {
+        let rules = compile_request_rule(vec![
+            Action {
+                r#type: "set_tag".into(),
+                value: "audited=true".into(),
+            },
+            Action {
+                r#type: "clear_tag".into(),
+                value: "audited".into(),
+            },
+        ]);
+        let mut txn = Transaction::new(
+            1,
+            "127.0.0.1:53".parse::<SocketAddr>().unwrap(),
+            ClientProtocol::Udp,
+        );
+        let result = eval_request(&rules, &mut txn);
+        assert_eq!(result.outcome, RuleOutcome::Continue);
+        assert!(!txn.tags.has("audited"));
+    }
+
+    #[test]
+    fn clear_tag_prevents_tag_selector_match() {
+        let scripting = empty_scripting();
+        let set_rules = CompiledRules::compile(
+            Some(&RulesConfig {
+                match_mode: "first_match".into(),
+                rules: vec![Rule {
+                    name: "set-vip".into(),
+                    hook: "request".into(),
+                    selectors: vec![],
+                    actions: vec![Action {
+                        r#type: "set_tag".into(),
+                        value: "vip=true".into(),
+                    }],
+                }],
+            }),
+            &scripting,
+        );
+        let clear_rules = CompiledRules::compile(
+            Some(&RulesConfig {
+                match_mode: "first_match".into(),
+                rules: vec![Rule {
+                    name: "clear-vip".into(),
+                    hook: "request".into(),
+                    selectors: vec![],
+                    actions: vec![Action {
+                        r#type: "clear_tag".into(),
+                        value: "vip".into(),
+                    }],
+                }],
+            }),
+            &scripting,
+        );
+        let match_rules = CompiledRules::compile(
+            Some(&RulesConfig {
+                match_mode: "first_match".into(),
+                rules: vec![Rule {
+                    name: "vip-only".into(),
+                    hook: "request".into(),
+                    selectors: vec![Selector {
+                        r#type: "tag".into(),
+                        value: "vip".into(),
+                        key: None,
+                        key_from: None,
+                    }],
+                    actions: vec![Action {
+                        r#type: "set_tag".into(),
+                        value: "matched=true".into(),
+                    }],
+                }],
+            }),
+            &scripting,
+        );
+
+        let mut txn = Transaction::new(
+            1,
+            "127.0.0.1:53".parse::<SocketAddr>().unwrap(),
+            ClientProtocol::Udp,
+        );
+        set_rules.eval(RuleHook::Request, &mut txn, &scripting, None);
+        assert!(txn.tags.has("vip"));
+
+        match_rules.eval(RuleHook::Request, &mut txn, &scripting, None);
+        assert!(txn.tags.has("matched"));
+
+        clear_rules.eval(RuleHook::Request, &mut txn, &scripting, None);
+        assert!(!txn.tags.has("vip"));
+
+        txn.tags.clear("matched");
+        match_rules.eval(RuleHook::Request, &mut txn, &scripting, None);
+        assert!(!txn.tags.has("matched"));
     }
 
     #[test]

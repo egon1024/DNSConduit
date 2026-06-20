@@ -21,7 +21,8 @@ Use this order of preference:
 |------|-----------|
 | **Same source for every query to a pool** | Pool `sources_v4` / `sources_v6` (or global `forward.sources_*`) |
 | **Source depends on query match, fixed IP** | [Request rules](/concepts/architecture-and-packet-path.md#request-rules) — `set_source_v4` / `set_source_v6` ([Rules and actions](/policy-routing/rules-and-actions.md)) |
-| **Logic, tables, or multi-step policy** | [Rhai](/rhai/index.md) — `txn.set_source_v4()` / `txn.set_source_v6()` on the request hook |
+| **Different egress only on retry (outcome-driven)** | Request or [response rules](/policy-routing/rules-and-actions.md) — `set_retry_source_v4` / `set_retry_source_v6`; pair with `retry` / `retry_now` or Rhai `txn.request_retry()` |
+| **Logic, tables, or multi-step policy** | [Rhai](/rhai/index.md) — `txn.set_source_v4()` / `txn.set_source_v6()` on the request hook; `txn.set_retry_source_*()` on either hook |
 
 Declarative **`set_source_*`** actions and [Rhai](/rhai/index.md) share the same [transaction](/glossary/index.md#transaction) overrides and the same **allowed-set** check at [Forward](/concepts/architecture-and-packet-path.md#forward). If an override is not permitted for the selected pool, Conduit **does not fail the query** — it falls back to ordinary round-robin among configured sources.
 

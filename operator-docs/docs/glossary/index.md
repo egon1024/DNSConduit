@@ -124,15 +124,17 @@ Rule selectors that match every Nth query: **`every_nth_worker`** uses the worke
 
 ### Action
 
-Built-in effect on a matching [rule](/policy-routing/rules-and-actions.md) (for example `set_pool`, `set_retry_pool`, `set_tag`, `set_source_v4`, `set_source_v6`, `drop`, `drop_now`, `clear_drop`, `retry`, `retry_now`, `clear_retry`, `clear_retry_pool`, `rhai`) — run in **list order** on the matching rule.
+Built-in effect on a matching [rule](/policy-routing/rules-and-actions.md) (for example `set_pool`, `set_retry_pool`, `set_tag`, `set_source_v4`, `set_source_v6`, `set_retry_source_v4`, `set_retry_source_v6`, `clear_retry_source_v4`, `clear_retry_source_v6`, `drop`, `drop_now`, `clear_drop`, `retry`, `retry_now`, `clear_retry`, `clear_retry_pool`, `rhai`) — run in **list order** on the matching rule.
 
 → [Rules and actions](/policy-routing/rules-and-actions.md)
 
 ### Rule Rhai { #rule-rhai #rhai }
 
+**Also called:** Rhai for rules.
+
 Scripted **policy** on [rules](/policy-routing/rules-and-actions.md) in current releases: `.rhai` files referenced from `rhai` [actions](/glossary/index.md#action), loaded into the [runtime snapshot](/glossary/index.md#runtime-snapshot) on reload or apply, run at [Request rules](/concepts/architecture-and-packet-path.md#request-rules) and [Response rules](/concepts/architecture-and-packet-path.md#response-rules) within [sandbox limits](/rhai/sandbox-limits.md). Uses the `txn` API — not DNS wire editing.
 
-→ [Rhai](/rhai/index.md), [Rules and actions](/policy-routing/rules-and-actions.md)
+→ [Rule Rhai](/rhai/rule-rhai.md), [Rhai](/rhai/index.md), [Rules and actions](/policy-routing/rules-and-actions.md)
 
 ## Planned plugin models
 
@@ -152,13 +154,15 @@ Planned sidecar plugin model: separate processes Conduit calls on the same logic
 
 Planned datapath feature with `processors:` config: DNS wire editing and (when shipped) transaction refinement such as **`set_tag`** and ingress **`set_pool`** after [rules](/policy-routing/rules-and-actions.md) — separate from [Rule Rhai](/glossary/index.md#rule-rhai). **Not yet shipped.**
 
-→ [Planned plugin models](/concepts/planned-plugin-models.md#processor-chains-planned)
+→ [Processor chains](/processor-chains/index.md), [Planned plugin models](/concepts/planned-plugin-models.md#processor-chains-planned)
 
-### Processor-chain Rhai
+### Processor-chain Rhai { #processor-chain-rhai }
+
+**Also called:** Rhai for processor chains.
 
 Planned [Rhai](/glossary/index.md#rhai) scripts in [processor chains](/glossary/index.md#processor-chains): `processors:` config and **message API** (`conduit-dns`) for wire editing — not the rule `txn` surface. **Not yet shipped.**
 
-→ [Planned plugin models](/concepts/planned-plugin-models.md#processor-chains-planned)
+→ [Processor-chain Rhai](/rhai/processor-chain-rhai.md), [Message API](/rhai/message-api.md), [Processor chains](/processor-chains/index.md)
 
 ## Control and operations
 

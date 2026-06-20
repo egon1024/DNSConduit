@@ -32,7 +32,7 @@ All commands below assume the **repository root** as the current working directo
 - **IPv6 egress** — `forward.sources_v6` / pool overrides; bind `::1` for upstream UDP.
 - **Cross-family** — IPv4 client to IPv6 backend (and reverse); egress socket family follows the backend.
 - **Default bind** — no `sources_v6`; OS default `[::]:0` egress.
-- **Rhai** — `txn.set_source_v6("::1")` in request phase (allowed-set validation, fail-open).
+- **Rhai** — `txn.set_source_v6("::1")` in request phase (allowed-set validation, fail-open); `txn.set_retry_source_*` stashes one-shot retry egress (request or response hook).
 - **Observation** — dnstap client query/response frames with pool/backend metadata.
 
 Upstream path for every scenario: **dig → Conduit → dnsmasq (loopback mock) → `$UPSTREAM_DNS`**.

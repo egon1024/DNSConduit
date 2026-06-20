@@ -619,6 +619,8 @@ mod tests {
             &mut host,
             conduit_script::ScriptPhase::Request,
             None,
+            None,
+            None,
         );
         assert_eq!(host.tags.has("sampled"), expected);
     }

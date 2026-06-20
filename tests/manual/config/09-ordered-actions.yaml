@@ -12,6 +12,7 @@ forward:
   timeout_ms: 3000
   sources_v4:
     - "127.0.0.1"
+    - "10.0.0.5"
 orchestrator:
   max_attempts: 3
   max_txn_duration_ms: 8000
@@ -85,3 +86,13 @@ rules:
           value: ../../fixtures/rhai/set-vip-pool.rhai
         - type: set_pool
           value: default
+    - name: stash-retry-source
+      hook: request
+      selectors:
+        - type: qname_suffix
+          value: ".retry-src."
+      actions:
+        - type: set_pool
+          value: default
+        - type: set_retry_source_v4
+          value: "10.0.0.5"

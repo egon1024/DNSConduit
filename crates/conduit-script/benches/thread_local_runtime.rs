@@ -27,16 +27,28 @@ fn main() {
         soft_drop: false,
         source_override_v4: None,
         source_override_v6: None,
+        retry_source_override_v4: None,
+        retry_source_override_v6: None,
         tags: HashMap::new(),
+        tag_strings: HashMap::new(),
         attempts: 0,
         started: Instant::now(),
+        last_forward_ms: 0,
         phase: ScriptPhase::Request,
     };
 
     let n = 10_000u32;
     let start = Instant::now();
     for _ in 0..n {
-        let _ = run_scripts(&scripting, &[0], &mut host, ScriptPhase::Request, None);
+        let _ = run_scripts(
+            &scripting,
+            &[0],
+            &mut host,
+            ScriptPhase::Request,
+            None,
+            None,
+            None,
+        );
         host.pool = None;
     }
     let elapsed = start.elapsed();

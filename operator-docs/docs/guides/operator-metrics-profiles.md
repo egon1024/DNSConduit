@@ -8,7 +8,7 @@ Hands-on comparison of **`metrics.profile: minimal`** vs **`full`** on the same 
 
 | Profile | Hot-path emphasis | After a few `A` queries you should see… |
 |---------|-------------------|----------------------------------------|
-| **`minimal`** | Low-cardinality volume | [`conduit_queries_total`](/observability/built-in-metrics.md#conduit_queries_total) with **`listener`** + **`protocol`** only; **no** `conduit_phase_duration_seconds` |
+| **`minimal`** | Volume + failure counters | [`conduit_queries_total`](/observability/built-in-metrics.md#conduit_queries_total) with **`listener`** + **`protocol`** only; [`conduit_parse_rejected_total`](/observability/built-in-metrics.md#conduit_parse_rejected_total) and [`conduit_forward_errors_total`](/observability/built-in-metrics.md#conduit_forward_errors_total) when failures occur; **no** `conduit_phase_duration_seconds` |
 | **`full`** | Rich labels + timing | `conduit_queries_total` with **`qtype`**, **`qclass`**, **`ip_family`**; phase and forward histograms/counters |
 
 Both profiles expose the same scrape-time gauges except Linux process memory/FD gauges (**`full`** only).
@@ -106,9 +106,9 @@ curl -sS "http://127.0.0.1:19090/metrics" | grep conduit_process_
 
 | Choose **`minimal`** when… | Choose **`full`** when… |
 |----------------------------|-------------------------|
-| You need query volume and pool mix only | You need per-qtype volume, forward RTT, or phase timing |
-| Cardinality and hot-path cost must stay low | You are operating or debugging upstream and pipeline behavior |
-| Coarse response buckets are enough | You need fine `rcode` labels and parse-failure breakdown |
+| You need query volume, pool mix, response mix, and alertable failure counters | You need per-qtype volume, forward RTT, per-backend attempt counts, or phase timing |
+| Cardinality and hot-path cost must stay low (no histograms) | You are operating or debugging upstream and pipeline latency in detail |
+| Coarse response buckets are enough | You need fine `rcode` labels and `ip_family` on responses |
 
 Default when `metrics:` is present and `profile` is omitted: **`full`**. Full series list: [Built-in metrics](/observability/built-in-metrics.md).
 

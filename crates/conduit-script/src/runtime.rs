@@ -2,17 +2,16 @@ use crate::compile::{CompiledScript, CompiledScripting, ScriptLimits};
 use crate::data_sources::DataSourceStore;
 use crate::host::{HostTransaction, ScriptPhase};
 use crate::metrics::MetricRegistry;
+use crate::script_errors::{report_lookup_unknown_table, report_script_eval_error};
 use conduit_events::hash_sample_keyed;
+use conduit_metrics::BuiltinRegistry;
 use rhai::{Dynamic, Engine, EvalAltResult, Scope};
 #[cfg(test)]
 use std::cell::Cell;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-
-static SCRIPT_ERRORS: AtomicU64 = AtomicU64::new(0);
 
 #[cfg(test)]
 thread_local! {
@@ -21,7 +20,22 @@ thread_local! {
 
 thread_local! {
     static LOOKUP_DATA: RefCell<Option<Arc<DataSourceStore>>> = const { RefCell::new(None) };
+    static SCRIPT_RUN_CTX: RefCell<Option<ScriptRunContext>> = const { RefCell::new(None) };
     static SCRIPT_RUNTIME: RefCell<Option<ScriptRuntime>> = const { RefCell::new(None) };
+}
+
+struct ScriptRunContext {
+    script_path: String,
+    rule_name: String,
+    snapshot_generation: u64,
+    builtin: Option<Arc<BuiltinRegistry>>,
+}
+
+struct RunOneResources {
+    data: Arc<DataSourceStore>,
+    metrics: Arc<MetricRegistry>,
+    snapshot_generation: u64,
+    builtin: Option<Arc<BuiltinRegistry>>,
 }
 
 struct ScriptRuntime {
@@ -46,12 +60,25 @@ impl ScriptRuntime {
 
 fn register_host_api(engine: &mut Engine) {
     engine.register_fn("table_lookup", |table: &str, key: &str| -> String {
-        LOOKUP_DATA.with(|cell| {
-            cell.borrow()
-                .as_ref()
-                .map(|data| data.lookup(table, key))
-                .unwrap_or_default()
-        })
+        let store = LOOKUP_DATA.with(|cell| cell.borrow().clone());
+        let Some(store) = store else {
+            return String::new();
+        };
+        if !store.has_table(table) {
+            SCRIPT_RUN_CTX.with(|cell| {
+                if let Some(ctx) = cell.borrow().as_ref() {
+                    report_lookup_unknown_table(
+                        ctx.builtin.as_deref(),
+                        ctx.snapshot_generation,
+                        &ctx.script_path,
+                        &ctx.rule_name,
+                        table,
+                    );
+                }
+            });
+            return String::new();
+        }
+        store.lookup(table, key)
     });
 
     engine.register_fn("question_qname", |txn: &mut RhaiTxn| -> String {
@@ -65,6 +92,7 @@ fn register_host_api(engine: &mut Engine) {
         .register_fn("response_rcode", RhaiTxn::response_rcode)
         .register_fn("set_tag", RhaiTxn::set_tag)
         .register_fn("has_tag", RhaiTxn::has_tag)
+        .register_fn("clear_tag", RhaiTxn::clear_tag)
         .register_fn("set_pool", RhaiTxn::set_pool)
         .register_fn("set_retry_pool", RhaiTxn::set_retry_pool)
         .register_fn("request_retry", RhaiTxn::request_retry)
@@ -77,12 +105,17 @@ fn register_host_api(engine: &mut Engine) {
         .register_fn("set_rcode", RhaiTxn::set_rcode)
         .register_fn("set_source_v4", RhaiTxn::set_source_v4)
         .register_fn("set_source_v6", RhaiTxn::set_source_v6)
+        .register_fn("set_retry_source_v4", RhaiTxn::set_retry_source_v4)
+        .register_fn("set_retry_source_v6", RhaiTxn::set_retry_source_v6)
+        .register_fn("clear_retry_source_v4", RhaiTxn::clear_retry_source_v4)
+        .register_fn("clear_retry_source_v6", RhaiTxn::clear_retry_source_v6)
         .register_fn("sample_percent", RhaiTxn::sample_percent)
         .register_fn("sample_percent", RhaiTxn::sample_percent_keyed)
         .register_fn("metric_inc", RhaiTxn::metric_inc)
         .register_fn("metric_inc_labels", RhaiTxn::metric_inc_labels)
         .register_fn("elapsed_ms", RhaiTxn::elapsed_ms)
-        .register_fn("get_attempt_count", RhaiTxn::attempt_count);
+        .register_fn("get_attempt_count", RhaiTxn::attempt_count)
+        .register_fn("last_forward_ms", RhaiTxn::last_forward_ms);
 }
 
 fn with_runtime<F, R>(scripting: &CompiledScripting, f: F) -> R
@@ -115,10 +148,6 @@ pub(crate) fn thread_runtime_engine_builds() -> u64 {
     ENGINE_BUILDS.with(|count| count.get())
 }
 
-pub fn rhai_script_errors_total() -> u64 {
-    SCRIPT_ERRORS.load(Ordering::Relaxed)
-}
-
 #[derive(Debug, Default, Clone)]
 pub struct UserMetricFlush {
     pub name: String,
@@ -148,7 +177,7 @@ pub enum ScriptRunOutcome {
     RetryNow,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 struct ScriptEffects {
     pool: Option<String>,
     retry_pool: Option<String>,
@@ -156,8 +185,7 @@ struct ScriptEffects {
     hard_retry: bool,
     clear_soft_retry: bool,
     clear_retry_pool: bool,
-    tags_bool: HashMap<String, bool>,
-    tags_string: HashMap<String, String>,
+    tag_ops: HashMap<String, TagOp>,
     rcode: Option<String>,
     soft_drop: bool,
     hard_drop: bool,
@@ -165,7 +193,18 @@ struct ScriptEffects {
     sample_decisions: HashMap<(u16, String), bool>,
     source_override_v4: Option<std::net::Ipv4Addr>,
     source_override_v6: Option<std::net::Ipv6Addr>,
+    retry_source_override_v4: Option<std::net::Ipv4Addr>,
+    retry_source_override_v6: Option<std::net::Ipv6Addr>,
+    clear_retry_source_v4: bool,
+    clear_retry_source_v6: bool,
     user_metric_flushes: Vec<UserMetricFlush>,
+}
+
+#[derive(Debug, Clone)]
+enum TagOp {
+    Bool(bool),
+    String(String),
+    Clear,
 }
 
 #[derive(Clone)]
@@ -178,7 +217,9 @@ struct RhaiTxn {
     rcode: Option<String>,
     attempt_count: u32,
     started_at: Instant,
-    tags_snapshot: HashMap<String, bool>,
+    last_forward_ms: u64,
+    tags_snapshot_bools: HashMap<String, bool>,
+    tags_snapshot_strings: HashMap<String, String>,
     metrics: Arc<MetricRegistry>,
     effects: Arc<Mutex<ScriptEffects>>,
 }
@@ -227,24 +268,37 @@ impl RhaiTxn {
     fn set_tag(&mut self, key: &str, value: Dynamic) -> Result<(), Box<EvalAltResult>> {
         let mut fx = self.effects.lock().map_err(|e| e.to_string())?;
         if value.is::<bool>() {
-            fx.tags_bool
-                .insert(key.to_string(), value.as_bool().unwrap_or(false));
+            fx.tag_ops.insert(
+                key.to_string(),
+                TagOp::Bool(value.as_bool().unwrap_or(false)),
+            );
         } else {
-            fx.tags_string.insert(key.to_string(), value.to_string());
+            fx.tag_ops
+                .insert(key.to_string(), TagOp::String(value.to_string()));
         }
         Ok(())
     }
 
+    fn clear_tag(&mut self, key: &str) {
+        if let Ok(mut fx) = self.effects.lock() {
+            fx.tag_ops.insert(key.to_string(), TagOp::Clear);
+        }
+    }
+
     fn has_tag(&mut self, key: &str) -> bool {
         if let Ok(fx) = self.effects.lock() {
-            if fx.tags_bool.get(key).copied().unwrap_or(false) {
-                return true;
-            }
-            if fx.tags_string.contains_key(key) {
-                return true;
+            if let Some(op) = fx.tag_ops.get(key) {
+                return match op {
+                    TagOp::Clear => false,
+                    TagOp::Bool(v) => *v,
+                    TagOp::String(_) => true,
+                };
             }
         }
-        self.tags_snapshot.get(key).copied().unwrap_or(false)
+        if self.tags_snapshot_bools.get(key).copied().unwrap_or(false) {
+            return true;
+        }
+        self.tags_snapshot_strings.contains_key(key)
     }
 
     fn set_pool(&mut self, name: &str) {
@@ -340,6 +394,36 @@ impl RhaiTxn {
         Ok(())
     }
 
+    fn set_retry_source_v4(&mut self, addr: &str) -> Result<(), Box<EvalAltResult>> {
+        let ip: std::net::Ipv4Addr = addr
+            .parse()
+            .map_err(|_| format!("set_retry_source_v4: '{addr}' is not a valid IPv4 address"))?;
+        let mut fx = self.effects.lock().map_err(|e| e.to_string())?;
+        fx.retry_source_override_v4 = Some(ip);
+        Ok(())
+    }
+
+    fn set_retry_source_v6(&mut self, addr: &str) -> Result<(), Box<EvalAltResult>> {
+        let ip: std::net::Ipv6Addr = addr
+            .parse()
+            .map_err(|_| format!("set_retry_source_v6: '{addr}' is not a valid IPv6 address"))?;
+        let mut fx = self.effects.lock().map_err(|e| e.to_string())?;
+        fx.retry_source_override_v6 = Some(ip);
+        Ok(())
+    }
+
+    fn clear_retry_source_v4(&mut self) {
+        if let Ok(mut fx) = self.effects.lock() {
+            fx.clear_retry_source_v4 = true;
+        }
+    }
+
+    fn clear_retry_source_v6(&mut self) {
+        if let Ok(mut fx) = self.effects.lock() {
+            fx.clear_retry_source_v6 = true;
+        }
+    }
+
     fn sample_percent(&mut self, percent: f64) -> bool {
         self.sample_percent_keyed(percent, "")
     }
@@ -358,7 +442,7 @@ impl RhaiTxn {
         let decision = hash_sample_keyed(self.txn_id, clamped / 100.0, salt);
         fx.sample_decisions.insert(cache_key, decision);
         if decision {
-            fx.tags_bool.insert("sampled".into(), true);
+            fx.tag_ops.insert("sampled".into(), TagOp::Bool(true));
         }
         decision
     }
@@ -393,6 +477,10 @@ impl RhaiTxn {
         self.started_at.elapsed().as_millis() as i64
     }
 
+    fn last_forward_ms(&mut self) -> i64 {
+        self.last_forward_ms as i64
+    }
+
     fn attempt_count(&mut self) -> i64 {
         self.attempt_count as i64
     }
@@ -404,6 +492,8 @@ pub fn run_scripts(
     host: &mut dyn HostTransaction,
     phase: ScriptPhase,
     user_export: Option<&conduit_metrics::UserRegistry>,
+    builtin_profile: Option<conduit_metrics::BuiltinProfile>,
+    builtin: Option<Arc<BuiltinRegistry>>,
 ) -> (ScriptRunOutcome, ScriptRunStats) {
     if script_ids.is_empty() {
         return (ScriptRunOutcome::Ok, ScriptRunStats::default());
@@ -427,8 +517,12 @@ pub fn run_scripts(
                 &scripting.limits,
                 host,
                 phase,
-                data.clone(),
-                metrics.clone(),
+                RunOneResources {
+                    data: data.clone(),
+                    metrics: metrics.clone(),
+                    snapshot_generation: scripting.snapshot_generation,
+                    builtin: builtin.clone(),
+                },
             )
         });
         match run_result {
@@ -436,12 +530,15 @@ pub fn run_scripts(
                 apply_effects(host, &fx);
                 stats.user_metrics.extend(fx.user_metric_flushes.clone());
                 if let Some(export) = user_export {
+                    let profile = builtin_profile.unwrap_or(conduit_metrics::BuiltinProfile::Off);
                     for m in &fx.user_metric_flushes {
-                        export.add_delta(conduit_metrics::UserMetricDelta {
-                            name: m.name.clone(),
-                            labels: m.labels.clone(),
-                            delta: m.delta,
-                        });
+                        if scripting.metrics.exports_at_profile(&m.name, profile) {
+                            export.add_delta(conduit_metrics::UserMetricDelta {
+                                name: m.name.clone(),
+                                labels: m.labels.clone(),
+                                delta: m.delta,
+                            });
+                        }
                     }
                 }
                 if fx.hard_drop {
@@ -462,13 +559,7 @@ pub fn run_scripts(
             }
             Err(e) => {
                 stats.errors += 1;
-                SCRIPT_ERRORS.fetch_add(1, Ordering::Relaxed);
-                tracing::warn!(
-                    script = %script.path,
-                    rule = %script.rule_name,
-                    error = %e,
-                    "rhai script error"
-                );
+                report_script_eval_error(builtin.as_deref(), &script.path, &script.rule_name, &e);
             }
         }
     }
@@ -483,11 +574,14 @@ fn apply_effects(host: &mut dyn HostTransaction, fx: &ScriptEffects) {
     if let Some(ref pool) = fx.retry_pool {
         host.set_retry_pool(pool);
     }
-    for (k, v) in &fx.tags_bool {
-        host.set_tag_bool(k, *v);
-    }
-    for (k, v) in &fx.tags_string {
-        host.set_tag_string(k, v);
+    let mut tag_keys: Vec<_> = fx.tag_ops.keys().cloned().collect();
+    tag_keys.sort();
+    for key in tag_keys {
+        match fx.tag_ops.get(&key).expect("key from sorted keys") {
+            TagOp::Bool(v) => host.set_tag_bool(&key, *v),
+            TagOp::String(v) => host.set_tag_string(&key, v),
+            TagOp::Clear => host.clear_tag(&key),
+        }
     }
     if let Some(ref rc) = fx.rcode {
         host.set_rcode_name(rc);
@@ -497,6 +591,18 @@ fn apply_effects(host: &mut dyn HostTransaction, fx: &ScriptEffects) {
     }
     if let Some(addr) = fx.source_override_v6 {
         host.set_source_v6(&addr.to_string());
+    }
+    if let Some(addr) = fx.retry_source_override_v4 {
+        host.set_retry_source_v4(&addr.to_string());
+    }
+    if let Some(addr) = fx.retry_source_override_v6 {
+        host.set_retry_source_v6(&addr.to_string());
+    }
+    if fx.clear_retry_source_v4 {
+        host.clear_retry_source_v4();
+    }
+    if fx.clear_retry_source_v6 {
+        host.clear_retry_source_v6();
     }
     if fx.clear_soft_drop {
         host.clear_soft_drop();
@@ -518,9 +624,14 @@ fn run_one(
     limits: &ScriptLimits,
     host: &dyn HostTransaction,
     phase: ScriptPhase,
-    data: Arc<DataSourceStore>,
-    metrics: Arc<MetricRegistry>,
+    resources: RunOneResources,
 ) -> Result<ScriptEffects, String> {
+    let RunOneResources {
+        data,
+        metrics,
+        snapshot_generation,
+        builtin,
+    } = resources;
     let effects = Arc::new(Mutex::new(ScriptEffects::default()));
     let txn = RhaiTxn {
         phase,
@@ -531,12 +642,22 @@ fn run_one(
         rcode: host.response_rcode_label(),
         attempt_count: host.attempt_count(),
         started_at: host.started_at(),
-        tags_snapshot: host.script_tag_bools(),
+        last_forward_ms: host.last_forward_ms(),
+        tags_snapshot_bools: host.script_tag_bools(),
+        tags_snapshot_strings: host.script_tag_strings(),
         metrics,
         effects: effects.clone(),
     };
 
     LOOKUP_DATA.with(|cell| *cell.borrow_mut() = Some(data));
+    SCRIPT_RUN_CTX.with(|cell| {
+        *cell.borrow_mut() = Some(ScriptRunContext {
+            script_path: script.path.clone(),
+            rule_name: script.rule_name.clone(),
+            snapshot_generation,
+            builtin,
+        });
+    });
 
     let engine = &mut runtime.engine;
     engine.set_max_operations(limits.max_operations);
@@ -560,6 +681,7 @@ fn run_one(
         .map_err(|e| e.to_string());
 
     LOOKUP_DATA.with(|cell| *cell.borrow_mut() = None);
+    SCRIPT_RUN_CTX.with(|cell| *cell.borrow_mut() = None);
 
     result?;
 
@@ -571,8 +693,7 @@ fn run_one(
         hard_retry: fx.hard_retry,
         clear_soft_retry: fx.clear_soft_retry,
         clear_retry_pool: fx.clear_retry_pool,
-        tags_bool: fx.tags_bool.clone(),
-        tags_string: fx.tags_string.clone(),
+        tag_ops: fx.tag_ops.clone(),
         rcode: fx.rcode.clone(),
         soft_drop: fx.soft_drop,
         hard_drop: fx.hard_drop,
@@ -580,6 +701,10 @@ fn run_one(
         sample_decisions: HashMap::new(),
         source_override_v4: fx.source_override_v4,
         source_override_v6: fx.source_override_v6,
+        retry_source_override_v4: fx.retry_source_override_v4,
+        retry_source_override_v6: fx.retry_source_override_v6,
+        clear_retry_source_v4: fx.clear_retry_source_v4,
+        clear_retry_source_v6: fx.clear_retry_source_v6,
         user_metric_flushes: fx.user_metric_flushes.clone(),
     })
 }
@@ -588,10 +713,14 @@ fn run_one(
 mod tests {
     use super::*;
     use crate::compile::compile_from_config;
+    use crate::rhai_script_errors_total;
     use crate::testing::MockHost;
     use conduit_config::load_yaml;
+    use conduit_metrics::{BuiltinProfile, BuiltinRegistry};
+    use prometheus::{Encoder, TextEncoder};
     use std::path::PathBuf;
-    use std::time::Duration;
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::sync::Arc;
 
     #[test]
     fn set_source_v4_via_script() {
@@ -654,12 +783,24 @@ rules:
             soft_drop: false,
             source_override_v4: None,
             source_override_v6: None,
+            retry_source_override_v4: None,
+            retry_source_override_v6: None,
             tags: HashMap::new(),
+            tag_strings: HashMap::new(),
             attempts: 0,
             started: Instant::now(),
+            last_forward_ms: 0,
             phase: ScriptPhase::Request,
         };
-        let (_, stats) = run_scripts(&scripting, &[0], &mut host, ScriptPhase::Request, None);
+        let (_, stats) = run_scripts(
+            &scripting,
+            &[0],
+            &mut host,
+            ScriptPhase::Request,
+            None,
+            None,
+            None,
+        );
         assert_eq!(stats.errors, 0);
         assert_eq!(host.source_override_v4, Some(std::net::Ipv4Addr::LOCALHOST));
         let _ = std::fs::remove_dir_all(&dir);
@@ -726,14 +867,113 @@ rules:
             soft_drop: false,
             source_override_v4: None,
             source_override_v6: None,
+            retry_source_override_v4: None,
+            retry_source_override_v6: None,
             tags: HashMap::new(),
+            tag_strings: HashMap::new(),
             attempts: 0,
             started: Instant::now(),
+            last_forward_ms: 0,
             phase: ScriptPhase::Request,
         };
-        let (_, stats) = run_scripts(&scripting, &[0], &mut host, ScriptPhase::Request, None);
+        let (_, stats) = run_scripts(
+            &scripting,
+            &[0],
+            &mut host,
+            ScriptPhase::Request,
+            None,
+            None,
+            None,
+        );
         assert_eq!(stats.errors, 0);
         assert_eq!(host.source_override_v6, Some(std::net::Ipv6Addr::LOCALHOST));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn set_retry_source_v4_via_script_on_response() {
+        let script = r#"txn.set_retry_source_v4("10.0.0.5");"#;
+        let dir = std::env::temp_dir().join(format!("conduit-script-rsrc-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let script_path = dir.join("rsrc.rhai");
+        std::fs::write(&script_path, script).unwrap();
+        let yaml = format!(
+            r#"
+schema_version: 1
+listeners:
+  threads: 1
+  reuse_port: false
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+forward:
+  outstanding_per_backend: 100
+  timeout_ms: 2000
+orchestrator:
+  max_attempts: 3
+  max_txn_duration_ms: 5000
+  txn_table_capacity: 1024
+events:
+  queue_depth: 4096
+  drop_policy: drop_oldest
+rhai:
+  max_operations: 10000
+  max_call_depth: 32
+pools:
+  - name: default
+    backends:
+      - address: "127.0.0.1:5300"
+control:
+  listen_address: "127.0.0.1:5199"
+rules:
+  match_mode: first_match
+  rules:
+    - name: rsrc
+      hook: response
+      selectors: []
+      actions:
+        - type: rhai
+          value: "{}"
+"#,
+            script_path.display()
+        );
+        let cfg = load_yaml(&yaml).unwrap();
+        let scripting = compile_from_config(&cfg, Some(&dir)).unwrap();
+        let mut host = MockHost {
+            id: 53,
+            qname: "test.example.".into(),
+            qtype: "A".into(),
+            dns_id: 1,
+            rcode: None,
+            pool: None,
+            retry: None,
+            dropped: false,
+            soft_drop: false,
+            source_override_v4: None,
+            source_override_v6: None,
+            retry_source_override_v4: None,
+            retry_source_override_v6: None,
+            tags: HashMap::new(),
+            tag_strings: HashMap::new(),
+            attempts: 0,
+            started: Instant::now(),
+            last_forward_ms: 0,
+            phase: ScriptPhase::Response,
+        };
+        let (_, stats) = run_scripts(
+            &scripting,
+            &[0],
+            &mut host,
+            ScriptPhase::Response,
+            None,
+            None,
+            None,
+        );
+        assert_eq!(stats.errors, 0);
+        assert_eq!(
+            host.retry_source_override_v4,
+            Some("10.0.0.5".parse().unwrap())
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -751,7 +991,9 @@ rules:
             rcode: None,
             attempt_count: 0,
             started_at: Instant::now(),
-            tags_snapshot: HashMap::new(),
+            last_forward_ms: 0,
+            tags_snapshot_bools: HashMap::new(),
+            tags_snapshot_strings: HashMap::new(),
             metrics: Arc::new(MetricRegistry::default()),
             effects: effects.clone(),
         };
@@ -781,9 +1023,13 @@ rules:
             soft_drop: false,
             source_override_v4: None,
             source_override_v6: None,
+            retry_source_override_v4: None,
+            retry_source_override_v6: None,
             tags: HashMap::new(),
+            tag_strings: HashMap::new(),
             attempts: 0,
             started: Instant::now(),
+            last_forward_ms: 0,
             phase: ScriptPhase::Request,
         };
         let (outcome, stats) = run_scripts(
@@ -791,6 +1037,8 @@ rules:
             &[script_id],
             &mut host,
             ScriptPhase::Request,
+            None,
+            None,
             None,
         );
         assert_eq!(stats.errors, 0, "script should not error");
@@ -822,9 +1070,13 @@ rules:
             soft_drop: false,
             source_override_v4: None,
             source_override_v6: None,
+            retry_source_override_v4: None,
+            retry_source_override_v6: None,
             tags: HashMap::new(),
+            tag_strings: HashMap::new(),
             attempts: 1,
             started: Instant::now(),
+            last_forward_ms: 0,
             phase: ScriptPhase::Response,
         };
         let (outcome, stats) = run_scripts(
@@ -832,6 +1084,8 @@ rules:
             &[script_id],
             &mut host,
             ScriptPhase::Response,
+            None,
+            None,
             None,
         );
         assert_eq!(stats.errors, 0, "script should not error");
@@ -906,9 +1160,13 @@ rules:
             soft_drop: false,
             source_override_v4: None,
             source_override_v6: None,
+            retry_source_override_v4: None,
+            retry_source_override_v6: None,
             tags: HashMap::new(),
+            tag_strings: HashMap::new(),
             attempts: 1,
             started: Instant::now(),
+            last_forward_ms: 0,
             phase: ScriptPhase::Response,
         };
         let (outcome, stats) = run_scripts(
@@ -916,6 +1174,8 @@ rules:
             &[script_id],
             &mut host,
             ScriptPhase::Response,
+            None,
+            None,
             None,
         );
         assert_eq!(stats.errors, 0);
@@ -941,13 +1201,25 @@ rules:
             soft_drop: false,
             source_override_v4: None,
             source_override_v6: None,
+            retry_source_override_v4: None,
+            retry_source_override_v6: None,
             tags: HashMap::new(),
+            tag_strings: HashMap::new(),
             attempts: 0,
             started: Instant::now(),
+            last_forward_ms: 0,
             phase: ScriptPhase::Request,
         };
         let ids = vec![0];
-        let (outcome, _) = run_scripts(&scripting, &ids, &mut host, ScriptPhase::Request, None);
+        let (outcome, _) = run_scripts(
+            &scripting,
+            &ids,
+            &mut host,
+            ScriptPhase::Request,
+            None,
+            None,
+            None,
+        );
         assert_eq!(outcome, ScriptRunOutcome::Ok);
         assert_eq!(host.pool.as_deref(), Some("vip"));
     }
@@ -971,12 +1243,24 @@ rules:
             soft_drop: false,
             source_override_v4: None,
             source_override_v6: None,
+            retry_source_override_v4: None,
+            retry_source_override_v6: None,
             tags: HashMap::new(),
+            tag_strings: HashMap::new(),
             attempts: 0,
             started: Instant::now(),
+            last_forward_ms: 0,
             phase: ScriptPhase::Request,
         };
-        let (outcome, stats) = run_scripts(&scripting, &[0], &mut host, ScriptPhase::Request, None);
+        let (outcome, stats) = run_scripts(
+            &scripting,
+            &[0],
+            &mut host,
+            ScriptPhase::Request,
+            None,
+            None,
+            None,
+        );
         assert_eq!(stats.errors, 1);
         assert_eq!(outcome, ScriptRunOutcome::Ok);
         assert!(!host.dropped);
@@ -1001,12 +1285,24 @@ rules:
             soft_drop: false,
             source_override_v4: None,
             source_override_v6: None,
+            retry_source_override_v4: None,
+            retry_source_override_v6: None,
             tags: HashMap::new(),
+            tag_strings: HashMap::new(),
             attempts: 0,
             started: Instant::now(),
+            last_forward_ms: 0,
             phase: ScriptPhase::Request,
         };
-        let (outcome, stats) = run_scripts(&scripting, &[0], &mut host, ScriptPhase::Request, None);
+        let (outcome, stats) = run_scripts(
+            &scripting,
+            &[0],
+            &mut host,
+            ScriptPhase::Request,
+            None,
+            None,
+            None,
+        );
         assert_eq!(stats.errors, 1);
         assert_eq!(outcome, ScriptRunOutcome::Ok);
         assert!(!host.dropped);
@@ -1030,12 +1326,24 @@ rules:
             soft_drop: false,
             source_override_v4: None,
             source_override_v6: None,
+            retry_source_override_v4: None,
+            retry_source_override_v6: None,
             tags: HashMap::new(),
+            tag_strings: HashMap::new(),
             attempts: 0,
             started: Instant::now(),
+            last_forward_ms: 0,
             phase: ScriptPhase::Request,
         };
-        let (_, stats) = run_scripts(&scripting, &[0], &mut host, ScriptPhase::Request, None);
+        let (_, stats) = run_scripts(
+            &scripting,
+            &[0],
+            &mut host,
+            ScriptPhase::Request,
+            None,
+            None,
+            None,
+        );
         assert_eq!(stats.errors, 0);
         assert_eq!(
             stats
@@ -1069,20 +1377,40 @@ rules:
             soft_drop: false,
             source_override_v4: None,
             source_override_v6: None,
+            retry_source_override_v4: None,
+            retry_source_override_v6: None,
             tags: HashMap::new(),
+            tag_strings: HashMap::new(),
             attempts: 0,
             started: Instant::now(),
+            last_forward_ms: 0,
             phase: ScriptPhase::Request,
         };
 
-        let (_, _) = run_scripts(&scripting, &[0], &mut host, ScriptPhase::Request, None);
+        let (_, _) = run_scripts(
+            &scripting,
+            &[0],
+            &mut host,
+            ScriptPhase::Request,
+            None,
+            None,
+            None,
+        );
         assert_eq!(
             thread_runtime_engine_builds(),
             1,
             "first run on this thread should build exactly one engine"
         );
         host.pool = None;
-        let (_, _) = run_scripts(&scripting, &[0], &mut host, ScriptPhase::Request, None);
+        let (_, _) = run_scripts(
+            &scripting,
+            &[0],
+            &mut host,
+            ScriptPhase::Request,
+            None,
+            None,
+            None,
+        );
 
         assert_eq!(
             thread_runtime_engine_builds(),
@@ -1171,12 +1499,24 @@ rules:
             soft_drop: false,
             source_override_v4: None,
             source_override_v6: None,
+            retry_source_override_v4: None,
+            retry_source_override_v6: None,
             tags: HashMap::new(),
+            tag_strings: HashMap::new(),
             attempts: 0,
             started: Instant::now(),
+            last_forward_ms: 0,
             phase: ScriptPhase::Request,
         };
-        let (_, stats1) = run_scripts(&snap1, &[0], &mut host, ScriptPhase::Request, None);
+        let (_, stats1) = run_scripts(
+            &snap1,
+            &[0],
+            &mut host,
+            ScriptPhase::Request,
+            None,
+            None,
+            None,
+        );
         assert_eq!(
             stats1
                 .user_metrics
@@ -1191,7 +1531,15 @@ rules:
         let snap2 = compile_from_config(&cfg, Some(&dir)).unwrap();
         assert_ne!(snap1.snapshot_generation, snap2.snapshot_generation);
 
-        let (_, stats2) = run_scripts(&snap2, &[0], &mut host, ScriptPhase::Request, None);
+        let (_, stats2) = run_scripts(
+            &snap2,
+            &[0],
+            &mut host,
+            ScriptPhase::Request,
+            None,
+            None,
+            None,
+        );
         assert_eq!(stats2.errors, 0);
         assert_eq!(
             stats2
@@ -1236,9 +1584,13 @@ rules:
             soft_drop: false,
             source_override_v4: None,
             source_override_v6: None,
+            retry_source_override_v4: None,
+            retry_source_override_v6: None,
             tags: HashMap::new(),
-            attempts: 0,
-            started: Instant::now() - Duration::from_millis(600),
+            tag_strings: HashMap::new(),
+            attempts: 1,
+            started: Instant::now(),
+            last_forward_ms: 600,
             phase: ScriptPhase::Request,
         };
         let (_, _) = run_scripts(
@@ -1246,6 +1598,8 @@ rules:
             &[request_id],
             &mut host,
             ScriptPhase::Request,
+            None,
+            None,
             None,
         );
         assert!(host.tags.get("suspicious").copied().unwrap_or(false));
@@ -1256,6 +1610,8 @@ rules:
             &[response_id],
             &mut host,
             ScriptPhase::Response,
+            None,
+            None,
             None,
         );
         assert_eq!(stats.errors, 0, "response script should succeed");
@@ -1268,5 +1624,314 @@ rules:
                 .sum::<u64>(),
             1
         );
+    }
+
+    #[test]
+    fn last_forward_ms_exposed_to_script() {
+        let mut host = MockHost {
+            id: 20,
+            qname: "slow.example.".into(),
+            qtype: "A".into(),
+            dns_id: 1,
+            rcode: Some("NOERROR".into()),
+            pool: None,
+            retry: None,
+            dropped: false,
+            soft_drop: false,
+            source_override_v4: None,
+            source_override_v6: None,
+            retry_source_override_v4: None,
+            retry_source_override_v6: None,
+            tags: HashMap::new(),
+            tag_strings: HashMap::new(),
+            attempts: 1,
+            started: Instant::now(),
+            last_forward_ms: 42,
+            phase: ScriptPhase::Response,
+        };
+        let (outcome, stats) = run_inline_script(
+            r#"if txn.last_forward_ms() == 42 { txn.metric_inc("rtt_ok", 1); }"#,
+            &mut host,
+        );
+        assert_eq!(outcome, ScriptRunOutcome::Ok);
+        assert_eq!(stats.errors, 0);
+        assert_eq!(
+            stats
+                .user_metrics
+                .iter()
+                .filter(|m| m.name == "rtt_ok")
+                .map(|m| m.delta)
+                .sum::<u64>(),
+            1
+        );
+    }
+
+    fn run_inline_script(script: &str, host: &mut MockHost) -> (ScriptRunOutcome, ScriptRunStats) {
+        static RUN: AtomicU64 = AtomicU64::new(0);
+        let run_id = RUN.fetch_add(1, Ordering::Relaxed);
+        let dir = std::env::temp_dir().join(format!(
+            "conduit-script-tag-{}-{}",
+            std::process::id(),
+            run_id
+        ));
+        let _ = std::fs::create_dir_all(&dir);
+        let script_path = dir.join("tag.rhai");
+        std::fs::write(&script_path, script).unwrap();
+        let yaml = format!(
+            r#"
+schema_version: 1
+listeners:
+  threads: 1
+  reuse_port: false
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+forward:
+  outstanding_per_backend: 100
+  timeout_ms: 2000
+orchestrator:
+  max_attempts: 3
+  max_txn_duration_ms: 5000
+  txn_table_capacity: 1024
+events:
+  queue_depth: 4096
+  drop_policy: drop_oldest
+rhai:
+  max_operations: 10000
+  max_call_depth: 32
+pools:
+  - name: default
+    backends:
+      - address: "127.0.0.1:5300"
+control:
+  listen_address: "127.0.0.1:5199"
+rules:
+  match_mode: first_match
+  rules:
+    - name: tag-script
+      hook: request
+      selectors: []
+      actions:
+        - type: rhai
+          value: "{}"
+"#,
+            script_path.display()
+        );
+        let cfg = load_yaml(&yaml).unwrap();
+        let scripting = compile_from_config(&cfg, Some(&dir)).unwrap();
+        let outcome = run_scripts(
+            &scripting,
+            &[0],
+            host,
+            ScriptPhase::Request,
+            None,
+            None,
+            None,
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+        outcome
+    }
+
+    #[test]
+    fn clear_tag_last_wins_over_set_tag_in_script() {
+        let script = r#"txn.set_tag("flag", true); txn.clear_tag("flag");"#;
+        let mut host = MockHost {
+            id: 30,
+            qname: "test.example.".into(),
+            qtype: "A".into(),
+            dns_id: 1,
+            rcode: None,
+            pool: None,
+            retry: None,
+            dropped: false,
+            soft_drop: false,
+            source_override_v4: None,
+            source_override_v6: None,
+            retry_source_override_v4: None,
+            retry_source_override_v6: None,
+            tags: HashMap::new(),
+            tag_strings: HashMap::new(),
+            attempts: 0,
+            started: Instant::now(),
+            last_forward_ms: 0,
+            phase: ScriptPhase::Request,
+        };
+        let (outcome, stats) = run_inline_script(script, &mut host);
+        assert_eq!(stats.errors, 0);
+        assert_eq!(outcome, ScriptRunOutcome::Ok);
+        assert!(!host.has_tag("flag"));
+    }
+
+    #[test]
+    fn clear_tag_removes_host_string_tag() {
+        let script = r#"txn.clear_tag("tier");"#;
+        let mut host = MockHost {
+            id: 31,
+            qname: "test.example.".into(),
+            qtype: "A".into(),
+            dns_id: 1,
+            rcode: None,
+            pool: None,
+            retry: None,
+            dropped: false,
+            soft_drop: false,
+            source_override_v4: None,
+            source_override_v6: None,
+            retry_source_override_v4: None,
+            retry_source_override_v6: None,
+            tags: HashMap::new(),
+            tag_strings: HashMap::from([("tier".into(), "vip".into())]),
+            attempts: 0,
+            started: Instant::now(),
+            last_forward_ms: 0,
+            phase: ScriptPhase::Request,
+        };
+        let (outcome, stats) = run_inline_script(script, &mut host);
+        assert_eq!(stats.errors, 0);
+        assert_eq!(outcome, ScriptRunOutcome::Ok);
+        assert!(!host.has_tag("tier"));
+    }
+
+    #[test]
+    fn has_tag_sees_string_snapshot_until_cleared_in_script() {
+        let script = r#"if !txn.has_tag("tier") { throw "missing tier"; } txn.clear_tag("tier"); if txn.has_tag("tier") { throw "tier still present"; }"#;
+        let mut host = MockHost {
+            id: 32,
+            qname: "test.example.".into(),
+            qtype: "A".into(),
+            dns_id: 1,
+            rcode: None,
+            pool: None,
+            retry: None,
+            dropped: false,
+            soft_drop: false,
+            source_override_v4: None,
+            source_override_v6: None,
+            retry_source_override_v4: None,
+            retry_source_override_v6: None,
+            tags: HashMap::new(),
+            tag_strings: HashMap::from([("tier".into(), "vip".into())]),
+            attempts: 0,
+            started: Instant::now(),
+            last_forward_ms: 0,
+            phase: ScriptPhase::Request,
+        };
+        let (outcome, stats) = run_inline_script(script, &mut host);
+        assert_eq!(stats.errors, 0);
+        assert_eq!(outcome, ScriptRunOutcome::Ok);
+        assert!(!host.has_tag("tier"));
+    }
+
+    #[test]
+    fn table_lookup_unknown_table_increments_script_error_counter() {
+        reset_thread_runtime_for_tests();
+
+        let script = r#"let t = "not_in_config"; table_lookup(t, "key");"#;
+        let dir = std::env::temp_dir().join(format!(
+            "conduit-script-unknown-table-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::create_dir_all(&dir);
+        let script_path = dir.join("unknown.rhai");
+        std::fs::write(&script_path, script).unwrap();
+        let yaml = format!(
+            r#"
+schema_version: 1
+listeners:
+  threads: 1
+  reuse_port: false
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+forward:
+  outstanding_per_backend: 100
+  timeout_ms: 2000
+orchestrator:
+  max_attempts: 3
+  max_txn_duration_ms: 5000
+  txn_table_capacity: 1024
+events:
+  queue_depth: 4096
+  drop_policy: drop_oldest
+rhai:
+  max_operations: 10000
+  max_call_depth: 32
+pools:
+  - name: default
+    backends:
+      - address: "127.0.0.1:5300"
+control:
+  listen_address: "127.0.0.1:5199"
+rules:
+  match_mode: first_match
+  rules:
+    - name: lookup
+      hook: request
+      selectors: []
+      actions:
+        - type: rhai
+          value: "{}"
+"#,
+            script_path.display()
+        );
+        let cfg = load_yaml(&yaml).unwrap();
+        let scripting = compile_from_config(&cfg, Some(&dir)).unwrap();
+        let builtin = Arc::new(BuiltinRegistry::new(true, BuiltinProfile::Full));
+        let encode = |reg: &BuiltinRegistry| {
+            let encoder = TextEncoder::new();
+            let mut buf = Vec::new();
+            encoder.encode(&reg.gather(), &mut buf).unwrap();
+            String::from_utf8(buf).unwrap()
+        };
+        let before_body = encode(builtin.as_ref());
+        let mut host = MockHost {
+            id: 90,
+            qname: "test.example.".into(),
+            qtype: "A".into(),
+            dns_id: 1,
+            rcode: None,
+            pool: None,
+            retry: None,
+            dropped: false,
+            soft_drop: false,
+            source_override_v4: None,
+            source_override_v6: None,
+            retry_source_override_v4: None,
+            retry_source_override_v6: None,
+            tags: HashMap::new(),
+            tag_strings: HashMap::new(),
+            attempts: 0,
+            started: Instant::now(),
+            last_forward_ms: 0,
+            phase: ScriptPhase::Request,
+        };
+        let (_, stats) = run_scripts(
+            &scripting,
+            &[0],
+            &mut host,
+            ScriptPhase::Request,
+            None,
+            Some(BuiltinProfile::Full),
+            Some(builtin.clone()),
+        );
+        assert_eq!(stats.errors, 0);
+        let after_body = encode(builtin.as_ref());
+        assert!(
+            !before_body.contains(r#"reason="lookup_unknown_table""#),
+            "before:\n{before_body}"
+        );
+        assert!(
+            after_body.contains("conduit_script_errors_total"),
+            "after:\n{after_body}"
+        );
+        assert!(
+            after_body.contains(r#"reason="lookup_unknown_table""#),
+            "after:\n{after_body}"
+        );
+        assert!(
+            after_body.contains(r#"table="not_in_config""#),
+            "after:\n{after_body}"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

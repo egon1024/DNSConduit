@@ -14,7 +14,7 @@ The Apache License applies to **Conduit software and documentation in this repos
 Examples include, but are not limited to:
 
 - Operator YAML or JSON configuration
-- [Rule Rhai](/glossary/index.md#rule-rhai) (`.rhai`) policy scripts
+- Rhai for rules ([Rule Rhai](/glossary/index.md#rule-rhai)) (`.rhai`) policy scripts
 - Plugins, modules, or helper services you build or deploy alongside Conduit
 
 Those are your own works unless they include or are derived from Conduit source code. You may keep them proprietary.

@@ -57,7 +57,7 @@ curl -sS "http://127.0.0.1:9090/metrics" | head
 
 ## Profiles
 
-**`minimal`** keeps hot-path cardinality low: query and per-pool counters, plus [`conduit_responses_total`](/observability/built-in-metrics.md#conduit_responses_total) with coarse response-code buckets. **`full`** adds per-qtype labels, parse-failure breakdown, fine response codes, forward latency, phase histograms, retries, and Linux process gauges at scrape time.
+**`minimal`** keeps hot-path cardinality low: query and per-pool counters, coarse response-code buckets, and essential failure counters (parse rejects, forward errors, retries, script errors). **`full`** adds per-qtype labels, fine response codes, forward latency, phase histograms, per-backend forward attempt counts, and Linux process gauges at scrape time.
 
 Both profiles expose the same scrape-time series except process memory/FD gauges (`full` only). Profile chooses **what** is recorded on the hot path, not **how** you export. Full comparison: [Built-in metrics — Profiles](/observability/built-in-metrics.md#profiles). Lab walkthrough: [Operator metrics profiles](/guides/operator-metrics-profiles.md).
 
@@ -71,7 +71,7 @@ Prometheus and OTEL listeners, and which profile is active for hot-path recordin
 
 Counters and histograms attach to [pipeline phases](/concepts/architecture-and-packet-path.md#pipeline-phases) ([Parse](/concepts/architecture-and-packet-path.md#parse) through [Send](/concepts/architecture-and-packet-path.md#send)). The architecture page links each phase to the relevant series.
 
-Exhaustive list — every built-in name, label, and **when** it increments: **[Built-in metrics](/observability/built-in-metrics.md)**. The same scrape or push payload also includes [event-export counters](/observability/built-in-metrics.md#event-export) when `events:` is configured. [Rhai](/rhai/index.md) scripts can register **`conduit_user_*`** series via [User metrics](/rhai/user-metrics.md).
+Exhaustive list — every built-in name, label, and **when** it increments: **[Built-in metrics](/observability/built-in-metrics.md)**. The same scrape or push payload also includes [event-export counters](/observability/built-in-metrics.md#event-export) when `events:` is configured. [Rhai](/rhai/index.md) scripts can register **`conduit_user_*`** series via [User metrics](/rhai/user-metrics.md); each metric's export tier (default **`full`**) controls whether it records on **`minimal`** profile.
 
 Built-in labels never include `qname`, client IP, or transaction id. Use [Event export](/observability/event-export.md) or [Tracing](/observability/tracing.md) for per-query detail.
 

@@ -191,14 +191,10 @@ pub fn validate(cfg: &Config) -> ValidationResult {
                             "events.sinks[{i}].filters.selectors[{j}] sample_percent must be in [0, 100]"
                         ));
                     }
-                    if let Err(e) = conduit_events::validate_selector_sample_key_fields(
-                        sel,
-                        false,
-                        true,
-                    ) {
-                        errors.push(format!(
-                            "events.sinks[{i}].filters.selectors[{j}]: {e}"
-                        ));
+                    if let Err(e) =
+                        conduit_events::validate_selector_sample_key_fields(sel, false, true)
+                    {
+                        errors.push(format!("events.sinks[{i}].filters.selectors[{j}]: {e}"));
                     }
                 }
                 if let Some(percent) = filters.sample_percent {
@@ -300,10 +296,15 @@ pub fn validate(cfg: &Config) -> ValidationResult {
                         | "clear_drop"
                         | "clear_retry"
                         | "clear_retry_pool"
+                        | "clear_tag"
                         | "set_rcode"
                         | "rhai"
                         | "set_source_v4"
                         | "set_source_v6"
+                        | "set_retry_source_v4"
+                        | "set_retry_source_v6"
+                        | "clear_retry_source_v4"
+                        | "clear_retry_source_v6"
                 ) {
                     errors.push(format!(
                         "rule '{}' has unknown action type '{}'",
@@ -332,6 +333,12 @@ pub fn validate(cfg: &Config) -> ValidationResult {
                         rule.name
                     ));
                 }
+                if act.r#type == "clear_tag" && act.value.is_empty() {
+                    errors.push(format!(
+                        "rule '{}' clear_tag requires a non-empty tag key in value",
+                        rule.name
+                    ));
+                }
                 if matches!(act.r#type.as_str(), "set_source_v4" | "set_source_v6") {
                     if rule.hook != "request" {
                         errors.push(format!(
@@ -347,45 +354,56 @@ pub fn validate(cfg: &Config) -> ValidationResult {
                         continue;
                     }
                 }
-                if act.r#type == "set_source_v4" {
+                if matches!(
+                    act.r#type.as_str(),
+                    "set_retry_source_v4" | "set_retry_source_v6"
+                ) && act.value.is_empty()
+                {
+                    errors.push(format!(
+                        "rule '{}' action '{}' requires an address in value",
+                        rule.name, act.r#type
+                    ));
+                    continue;
+                }
+                if matches!(act.r#type.as_str(), "set_source_v4" | "set_retry_source_v4") {
                     match act.value.parse::<std::net::Ipv4Addr>() {
                         Ok(addr) => {
                             if allowed_v4.is_empty() {
                                 errors.push(format!(
-                                    "rule '{}' set_source_v4 requires forward.sources_v4 or pool sources_v4",
-                                    rule.name
+                                    "rule '{}' {} requires forward.sources_v4 or pool sources_v4",
+                                    rule.name, act.r#type
                                 ));
                             } else if !allowed_v4.contains(&addr) {
                                 errors.push(format!(
-                                    "rule '{}' set_source_v4 '{}' is not in configured sources_v4",
-                                    rule.name, act.value
+                                    "rule '{}' {} '{}' is not in configured sources_v4",
+                                    rule.name, act.r#type, act.value
                                 ));
                             }
                         }
                         Err(_) => errors.push(format!(
-                            "rule '{}' set_source_v4 '{}' is not a valid IPv4 address",
-                            rule.name, act.value
+                            "rule '{}' {} '{}' is not a valid IPv4 address",
+                            rule.name, act.r#type, act.value
                         )),
                     }
                 }
-                if act.r#type == "set_source_v6" {
+                if act.r#type == "set_source_v6" || act.r#type == "set_retry_source_v6" {
                     match act.value.parse::<std::net::Ipv6Addr>() {
                         Ok(addr) => {
                             if allowed_v6.is_empty() {
                                 errors.push(format!(
-                                    "rule '{}' set_source_v6 requires forward.sources_v6 or pool sources_v6",
-                                    rule.name
+                                    "rule '{}' {} requires forward.sources_v6 or pool sources_v6",
+                                    rule.name, act.r#type
                                 ));
                             } else if !allowed_v6.contains(&addr) {
                                 errors.push(format!(
-                                    "rule '{}' set_source_v6 '{}' is not in configured sources_v6",
-                                    rule.name, act.value
+                                    "rule '{}' {} '{}' is not in configured sources_v6",
+                                    rule.name, act.r#type, act.value
                                 ));
                             }
                         }
                         Err(_) => errors.push(format!(
-                            "rule '{}' set_source_v6 '{}' is not a valid IPv6 address",
-                            rule.name, act.value
+                            "rule '{}' {} '{}' is not a valid IPv6 address",
+                            rule.name, act.r#type, act.value
                         )),
                     }
                 }
@@ -692,7 +710,10 @@ control:
         cfg.rules.as_mut().unwrap().rules[0].selectors[1].key_from = Some("qname".into());
         let result = validate(&cfg);
         assert!(!result.ok);
-        assert!(result.errors.iter().any(|e| e.contains("mutually exclusive")));
+        assert!(result
+            .errors
+            .iter()
+            .any(|e| e.contains("mutually exclusive")));
     }
 
     #[test]
@@ -920,5 +941,45 @@ control:
             .errors
             .iter()
             .any(|e| e.contains("requires forward.sources_v4")));
+    }
+
+    #[test]
+    fn accept_set_retry_source_v4_on_response_hook() {
+        let yaml =
+            include_str!("../../../tests/fixtures/config/with-rules-set-retry-source-v4.yaml");
+        let cfg = load_yaml(yaml).unwrap();
+        assert!(validate(&cfg).ok, "{:?}", validate(&cfg).errors);
+    }
+
+    #[test]
+    fn reject_set_retry_source_v4_not_in_configured_sources() {
+        let yaml =
+            include_str!("../../../tests/fixtures/config/with-rules-set-retry-source-v4.yaml");
+        let mut cfg = load_yaml(yaml).unwrap();
+        cfg.rules.as_mut().unwrap().rules[0].actions[0].value = "192.0.2.99".into();
+        let result = validate(&cfg);
+        assert!(!result.ok);
+        assert!(result
+            .errors
+            .iter()
+            .any(|e| e.contains("not in configured sources_v4")));
+    }
+
+    #[test]
+    fn reject_clear_tag_without_key() {
+        let yaml = include_str!("../../../tests/fixtures/config/with-rules.yaml");
+        let mut cfg = load_yaml(yaml).unwrap();
+        cfg.rules.as_mut().unwrap().rules[0]
+            .actions
+            .push(conduit_proto::config::Action {
+                r#type: "clear_tag".into(),
+                value: "".into(),
+            });
+        let result = validate(&cfg);
+        assert!(!result.ok);
+        assert!(result
+            .errors
+            .iter()
+            .any(|e| e.contains("clear_tag requires a non-empty tag key")));
     }
 }

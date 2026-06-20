@@ -53,6 +53,7 @@ Full operator-oriented grouping: [Rules and actions — Selectors](/policy-routi
 | `type` | Valid hooks | `value` |
 |--------|-------------|---------|
 | `clear_drop` | request, response | Clear soft-drop intent (`value` —) |
+| `clear_tag` | request, response | Tag key to remove (non-empty) |
 | `clear_retry` | response | Clear soft-retry intent (`value` —) |
 | `clear_retry_pool` | request, response | Clears `retry_pool` (`value` —) |
 | `drop` | request, response | Soft drop (`value` —) |
@@ -65,16 +66,21 @@ Full operator-oriented grouping: [Rules and actions — Selectors](/policy-routi
 | `set_retry_pool` | request, response | Pool name — pool for retry [Route](/concepts/architecture-and-packet-path.md#route) if retry occurs; first [Route](/concepts/architecture-and-packet-path.md#route) ignores (`value` required) |
 | `set_source_v4` | **request only** | IPv4 address in configured `sources_v4` union |
 | `set_source_v6` | **request only** | IPv6 address in configured `sources_v6` union |
+| `set_retry_source_v4` | request, response | IPv4 address in configured `sources_v4` union (one-shot retry forward) |
+| `set_retry_source_v6` | request, response | IPv6 address in configured `sources_v6` union (one-shot retry forward) |
+| `clear_retry_source_v4` | request, response | Clears `retry_source_override_v4` (`value` —) |
+| `clear_retry_source_v6` | request, response | Clears `retry_source_override_v6` (`value` —) |
 | `set_tag` | request, response | `key=value` or `key` |
 
-### `set_source_v4` / `set_source_v6` validation
+### `set_source_v4` / `set_source_v6` / `set_retry_source_v4` / `set_retry_source_v6` validation
 
 At config load / validate:
 
-- **`value`** must be a valid IPv4 or IPv6 address.
+- **`value`** must be a valid IPv4 or IPv6 address (standing and retry-source actions).
 - The address must appear in the union of **`forward.sources_v4`** / **`forward.sources_v6`** and every pool’s **`sources_v4`** / **`sources_v6`**.
 - At least one corresponding source list must be non-empty.
+- **`set_source_*`** — **request hook only**. **`set_retry_source_*`** — **request or response hook**.
 
-At [Forward](/concepts/architecture-and-packet-path.md#forward), the override must be allowed for the **selected pool**; otherwise Conduit falls back to round-robin source selection (same as [Rhai](/rhai/index.md)).
+At [Forward](/concepts/architecture-and-packet-path.md#forward), standing overrides apply on every attempt unless a one-shot **`retry_source_override_*`** wins on retry forwards (`attempt_count > 1`). Allowed-set check uses the pool in use; disallowed addresses fail open to round-robin.
 
 See [Rules and actions — Action order](/policy-routing/rules-and-actions.md#action-order-on-one-rule).

@@ -25,6 +25,11 @@ impl DataSourceStore {
     pub fn table_names(&self) -> impl Iterator<Item = &String> {
         self.tables.keys()
     }
+
+    #[cfg(test)]
+    pub fn insert_table(&mut self, name: impl Into<String>, entries: HashMap<String, String>) {
+        self.tables.insert(name.into(), entries);
+    }
 }
 
 pub fn load_data_sources(
