@@ -21,6 +21,9 @@
 
     toggle.dataset.tocProgrammatic = "true";
     toggle.checked = open;
+    queueMicrotask(() => {
+      delete toggle.dataset.tocProgrammatic;
+    });
 
     if (!open) {
       delete item.dataset.tocScrollOpen;
@@ -31,6 +34,10 @@
     if (reason === "user") {
       item.dataset.tocPinned = "true";
       delete item.dataset.tocScrollOpen;
+    } else if (reason === "scroll") {
+      if (item.dataset.tocPinned !== "true") {
+        item.dataset.tocScrollOpen = "true";
+      }
     } else if (item.dataset.tocPinned !== "true") {
       item.dataset.tocScrollOpen = "true";
     }
@@ -264,13 +271,16 @@
       const toggle = event.target;
       if (!toggle.matches("input.md-nav__toggle") || !root.contains(toggle)) return;
 
-      if (toggle.dataset.tocProgrammatic === "true") {
-        delete toggle.dataset.tocProgrammatic;
-        return;
-      }
-
       const item = toggle.closest("li.md-nav__item--nested");
       if (!item) return;
+
+      if (toggle.dataset.tocProgrammatic === "true") {
+        delete toggle.dataset.tocProgrammatic;
+        if (!toggle.checked) {
+          delete item.dataset.tocScrollOpen;
+        }
+        return;
+      }
 
       if (toggle.checked) {
         item.dataset.tocPinned = "true";
@@ -282,7 +292,23 @@
     });
 
     root.addEventListener("click", (event) => {
-      if (event.target.closest("label.md-toc__branch-toggle")) return;
+      const chevron = event.target.closest("label.md-toc__branch-toggle");
+      if (chevron && root.contains(chevron)) {
+        const item = chevron.closest("li.md-nav__item--nested");
+        const toggle = branchToggle(item);
+        queueMicrotask(() => {
+          if (!toggle || !item) return;
+          delete toggle.dataset.tocProgrammatic;
+          if (toggle.checked) {
+            item.dataset.tocPinned = "true";
+            delete item.dataset.tocScrollOpen;
+          } else {
+            delete item.dataset.tocPinned;
+            delete item.dataset.tocScrollOpen;
+          }
+        });
+        return;
+      }
 
       const branchLink = event.target.closest("a.md-toc__branch-link");
       if (branchLink && root.contains(branchLink)) {
