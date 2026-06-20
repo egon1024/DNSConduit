@@ -7,7 +7,7 @@ toc_collapsible: true
 
 **Rhai for rules** ([Rule Rhai](/rhai/rule-rhai.md)) scripts receive a sandboxed **`txn`** object. Methods on **`txn`** set policy on the current [transaction](/glossary/index.md#transaction) — pools, [tags](/glossary/index.md#tags), drop/retry intent, egress overrides, and observability side effects. They do **not** edit DNS wire bytes (see [Rhai for processor chains](/rhai/processor-chain-rhai.md) for wire editing).
 
-For which hook each API allows, see [Hooks and phases](/rhai/hooks-and-phases.md#phase-guards) (summary table) and [Request vs response](/rhai/hooks-and-phases.md#request-vs-response-script-perspective) (when each hook runs). This page documents each method: a one-line **Brief** per method; expand **Reference** for full hooks, arguments, summary, behavior, YAML, and examples.
+For which hook each API allows, see [Hooks and phases](/rhai/hooks-and-phases.md#phase-guards) (summary table) and [Request vs response](/rhai/hooks-and-phases.md#request-vs-response-script-perspective) (when each hook runs).
 
 ## How to read this page
 
@@ -16,11 +16,11 @@ Each entry uses the same layout:
 | Section | Meaning |
 |---------|---------|
 | **Brief** | Hooks, signature, return, and a one-line summary — visible when the reference block is collapsed (method titles in the TOC omit the argument list) |
-| **Reference** | Chevron toggle opens full **Hooks**, **Arguments / return**, **Summary**, **Behavior**, YAML/config, and **Example** (replaces the brief while open) |
+| **Reference** | Chevron toggle opens full **Hooks**, **Arguments / return**, **Summary**, **Behavior**, **YAML/config**, and **Example** |
 
 **Hook names** — Rhai for rules runs at two pipeline points. The [request hook](/rhai/hooks-and-phases.md#request-hook) runs once per transaction before upstream [Route](/concepts/architecture-and-packet-path.md#route); the [response hook](/rhai/hooks-and-phases.md#response-hook) runs after each forward attempt. For script-author detail (retry behavior, phase guards, pairing request/response scripts), see [Hooks and phases](/rhai/hooks-and-phases.md#request-vs-response-script-perspective). For YAML `hook: request` / `hook: response` wiring and outcomes after each hook, see [Rules and actions — Request and response hooks](/policy-routing/rules-and-actions.md#request-and-response-hooks).
 
-Methods are grouped by purpose inside bordered cards. Groups appear in **alphabetical** order; each group lists its methods under the group heading. Use **Expand all** / **Collapse all** above a group to open or close every method’s reference block at once. The right-hand table of contents collapses group branches by default — click a **section name** or chevron to expand a branch (stays open until you close it); scrolling opens the current section temporarily. Entries marked *in progress* do not have full cards yet.
+Methods are grouped by purpose inside bordered cards. 
 
 ---
 
