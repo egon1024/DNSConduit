@@ -2,6 +2,119 @@
 
 Symptom-oriented pointers for common operator issues. Each section links to the canonical topic page — this hub does not duplicate full configuration reference.
 
+| Section | Covers |
+|---------|--------|
+| [DNS and forwarding](#dns-and-forwarding) | Startup bind failures, no client reply, **SERVFAIL**, upstream timeouts |
+| [Control plane](#control-plane) | **`conduitctl`** connectivity, rejected reload/apply, overlay surprises, restart-pending changes |
+| [Observability](#observability) | Metrics scrape, OTEL push, dnstap, tracing, logging |
+
+## DNS and forwarding { #dns-and-forwarding }
+
+### Conduit exits at startup or never serves DNS
+
+| Symptom | Likely cause | What to check |
+|---------|--------------|---------------|
+| Process exits immediately; errors on stderr | Invalid YAML, validation, or snapshot compile at **first startup** | `conduitctl validate --file PATH`; fix messages (`script '…'`, `rule '…'`, `data source '…'`, field validation) — [Config file — Validation](/control-plane/config-file.md#validation) |
+| `Address already in use` / bind error in logs | Listener port taken, or **`threads` > 1** on UDP without **`reuse_port: true`** | [Reference: listeners](/reference/config-schema/listeners.md) (`reuse_port`, `threads`); `ss -ulnp \| grep PORT` |
+| `Permission denied` binding port **53** (or other privileged port) | Process lacks bind capability | Run as root, use **`CAP_NET_BIND_SERVICE`**, or bind a high port (for example **15353**) — [Install and run](/getting-started/install-and-run.md) |
+| Process runs but clients get no answer | Empty `listeners.listeners` or no pool/backends | At least one listener and one pool with a backend — [Config file — What makes a config runnable](/control-plane/config-file.md#what-makes-a-config-runnable) |
+
+`conduitctl validate` does **not** bind sockets — bind failures appear at **startup** or after **restart**, not during validate alone.
+
+Confirm listeners after a successful start:
+
+```bash
+ss -ulnp | grep conduit
+# or match your listener port from config
+```
+
+### Client gets no response (timeout or silence)
+
+| Symptom | Likely cause | What to check |
+|---------|--------------|---------------|
+| `dig` **times out** | Conduit not listening, wrong host/port, or firewall | Process running? `listeners.listeners[].address` matches `@host -p port`? — [First query](/getting-started/first-query.md) |
+| **No** DNS reply and **no** error RCODE (silent) | [Parse](/concepts/architecture-and-packet-path.md#parse) drop or policy **`drop`** | Malformed wire, multi-question query, or matching rule/script drop — [`conduit_parse_rejected_total`](/observability/built-in-metrics.md#conduit_parse_rejected_total) vs policy; [Architecture — Parse](/concepts/architecture-and-packet-path.md#parse), [Rules and actions](/policy-routing/rules-and-actions.md) |
+| **`REFUSED`** from `dig` | Query sent to wrong service/port | Client targets Conduit listener, not upstream backend port — [First query — If the query fails](/getting-started/first-query.md#if-the-query-fails) |
+| Query worked before config change | Reload rejected — still on [last-good snapshot](/glossary/index.md#last-good-snapshot) | Logs for validation errors; `conduitctl validate --file` on the file you deployed — [Control plane — Reload or apply fails](#reload-or-apply-fails-validation) |
+
+Quick path check (adjust ports):
+
+```bash
+dig @127.0.0.1 -p 15353 +time=3 +tries=1 example.com A
+ss -ulnp | grep -E '15353|5300'
+```
+
+### SERVFAIL or other error RCODE
+
+| Symptom | Likely cause | What to check |
+|---------|--------------|---------------|
+| **`SERVFAIL`** on most queries | Upstream unreachable, wrong pool/backend, or forward failure | Backend `address` correct and reachable? Upstream resolver running? — [First query](/getting-started/first-query.md#if-the-query-fails) |
+| **`SERVFAIL`** after retries exhausted | **`max_attempts`**, pool exhausted, or **`max_txn_duration_ms`** | [Retries and transactions](/policy-routing/retries-and-transactions.md); [`conduit_retries_total`](/observability/built-in-metrics.md#conduit_retries_total) |
+| **`SERVFAIL`** immediately (no upstream wait) | Missing pool, empty backends, or route failure | Pool name from rules matches `pools:`; at least one backend — [Pools and backends](/policy-routing/pools-and-backends.md) |
+| **`NXDOMAIN`** / other RCODE | Upstream answer or policy **`set_rcode`** | Expected upstream behavior vs response-hook policy — [Rules and actions](/policy-routing/rules-and-actions.md) |
+
+When [metrics](/observability/metrics.md) are enabled:
+
+```bash
+curl -sS "http://127.0.0.1:9090/metrics" | grep conduit_forward_errors
+```
+
+See [`conduit_forward_errors_total`](/observability/built-in-metrics.md#conduit_forward_errors_total) (`reason` = `timeout`, `send_error`, etc.).
+
+### Upstream timeouts and slow responses
+
+| Symptom | Likely cause | What to check |
+|---------|--------------|---------------|
+| Answers often **`SERVFAIL`** after ~2s (default) | **`forward.timeout_ms`** exceeded | Default **2000** ms when `forward:` omitted — [Minimal configuration — Defaults](/getting-started/minimal-configuration.md#defaults-you-do-not-need-to-write-yet); increase timeout or fix upstream latency |
+| Counter `reason="timeout"` on forward errors | Upstream slow or down | [`conduit_forward_errors_total`](/observability/built-in-metrics.md#conduit_forward_errors_total); test backend with `dig @BACKEND_IP -p PORT` |
+| `reason="table_full"` on forward errors | Too many in-flight queries to one backend | Lower load or raise **`forward.outstanding_per_backend`** (default **100**) — [Architecture — Forward](/concepts/architecture-and-packet-path.md#forward) |
+| Wrong egress path (multi-homed host) | Source bind or pool **`sources_*`** | [Dual-stack forwarding](/guides/dual-stack-forwarding.md) |
+
+Response-hook **`retry`** can run after timeout — Conduit still reaches [Response rules](/concepts/architecture-and-packet-path.md#response-rules) so policy can fail over to another pool.
+
+## Control plane { #control-plane }
+
+### conduitctl cannot connect
+
+| Symptom | Likely cause | What to check |
+|---------|--------------|---------------|
+| Connection refused to `127.0.0.1:5199` | No **`control:`** at **process start** | Add `control.listen_address` and **restart** — [gRPC and conduitctl — Enabling the control plane](/control-plane/grpc-and-conduitctl.md#enabling-the-control-plane) |
+| Worked before; fails after config edit | `control:` added via reload only — listener not started | **Restart** after enabling control — snapshot updates but gRPC binds at startup |
+| TLS / protocol errors | **`http://`** vs **`https://`** mismatch | Plain TCP → `http://`; with **`control.tls`** → `https://` — [gRPC and conduitctl — Connecting](/control-plane/grpc-and-conduitctl.md#connecting) |
+| **`Unauthenticated`** / RPC denied | **`control.api_keys`** set; missing or wrong key | `--api-key` / `CONDUIT_API_KEY` — [API keys](/security/api-keys.md) |
+| mTLS required | **`control.tls.client_ca_path`** set | Client cert + API key rules — [mTLS](/security/mtls.md) |
+
+`conduitctl validate --file` runs **offline** and does not need the control plane.
+
+### Reload or apply fails validation { #reload-or-apply-fails-validation }
+
+| Symptom | Likely cause | What to check |
+|---------|--------------|---------------|
+| `conduitctl reload` exits non-zero; DNS still works | Bad on-disk YAML; reload rejected | **[Last-good snapshot](/glossary/index.md#last-good-snapshot)** still active — fix file, validate, reload again — [Config file — Startup vs reload](/control-plane/config-file.md#startup-vs-reload) |
+| **SIGHUP** sent; no config change | Same as reload failure | Process logs for validation/compile errors |
+| `conduitctl apply` exits non-zero | Patch fails validate/compile | Sparse patch only; no forbidden keys — [Configuration model — overlay](/control-plane/configuration-model.md#overlay) |
+| Startup exits; DNS never worked | First snapshot never installed | Fix stderr from `conduit` or `validate --file` before retrying start |
+
+After a failed reload, **`conduitctl export`** still reflects the **running** effective config (last good), not the rejected file.
+
+### Apply rejected or overlay surprises
+
+| Symptom | Likely cause | What to check |
+|---------|--------------|---------------|
+| Apply error mentions **`rules`**, **`metrics`**, or **`tracing`** | Those sections are **file-layer only** | Edit startup YAML and **reload** — not overlay-eligible — [Configuration model — overlay](/control-plane/configuration-model.md#overlay) |
+| Weights reverted unexpectedly | **Reload** or **SIGHUP** clears overlay | Expected — reload re-reads disk and drops in-memory patches — [Control plane workflows](/guides/control-plane-workflows.md) |
+| **`export`** differs from file on disk | Active **overlay** or normalized defaults | Compare `export` to file; use **`apply --clear`** to drop overlay without re-reading disk — [Reload and export — clear vs reload](/control-plane/reload-and-export.md#clear-vs-reload) |
+| Patched wrong startup file | Reload always uses path from process start | Edit the file Conduit was **started with**, not only a copy used with `validate --file` — [Config file — Overview](/control-plane/config-file.md#overview) |
+
+### Listener, forward, or control change had no effect
+
+| Symptom | Likely cause | What to check |
+|---------|--------------|---------------|
+| Log **`listeners: pending (restart required)`** | Bind address, `threads`, or `reuse_port` changed | Reload updated snapshot; **restart** `conduit` to rebind — [Workflow 5 — Hot reload vs process restart](/guides/control-plane-workflows.md#workflow-5-hot-reload-vs-process-restart) |
+| Log **`forward egress: pending (restart required)`** | Egress sockets or transport changed | **Restart** after reload — [Configuration model — Pending reconcile](/control-plane/configuration-model.md#pending-reconcile-restart-required) |
+| New **`metrics:`** / **`tracing:`** / **`logging:`** ignored after reload | Export and subscriber bind at **process start** | **Restart** — [Observability — Changing observability config](/observability/index.md#changing-observability-config) |
+| New dnstap sink or destination after reload | Event consumer threads start at process start | **Restart** — [Event export — Changing events config](/observability/event-export.md#changing-events-config) |
+
 ## Observability { #observability }
 
 ### Metrics scrape returns connection refused or empty
@@ -62,8 +175,11 @@ Authentication headers for collectors are **not** operator-supported yet. Bind P
 
 ## Related topics
 
+- [Getting started — First query](/getting-started/first-query.md) — end-to-end lab and basic `dig` failures
+- [Control plane workflows](/guides/control-plane-workflows.md) — reload, apply, export, and restart
+- [Config file](/control-plane/config-file.md) — validation, startup path, startup vs reload
+- [Configuration model](/control-plane/configuration-model.md) — overlay, last-good snapshot, pending reconcile
 - [Observability](/observability/index.md) — which signal to use, OTEL naming, reload matrix
 - [Metrics and tracing](/guides/metrics-and-tracing.md) — metrics + tracing lab
 - [Event export and dnstap](/guides/event-export-dnstap.md) — dnstap lab
-- [Operator metrics profiles](/guides/operator-metrics-profiles.md) — minimal vs full lab
-- [Control plane workflows](/guides/control-plane-workflows.md) — reload and apply (in progress)
+- [Operator metrics profiles](/guides/operator-metrics-profiles.md) — **`minimal`** vs **`full`** scrape comparison
