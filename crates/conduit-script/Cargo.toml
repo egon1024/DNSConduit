@@ -15,6 +15,7 @@ harness = false
 required-features = ["test-util"]
 
 [dependencies]
+conduit-dns-wire = { path = "../conduit-dns-wire" }
 conduit-proto = { path = "../conduit-proto" }
 conduit-events = { path = "../conduit-events" }
 conduit-metrics = { path = "../conduit-metrics" }

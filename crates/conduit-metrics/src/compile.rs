@@ -144,7 +144,7 @@ fn compile_tracing(t: Option<&TracingConfig>) -> CompiledTracing {
                 .filter(|sel| validate_non_rule_selector_type(sel.r#type.as_str()).is_ok())
                 .cloned()
                 .collect();
-            compile_selectors(&allowed)
+            compile_selectors(&allowed).unwrap_or_default()
         })
         .unwrap_or_default();
     let sample_percent = activation
@@ -180,8 +180,11 @@ pub fn trace_activation_matches(
     activation: &CompiledTraceActivation,
     txn_id: u64,
     qname: Option<&str>,
-    qtype_label: Option<String>,
-    rcode_label: Option<String>,
+    qtype: Option<u16>,
+    rcode: Option<u16>,
+    qclass: Option<u16>,
+    opcode: Option<u8>,
+    edns_option_codes: &[u16],
     tag_has: &dyn Fn(&str) -> bool,
 ) -> bool {
     if let Some(ref key) = activation.tag_required {
@@ -193,8 +196,11 @@ pub fn trace_activation_matches(
         txn_id,
         global_query_index: 0,
         qname,
-        qtype_label,
-        rcode_label,
+        qtype,
+        rcode,
+        qclass,
+        opcode,
+        edns_option_codes,
         tag_has,
     };
     if !activation.selectors.is_empty() && !activation.selectors.iter().all(|s| s.matches_ctx(&ctx))
@@ -266,6 +272,12 @@ pub fn validate_metrics_tracing(cfg: &Config) -> Vec<String> {
                             "tracing.activation.selectors[{j}] sample_percent must be in [0, 100]"
                         ));
                     }
+                    if let Err(e) = conduit_events::validate_wire_selector_value(
+                        sel.r#type.as_str(),
+                        sel.value.as_str(),
+                    ) {
+                        errors.push(format!("tracing.activation.selectors[{j}]: {e}"));
+                    }
                     if let Err(e) =
                         conduit_events::validate_selector_sample_key_fields(sel, false, false)
                     {
@@ -302,8 +314,28 @@ mod tests {
             ..Default::default()
         };
         let id = 42u64;
-        let a = trace_activation_matches(&activation, id, None, None, None, &|_| true);
-        let b = trace_activation_matches(&activation, id, None, None, None, &|_| true);
+        let a = trace_activation_matches(
+            &activation,
+            id,
+            None,
+            None,
+            None,
+            None,
+            None,
+            &[],
+            &|_| true,
+        );
+        let b = trace_activation_matches(
+            &activation,
+            id,
+            None,
+            None,
+            None,
+            None,
+            None,
+            &[],
+            &|_| true,
+        );
         assert_eq!(a, b);
     }
 

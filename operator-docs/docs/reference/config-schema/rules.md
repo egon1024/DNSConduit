@@ -27,9 +27,11 @@ Schema reference for the top-level `rules:` block. Operator-oriented behavior: [
 | `key` | string | no | `sample_percent` only: static salt (mutually exclusive with `key_from`) |
 | `key_from` | string | no | `sample_percent` only: `qname`, `rule_name` (rules only), or `sink_name` (event sink selectors only) |
 
-**Query identity:** `qname_exact`, `qname_suffix`, `qtype`
+**Query identity:** `qname_exact`, `qname_suffix`, `qtype`, `qclass`, `opcode`, `edns_option`
 
 **Response outcome:** `rcode`
+
+Wire-enum selector values (`qtype`, `qclass`, `opcode`, `edns_option`, `rcode`) use the same IANA names and numeric aliases as Rule Rhai (`A`, `TYPE1`, `SERVFAIL`, `RCODE2`, …). Unknown values are rejected at config load.
 
 **Transaction metadata:** `tag`
 
@@ -62,7 +64,7 @@ Full operator-oriented grouping: [Rules and actions — Selectors](/policy-routi
 | `retry_now` | response | Hard retry — stop further actions on this rule (`value` —) |
 | `rhai` | request, response | Path to `.rhai` script (non-empty); runs at this position in the action list |
 | `set_pool` | request | Pool name |
-| `set_rcode` | response | RCODE name (for example `SERVFAIL`) |
+| `set_rcode` | response | RCODE name or `RCODEN` alias (for example `SERVFAIL`, `RCODE2`) |
 | `set_retry_pool` | request, response | Pool name — pool for retry [Route](/concepts/architecture-and-packet-path.md#route) if retry occurs; first [Route](/concepts/architecture-and-packet-path.md#route) ignores (`value` required) |
 | `set_source_v4` | **request only** | IPv4 address in configured `sources_v4` union |
 | `set_source_v6` | **request only** | IPv6 address in configured `sources_v6` union |

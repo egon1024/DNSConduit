@@ -6,7 +6,7 @@ use crate::routing::AttemptRecord;
 use conduit_metrics::TraceLog;
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::time::Instant;
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ClientProtocol {
@@ -64,6 +64,8 @@ pub struct Transaction {
     pub current_phase: Phase,
     pub query_wire: Vec<u8>,
     pub response_wire: Option<Vec<u8>>,
+    /// Parsed upstream header/section metadata when compile-time gating enables wire parsing.
+    pub response_meta: Option<conduit_script::ResponseWireMeta>,
     pub dns_id: u16,
     pub qname: Option<String>,
     pub qtype: Option<u16>,
@@ -85,6 +87,8 @@ pub struct Transaction {
     pub attempt_count: u32,
     pub retry_pool: Option<String>,
     pub started_at: Instant,
+    /// Wall-clock time when the transaction was created (UTC anchor for Rhai `now_unix`).
+    pub received_at: SystemTime,
     /// Upstream forward RTT in milliseconds for the most recent forward attempt (`0` before any attempt completes).
     pub last_forward_ms: u64,
     /// Start time of the in-flight forward attempt; set at send, cleared when RTT is recorded (`split_io` park/resume).
@@ -115,6 +119,7 @@ impl Transaction {
             current_phase: Phase::Receive,
             query_wire: Vec::new(),
             response_wire: None,
+            response_meta: None,
             dns_id: 0,
             qname: None,
             qtype: None,
@@ -132,6 +137,7 @@ impl Transaction {
             attempt_count: 0,
             retry_pool: None,
             started_at: Instant::now(),
+            received_at: SystemTime::now(),
             last_forward_ms: 0,
             forward_started_at: None,
             snapshot_generation: 0,
@@ -240,17 +246,17 @@ impl Transaction {
     }
 
     pub fn qtype_label(&self) -> Option<String> {
-        self.qtype.map(conduit_script::qtype_canonical_name)
+        self.qtype.map(conduit_dns_wire::qtype_canonical_name)
     }
 
     pub fn rcode_label(&self) -> Option<String> {
-        self.rcode.map(conduit_script::rcode_canonical_name)
+        self.rcode.map(conduit_dns_wire::rcode_canonical_name)
     }
 
     pub fn set_rcode_name(&mut self, name: &str) {
         self.rcode = Some(
-            conduit_script::Rcode::parse_name(name)
-                .map(conduit_script::Rcode::number)
+            conduit_dns_wire::Rcode::parse_name(name)
+                .map(conduit_dns_wire::Rcode::number)
                 .unwrap_or(2),
         );
     }

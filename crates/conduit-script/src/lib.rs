@@ -1,5 +1,6 @@
 //! Rhai scripting: compile at snapshot build, execute at rule hooks (design §6, §9).
 
+mod capability_scan;
 mod compile;
 mod data_sources;
 mod dns_wire;
@@ -16,7 +17,7 @@ pub mod testing;
 pub use compile::{compile_from_config, CompiledScripting, ScriptRef};
 pub use data_sources::DataSourceStore;
 pub use error::ScriptError;
-pub use host::{HostTransaction, ScriptPhase};
+pub use host::{ClientProtocol, HostTransaction, ResponseWireMeta, ScriptPhase, unix_secs, utc_hour_and_weekday};
 pub use dns_wire::{
     qclass_canonical_name, qtype_canonical_name, rcode_canonical_name, DnsOpcode, EdnsOptionCode,
     QueryClass, Rcode, RecordType,

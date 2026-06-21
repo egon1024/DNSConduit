@@ -45,7 +45,12 @@ Some `txn` methods and helpers are restricted to one hook. Calling them on the w
 | `txn.clear_drop()` | Clears soft drop | Clears soft drop |
 | `txn.set_rcode()` | Yes | Yes |
 | `txn.sample_percent`, `txn.sample_percent_for_qname`, `txn.sample_percent_for_rule`, `txn.every_nth_worker`, `txn.every_nth_global`, `txn.rule_name`, `table_lookup` | Yes | Yes |
-| `txn.elapsed_ms()`, `txn.get_attempt_count()`, `txn.last_forward_ms()` | Yes | Yes |
+| `txn.elapsed_ms()`, `txn.get_attempt_count()`, `txn.last_forward_ms()`, `txn.now_unix()`, `txn.utc_hour()`, `txn.utc_weekday()` | Yes | Yes |
+| `txn.txn_id()`, `txn.config_generation()`, `txn.rule_name()` | Yes | Yes |
+| `txn.client_addr()`, `txn.client_ip()`, `txn.client_port()`, `txn.client_protocol()`, `txn.listener()` | Yes | Yes |
+| `txn.selected_pool()`, `txn.selected_backend()` | Yes (may be empty pre-Route) | Yes |
+| `txn.response_truncated()`, `txn.response_answer_count()`, … | Empty/false/`-1` | Yes when wire meta parsed |
+| `log_info()`, `log_warn()` | Yes | Yes |
 | `txn.metric_inc` / `metric_inc_labels` | Yes | Yes |
 
 **`txn.request_retry_now()`** does not clear soft drop. If `txn.drop_query()` ran earlier on the same rule, the outcome is still **drop** unless you call **`txn.clear_drop()`** first. See [Outcome at end of rule](/policy-routing/rules-and-actions.md#outcome-at-end-of-rule).

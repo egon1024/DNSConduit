@@ -1,9 +1,9 @@
 use crate::compile::{CompiledScript, CompiledScripting, ScriptLimits};
 use crate::data_sources::DataSourceStore;
-use crate::host::{HostTransaction, ScriptPhase};
+use crate::host::{ClientProtocol, HostTransaction, ResponseWireMeta, ScriptPhase, unix_secs, utc_hour_and_weekday};
 use crate::dns_wire::{self, DnsOpcode, EdnsOptionCode, QueryClass, Rcode, RecordType};
 use crate::metrics::MetricRegistry;
-use crate::script_errors::{report_lookup_unknown_table, report_script_eval_error};
+use crate::script_errors::{report_lookup_unknown_table, report_script_eval_error, report_script_log_info, report_script_log_warn};
 use conduit_events::{hash_sample_keyed, matches_every_nth_global, matches_every_nth_worker};
 use conduit_metrics::BuiltinRegistry;
 use rhai::{Dynamic, Engine, EvalAltResult, Scope};
@@ -11,8 +11,9 @@ use rhai::{Dynamic, Engine, EvalAltResult, Scope};
 use std::cell::Cell;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 #[cfg(test)]
 thread_local! {
@@ -29,6 +30,7 @@ struct ScriptRunContext {
     script_path: String,
     rule_name: String,
     snapshot_generation: u64,
+    txn_id: u64,
     builtin: Option<Arc<BuiltinRegistry>>,
 }
 
@@ -60,6 +62,33 @@ impl ScriptRuntime {
 }
 
 fn register_host_api(engine: &mut Engine) {
+    engine.register_fn("log_info", |message: &str| {
+        SCRIPT_RUN_CTX.with(|cell| {
+            if let Some(ctx) = cell.borrow().as_ref() {
+                report_script_log_info(
+                    ctx.snapshot_generation,
+                    &ctx.script_path,
+                    &ctx.rule_name,
+                    ctx.txn_id,
+                    message,
+                );
+            }
+        });
+    });
+    engine.register_fn("log_warn", |message: &str| {
+        SCRIPT_RUN_CTX.with(|cell| {
+            if let Some(ctx) = cell.borrow().as_ref() {
+                report_script_log_warn(
+                    ctx.snapshot_generation,
+                    &ctx.script_path,
+                    &ctx.rule_name,
+                    ctx.txn_id,
+                    message,
+                );
+            }
+        });
+    });
+
     engine.register_fn("table_lookup", |table: &str, key: &str| -> String {
         let store = LOOKUP_DATA.with(|cell| cell.borrow().clone());
         let Some(store) = store else {
@@ -118,6 +147,23 @@ fn register_host_api(engine: &mut Engine) {
         .register_fn("every_nth_worker", RhaiTxn::every_nth_worker)
         .register_fn("every_nth_global", RhaiTxn::every_nth_global)
         .register_fn("rule_name", RhaiTxn::rule_name)
+        .register_fn("txn_id", RhaiTxn::txn_id)
+        .register_fn("config_generation", RhaiTxn::config_generation)
+        .register_fn("client_addr", RhaiTxn::client_addr)
+        .register_fn("client_ip", RhaiTxn::client_ip)
+        .register_fn("client_port", RhaiTxn::client_port)
+        .register_fn("client_protocol", RhaiTxn::client_protocol)
+        .register_fn("listener", RhaiTxn::listener)
+        .register_fn("now_unix", RhaiTxn::now_unix)
+        .register_fn("utc_hour", RhaiTxn::utc_hour)
+        .register_fn("utc_weekday", RhaiTxn::utc_weekday)
+        .register_fn("selected_pool", RhaiTxn::selected_pool)
+        .register_fn("selected_backend", RhaiTxn::selected_backend)
+        .register_fn("response_truncated", RhaiTxn::response_truncated)
+        .register_fn("response_answer_count", RhaiTxn::response_answer_count)
+        .register_fn("response_authority_count", RhaiTxn::response_authority_count)
+        .register_fn("response_additional_count", RhaiTxn::response_additional_count)
+        .register_fn("response_authoritative", RhaiTxn::response_authoritative)
         .register_fn("metric_inc", RhaiTxn::metric_inc)
         .register_fn("metric_inc_labels", RhaiTxn::metric_inc_labels)
         .register_fn("elapsed_ms", RhaiTxn::elapsed_ms)
@@ -221,6 +267,7 @@ struct RhaiTxn {
     phase: ScriptPhase,
     txn_id: u64,
     global_query_index: u64,
+    config_generation: u64,
     rule_name: String,
     qname: Option<String>,
     qtype: Option<u16>,
@@ -229,6 +276,13 @@ struct RhaiTxn {
     edns_option_codes: Vec<u16>,
     dns_id: u16,
     rcode: Option<u16>,
+    client_addr: SocketAddr,
+    client_protocol: ClientProtocol,
+    listener_label: Option<String>,
+    received_at: SystemTime,
+    selected_pool: Option<String>,
+    selected_backend: Option<SocketAddr>,
+    response_meta: Option<ResponseWireMeta>,
     attempt_count: u32,
     started_at: Instant,
     last_forward_ms: u64,
@@ -244,19 +298,22 @@ impl RhaiTxn {
             map.insert("qname".into(), Dynamic::from(qname.clone()));
         }
         if let Some(qtype) = self.qtype {
-            map.insert("qtype".into(), Dynamic::from(RecordType(qtype)));
+            map.insert("qtype".into(), Dynamic::from(RecordType::from(qtype)));
         }
         if let Some(qclass) = self.qclass {
-            map.insert("qclass".into(), Dynamic::from(QueryClass(qclass)));
+            map.insert("qclass".into(), Dynamic::from(QueryClass::from(qclass)));
         }
         if let Some(opcode) = self.opcode {
-            map.insert("opcode".into(), Dynamic::from(DnsOpcode(opcode)));
+            map.insert(
+                "opcode".into(),
+                Dynamic::from(DnsOpcode(conduit_dns_wire::DnsOpcode(opcode))),
+            );
         }
         if !self.edns_option_codes.is_empty() {
             let options: rhai::Array = self
                 .edns_option_codes
                 .iter()
-                .map(|&code| Dynamic::from(EdnsOptionCode(code)))
+                .map(|&code| Dynamic::from(EdnsOptionCode::from(code)))
                 .collect();
             map.insert("edns_options".into(), Dynamic::from(options));
         }
@@ -279,10 +336,33 @@ impl RhaiTxn {
         }
         let mut map = rhai::Map::new();
         if let Some(rcode) = self.rcode {
-            map.insert("rcode".into(), Dynamic::from(Rcode(rcode)));
+            map.insert("rcode".into(), Dynamic::from(Rcode::from(rcode)));
         }
         self.insert_question_fields(&mut map);
+        self.insert_response_path_fields(&mut map);
         Ok(Dynamic::from(map))
+    }
+
+    fn insert_response_path_fields(&self, map: &mut rhai::Map) {
+        if let Some(ref pool) = self.selected_pool {
+            map.insert("pool".into(), Dynamic::from(pool.clone()));
+        }
+        if let Some(backend) = self.selected_backend {
+            map.insert("backend".into(), Dynamic::from(backend.to_string()));
+        }
+        if let Some(meta) = self.response_meta {
+            map.insert("answer_count".into(), Dynamic::from(meta.answer_count as i64));
+            map.insert(
+                "authority_count".into(),
+                Dynamic::from(meta.authority_count as i64),
+            );
+            map.insert(
+                "additional_count".into(),
+                Dynamic::from(meta.additional_count as i64),
+            );
+            map.insert("truncated".into(), Dynamic::from(meta.truncated));
+            map.insert("authoritative".into(), Dynamic::from(meta.authoritative));
+        }
     }
 
     fn response_rcode(&mut self) -> Dynamic {
@@ -290,7 +370,7 @@ impl RhaiTxn {
             return Dynamic::UNIT;
         }
         self.rcode
-            .map(|rcode| Dynamic::from(Rcode(rcode)))
+            .map(|rcode| Dynamic::from(Rcode::from(rcode)))
             .unwrap_or(Dynamic::UNIT)
     }
 
@@ -508,6 +588,89 @@ impl RhaiTxn {
         self.rule_name.clone()
     }
 
+    fn txn_id(&mut self) -> i64 {
+        i64::try_from(self.txn_id).unwrap_or(i64::MAX)
+    }
+
+    fn config_generation(&mut self) -> i64 {
+        i64::try_from(self.config_generation).unwrap_or(i64::MAX)
+    }
+
+    fn client_addr(&mut self) -> String {
+        self.client_addr.to_string()
+    }
+
+    fn client_ip(&mut self) -> String {
+        self.client_addr.ip().to_string()
+    }
+
+    fn client_port(&mut self) -> i64 {
+        self.client_addr.port() as i64
+    }
+
+    fn client_protocol(&mut self) -> String {
+        match self.client_protocol {
+            ClientProtocol::Udp => "udp".into(),
+            ClientProtocol::Tcp => "tcp".into(),
+        }
+    }
+
+    fn listener(&mut self) -> String {
+        self.listener_label.clone().unwrap_or_default()
+    }
+
+    fn now_unix(&mut self) -> i64 {
+        i64::try_from(unix_secs(self.received_at)).unwrap_or(0)
+    }
+
+    fn utc_hour(&mut self) -> i64 {
+        let (hour, _) = utc_hour_and_weekday(unix_secs(self.received_at));
+        hour as i64
+    }
+
+    fn utc_weekday(&mut self) -> i64 {
+        let (_, weekday) = utc_hour_and_weekday(unix_secs(self.received_at));
+        weekday as i64
+    }
+
+    fn selected_pool(&mut self) -> String {
+        self.selected_pool.clone().unwrap_or_default()
+    }
+
+    fn selected_backend(&mut self) -> String {
+        self.selected_backend
+            .map(|a| a.to_string())
+            .unwrap_or_default()
+    }
+
+    fn response_truncated(&mut self) -> bool {
+        self.response_meta.map(|m| m.truncated).unwrap_or(false)
+    }
+
+    fn response_answer_count(&mut self) -> i64 {
+        self.response_meta
+            .map(|m| m.answer_count as i64)
+            .unwrap_or(-1)
+    }
+
+    fn response_authority_count(&mut self) -> i64 {
+        self.response_meta
+            .map(|m| m.authority_count as i64)
+            .unwrap_or(-1)
+    }
+
+    fn response_additional_count(&mut self) -> i64 {
+        self.response_meta
+            .map(|m| m.additional_count as i64)
+            .unwrap_or(-1)
+    }
+
+    fn response_authoritative(&mut self) -> bool {
+        self.response_meta
+            .map(|m| m.authoritative)
+            .unwrap_or(false)
+    }
+
     fn metric_inc(&mut self, name: &str, delta: i64) -> Result<(), Box<EvalAltResult>> {
         self.metric_inc_labels(name, delta, rhai::Map::new())
     }
@@ -705,6 +868,7 @@ fn run_one(
         phase,
         txn_id: host.txn_id(),
         global_query_index: host.global_query_index(),
+        config_generation: host.snapshot_generation(),
         rule_name: script.rule_name.clone(),
         qname: host.question_qname().map(str::to_string),
         qtype: host.question_qtype(),
@@ -713,6 +877,13 @@ fn run_one(
         edns_option_codes: host.question_edns_option_codes().to_vec(),
         dns_id: host.question_id(),
         rcode: host.response_rcode_number(),
+        client_addr: host.client_addr(),
+        client_protocol: host.client_protocol(),
+        listener_label: host.listener_label().map(str::to_string),
+        received_at: host.received_at(),
+        selected_pool: host.selected_pool().map(str::to_string),
+        selected_backend: host.selected_backend(),
+        response_meta: host.response_meta(),
         attempt_count: host.attempt_count(),
         started_at: host.started_at(),
         last_forward_ms: host.last_forward_ms(),
@@ -728,6 +899,7 @@ fn run_one(
             script_path: script.path.clone(),
             rule_name: script.rule_name.clone(),
             snapshot_generation,
+            txn_id: host.txn_id(),
             builtin,
         });
     });
@@ -784,6 +956,7 @@ fn run_one(
 
 #[cfg(test)]
 mod tests {
+    use crate::host::ResponseWireMeta;
     use super::*;
     use crate::compile::compile_from_config;
     use crate::rhai_script_errors_total;
@@ -794,6 +967,7 @@ mod tests {
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicU64, Ordering};
     use std::sync::Arc;
+    use std::time::UNIX_EPOCH;
 
     #[test]
     fn set_source_v4_via_script() {
@@ -868,6 +1042,7 @@ rules:
             started: Instant::now(),
             last_forward_ms: 0,
             phase: ScriptPhase::Request,
+            ..Default::default()
         };
         let (_, stats) = run_scripts(
             &scripting,
@@ -956,6 +1131,7 @@ rules:
             started: Instant::now(),
             last_forward_ms: 0,
             phase: ScriptPhase::Request,
+            ..Default::default()
         };
         let (_, stats) = run_scripts(
             &scripting,
@@ -1044,6 +1220,7 @@ rules:
             started: Instant::now(),
             last_forward_ms: 0,
             phase: ScriptPhase::Response,
+            ..Default::default()
         };
         let (_, stats) = run_scripts(
             &scripting,
@@ -1071,6 +1248,7 @@ rules:
             phase: ScriptPhase::Request,
             txn_id: 1,
             global_query_index: 0,
+            config_generation: 0,
             rule_name: "test-rule".into(),
             qname: None,
             qtype: None,
@@ -1079,6 +1257,13 @@ rules:
             edns_option_codes: Vec::new(),
             dns_id: 0,
             rcode: None,
+            client_addr: "127.0.0.1:53".parse().unwrap(),
+            client_protocol: ClientProtocol::Udp,
+            listener_label: None,
+            received_at: std::time::UNIX_EPOCH,
+            selected_pool: None,
+            selected_backend: None,
+            response_meta: None,
             attempt_count: 0,
             started_at: Instant::now(),
             last_forward_ms: 0,
@@ -1125,6 +1310,7 @@ rules:
             started: Instant::now(),
             last_forward_ms: 0,
             phase: ScriptPhase::Request,
+            ..Default::default()
         };
         let (outcome, stats) = run_scripts(
             &scripting,
@@ -1176,6 +1362,7 @@ rules:
             started: Instant::now(),
             last_forward_ms: 0,
             phase: ScriptPhase::Response,
+            ..Default::default()
         };
         let (outcome, stats) = run_scripts(
             &scripting,
@@ -1270,6 +1457,7 @@ rules:
             started: Instant::now(),
             last_forward_ms: 0,
             phase: ScriptPhase::Response,
+            ..Default::default()
         };
         let (outcome, stats) = run_scripts(
             &scripting,
@@ -1315,6 +1503,7 @@ rules:
             started: Instant::now(),
             last_forward_ms: 0,
             phase: ScriptPhase::Request,
+            ..Default::default()
         };
         let ids = vec![0];
         let (outcome, _) = run_scripts(
@@ -1361,6 +1550,7 @@ rules:
             started: Instant::now(),
             last_forward_ms: 0,
             phase: ScriptPhase::Request,
+            ..Default::default()
         };
         let (outcome, stats) = run_scripts(
             &scripting,
@@ -1407,6 +1597,7 @@ rules:
             started: Instant::now(),
             last_forward_ms: 0,
             phase: ScriptPhase::Request,
+            ..Default::default()
         };
         let (outcome, stats) = run_scripts(
             &scripting,
@@ -1452,6 +1643,7 @@ rules:
             started: Instant::now(),
             last_forward_ms: 0,
             phase: ScriptPhase::Request,
+            ..Default::default()
         };
         let (_, stats) = run_scripts(
             &scripting,
@@ -1507,6 +1699,7 @@ rules:
             started: Instant::now(),
             last_forward_ms: 0,
             phase: ScriptPhase::Request,
+            ..Default::default()
         };
 
         let (_, _) = run_scripts(
@@ -1633,6 +1826,7 @@ rules:
             started: Instant::now(),
             last_forward_ms: 0,
             phase: ScriptPhase::Request,
+            ..Default::default()
         };
         let (_, stats1) = run_scripts(
             &snap1,
@@ -1722,6 +1916,7 @@ rules:
             started: Instant::now(),
             last_forward_ms: 600,
             phase: ScriptPhase::Request,
+            ..Default::default()
         };
         let (_, _) = run_scripts(
             &scripting,
@@ -1782,6 +1977,7 @@ rules:
             started: Instant::now(),
             last_forward_ms: 42,
             phase: ScriptPhase::Response,
+            ..Default::default()
         };
         let (outcome, stats) = run_inline_script(
             r#"if txn.last_forward_ms() == 42 { txn.metric_inc("rtt_ok", 1); }"#,
@@ -1893,6 +2089,7 @@ rules:
             started: Instant::now(),
             last_forward_ms: 0,
             phase: ScriptPhase::Request,
+            ..Default::default()
         };
         let (outcome, stats) = run_inline_script(script, &mut host);
         assert_eq!(stats.errors, 0);
@@ -1927,6 +2124,7 @@ rules:
             started: Instant::now(),
             last_forward_ms: 0,
             phase: ScriptPhase::Request,
+            ..Default::default()
         };
         let (outcome, stats) = run_inline_script(script, &mut host);
         assert_eq!(stats.errors, 0);
@@ -1961,6 +2159,7 @@ rules:
             started: Instant::now(),
             last_forward_ms: 0,
             phase: ScriptPhase::Request,
+            ..Default::default()
         };
         let (outcome, stats) = run_inline_script(script, &mut host);
         assert_eq!(stats.errors, 0);
@@ -2054,6 +2253,7 @@ rules:
             started: Instant::now(),
             last_forward_ms: 0,
             phase: ScriptPhase::Request,
+            ..Default::default()
         };
         let (_, stats) = run_scripts(
             &scripting,
@@ -2095,6 +2295,7 @@ rules:
             phase: ScriptPhase::Request,
             txn_id: 8,
             global_query_index: 12,
+            config_generation: 0,
             rule_name: "audit-canary".into(),
             qname: Some("login.example.".into()),
             qtype: Some(1),
@@ -2103,6 +2304,13 @@ rules:
             edns_option_codes: Vec::new(),
             dns_id: 1,
             rcode: None,
+            client_addr: "127.0.0.1:53".parse().unwrap(),
+            client_protocol: ClientProtocol::Udp,
+            listener_label: None,
+            received_at: std::time::UNIX_EPOCH,
+            selected_pool: None,
+            selected_backend: None,
+            response_meta: None,
             attempt_count: 1,
             started_at: Instant::now(),
             last_forward_ms: 0,
@@ -2141,6 +2349,130 @@ rules:
                 .eval_with_scope::<bool>(&mut scope, "txn.sample_percent_for_qname(10.0)")
                 .unwrap(),
             qname_keyed
+        );
+    }
+
+    #[test]
+    fn host_context_and_introspection_apis() {
+        reset_thread_runtime_for_tests();
+        let mut engine = Engine::new();
+        register_host_api(&mut engine);
+        let effects = Arc::new(Mutex::new(ScriptEffects::default()));
+        let received = UNIX_EPOCH + std::time::Duration::from_secs(86_400 + 15_360);
+        let txn = RhaiTxn {
+            phase: ScriptPhase::Request,
+            txn_id: 42,
+            global_query_index: 0,
+            config_generation: 7,
+            rule_name: "test".into(),
+            qname: Some("example.com.".into()),
+            qtype: Some(1),
+            qclass: Some(1),
+            opcode: Some(0),
+            edns_option_codes: Vec::new(),
+            dns_id: 1,
+            rcode: None,
+            client_addr: "192.0.2.1:53000".parse().unwrap(),
+            client_protocol: ClientProtocol::Tcp,
+            listener_label: Some("127.0.0.1:53".into()),
+            received_at: received,
+            selected_pool: Some("vip".into()),
+            selected_backend: Some("198.51.100.1:53".parse().unwrap()),
+            response_meta: None,
+            attempt_count: 0,
+            started_at: Instant::now(),
+            last_forward_ms: 0,
+            tags_snapshot_bools: HashMap::new(),
+            tags_snapshot_strings: HashMap::new(),
+            metrics: Arc::new(MetricRegistry::default()),
+            effects: effects.clone(),
+        };
+        let mut scope = Scope::new();
+        scope.push("txn", txn);
+        assert_eq!(
+            engine.eval_with_scope::<i64>(&mut scope, "txn.txn_id()").unwrap(),
+            42
+        );
+        assert_eq!(
+            engine
+                .eval_with_scope::<i64>(&mut scope, "txn.config_generation()")
+                .unwrap(),
+            7
+        );
+        assert_eq!(
+            engine
+                .eval_with_scope::<String>(&mut scope, "txn.client_ip()")
+                .unwrap(),
+            "192.0.2.1"
+        );
+        assert_eq!(
+            engine
+                .eval_with_scope::<String>(&mut scope, "txn.client_protocol()")
+                .unwrap(),
+            "tcp"
+        );
+        assert_eq!(
+            engine
+                .eval_with_scope::<String>(&mut scope, "txn.listener()")
+                .unwrap(),
+            "127.0.0.1:53"
+        );
+        assert_eq!(
+            engine.eval_with_scope::<i64>(&mut scope, "txn.utc_hour()").unwrap(),
+            4
+        );
+    }
+
+    #[test]
+    fn response_map_includes_path_and_wire_meta() {
+        reset_thread_runtime_for_tests();
+        let mut engine = Engine::new();
+        register_host_api(&mut engine);
+        let effects = Arc::new(Mutex::new(ScriptEffects::default()));
+        let txn = RhaiTxn {
+            phase: ScriptPhase::Response,
+            txn_id: 1,
+            global_query_index: 0,
+            config_generation: 0,
+            rule_name: "r".into(),
+            qname: Some("example.com.".into()),
+            qtype: Some(1),
+            qclass: Some(1),
+            opcode: Some(0),
+            edns_option_codes: Vec::new(),
+            dns_id: 1,
+            rcode: Some(0),
+            client_addr: "127.0.0.1:53".parse().unwrap(),
+            client_protocol: ClientProtocol::Udp,
+            listener_label: None,
+            received_at: UNIX_EPOCH,
+            selected_pool: Some("default".into()),
+            selected_backend: Some("198.51.100.1:53".parse().unwrap()),
+            response_meta: Some(ResponseWireMeta {
+                answer_count: 2,
+                authority_count: 0,
+                additional_count: 1,
+                truncated: false,
+                authoritative: true,
+            }),
+            attempt_count: 1,
+            started_at: Instant::now(),
+            last_forward_ms: 12,
+            tags_snapshot_bools: HashMap::new(),
+            tags_snapshot_strings: HashMap::new(),
+            metrics: Arc::new(MetricRegistry::default()),
+            effects: effects.clone(),
+        };
+        let mut scope = Scope::new();
+        scope.push("txn", txn);
+        assert!(engine
+            .eval_with_scope::<bool>(&mut scope, r#"txn.response()?.authoritative == true"#)
+            .unwrap());
+        assert_eq!(
+            engine
+                .eval_with_scope::<i64>(&mut scope, "txn.response_answer_count()")
+                .unwrap(),
+            2
         );
     }
 }

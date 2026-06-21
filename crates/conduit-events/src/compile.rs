@@ -241,7 +241,7 @@ pub fn parse_sink_filters(
         true,
     )?;
     Ok(CompiledSinkFilters {
-        selectors: compile_sink_selectors(sink_name, &f.selectors),
+        selectors: compile_sink_selectors(sink_name, &f.selectors)?,
         tag_required,
         sample_percent: parse_sample_percent(f.sample_percent)?,
         sample_key,

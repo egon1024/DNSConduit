@@ -109,7 +109,12 @@ Conditions on the question being asked — use on the **request** hook.
 |------|--------------|--------|
 | `qname_exact` | request | Exact query name |
 | `qname_suffix` | request | Query name suffix |
-| `qtype` | request | Query type (for example `A`, `AAAA`) |
+| `qtype` | request | Query type — IANA name (`A`, `AAAA`) or numeric alias (`TYPE1`, `TYPE28`) |
+| `qclass` | request | Query class — IANA name (`IN`) or alias (`CLASS1`) |
+| `opcode` | request | DNS opcode — name (`QUERY`) or alias (`OPCODE0`) |
+| `edns_option` | request | EDNS option present in the query — name (`COOKIE`) or alias (`CODE10`) |
+
+Wire-enum selector values use the **same names and numeric aliases** as Rule Rhai (`RecordType::A`, `TYPE1`, `Rcode::SERVFAIL`, `RCODE2`, …). Unknown values fail at config load. Matching uses wire numbers internally (not string labels).
 
 ### Response outcome
 
@@ -117,7 +122,7 @@ Conditions on the upstream result — use on the **response** hook after [Wait f
 
 | Type | Typical hook | Tests |
 |------|--------------|--------|
-| `rcode` | response | Response code (for example `SERVFAIL`, `NXDOMAIN`) |
+| `rcode` | response | Response code — IANA name (`SERVFAIL`, `NXDOMAIN`) or alias (`RCODE2`, `RCODE3`) |
 
 ### Transaction metadata
 
@@ -317,7 +322,7 @@ Use on `hook: response` — after an upstream answer or forward timeout, before 
 | `retry` | — | Soft retry in the current [pool](/glossary/index.md#pool) — see [Retry actions](#retry-actions) |
 | `retry_now` | — | Hard retry — see [Retry actions](#retry-actions); blocked by soft drop unless **`clear_drop`** ran earlier on this rule |
 | `rhai` | Script path | Runs the linked [Rhai](/rhai/index.md) script at this position in the list |
-| `set_rcode` | RCODE name | Sets response code metadata (for example before [Send](/concepts/architecture-and-packet-path.md#send)) |
+| `set_rcode` | RCODE name or `RCODEN` alias | Sets response code metadata (for example before [Send](/concepts/architecture-and-packet-path.md#send)) |
 | `set_retry_pool` | Pool name | Pool for retry Route if retry occurs; first Route ignores — see [Retry actions](#retry-actions) |
 | `set_retry_source_v4` | IPv4 address | One-shot IPv4 egress for next retry forward if retry occurs; first forward ignores |
 | `set_retry_source_v6` | IPv6 address | One-shot IPv6 egress for next retry forward if retry occurs; first forward ignores |

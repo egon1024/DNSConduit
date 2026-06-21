@@ -8,6 +8,8 @@ use std::time::{Duration, Instant};
 
 const WARN_INTERVAL: Duration = Duration::from_secs(60);
 const MILESTONES: [u64; 6] = [1, 10, 100, 1_000, 10_000, 100_000];
+const MAX_SCRIPT_LOG_LEN: usize = 512;
+const SCRIPT_LOG_PERIODIC_EVERY: u64 = 100;
 
 static SCRIPT_ERRORS: AtomicU64 = AtomicU64::new(0);
 
@@ -24,6 +26,122 @@ struct LookupWarnState {
 }
 
 static LOOKUP_WARN: OnceLock<Mutex<LookupWarnState>> = OnceLock::new();
+
+struct ScriptLogEntry {
+    total: u64,
+    since_last_log: u64,
+}
+
+struct ScriptLogState {
+    generation: u64,
+    info: HashMap<(String, String), ScriptLogEntry>,
+    warn: HashMap<(String, String), ScriptLogEntry>,
+}
+
+static SCRIPT_LOG: OnceLock<Mutex<ScriptLogState>> = OnceLock::new();
+
+fn script_log_state() -> &'static Mutex<ScriptLogState> {
+    SCRIPT_LOG.get_or_init(|| {
+        Mutex::new(ScriptLogState {
+            generation: 0,
+            info: HashMap::new(),
+            warn: HashMap::new(),
+        })
+    })
+}
+
+fn truncate_script_log(message: &str) -> String {
+    if message.len() <= MAX_SCRIPT_LOG_LEN {
+        return message.to_string();
+    }
+    let mut out = message[..MAX_SCRIPT_LOG_LEN].to_string();
+    out.push_str("…");
+    out
+}
+
+fn should_emit_script_log(entry: &mut ScriptLogEntry) -> bool {
+    entry.total += 1;
+    entry.since_last_log += 1;
+    if entry.total == 1 {
+        return true;
+    }
+    if entry.total % SCRIPT_LOG_PERIODIC_EVERY == 0 {
+        return true;
+    }
+    false
+}
+
+/// Host-mediated script log at info level (rate-limited per script/rule).
+pub fn report_script_log_info(
+    snapshot_generation: u64,
+    script: &str,
+    rule: &str,
+    txn_id: u64,
+    message: &str,
+) {
+    let message = truncate_script_log(message);
+    let key = (script.to_string(), rule.to_string());
+    let mut guard = script_log_state().lock().expect("script log lock");
+    if guard.generation != snapshot_generation {
+        guard.info.clear();
+        guard.warn.clear();
+        guard.generation = snapshot_generation;
+    }
+    let entry = guard.info.entry(key).or_insert(ScriptLogEntry {
+        total: 0,
+        since_last_log: 0,
+    });
+    let emit = should_emit_script_log(entry);
+    let since = entry.since_last_log;
+    if emit {
+        entry.since_last_log = 0;
+        tracing::info!(
+            script = %script,
+            rule = %rule,
+            txn_id = txn_id,
+            total = entry.total,
+            since_last_log = since,
+            message = %message,
+            "rhai script log"
+        );
+    }
+}
+
+/// Host-mediated script log at warn level (rate-limited per script/rule).
+pub fn report_script_log_warn(
+    snapshot_generation: u64,
+    script: &str,
+    rule: &str,
+    txn_id: u64,
+    message: &str,
+) {
+    let message = truncate_script_log(message);
+    let key = (script.to_string(), rule.to_string());
+    let mut guard = script_log_state().lock().expect("script log lock");
+    if guard.generation != snapshot_generation {
+        guard.info.clear();
+        guard.warn.clear();
+        guard.generation = snapshot_generation;
+    }
+    let entry = guard.warn.entry(key).or_insert(ScriptLogEntry {
+        total: 0,
+        since_last_log: 0,
+    });
+    let emit = should_emit_script_log(entry);
+    let since = entry.since_last_log;
+    if emit {
+        entry.since_last_log = 0;
+        tracing::warn!(
+            script = %script,
+            rule = %rule,
+            txn_id = txn_id,
+            total = entry.total,
+            since_last_log = since,
+            message = %message,
+            "rhai script log"
+        );
+    }
+}
 
 fn lookup_warn_state() -> &'static Mutex<LookupWarnState> {
     LOOKUP_WARN.get_or_init(|| {

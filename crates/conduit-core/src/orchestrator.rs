@@ -178,8 +178,11 @@ impl Orchestrator {
                                         &th.compiled.activation,
                                         txn.id,
                                         txn.qname.as_deref(),
-                                        txn.qtype_label(),
-                                        txn.rcode_label(),
+                                        txn.qtype,
+                                        txn.rcode(),
+                                        txn.qclass,
+                                        txn.opcode,
+                                        &txn.edns_option_codes,
                                         &tag_has,
                                     ) {
                                         txn.trace_log = Some(conduit_metrics::TraceLog::default());

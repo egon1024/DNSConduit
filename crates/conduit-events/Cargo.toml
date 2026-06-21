@@ -7,6 +7,7 @@ authors.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+conduit-dns-wire = { path = "../conduit-dns-wire" }
 conduit-proto = { path = "../conduit-proto" }
 crossbeam-channel = { workspace = true }
 dnstap = { workspace = true }

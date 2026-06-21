@@ -4,6 +4,7 @@ use crate::forward::egress::{EgressSourceSelection, WorkerForwardEgress};
 use crate::forward::tcp::forward_tcp;
 use crate::forward::{ForwardKey, TxnTable};
 use conduit_config::forward::UpstreamTransport;
+use conduit_core::record_upstream_response;
 use conduit_core::phase::Phase;
 use conduit_core::pipeline::{PipelineStage, StageOutcome};
 use conduit_core::snapshot::RuntimeSnapshot;
@@ -94,12 +95,11 @@ impl ForwardTransport {
         key: ForwardKey,
         wire: Vec<u8>,
         started: Instant,
+        parse_wire_meta: bool,
     ) -> StageOutcome {
         self.record_forward(txn, Some(key.backend), "success", None, started);
         self.table.remove(key);
-        if let Ok(msg) = Message::from_vec(&wire) {
-            txn.set_rcode(msg.response_code().low() as u16);
-        }
+        record_upstream_response(txn, &wire, parse_wire_meta);
         txn.response_wire = Some(wire);
         StageOutcome::Continue(Phase::ResponseRules)
     }
@@ -128,6 +128,7 @@ impl PipelineStage for ForwardTransport {
 
     fn handle(&self, txn: &mut Transaction, snapshot: &Arc<RuntimeSnapshot>) -> StageOutcome {
         let started = Instant::now();
+        let parse_wire_meta = snapshot.scripting.needs_response_wire_meta;
         txn.mark_forward_started(started);
         let Some(backend) = txn.selected_backend else {
             self.record_forward(txn, None, "error", Some("no_backend"), started);
@@ -174,7 +175,7 @@ impl PipelineStage for ForwardTransport {
 
         if try_tcp {
             match forward_tcp(backend, upstream_wire, self.timeout(), bind_v4, bind_v6) {
-                Ok(wire) => return self.finish_response(txn, key, wire, started),
+                Ok(wire) => return self.finish_response(txn, key, wire, started, parse_wire_meta),
                 Err(e) => {
                     tracing::warn!(txn_id = txn.id, %backend, error = %e, "tcp forward failed");
                     return self.servfail(txn, Some(key), "tcp_error", started);
@@ -230,7 +231,7 @@ impl PipelineStage for ForwardTransport {
                                 bind_v6,
                             ) {
                                 Ok(tcp_wire) => {
-                                    return self.finish_response(txn, key, tcp_wire, started);
+                                    return self.finish_response(txn, key, tcp_wire, started, parse_wire_meta);
                                 }
                                 Err(e) => {
                                     tracing::warn!(
@@ -244,7 +245,7 @@ impl PipelineStage for ForwardTransport {
                         }
                     }
                 }
-                self.finish_response(txn, key, wire, started)
+                self.finish_response(txn, key, wire, started, parse_wire_meta)
             }
             Err(_) => {
                 tracing::warn!(

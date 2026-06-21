@@ -5,6 +5,23 @@ use crate::event::EventKind;
 use crate::selectors::{hash_sample_keyed, resolve_sample_key, SelectorMatchCtx};
 use crate::view::TxnView;
 
+fn selector_ctx<'a>(
+    view: &'a TxnView<'a>,
+    tag_has: &'a dyn Fn(&str) -> bool,
+) -> SelectorMatchCtx<'a> {
+    SelectorMatchCtx {
+        txn_id: view.txn_id,
+        global_query_index: view.global_query_index,
+        qname: view.qname,
+        qtype: view.qtype,
+        rcode: view.rcode,
+        qclass: view.qclass,
+        opcode: view.opcode,
+        edns_option_codes: view.edns_option_codes,
+        tag_has,
+    }
+}
+
 pub fn sink_event_matches(
     filters: &CompiledSinkFilters,
     kind: EventKind,
@@ -18,14 +35,7 @@ pub fn sink_event_matches(
     }
 
     if !filters.selectors.is_empty() {
-        let ctx = SelectorMatchCtx {
-            txn_id: view.txn_id,
-            global_query_index: view.global_query_index,
-            qname: view.qname,
-            qtype_label: view.qtype_label.clone(),
-            rcode_label: view.extra.rcode_label.clone(),
-            tag_has,
-        };
+        let ctx = selector_ctx(view, tag_has);
         if !filters.selectors.iter().all(|s| s.matches_ctx(&ctx)) {
             return false;
         }
@@ -44,14 +54,7 @@ pub fn sink_event_matches(
         }
     }
 
-    let ctx = SelectorMatchCtx {
-        txn_id: view.txn_id,
-        global_query_index: view.global_query_index,
-        qname: view.qname,
-        qtype_label: view.qtype_label.clone(),
-        rcode_label: view.extra.rcode_label.clone(),
-        tag_has,
-    };
+    let ctx = selector_ctx(view, tag_has);
     let salt = resolve_sample_key(&filters.sample_key, &ctx);
     hash_sample_keyed(view.txn_id, filters.sample_percent / 100.0, salt.as_deref())
 }

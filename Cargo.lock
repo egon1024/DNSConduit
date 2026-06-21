@@ -351,6 +351,7 @@ version = "0.13.0"
 dependencies = [
  "arc-swap",
  "conduit-config",
+ "conduit-dns-wire",
  "conduit-events",
  "conduit-metrics",
  "conduit-proto",
@@ -380,6 +381,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "conduit-dns-wire"
+version = "0.13.0"
+
+[[package]]
 name = "conduit-dnstap-tracer"
 version = "0.13.0"
 dependencies = [
@@ -396,6 +401,7 @@ dependencies = [
 name = "conduit-events"
 version = "0.13.0"
 dependencies = [
+ "conduit-dns-wire",
  "conduit-proto",
  "crossbeam-channel",
  "dnstap",
@@ -452,6 +458,7 @@ name = "conduit-script"
 version = "0.13.0"
 dependencies = [
  "conduit-config",
+ "conduit-dns-wire",
  "conduit-events",
  "conduit-metrics",
  "conduit-proto",

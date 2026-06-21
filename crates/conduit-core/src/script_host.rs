@@ -2,8 +2,9 @@
 
 use crate::phase::Phase;
 use crate::transaction::Transaction;
-use conduit_script::{HostTransaction, ScriptPhase};
+use conduit_script::{ClientProtocol as ScriptClientProtocol, HostTransaction, ResponseWireMeta, ScriptPhase};
 use std::collections::HashMap;
+use std::net::SocketAddr;
 
 impl HostTransaction for Transaction {
     fn txn_id(&self) -> u64 {
@@ -12,6 +13,10 @@ impl HostTransaction for Transaction {
 
     fn global_query_index(&self) -> u64 {
         self.global_query_index
+    }
+
+    fn snapshot_generation(&self) -> u64 {
+        self.snapshot_generation
     }
 
     fn phase(&self) -> ScriptPhase {
@@ -45,8 +50,49 @@ impl HostTransaction for Transaction {
         self.dns_id
     }
 
+    fn client_addr(&self) -> SocketAddr {
+        self.client_addr
+    }
+
+    fn client_protocol(&self) -> ScriptClientProtocol {
+        match self.protocol {
+            crate::transaction::ClientProtocol::Udp => ScriptClientProtocol::Udp,
+            crate::transaction::ClientProtocol::Tcp => ScriptClientProtocol::Tcp,
+        }
+    }
+
+    fn listener_label(&self) -> Option<&str> {
+        self.listener_label.as_deref()
+    }
+
+    fn client_udp_payload_size(&self) -> Option<u16> {
+        self.client_udp_payload_size
+    }
+
+    fn received_at(&self) -> std::time::SystemTime {
+        self.received_at
+    }
+
+    fn selected_pool(&self) -> Option<&str> {
+        self.selected_pool.as_deref()
+    }
+
+    fn selected_backend(&self) -> Option<SocketAddr> {
+        self.selected_backend
+    }
+
     fn response_rcode_number(&self) -> Option<u16> {
         self.rcode()
+    }
+
+    fn response_meta(&self) -> Option<ResponseWireMeta> {
+        self.response_meta.map(|m| ResponseWireMeta {
+            answer_count: m.answer_count,
+            authority_count: m.authority_count,
+            additional_count: m.additional_count,
+            truncated: m.truncated,
+            authoritative: m.authoritative,
+        })
     }
 
     fn has_tag(&self, key: &str) -> bool {
