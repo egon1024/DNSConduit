@@ -10,6 +10,10 @@ impl HostTransaction for Transaction {
         self.id
     }
 
+    fn global_query_index(&self) -> u64 {
+        self.global_query_index
+    }
+
     fn phase(&self) -> ScriptPhase {
         match self.current_phase {
             Phase::ResponseRules | Phase::WaitResponse | Phase::Send => ScriptPhase::Response,

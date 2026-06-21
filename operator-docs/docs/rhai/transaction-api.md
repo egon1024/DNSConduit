@@ -1965,19 +1965,368 @@ txn.set_retry_pool("secondary");
 
 ## Sampling
 
+Deterministic sampling and cadence gates for scripts — mirror YAML [selectors](/glossary/index.md#selector) on [Sampling and cadence](/policy-routing/rules-and-actions.md#sampling-and-cadence). **Percentage** methods (`sample_percent*`) use a **`0..100`** scale with optional key salt; **cadence** methods (`every_nth_*`) match every Nth query on this worker or process-wide. Use to gate expensive logic, set audit [tags](/glossary/index.md#tags), or combine with declarative rules.
+
+#### YAML selector parity
+
+| YAML selector / field | Rule Rhai equivalent |
+|-----------------------|----------------------|
+| **`sample_percent`** (no salt) | **`txn.sample_percent(percent)`** |
+| **`sample_percent`** + **`key`** | **`txn.sample_percent(percent, key)`** |
+| **`sample_percent`** + **`key_from: qname`** | **`txn.sample_percent_for_qname(percent)`** or **`txn.sample_percent(percent, question_qname(txn))`** |
+| **`sample_percent`** + **`key_from: rule_name`** | **`txn.sample_percent_for_rule(percent)`** or **`txn.sample_percent(percent, txn.rule_name())`** |
+| **`every_nth_worker`** | **`txn.every_nth_worker(n)`** |
+| **`every_nth_global`** | **`txn.every_nth_global(n)`** |
+
+**`key_from: sink_name`** applies to event sink filters only — not exposed on Rule Rhai. Prefer a YAML selector on the rule when you only need coarse gating without running script logic on every match.
+
 <p class="txn-api-index" markdown="1">
 
-**Methods:** `txn.sample_percent(percent)` · `txn.sample_percent(percent, key)` *in progress*
+**Methods:** [`txn.sample_percent(percent)`](#txnsample_percent) · [`txn.sample_percent(percent, key)`](#txnsample_percent) · [`txn.sample_percent_for_qname(percent)`](#txnsample_percent_for_qnamepercent) · [`txn.sample_percent_for_rule(percent)`](#txnsample_percent_for_rulepercent) · [`txn.every_nth_worker(n)`](#txnevery_nth_workern) · [`txn.every_nth_global(n)`](#txnevery_nth_globaln) · [`txn.rule_name()`](#txnrule_name)
 
 </p>
 
-<p class="txn-api-stub" markdown="1">
+<div class="txn-api-entry" markdown="1">
 
-Deterministic per-[transaction](/glossary/index.md#transaction) sampling for audit tags and script-side gates. Keyed sampling matches YAML `sample_percent` selectors: [Sampling and cadence](/policy-routing/rules-and-actions.md#sampling-and-cadence).
+### `txn.sample_percent` {#txnsample_percent}
 
-Method cards for this group are not written yet. Hook availability: [Hooks and phases — phase guards](/rhai/hooks-and-phases.md#phase-guards).
+<div class="txn-api-brief" markdown="1">
+
+Request + response hook · `percent`: float · optional `key`: string · returns `bool`
+
+Returns whether this transaction falls in the ~`percent`% sample; optional `key` selects an independent bucket.
+
+</div>
+
+<div class="txn-api-reference-panel" markdown="1" hidden>
+
+#### Hooks
+
+[Request hook](/rhai/hooks-and-phases.md#request-hook) and [Response hook](/rhai/hooks-and-phases.md#response-hook)
+
+#### Arguments / return
+
+Two overloads share the same name:
+
+| Overload | Parameters | Notes |
+|----------|------------|-------|
+| Global bucket | `percent`: float | Same hash as YAML **`sample_percent`** with no `key` / `key_from` — transaction id only |
+| Keyed bucket | `percent`: float, `key`: string | Same hash as YAML **`sample_percent`** with static **`key:`** |
+
+| Parameter | Type | Notes |
+|-----------|------|-------|
+| `percent` | float | Target pass rate on **`0..100`** — clamped (`0` never passes; `100` always passes) |
+| `key` | string (optional) | Salt string; empty string is treated like no key |
+| *return* | `bool` | **`true`** when this transaction is in the sample |
+
+<p class="txn-api-summary" markdown="1">
+
+**Summary:** Deterministic ~`percent`% gate. When the call returns **`true`**, Conduit also sets boolean tag **`sampled`**.
 
 </p>
+
+#### Behavior
+
+- Same hash as rule **`sample_percent`** selectors, tracing **`activation.sample_percent`**, and event-export filters.
+- Repeated calls with the same **`percent`** and **`key`** return the same **`bool`** (cached for this hook invocation).
+- For **`key_from: qname`** or **`key_from: rule_name`**, prefer the dedicated helpers [`sample_percent_for_qname`](#txnsample_percent_for_qnamepercent) and [`sample_percent_for_rule`](#txnsample_percent_for_rulepercent).
+- On internal error acquiring script effects, returns **`false`**.
+
+#### YAML equivalent
+
+```yaml
+selectors:
+  - type: sample_percent
+    value: "10"
+```
+
+See also keyed examples under [sample_percent_for_qname](#txnsample_percent_for_qnamepercent) and [sample_percent_for_rule](#txnsample_percent_for_rulepercent).
+
+#### Example
+
+```rhai
+if txn.sample_percent(5.0) {
+    txn.set_tag("audit", true);
+}
+```
+
+</div>
+
+</div>
+
+---
+
+<div class="txn-api-entry" markdown="1">
+
+### `txn.sample_percent_for_qname` {#txnsample_percent_for_qnamepercent}
+
+<div class="txn-api-brief" markdown="1">
+
+Request + response hook · `percent`: float · returns `bool`
+
+~`percent`% sample with per-qname salt — matches YAML **`key_from: qname`**.
+
+</div>
+
+<div class="txn-api-reference-panel" markdown="1" hidden>
+
+#### Hooks
+
+[Request hook](/rhai/hooks-and-phases.md#request-hook) and [Response hook](/rhai/hooks-and-phases.md#response-hook)
+
+#### Arguments / return
+
+| Parameter | Type | Notes |
+|-----------|------|-------|
+| `percent` | float | **`0..100`** (clamped) |
+| *return* | `bool` | **`false`** when the question has no qname; otherwise same as **`txn.sample_percent(percent, question_qname(txn))`** |
+
+<p class="txn-api-summary" markdown="1">
+
+**Summary:** Keyed **`sample_percent`** using the canonical wire qname as salt. Sets tag **`sampled`** when **`true`**.
+
+</p>
+
+#### YAML equivalent
+
+```yaml
+selectors:
+  - type: sample_percent
+    value: "10"
+    key_from: qname
+```
+
+#### Example
+
+Repository fixture `sample-audit.rhai`:
+
+```rhai
+if txn.sample_percent_for_qname(10.0) {
+    txn.set_tag("rhai_sampled", true);
+}
+```
+
+</div>
+
+</div>
+
+---
+
+<div class="txn-api-entry" markdown="1">
+
+### `txn.sample_percent_for_rule` {#txnsample_percent_for_rulepercent}
+
+<div class="txn-api-brief" markdown="1">
+
+Request + response hook · `percent`: float · returns `bool`
+
+~`percent`% sample salted with this rule's configured **`name`** — matches YAML **`key_from: rule_name`**.
+
+</div>
+
+<div class="txn-api-reference-panel" markdown="1" hidden>
+
+#### Hooks
+
+[Request hook](/rhai/hooks-and-phases.md#request-hook) and [Response hook](/rhai/hooks-and-phases.md#response-hook)
+
+#### Arguments / return
+
+| Parameter | Type | Notes |
+|-----------|------|-------|
+| `percent` | float | **`0..100`** (clamped) |
+| *return* | `bool` | Same bucket as **`txn.sample_percent(percent, txn.rule_name())`** |
+
+<p class="txn-api-summary" markdown="1">
+
+**Summary:** Independent ~`percent`% slice per rule name — two rules at the same percentage do not share the same bucket. Sets tag **`sampled`** when **`true`**.
+
+</p>
+
+#### YAML equivalent
+
+```yaml
+selectors:
+  - type: sample_percent
+    value: "10"
+    key_from: rule_name
+```
+
+#### Example
+
+```rhai
+if txn.sample_percent_for_rule(25.0) {
+    txn.set_tag("canary", true);
+}
+```
+
+</div>
+
+</div>
+
+---
+
+<div class="txn-api-entry" markdown="1">
+
+### `txn.every_nth_worker` {#txnevery_nth_workern}
+
+<div class="txn-api-brief" markdown="1">
+
+Request + response hook · `n`: integer · returns `bool`
+
+**`true`** when this worker's transaction id is divisible by **`n`** — matches YAML **`every_nth_worker`**.
+
+</div>
+
+<div class="txn-api-reference-panel" markdown="1" hidden>
+
+#### Hooks
+
+[Request hook](/rhai/hooks-and-phases.md#request-hook) and [Response hook](/rhai/hooks-and-phases.md#response-hook)
+
+#### Arguments / return
+
+| Parameter | Type | Notes |
+|-----------|------|-------|
+| `n` | integer | Must be **`>= 1`** — script error otherwise |
+| *return* | `bool` | **`true`** when **`txn_id % n == 0`** (for example **`n: 4`** matches ids **4, 8, 12, …** on each worker) |
+
+<p class="txn-api-summary" markdown="1">
+
+**Summary:** Worker-local cadence gate — same semantics as the **`every_nth_worker`** selector. Read-only; does not set tags.
+
+</p>
+
+#### Behavior
+
+- Uses the worker-local transaction id assigned when Conduit creates the [transaction](/glossary/index.md#transaction).
+- Stable for the lifetime of the transaction — same result on request and response hooks (and across [retry](/glossary/index.md#retry) response passes for the same id).
+- Does **not** set tag **`sampled`** — unlike **`sample_percent*`**.
+
+#### YAML equivalent
+
+```yaml
+selectors:
+  - type: every_nth_worker
+    value: "4"
+```
+
+#### Example
+
+```rhai
+if txn.every_nth_worker(4) {
+    txn.set_pool("canary");
+}
+```
+
+</div>
+
+</div>
+
+---
+
+<div class="txn-api-entry" markdown="1">
+
+### `txn.every_nth_global` {#txnevery_nth_globaln}
+
+<div class="txn-api-brief" markdown="1">
+
+Request + response hook · `n`: integer · returns `bool`
+
+**`true`** when the process-wide query index is divisible by **`n`** — matches YAML **`every_nth_global`**.
+
+</div>
+
+<div class="txn-api-reference-panel" markdown="1" hidden>
+
+#### Hooks
+
+[Request hook](/rhai/hooks-and-phases.md#request-hook) and [Response hook](/rhai/hooks-and-phases.md#response-hook)
+
+#### Arguments / return
+
+| Parameter | Type | Notes |
+|-----------|------|-------|
+| `n` | integer | Must be **`>= 1`** — script error otherwise |
+| *return* | `bool` | **`true`** when **`global_query_index % n == 0`** |
+
+<p class="txn-api-summary" markdown="1">
+
+**Summary:** Process-wide cadence gate — same semantics as the **`every_nth_global`** selector. Read-only; does not set tags.
+
+</p>
+
+#### Behavior
+
+- Uses the process-wide query index incremented once when each transaction is created (before selector evaluation on rules).
+- Coordinates cadence across worker threads — unlike **`every_nth_worker`**, which is scoped per worker.
+- Does **not** set tag **`sampled`**.
+
+#### YAML equivalent
+
+```yaml
+selectors:
+  - type: every_nth_global
+    value: "100"
+```
+
+#### Example
+
+```rhai
+if txn.every_nth_global(100) {
+    txn.set_tag("global_canary", true);
+}
+```
+
+</div>
+
+</div>
+
+---
+
+<div class="txn-api-entry" markdown="1">
+
+### `txn.rule_name` {#txnrule_name}
+
+<div class="txn-api-brief" markdown="1">
+
+Request + response hook · no args · returns string
+
+Returns the configured **`name`** of the rule whose **`rhai`** action is running this script.
+
+</div>
+
+<div class="txn-api-reference-panel" markdown="1" hidden>
+
+#### Hooks
+
+[Request hook](/rhai/hooks-and-phases.md#request-hook) and [Response hook](/rhai/hooks-and-phases.md#response-hook)
+
+#### Arguments / return
+
+No arguments. Returns the rule **`name`** string from config (for example **`"audit-canary"`**).
+
+<p class="txn-api-summary" markdown="1">
+
+**Summary:** Read-only rule identity for logging, metrics labels, or custom **`sample_percent(percent, key)`** salts. Prefer [`sample_percent_for_rule`](#txnsample_percent_for_rulepercent) when you want YAML **`key_from: rule_name`** semantics.
+
+</p>
+
+#### YAML equivalent
+
+None — use rule **`name:`** in config. Matches the value baked into **`key_from: rule_name`** selectors at compile time.
+
+#### Example
+
+```rhai
+if txn.sample_percent(5.0, txn.rule_name()) {
+    txn.metric_inc("rule_sample_hits", 1);
+}
+```
+
+</div>
+
+</div>
 
 ---
 

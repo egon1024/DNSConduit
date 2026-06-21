@@ -44,7 +44,7 @@ Some `txn` methods and helpers are restricted to one hook. Calling them on the w
 | `txn.drop_query_now()` | Hard drop (stop rule) | Hard drop (stop rule) |
 | `txn.clear_drop()` | Clears soft drop | Clears soft drop |
 | `txn.set_rcode()` | Yes | Yes |
-| `txn.sample_percent`, `table_lookup` | Yes | Yes |
+| `txn.sample_percent`, `txn.sample_percent_for_qname`, `txn.sample_percent_for_rule`, `txn.every_nth_worker`, `txn.every_nth_global`, `txn.rule_name`, `table_lookup` | Yes | Yes |
 | `txn.elapsed_ms()`, `txn.get_attempt_count()`, `txn.last_forward_ms()` | Yes | Yes |
 | `txn.metric_inc` / `metric_inc_labels` | Yes | Yes |
 

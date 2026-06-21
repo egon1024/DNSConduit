@@ -284,9 +284,9 @@ impl CompiledSelector {
                 let salt = resolve_sample_key(key, ctx);
                 hash_sample_keyed(ctx.txn_id, percent.as_fraction(), salt.as_deref())
             }
-            CompiledSelector::EveryNthWorker(n) => ctx.txn_id.checked_rem(*n) == Some(0),
+            CompiledSelector::EveryNthWorker(n) => matches_every_nth_worker(ctx.txn_id, *n),
             CompiledSelector::EveryNthGlobal(n) => {
-                ctx.global_query_index.checked_rem(*n) == Some(0)
+                matches_every_nth_global(ctx.global_query_index, *n)
             }
         }
     }
@@ -328,6 +328,16 @@ pub fn parse_every_nth(value: &str) -> Result<u64, String> {
         return Err("every_nth selector value must be >= 1".into());
     }
     Ok(parsed)
+}
+
+/// Whether `txn_id` matches YAML `every_nth_worker` (`txn_id % nth == 0`).
+pub fn matches_every_nth_worker(txn_id: u64, nth: u64) -> bool {
+    nth >= 1 && txn_id.checked_rem(nth) == Some(0)
+}
+
+/// Whether `global_query_index` matches YAML `every_nth_global` (`index % nth == 0`).
+pub fn matches_every_nth_global(global_query_index: u64, nth: u64) -> bool {
+    nth >= 1 && global_query_index.checked_rem(nth) == Some(0)
 }
 
 fn parse_percent_key(value: &str) -> Result<PercentKey, String> {

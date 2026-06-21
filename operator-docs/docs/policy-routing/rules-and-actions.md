@@ -149,7 +149,7 @@ Limit **which queries** the rule applies to. Decisions are **deterministic** per
 
 Use **`key`** for a shared slice across a zone (for example `key: "internal.example"` with `qname_suffix`). Use **`key_from: qname`** when each qname should get its own ~N% slice. Different keys at the same percentage are **independent** — a transaction can pass one rule’s sample and fail another’s.
 
-Rhai: `txn.sample_percent(percent)` uses the global bucket; `txn.sample_percent(percent, key)` uses the same keyed hash as YAML `key`.
+Rhai: `txn.sample_percent(percent)` uses the global bucket; `txn.sample_percent(percent, key)` uses static **`key:`**; `txn.sample_percent_for_qname(percent)` and `txn.sample_percent_for_rule(percent)` match **`key_from: qname`** and **`key_from: rule_name`**; `txn.every_nth_worker(n)` and `txn.every_nth_global(n)` match the cadence selectors. See [Transaction API — Sampling](/rhai/transaction-api.md#sampling).
 
 `every_nth_worker` uses the per-worker transaction counter that starts at **1**, so `N=4` matches ids **4, 8, 12, …** on each worker thread.
 

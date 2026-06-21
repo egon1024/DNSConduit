@@ -72,6 +72,12 @@ The `conduit` service and query-processing runtime: configured listeners accept 
 
 → [Architecture and packet path](../concepts/architecture-and-packet-path.md)
 
+### Listener
+
+A configured client-facing DNS bind address (`listeners.listeners[]`: `address` + `protocol` `udp` or `tcp`). Distinct from the optional gRPC **`control:`** listener.
+
+→ [Reference: listeners](/reference/config-schema/listeners.md)
+
 ### Transaction
 
 Everything Conduit remembers for one client query on the [dataplane](/glossary/index.md#dataplane) — the question, client and listener context, [tags](/glossary/index.md#tags), selected [pool](/glossary/index.md#pool) and [backend](/glossary/index.md#backend), query and response messages, and optional trace — from [Receive](/concepts/architecture-and-packet-path.md#receive) through [Send](/concepts/architecture-and-packet-path.md#send) or drop.
@@ -112,7 +118,7 @@ Condition on a [rule](/policy-routing/rules-and-actions.md) that tests query or 
 
 Deterministic sampling on a **`0..100`** scale. `0` never matches; `100` always matches. By default the hash uses the transaction id only. Optional **`key`** (static string) or **`key_from`** (`qname`, `rule_name` on rules, `sink_name` on event sinks) selects an independent bucket namespace — see [Sampling and cadence](/policy-routing/rules-and-actions.md#sampling-and-cadence).
 
-On [rules](/policy-routing/rules-and-actions.md), use selector type **`sample_percent`** with optional `key` / `key_from`. On [tracing](/observability/tracing.md) and [event export](/observability/event-export.md), use top-level **`sample_percent`** with optional **`sample_key`** / **`sample_key_from`**. Rhai: `txn.sample_percent(percent)` or `txn.sample_percent(percent, key)`.
+On [rules](/policy-routing/rules-and-actions.md), use selector type **`sample_percent`** with optional `key` / `key_from`, or **`every_nth_worker`** / **`every_nth_global`**. On [tracing](/observability/tracing.md) and [event export](/observability/event-export.md), use top-level **`sample_percent`** with optional **`sample_key`** / **`sample_key_from`**. Rhai: [`txn.sample_percent`](/rhai/transaction-api.md#txnsample_percent) and related methods on [Transaction API — Sampling](/rhai/transaction-api.md#sampling).
 
 → [Sampling and cadence](/policy-routing/rules-and-actions.md#sampling-and-cadence), [Event export](/observability/event-export.md), [Tracing](/observability/tracing.md)
 
