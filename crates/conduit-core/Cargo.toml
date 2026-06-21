@@ -9,6 +9,7 @@ rust-version.workspace = true
 [dependencies]
 conduit-proto = { path = "../conduit-proto" }
 conduit-config = { path = "../conduit-config" }
+conduit-dns-wire = { path = "../conduit-dns-wire" }
 conduit-events = { path = "../conduit-events" }
 conduit-script = { path = "../conduit-script" }
 conduit-metrics = { path = "../conduit-metrics" }

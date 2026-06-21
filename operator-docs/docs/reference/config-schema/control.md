@@ -4,7 +4,7 @@ The optional **`control:`** block enables the gRPC [control plane](/glossary/ind
 
 The listener is created from the config present at **process start**. Reloading a new `control:` section into the snapshot does not start gRPC until you restart `conduit`.
 
-| Field | Type | Default | Purpose |
+| Field {: .column-no-wrap } | Type | Default | Purpose |
 |-------|------|---------|---------|
 | `listen_address` | string | (required when block present) | gRPC bind address, e.g. `127.0.0.1:5199` |
 | `reflection_enabled` | bool | `false` | Register gRPC server reflection (dev/test) |

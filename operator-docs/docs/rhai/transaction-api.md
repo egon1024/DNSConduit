@@ -24,6 +24,102 @@ Methods are grouped by purpose inside bordered cards.
 
 ---
 
+## Client and listener
+
+Read-only facts about how the query arrived — client socket, transport, and listener bind label. Use for per-client or per-listener policy without high-cardinality [user metrics](/rhai/user-metrics.md) labels.
+
+<p class="txn-api-index" markdown="1">
+
+**Methods:** [`txn.client_addr()`](#txnclient_addr) · [`txn.client_ip()`](#txnclient_ip) · [`txn.client_port()`](#txnclient_port) · [`txn.client_protocol()`](#txnclient_protocol) · [`txn.listener()`](#txnlistener)
+
+</p>
+
+<div class="txn-api-entry" markdown="1">
+
+### `txn.client_addr()` {#txnclient_addr}
+
+<div class="txn-api-brief" markdown="1">
+
+Request + response hook · no args · returns `string`
+
+Full client socket address (`ip:port`).
+
+</div>
+
+<div class="txn-api-reference-panel" markdown="1" hidden>
+
+#### Hooks
+
+[Request hook](/rhai/hooks-and-phases.md#request-hook) and [response hook](/rhai/hooks-and-phases.md#response-hook)
+
+#### Behavior
+
+- Returns the client **`SocketAddr`** as a string (for example **`192.0.2.1:53000`**).
+- Read-only — does not affect routing or metrics.
+- Do **not** use client IP or address strings as [user metric](/rhai/user-metrics.md) label values (high cardinality).
+
+</div>
+
+</div>
+
+<div class="txn-api-entry" markdown="1">
+
+### `txn.client_ip()` {#txnclient_ip}
+
+<div class="txn-api-brief" markdown="1">
+
+Request + response hook · no args · returns `string`
+
+Client IP address only (no port).
+
+</div>
+
+</div>
+
+<div class="txn-api-entry" markdown="1">
+
+### `txn.client_port()` {#txnclient_port}
+
+<div class="txn-api-brief" markdown="1">
+
+Request + response hook · no args · returns `i64`
+
+Client UDP/TCP source port.
+
+</div>
+
+</div>
+
+<div class="txn-api-entry" markdown="1">
+
+### `txn.client_protocol()` {#txnclient_protocol}
+
+<div class="txn-api-brief" markdown="1">
+
+Request + response hook · no args · returns `string`
+
+Transport the client used: **`udp`** or **`tcp`**.
+
+</div>
+
+</div>
+
+<div class="txn-api-entry" markdown="1">
+
+### `txn.listener()` {#txnlistener}
+
+<div class="txn-api-brief" markdown="1">
+
+Request + response hook · no args · returns `string`
+
+Configured listener bind address label (empty when unset).
+
+</div>
+
+</div>
+
+---
+
 ## Egress
 
 At [Forward](/concepts/architecture-and-packet-path.md#forward), Conduit resolves the local bind address per address family:
@@ -523,7 +619,7 @@ Wall-clock time and forward [attempt](/glossary/index.md#retry) count on the cur
 
 <p class="txn-api-index" markdown="1">
 
-**Methods:** [`txn.elapsed_ms()`](#txnelapsed_ms) · [`txn.get_attempt_count()`](#txnget_attempt_count) · [`txn.last_forward_ms()`](#txnlast_forward_ms) · [`txn.metric_inc(name, delta)`](#txnmetric_incname-delta) · [`txn.metric_inc_labels(name, delta, labels)`](#txnmetric_inc_labelsname-delta-labels)
+**Methods:** [`txn.elapsed_ms()`](#txnelapsed_ms) · [`txn.get_attempt_count()`](#txnget_attempt_count) · [`txn.last_forward_ms()`](#txnlast_forward_ms) · [`txn.metric_inc(name, delta)`](#txnmetric_incname-delta) · [`txn.metric_inc_labels(name, delta, labels)`](#txnmetric_inc_labelsname-delta-labels) · [`txn.now_unix()`](#txnnow_unix) · [`txn.utc_hour()`](#txnutc_hour) · [`txn.utc_weekday()`](#txnutc_weekday)
 
 </p>
 
@@ -824,6 +920,138 @@ if cat == "eu" {
 </div>
 
 </div>
+
+<div class="txn-api-entry" markdown="1">
+
+### `txn.now_unix()` {#txnnow_unix}
+
+<div class="txn-api-brief" markdown="1">
+
+Request + response hook · no args · returns `i64`
+
+UTC Unix timestamp (seconds) when the transaction started.
+
+</div>
+
+<div class="txn-api-reference-panel" markdown="1" hidden>
+
+#### Behavior
+
+- Wall-clock **UTC** seconds since epoch, captured when Conduit accepted the client query.
+- Stable for the lifetime of the transaction (does not advance on retries).
+- Use with **`txn.utc_hour()`** / **`txn.utc_weekday()`** for maintenance-window style policy.
+
+</div>
+
+</div>
+
+<div class="txn-api-entry" markdown="1">
+
+### `txn.utc_hour()` {#txnutc_hour}
+
+<div class="txn-api-brief" markdown="1">
+
+Request + response hook · no args · returns `i64` (0–23 UTC)
+
+Hour-of-day in UTC when the transaction started.
+
+</div>
+
+</div>
+
+<div class="txn-api-entry" markdown="1">
+
+### `txn.utc_weekday()` {#txnutc_weekday}
+
+<div class="txn-api-brief" markdown="1">
+
+Request + response hook · no args · returns `i64` (1–7 UTC)
+
+ISO weekday in UTC when the transaction started (**1** = Monday, **7** = Sunday).
+
+</div>
+
+</div>
+
+---
+
+## Introspection
+
+Read-only identifiers for correlating script behavior with [tracing](/observability/tracing.md), logs, and config reloads.
+
+<p class="txn-api-index" markdown="1">
+
+**Methods:** [`txn.txn_id()`](#txntxn_id) · [`txn.config_generation()`](#txnconfig_generation) · [`txn.rule_name()`](#txnrule_name)
+
+</p>
+
+<div class="txn-api-entry" markdown="1">
+
+### `txn.txn_id()` {#txntxn_id}
+
+<div class="txn-api-brief" markdown="1">
+
+Request + response hook · no args · returns `i64`
+
+Internal transaction id (same value as **`txn_id`** in debug logs and **`conduitctl trace`**).
+
+</div>
+
+<div class="txn-api-reference-panel" markdown="1" hidden>
+
+#### Behavior
+
+- Per-worker sequence — not globally unique across the cluster.
+- Read-only. Do **not** use as a [user metric](/rhai/user-metrics.md) label (disallowed key **`txn_id`**).
+- Pair with **`log_info`** / **`log_warn`** when debugging policy on a single query — see [Script logging](#script-logging).
+
+</div>
+
+</div>
+
+<div class="txn-api-entry" markdown="1">
+
+### `txn.config_generation()` {#txnconfig_generation}
+
+<div class="txn-api-brief" markdown="1">
+
+Request + response hook · no args · returns `i64`
+
+Config [snapshot generation](/control-plane/configuration-model.md) active when this transaction started.
+
+</div>
+
+<div class="txn-api-reference-panel" markdown="1" hidden>
+
+#### Behavior
+
+- Matches [`conduit_config_generation`](/observability/built-in-metrics.md#conduit_config_generation) for the snapshot this query runs under.
+- Useful for canary rules after reload — branch policy when generation crosses a threshold.
+
+</div>
+
+</div>
+
+---
+
+## Script logging
+
+Host-mediated **`log_info(message)`** and **`log_warn(message)`** write to Conduit’s tracing log with **`script`**, **`rule`**, and **`txn_id`** fields. Not file I/O — messages go through the same logging pipeline as other Conduit **`tracing`** events.
+
+| Function | Level | Rate limit |
+|----------|-------|------------|
+| **`log_info(msg)`** | info | First call per script/rule per snapshot, then every **100** calls |
+| **`log_warn(msg)`** | warn | Same |
+
+Messages longer than **512** characters are truncated. Use for debug/canary branches — not per-query logging at high QPS.
+
+#### Example
+
+```rhai
+if txn.has_tag("debug") {
+    log_info(`policy matched txn=${txn.txn_id()} pool=${txn.selected_pool()}`);
+}
+```
 
 ---
 
@@ -1288,7 +1516,7 @@ On the **request hook**, only the question is meaningful — upstream has not an
 
 <p class="txn-api-index" markdown="1">
 
-**Functions:** [`question_qname(txn)`](#question_qnametxn) · **Methods:** [`txn.question()`](#txnquestion) · [`txn.response()`](#txnresponse) · [`txn.response_rcode()`](#txnresponse_rcode) · **Types:** [`RecordType`](#recordtype) · [`Rcode`](#rcode) · [`QueryClass`](#queryclass) · [`DnsOpcode`](#dnsopcode) · [`EdnsOptionCode`](#ednsoptioncode)
+**Functions:** [`question_qname(txn)`](#question_qnametxn) · **Methods:** [`txn.question()`](#txnquestion) · [`txn.response()`](#txnresponse) · [`txn.response_rcode()`](#txnresponse_rcode) · [`txn.selected_pool()`](#txnselected_pool) · [`txn.selected_backend()`](#txnselected_backend) · [`txn.response_truncated()`](#txnresponse_truncated) · [`txn.response_answer_count()`](#txnresponse_answer_count) · **Types:** [`RecordType`](#recordtype) · [`Rcode`](#rcode) · [`QueryClass`](#queryclass) · [`DnsOpcode`](#dnsopcode) · [`EdnsOptionCode`](#ednsoptioncode)
 
 </p>
 
@@ -1626,7 +1854,7 @@ if q.qtype == RecordType::HTTPS || q.qtype == RecordType::TYPE65 {
 
 Response hook only · no args · returns map; script error on request hook
 
-Returns upstream outcome metadata for the current forward attempt (`rcode`, question fields).
+Returns upstream outcome metadata for the current forward attempt (`rcode`, routing path, optional wire-derived counts, question fields).
 
 </div>
 
@@ -1647,7 +1875,7 @@ There is no YAML equivalent.
 
 <p class="txn-api-summary" markdown="1">
 
-**Summary:** Map view of upstream outcome metadata after the latest forward — primarily **`rcode`**, plus the question fields for context. Not available on the request hook.
+**Summary:** Map view of upstream outcome metadata after the latest forward — **`rcode`**, **`pool`** / **`backend`** for this attempt, optional wire-derived counts when scripts need them, plus question fields for context. Not available on the request hook.
 
 </p>
 
@@ -1657,7 +1885,11 @@ There is no YAML equivalent.
 - Reflects the outcome Conduit recorded for the **current** forward attempt — after timeout, connection failure, or an upstream DNS response. Conduit often sets **`SERVFAIL`** for timeout and pool exhaustion before your script runs; see [Retries and transactions](/policy-routing/retries-and-transactions.md).
 - Map keys (each present only when available):
   - **`rcode`** — [`Rcode`](#rcode) for this forward attempt
+  - **`pool`**, **`backend`** — selected pool name and upstream backend socket for **this** forward attempt (also available via [`txn.selected_pool()`](#txnselected_pool) / [`txn.selected_backend()`](#txnselected_backend))
+  - **`answer_count`**, **`authority_count`**, **`additional_count`**, **`truncated`**, **`authoritative`** — present only when a response-hook script references wire-derived fields at compile time (see below)
   - **`qname`**, **`qtype`**, **`qclass`**, **`opcode`**, **`edns_options`** — same as **`txn.question()`**
+- **Compile-time gating:** Conduit scans response-hook Rhai sources at snapshot compile. If **no** script references wire-derived fields (`truncated`, `answer_count`, etc.), the forward stage skips parsing upstream response sections — **`rcode`** is still extracted. When any script needs wire metadata, parsing is enabled for **all** queries on that snapshot.
+- Dedicated accessors — [`txn.response_truncated()`](#txnresponse_truncated), [`txn.response_answer_count()`](#txnresponse_answer_count), etc. — return defaults when wire metadata was not parsed (**`-1`** for counts, **`false`** for booleans).
 - Does **not** expose answer RRs, TTLs, or wire bytes — only transaction-level metadata scripts use for policy. For packet editing, see [Rhai for processor chains](/rhai/processor-chain-rhai.md).
 - On a retried query, the map reflects **this attempt only** — compare with **`txn.get_attempt_count()`** when policy depends on retry generation.
 - For simple **`rcode`** branching, **`txn.response_rcode()`** is usually clearer and is safe to call on both hooks (returns **`()`** on the request hook when no rcode is available).
@@ -1673,6 +1905,62 @@ if resp.rcode == Rcode::SERVFAIL && txn.get_attempt_count() == 1 {
     txn.request_retry();
 }
 ```
+
+</div>
+
+</div>
+
+<div class="txn-api-entry" markdown="1">
+
+### `txn.selected_pool()` {#txnselected_pool}
+
+<div class="txn-api-brief" markdown="1">
+
+Request + response hook · no args · returns `string`
+
+Pool name selected for the current forward attempt (empty when unset).
+
+</div>
+
+</div>
+
+<div class="txn-api-entry" markdown="1">
+
+### `txn.selected_backend()` {#txnselected_backend}
+
+<div class="txn-api-brief" markdown="1">
+
+Request + response hook · no args · returns `string`
+
+Upstream backend socket for the current forward attempt (empty when unset).
+
+</div>
+
+</div>
+
+<div class="txn-api-entry" markdown="1">
+
+### `txn.response_truncated()` {#txnresponse_truncated}
+
+<div class="txn-api-brief" markdown="1">
+
+Response hook · no args · returns `bool`
+
+Whether upstream response had **TC=1** (requires compile-time wire-meta gating).
+
+</div>
+
+</div>
+
+<div class="txn-api-entry" markdown="1">
+
+### `txn.response_answer_count()` {#txnresponse_answer_count}
+
+<div class="txn-api-brief" markdown="1">
+
+Response hook · no args · returns `i64`
+
+Answer section count from upstream wire, or **`-1`** when wire metadata was not parsed.
 
 </div>
 

@@ -1,3 +1,4 @@
+use crate::capability_scan::script_needs_response_wire_meta;
 use crate::data_sources::{load_data_sources, DataSourceStore};
 use crate::error::ScriptError;
 use crate::host::ScriptPhase;
@@ -78,6 +79,8 @@ pub struct CompiledScripting {
     pub limits: ScriptLimits,
     pub metrics: MetricRegistry,
     pub rules_scripts: Vec<ScriptRef>,
+    /// When true, forward stage parses upstream response wire for section/header metadata.
+    pub needs_response_wire_meta: bool,
 }
 
 impl CompiledScripting {
@@ -110,6 +113,7 @@ pub fn compile_from_config(
         limits,
         metrics: MetricRegistry::default(),
         rules_scripts: Vec::new(),
+        needs_response_wire_meta: false,
     };
 
     let Some(rules) = config.rules.as_ref() else {
@@ -161,6 +165,9 @@ fn compile_rule_scripts(
                 message: format!("failed to read script: {e}"),
             })?;
             validate_table_lookup_literals(&source, &path_key, &scripting.data_sources)?;
+            if hook == ScriptPhase::Response && script_needs_response_wire_meta(&source) {
+                scripting.needs_response_wire_meta = true;
+            }
             for (name, labels) in scan_metrics_from_source(&source)? {
                 scripting.metrics.register(&name, labels)?;
             }
@@ -377,5 +384,72 @@ rules:
         let cfg = load_yaml(yaml).unwrap();
         let err = compile_from_config(&cfg, Some(&base)).unwrap_err();
         assert!(err.to_string().contains("unknown user metric"));
+    }
+
+    #[test]
+    fn enables_response_wire_meta_when_script_references_truncated() {
+        let dir = std::env::temp_dir().join(format!(
+            "conduit-script-wire-meta-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::create_dir_all(&dir);
+        let script_path = dir.join("check-tc.rhai");
+        std::fs::write(
+            &script_path,
+            r#"if txn.response()?.truncated { txn.request_retry(); }"#,
+        )
+        .unwrap();
+        let yaml = format!(
+            r#"
+schema_version: 1
+listeners:
+  threads: 1
+  reuse_port: false
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+forward:
+  outstanding_per_backend: 100
+  timeout_ms: 2000
+orchestrator:
+  max_attempts: 3
+  max_txn_duration_ms: 5000
+  txn_table_capacity: 1024
+events:
+  queue_depth: 4096
+  drop_policy: drop_oldest
+pools:
+  - name: default
+    backends:
+      - address: "127.0.0.1:5300"
+control:
+  listen_address: "127.0.0.1:5199"
+rules:
+  match_mode: first_match
+  rules:
+    - name: tc-retry
+      hook: response
+      selectors:
+        - type: qname
+          value: "."
+      actions:
+        - type: rhai
+          value: "{}"
+"#,
+            script_path.display()
+        );
+        let cfg = load_yaml(&yaml).unwrap();
+        let compiled = compile_from_config(&cfg, Some(&dir)).unwrap();
+        assert!(compiled.needs_response_wire_meta);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn response_wire_meta_disabled_for_rcode_only_script() {
+        let base = fixtures_config_dir();
+        let yaml = include_str!("../../../tests/fixtures/config/with-rhai-servfail-retry.yaml");
+        let cfg = load_yaml(yaml).unwrap();
+        let compiled = compile_from_config(&cfg, Some(&base)).unwrap();
+        assert!(!compiled.needs_response_wire_meta);
     }
 }

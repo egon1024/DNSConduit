@@ -57,7 +57,7 @@ pub enum CompiledAction {
     ClearRetryPool,
     /// Remove a tag key from the transaction (bool and string).
     ClearTag(String),
-    SetRcode(String),
+    SetRcode(u16),
     SetSourceV4(std::net::Ipv4Addr),
     SetSourceV6(std::net::Ipv6Addr),
     /// One-shot IPv4 egress for next retry forward if retry occurs; first forward ignores.
@@ -172,7 +172,8 @@ impl CompiledRule {
         Self {
             name: rule.name.clone(),
             hook,
-            selectors: compile_rule_selectors(&rule.name, &rule.selectors),
+            selectors: compile_rule_selectors(&rule.name, &rule.selectors)
+                .unwrap_or_else(|e| panic!("rule '{}': {e}", rule.name)),
             actions,
         }
     }
@@ -185,8 +186,11 @@ impl CompiledRule {
             txn_id: txn.id,
             global_query_index: txn.global_query_index,
             qname: txn.qname.as_deref(),
-            qtype_label: txn.qtype_label(),
-            rcode_label: txn.rcode_label(),
+            qtype: txn.qtype,
+            rcode: txn.rcode(),
+            qclass: txn.qclass,
+            opcode: txn.opcode,
+            edns_option_codes: &txn.edns_option_codes,
             tag_has: &|k| txn.tags.has(k),
         };
         self.selectors.iter().all(|s| s.matches_ctx(&ctx))
@@ -272,7 +276,7 @@ impl CompiledRule {
             CompiledAction::ClearRetry => *retry = false,
             CompiledAction::ClearRetryPool => txn.clear_retry_pool(),
             CompiledAction::ClearTag(key) => txn.tags.clear(key),
-            CompiledAction::SetRcode(rc) => txn.set_rcode_name(rc),
+            CompiledAction::SetRcode(rc) => txn.set_rcode(*rc),
             CompiledAction::SetSourceV4(addr) => txn.set_source_override_v4(*addr),
             CompiledAction::SetSourceV6(addr) => txn.set_source_override_v6(*addr),
             CompiledAction::SetRetrySourceV4(addr) => txn.set_retry_source_override_v4(*addr),
@@ -316,7 +320,11 @@ impl CompiledAction {
             "clear_retry" => CompiledAction::ClearRetry,
             "clear_retry_pool" => CompiledAction::ClearRetryPool,
             "clear_tag" => CompiledAction::ClearTag(act.value.clone()),
-            "set_rcode" => CompiledAction::SetRcode(act.value.clone()),
+            "set_rcode" => CompiledAction::SetRcode(
+                conduit_dns_wire::Rcode::parse_name_or_err(&act.value)
+                    .map(conduit_dns_wire::Rcode::number)
+                    .expect("set_rcode must be validated before compile"),
+            ),
             "set_tag" => {
                 let (key, value) = act
                     .value

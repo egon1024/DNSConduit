@@ -31,7 +31,7 @@ pub use selectors::{
     matches_every_nth_global, matches_every_nth_worker, parse_every_nth,
     parse_sample_percent as parse_selector_sample_percent, resolve_sample_key,
     validate_non_rule_selector_type, validate_sample_key_from, validate_selector_sample_key_fields,
-    validate_selector_type, validate_top_level_sample_key_fields, CompiledSelector, PercentKey,
+    validate_selector_type, validate_top_level_sample_key_fields, validate_wire_selector_value, CompiledSelector, PercentKey,
     SampleKey, SelectorCompileCtx, SelectorMatchCtx, NON_RULE_SELECTOR_TYPES,
     SAMPLE_KEY_FROM_QNAME, SAMPLE_KEY_FROM_RULE_NAME, SAMPLE_KEY_FROM_SINK_NAME, SELECTOR_TYPES,
 };

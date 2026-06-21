@@ -184,6 +184,12 @@ pub fn validate(cfg: &Config) -> ValidationResult {
                     {
                         errors.push(format!("events.sinks[{i}].filters.selectors[{j}]: {e}"));
                     }
+                    if let Err(e) = conduit_events::validate_wire_selector_value(
+                        sel.r#type.as_str(),
+                        sel.value.as_str(),
+                    ) {
+                        errors.push(format!("events.sinks[{i}].filters.selectors[{j}]: {e}"));
+                    }
                     if sel.r#type == "sample_percent"
                         && conduit_events::parse_selector_sample_percent(&sel.value).is_err()
                     {
@@ -245,21 +251,14 @@ pub fn validate(cfg: &Config) -> ValidationResult {
                 ));
             }
             for sel in &rule.selectors {
-                if !matches!(
+                if let Err(e) = conduit_events::validate_selector_type(sel.r#type.as_str()) {
+                    errors.push(format!("rule '{}': {e}", rule.name));
+                }
+                if let Err(e) = conduit_events::validate_wire_selector_value(
                     sel.r#type.as_str(),
-                    "qname_suffix"
-                        | "qname_exact"
-                        | "qtype"
-                        | "rcode"
-                        | "tag"
-                        | "sample_percent"
-                        | "every_nth_worker"
-                        | "every_nth_global"
+                    sel.value.as_str(),
                 ) {
-                    errors.push(format!(
-                        "rule '{}' has unknown selector type '{}'",
-                        rule.name, sel.r#type
-                    ));
+                    errors.push(format!("rule '{}': {e}", rule.name));
                 }
                 if sel.r#type == "sample_percent"
                     && conduit_events::parse_selector_sample_percent(&sel.value).is_err()
@@ -315,6 +314,14 @@ pub fn validate(cfg: &Config) -> ValidationResult {
                     errors.push(format!(
                         "rule '{}' rhai action requires script path in value",
                         rule.name
+                    ));
+                }
+                if act.r#type == "set_rcode"
+                    && conduit_events::validate_wire_selector_value("rcode", &act.value).is_err()
+                {
+                    errors.push(format!(
+                        "rule '{}' set_rcode value '{}' is not a known Rcode name or RCODEN alias",
+                        rule.name, act.value
                     ));
                 }
                 if matches!(

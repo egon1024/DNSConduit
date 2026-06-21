@@ -10,6 +10,12 @@ pub struct TxnView<'a> {
     pub client_addr: SocketAddr,
     pub protocol_udp: bool,
     pub qname: Option<&'a str>,
+    pub qtype: Option<u16>,
+    pub rcode: Option<u16>,
+    pub qclass: Option<u16>,
+    pub opcode: Option<u8>,
+    pub edns_option_codes: &'a [u16],
+    /// Human-readable qtype for dnstap extra export (not used for selector matching).
     pub qtype_label: Option<String>,
     pub query_wire: &'a [u8],
     pub response_wire: Option<&'a [u8]>,

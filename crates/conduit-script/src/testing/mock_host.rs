@@ -1,13 +1,14 @@
 //! Minimal transaction host for unit tests and local benchmarks.
 
-use crate::host::{HostTransaction, ScriptPhase};
+use crate::host::{ClientProtocol, HostTransaction, ResponseWireMeta, ScriptPhase};
 use std::collections::HashMap;
-use std::net::{Ipv4Addr, Ipv6Addr};
-use std::time::Instant;
+use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 pub struct MockHost {
     pub id: u64,
     pub global_query_index: u64,
+    pub snapshot_generation: u64,
     pub qname: String,
     pub qtype: u16,
     pub qclass: u16,
@@ -15,6 +16,13 @@ pub struct MockHost {
     pub edns_option_codes: Vec<u16>,
     pub dns_id: u16,
     pub rcode: Option<u16>,
+    pub client_addr: SocketAddr,
+    pub client_protocol: ClientProtocol,
+    pub listener_label: Option<String>,
+    pub received_at: SystemTime,
+    pub selected_pool: Option<String>,
+    pub selected_backend: Option<SocketAddr>,
+    pub response_meta: Option<ResponseWireMeta>,
     pub pool: Option<String>,
     pub retry: Option<String>,
     pub dropped: bool,
@@ -36,6 +44,7 @@ impl Default for MockHost {
         Self {
             id: 1,
             global_query_index: 0,
+            snapshot_generation: 0,
             qname: "test.example.".into(),
             qtype: 1,
             qclass: 1,
@@ -43,6 +52,13 @@ impl Default for MockHost {
             edns_option_codes: Vec::new(),
             dns_id: 1,
             rcode: None,
+            client_addr: "127.0.0.1:12345".parse().expect("addr"),
+            client_protocol: ClientProtocol::Udp,
+            listener_label: Some("127.0.0.1:53".into()),
+            received_at: UNIX_EPOCH,
+            selected_pool: None,
+            selected_backend: None,
+            response_meta: None,
             pool: None,
             retry: None,
             dropped: false,
@@ -68,6 +84,10 @@ impl HostTransaction for MockHost {
 
     fn global_query_index(&self) -> u64 {
         self.global_query_index
+    }
+
+    fn snapshot_generation(&self) -> u64 {
+        self.snapshot_generation
     }
 
     fn phase(&self) -> ScriptPhase {
@@ -98,8 +118,38 @@ impl HostTransaction for MockHost {
         self.dns_id
     }
 
+    fn client_addr(&self) -> SocketAddr {
+        self.client_addr
+    }
+
+    fn client_protocol(&self) -> ClientProtocol {
+        self.client_protocol
+    }
+
+    fn listener_label(&self) -> Option<&str> {
+        self.listener_label.as_deref()
+    }
+
+    fn received_at(&self) -> SystemTime {
+        self.received_at
+    }
+
+    fn selected_pool(&self) -> Option<&str> {
+        self.selected_pool
+            .as_deref()
+            .or(self.pool.as_deref())
+    }
+
+    fn selected_backend(&self) -> Option<SocketAddr> {
+        self.selected_backend
+    }
+
     fn response_rcode_number(&self) -> Option<u16> {
         self.rcode
+    }
+
+    fn response_meta(&self) -> Option<ResponseWireMeta> {
+        self.response_meta
     }
 
     fn has_tag(&self, key: &str) -> bool {
@@ -121,6 +171,7 @@ impl HostTransaction for MockHost {
 
     fn set_pool(&mut self, name: &str) {
         self.pool = Some(name.to_string());
+        self.selected_pool = Some(name.to_string());
     }
 
     fn set_retry_pool(&mut self, name: &str) {

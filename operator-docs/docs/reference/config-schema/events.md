@@ -40,7 +40,7 @@ Unknown names fail validation.
 
 ### Sink filters object
 
-| Field | Type | Default | Description |
+| Field {: .column-no-wrap } | Type | Default | Description |
 |-------|------|---------|-------------|
 | `tag_required` | string | — | Transaction must have this tag key |
 | `selectors` | list | `[]` | [Selector](/glossary/index.md#selector) objects (`type`, `value`, optional `key` / `key_from` on `sample_percent`); same types as [rules](/reference/config-schema/rules.md). All must match |

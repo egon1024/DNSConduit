@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
     "crates/conduit-proto",
+    "crates/conduit-dns-wire",
     "crates/conduit-config",
     "crates/conduit-core",
     "crates/conduit-events",

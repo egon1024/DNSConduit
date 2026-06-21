@@ -4,7 +4,7 @@ Field-level reference for the **`ConduitControl`** gRPC service and how **`condu
 
 ## Service: `ConduitControl`
 
-| RPC | Request | Response | Notes |
+| RPC {: .column-no-wrap } | Request | Response | Notes |
 |-----|---------|----------|-------|
 | `GetConfig` | `GetConfigRequest` (empty) | `effective` [`Config`](/reference/config-schema/index.md) | Current [effective config](/glossary/index.md#effective-config) |
 | `ValidateConfig` | `config` [`Config`](/reference/config-schema/index.md) | `ok`, `errors[]` | Structural validation only; does not read external paths |
@@ -20,7 +20,7 @@ Mutating RPCs (`ApplyConfig`, `ReloadFromFile`) leave the prior [runtime snapsho
 
 Used by **`ApplyConfig`**. **`OVERLAY_APPLY_MODE_UNSPECIFIED` (0)** is treated as **merge**.
 
-| Enum | Value | `conduitctl` equivalent | `overlay` field |
+| Enum {: .column-no-wrap } | Value | `conduitctl` equivalent | `overlay` field |
 |------|-------|-------------------------|-----------------|
 | `OVERLAY_APPLY_MODE_UNSPECIFIED` | 0 | default **merge** | Patch required |
 | `OVERLAY_APPLY_MODE_MERGE` | 1 | default or `--merge` | Patch required |

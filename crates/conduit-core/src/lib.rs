@@ -13,6 +13,7 @@ pub mod script_host;
 pub mod snapshot;
 pub mod stages;
 pub mod transaction;
+pub mod upstream_response;
 
 pub use clock::{Clock, SystemClock};
 pub use conduit_config::forward::{
@@ -30,3 +31,4 @@ pub use routing::{select_backend, AttemptRecord};
 pub use rules::CompiledRules;
 pub use snapshot::{RuntimeSnapshot, SnapshotStore};
 pub use transaction::{ClientProtocol, TagSet, Transaction};
+pub use upstream_response::record_upstream_response;

@@ -1,4 +1,21 @@
-use std::time::Instant;
+use std::net::SocketAddr;
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct ResponseWireMeta {
+    pub answer_count: u16,
+    pub authority_count: u16,
+    pub additional_count: u16,
+    pub truncated: bool,
+    pub authoritative: bool,
+}
+
+/// Client transport for the query (mirrors `conduit-core::ClientProtocol`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ClientProtocol {
+    Udp,
+    Tcp,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ScriptPhase {
@@ -11,6 +28,10 @@ pub trait HostTransaction {
     fn txn_id(&self) -> u64;
     /// Process-wide query index (YAML `every_nth_global`); default `0` when unset.
     fn global_query_index(&self) -> u64 {
+        0
+    }
+    /// Config snapshot generation active when this transaction started.
+    fn snapshot_generation(&self) -> u64 {
         0
     }
     fn phase(&self) -> ScriptPhase;
@@ -26,7 +47,27 @@ pub trait HostTransaction {
         &[]
     }
     fn question_id(&self) -> u16;
+    fn client_addr(&self) -> SocketAddr;
+    fn client_protocol(&self) -> ClientProtocol;
+    fn listener_label(&self) -> Option<&str> {
+        None
+    }
+    fn client_udp_payload_size(&self) -> Option<u16> {
+        None
+    }
+    fn received_at(&self) -> SystemTime {
+        SystemTime::UNIX_EPOCH
+    }
+    fn selected_pool(&self) -> Option<&str> {
+        None
+    }
+    fn selected_backend(&self) -> Option<SocketAddr> {
+        None
+    }
     fn response_rcode_number(&self) -> Option<u16> {
+        None
+    }
+    fn response_meta(&self) -> Option<ResponseWireMeta> {
         None
     }
     fn has_tag(&self, key: &str) -> bool;
@@ -61,5 +102,34 @@ pub trait HostTransaction {
     /// String tags on the host transaction at hook entry (for `has_tag` in scripts).
     fn script_tag_strings(&self) -> std::collections::HashMap<String, String> {
         std::collections::HashMap::new()
+    }
+}
+
+/// Seconds since Unix epoch (UTC) for wall-clock helpers.
+pub fn unix_secs(time: SystemTime) -> u64 {
+    time.duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
+/// UTC hour (0–23) and ISO weekday (Monday = 1 … Sunday = 7) from Unix seconds.
+pub fn utc_hour_and_weekday(unix_secs: u64) -> (u8, u8) {
+    const SECS_PER_DAY: u64 = 86_400;
+    let days = unix_secs / SECS_PER_DAY;
+    let hour = ((unix_secs % SECS_PER_DAY) / 3600) as u8;
+    // 1970-01-01 was a Thursday (ISO weekday 4).
+    let weekday = ((days + 3) % 7 + 1) as u8;
+    (hour, weekday)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn utc_hour_weekday_epoch_thursday() {
+        let (hour, wd) = utc_hour_and_weekday(0);
+        assert_eq!(hour, 0);
+        assert_eq!(wd, 4);
     }
 }

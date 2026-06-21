@@ -1,5 +1,6 @@
 //! Rule-style selectors shared by built-in rules and observation sink filters.
 
+use conduit_dns_wire::parse_selector_wire_value;
 use conduit_proto::config::Selector;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
@@ -8,8 +9,11 @@ use std::hash::{Hash, Hasher};
 pub enum CompiledSelector {
     QnameSuffix(String),
     QnameExact(String),
-    Qtype(String),
-    Rcode(String),
+    Qtype(u16),
+    Rcode(u16),
+    Qclass(u16),
+    Opcode(u8),
+    EdnsOption(u16),
     Tag(String),
     SamplePercent { percent: PercentKey, key: SampleKey },
     EveryNthWorker(u64),
@@ -38,8 +42,11 @@ pub struct SelectorMatchCtx<'a> {
     pub txn_id: u64,
     pub global_query_index: u64,
     pub qname: Option<&'a str>,
-    pub qtype_label: Option<String>,
-    pub rcode_label: Option<String>,
+    pub qtype: Option<u16>,
+    pub rcode: Option<u16>,
+    pub qclass: Option<u16>,
+    pub opcode: Option<u8>,
+    pub edns_option_codes: &'a [u16],
     pub tag_has: &'a dyn Fn(&str) -> bool,
 }
 
@@ -49,6 +56,9 @@ pub const SELECTOR_TYPES: &[&str] = &[
     "qname_exact",
     "qtype",
     "rcode",
+    "qclass",
+    "opcode",
+    "edns_option",
     "tag",
     "sample_percent",
     "every_nth_worker",
@@ -59,6 +69,9 @@ pub const NON_RULE_SELECTOR_TYPES: &[&str] = &[
     "qname_exact",
     "qtype",
     "rcode",
+    "qclass",
+    "opcode",
+    "edns_option",
     "tag",
     "sample_percent",
 ];
@@ -89,13 +102,25 @@ pub fn validate_non_rule_selector_type(ty: &str) -> Result<(), String> {
     }
 }
 
+pub fn validate_wire_selector_value(selector_type: &str, value: &str) -> Result<(), String> {
+    match selector_type {
+        "qtype" | "rcode" | "qclass" | "opcode" | "edns_option" => {
+            parse_selector_wire_value(selector_type, value).map(|_| ())
+        }
+        _ => Ok(()),
+    }
+}
+
 /// Compile selectors for observation sinks and tracing (no `rule_name` binding).
-pub fn compile_selectors(selectors: &[Selector]) -> Vec<CompiledSelector> {
+pub fn compile_selectors(selectors: &[Selector]) -> Result<Vec<CompiledSelector>, String> {
     compile_selectors_with_ctx(selectors, &SelectorCompileCtx::default())
 }
 
 /// Compile selectors for a built-in rule (`key_from: rule_name` resolves here).
-pub fn compile_rule_selectors(rule_name: &str, selectors: &[Selector]) -> Vec<CompiledSelector> {
+pub fn compile_rule_selectors(
+    rule_name: &str,
+    selectors: &[Selector],
+) -> Result<Vec<CompiledSelector>, String> {
     compile_selectors_with_ctx(
         selectors,
         &SelectorCompileCtx {
@@ -106,7 +131,10 @@ pub fn compile_rule_selectors(rule_name: &str, selectors: &[Selector]) -> Vec<Co
 }
 
 /// Compile selectors for an event sink filter list (`key_from: sink_name` resolves here).
-pub fn compile_sink_selectors(sink_name: &str, selectors: &[Selector]) -> Vec<CompiledSelector> {
+pub fn compile_sink_selectors(
+    sink_name: &str,
+    selectors: &[Selector],
+) -> Result<Vec<CompiledSelector>, String> {
     compile_selectors_with_ctx(
         selectors,
         &SelectorCompileCtx {
@@ -119,7 +147,7 @@ pub fn compile_sink_selectors(sink_name: &str, selectors: &[Selector]) -> Vec<Co
 pub fn compile_selectors_with_ctx(
     selectors: &[Selector],
     ctx: &SelectorCompileCtx,
-) -> Vec<CompiledSelector> {
+) -> Result<Vec<CompiledSelector>, String> {
     selectors
         .iter()
         .map(|s| CompiledSelector::compile(s, ctx))
@@ -238,33 +266,40 @@ pub fn validate_top_level_sample_key_fields(
 }
 
 impl CompiledSelector {
-    pub fn compile(sel: &Selector, ctx: &SelectorCompileCtx) -> Self {
+    pub fn compile(sel: &Selector, ctx: &SelectorCompileCtx) -> Result<Self, String> {
         match sel.r#type.as_str() {
-            "qname_exact" => CompiledSelector::QnameExact(sel.value.clone()),
-            "qtype" => CompiledSelector::Qtype(sel.value.clone()),
-            "rcode" => CompiledSelector::Rcode(sel.value.clone()),
-            "tag" => CompiledSelector::Tag(sel.value.clone()),
+            "qname_exact" => Ok(CompiledSelector::QnameExact(sel.value.clone())),
+            "qtype" => parse_selector_wire_value("qtype", &sel.value).map(CompiledSelector::Qtype),
+            "rcode" => parse_selector_wire_value("rcode", &sel.value).map(CompiledSelector::Rcode),
+            "qclass" => {
+                parse_selector_wire_value("qclass", &sel.value).map(CompiledSelector::Qclass)
+            }
+            "opcode" => parse_selector_wire_value("opcode", &sel.value)
+                .map(|n| CompiledSelector::Opcode(n as u8)),
+            "edns_option" => {
+                parse_selector_wire_value("edns_option", &sel.value).map(CompiledSelector::EdnsOption)
+            }
+            "tag" => Ok(CompiledSelector::Tag(sel.value.clone())),
             "sample_percent" => {
-                let percent = parse_percent_key(sel.value.as_str()).unwrap_or(PercentKey(0));
+                let percent = parse_percent_key(sel.value.as_str())?;
                 let key = compile_sample_key_fields(
                     sel.key.as_deref(),
                     sel.key_from.as_deref(),
                     ctx,
                     ctx.rule_name.is_some(),
                     ctx.sink_name.is_some(),
-                )
-                .unwrap_or(SampleKey::Global);
-                CompiledSelector::SamplePercent { percent, key }
+                )?;
+                Ok(CompiledSelector::SamplePercent { percent, key })
             }
             "every_nth_worker" => {
-                let nth = parse_every_nth(sel.value.as_str()).unwrap_or(1);
-                CompiledSelector::EveryNthWorker(nth)
+                let nth = parse_every_nth(sel.value.as_str())?;
+                Ok(CompiledSelector::EveryNthWorker(nth))
             }
             "every_nth_global" => {
-                let nth = parse_every_nth(sel.value.as_str()).unwrap_or(1);
-                CompiledSelector::EveryNthGlobal(nth)
+                let nth = parse_every_nth(sel.value.as_str())?;
+                Ok(CompiledSelector::EveryNthGlobal(nth))
             }
-            _ => CompiledSelector::QnameSuffix(sel.value.clone()),
+            _ => Ok(CompiledSelector::QnameSuffix(sel.value.clone())),
         }
     }
 
@@ -274,8 +309,14 @@ impl CompiledSelector {
                 ctx.qname.is_some_and(|q| q.ends_with(suffix.as_str()))
             }
             CompiledSelector::QnameExact(name) => ctx.qname == Some(name.as_str()),
-            CompiledSelector::Qtype(t) => ctx.qtype_label.as_deref() == Some(t.as_str()),
-            CompiledSelector::Rcode(r) => ctx.rcode_label.as_deref() == Some(r.as_str()),
+            CompiledSelector::Qtype(wire) => ctx.qtype == Some(*wire),
+            CompiledSelector::Rcode(wire) => ctx.rcode == Some(*wire),
+            CompiledSelector::Qclass(wire) => ctx.qclass == Some(*wire),
+            CompiledSelector::Opcode(wire) => ctx.opcode == Some(*wire),
+            CompiledSelector::EdnsOption(wire) => ctx
+                .edns_option_codes
+                .iter()
+                .any(|code| *code == *wire),
             CompiledSelector::Tag(key) => (ctx.tag_has)(key),
             CompiledSelector::SamplePercent { percent, key } => {
                 if matches!(key, SampleKey::FromQname) && ctx.qname.is_none() {
@@ -380,6 +421,27 @@ mod tests {
     use super::*;
     use conduit_proto::config::Selector;
 
+    fn test_ctx<'a>(
+        txn_id: u64,
+        global_query_index: u64,
+        qname: Option<&'a str>,
+        qtype: Option<u16>,
+        rcode: Option<u16>,
+        tag_has: &'a dyn Fn(&str) -> bool,
+    ) -> SelectorMatchCtx<'a> {
+        SelectorMatchCtx {
+            txn_id,
+            global_query_index,
+            qname,
+            qtype,
+            rcode,
+            qclass: None,
+            opcode: None,
+            edns_option_codes: &[],
+            tag_has,
+        }
+    }
+
     #[test]
     fn hash_sample_stable_per_txn() {
         assert!(hash_sample(42, 1.0));
@@ -414,15 +476,36 @@ mod tests {
     #[test]
     fn qname_suffix_matches() {
         let sel = CompiledSelector::QnameSuffix(".example".into());
-        let ctx = SelectorMatchCtx {
-            txn_id: 1,
-            global_query_index: 1,
-            qname: Some("www.example"),
-            qtype_label: None,
-            rcode_label: None,
-            tag_has: &|_| false,
-        };
+        let ctx = test_ctx(1, 1, Some("www.example"), None, None, &|_| false);
         assert!(sel.matches_ctx(&ctx));
+    }
+
+    #[test]
+    fn qtype_matches_wire_number_and_type_alias() {
+        let from_name = CompiledSelector::compile(
+            &Selector {
+                r#type: "qtype".into(),
+                value: "A".into(),
+                key: None,
+                key_from: None,
+            },
+            &SelectorCompileCtx::default(),
+        )
+        .unwrap();
+        let from_alias = CompiledSelector::compile(
+            &Selector {
+                r#type: "qtype".into(),
+                value: "TYPE1".into(),
+                key: None,
+                key_from: None,
+            },
+            &SelectorCompileCtx::default(),
+        )
+        .unwrap();
+        assert_eq!(from_name, from_alias);
+        let ctx = test_ctx(1, 1, None, Some(1), None, &|_| false);
+        assert!(from_name.matches_ctx(&ctx));
+        assert!(!from_name.matches_ctx(&test_ctx(1, 1, None, Some(28), None, &|_| false)));
     }
 
     #[test]
@@ -435,7 +518,8 @@ mod tests {
                 key_from: None,
             },
             &SelectorCompileCtx::default(),
-        );
+        )
+        .unwrap();
         let hundred = CompiledSelector::compile(
             &Selector {
                 r#type: "sample_percent".into(),
@@ -444,7 +528,8 @@ mod tests {
                 key_from: None,
             },
             &SelectorCompileCtx::default(),
-        );
+        )
+        .unwrap();
         let decimal = CompiledSelector::compile(
             &Selector {
                 r#type: "sample_percent".into(),
@@ -453,15 +538,9 @@ mod tests {
                 key_from: None,
             },
             &SelectorCompileCtx::default(),
-        );
-        let ctx = SelectorMatchCtx {
-            txn_id: 42,
-            global_query_index: 42,
-            qname: None,
-            qtype_label: None,
-            rcode_label: None,
-            tag_has: &|_| false,
-        };
+        )
+        .unwrap();
+        let ctx = test_ctx(42, 42, None, None, None, &|_| false);
         assert!(!zero.matches_ctx(&ctx));
         assert!(hundred.matches_ctx(&ctx));
         assert_eq!(decimal.matches_ctx(&ctx), decimal.matches_ctx(&ctx));
@@ -477,7 +556,8 @@ mod tests {
                 key_from: None,
             },
             &SelectorCompileCtx::default(),
-        );
+        )
+        .unwrap();
         assert!(matches!(
             sel,
             CompiledSelector::SamplePercent {
@@ -500,7 +580,8 @@ mod tests {
                 rule_name: Some("my-rule".into()),
                 sink_name: None,
             },
-        );
+        )
+        .unwrap();
         assert!(matches!(
             sel,
             CompiledSelector::SamplePercent {
@@ -520,20 +601,11 @@ mod tests {
                 key_from: Some("qname".into()),
             },
             &SelectorCompileCtx::default(),
-        );
-        let ctx = SelectorMatchCtx {
-            txn_id: 7,
-            global_query_index: 7,
-            qname: Some("foo.example."),
-            qtype_label: None,
-            rcode_label: None,
-            tag_has: &|_| false,
-        };
+        )
+        .unwrap();
+        let ctx = test_ctx(7, 7, Some("foo.example."), None, None, &|_| false);
         assert!(sel.matches_ctx(&ctx));
-        let no_qname = SelectorMatchCtx {
-            qname: None,
-            ..ctx.clone()
-        };
+        let no_qname = test_ctx(7, 7, None, None, None, &|_| false);
         assert!(!sel.matches_ctx(&no_qname));
     }
 
@@ -547,7 +619,8 @@ mod tests {
                 key_from: None,
             },
             &SelectorCompileCtx::default(),
-        );
+        )
+        .unwrap();
         let global = CompiledSelector::compile(
             &Selector {
                 r#type: "every_nth_global".into(),
@@ -556,15 +629,9 @@ mod tests {
                 key_from: None,
             },
             &SelectorCompileCtx::default(),
-        );
-        let ctx = SelectorMatchCtx {
-            txn_id: 8,
-            global_query_index: 12,
-            qname: None,
-            qtype_label: None,
-            rcode_label: None,
-            tag_has: &|_| false,
-        };
+        )
+        .unwrap();
+        let ctx = test_ctx(8, 12, None, None, None, &|_| false);
         assert!(worker.matches_ctx(&ctx));
         assert!(global.matches_ctx(&ctx));
     }
