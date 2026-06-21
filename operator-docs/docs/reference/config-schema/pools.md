@@ -18,8 +18,8 @@ Each list entry is one named pool. Pool `name` values must be **unique** within 
 |-------|------|----------|---------|-------------|
 | `name` | string | yes | — | Identifier referenced by `set_pool`, `set_retry_pool`, [Rhai](/rhai/index.md) `set_pool` / `set_retry_pool`, [metrics](/observability/metrics.md) labels, and event filters. Must be non-empty and unique among pools. The name `default` is a convention for the catch-all pool when nothing else selects a pool — see [Default pool selection](#default-pool-selection). |
 | `backends` | list | yes | — | One or more [backend](#backend-object) entries. An empty list fails validation. |
-| `sources_v4` | list of strings | no | (use [forward](/reference/config-schema/index.md) defaults) | IPv4 addresses to bind when forwarding to this pool’s backends. Overrides global `forward.sources_v4` for this pool when non-empty. See [Dual-stack forwarding](/guides/dual-stack-forwarding.md). |
-| `sources_v6` | list of strings | no | (use forward defaults) | IPv6 addresses for upstream egress for this pool. Overrides global `forward.sources_v6` when non-empty. |
+| `sources_v4` | list of strings | no | (use [forward](/reference/config-schema/forward.md) defaults) | IPv4 addresses to bind when forwarding to this pool’s backends. Overrides global `forward.sources_v4` for this pool when non-empty. See [Dual-stack forwarding](/guides/dual-stack-forwarding.md). |
+| `sources_v6` | list of strings | no | (use [forward](/reference/config-schema/forward.md) defaults) | IPv6 addresses for upstream egress for this pool. Overrides global `forward.sources_v6` when non-empty. |
 
 ### Default pool selection
 

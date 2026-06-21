@@ -11,8 +11,8 @@ Read [Architecture and packet path](/concepts/architecture-and-packet-path.md) f
 | Match queries; set pool, tags, egress, or drop | `rules:` | [Rules and actions](/policy-routing/rules-and-actions.md) |
 | Scripted policy on matching rules | `rules:` + `type: rhai` | [Rhai for rules](/rhai/rule-rhai.md) ([Rhai](/rhai/index.md)) |
 | Group upstream resolvers and load-balance | `pools:` | [Pools and backends](/policy-routing/pools-and-backends.md) |
-| Caps and behavior on repeat attempts | `orchestrator:` | [Retries and transactions](/policy-routing/retries-and-transactions.md) |
-| Default upstream timeout and egress address lists | `forward:` | [Dual-stack forwarding](/guides/dual-stack-forwarding.md) |
+| Caps and behavior on repeat attempts | `orchestrator:` | [Retries and transactions](/policy-routing/retries-and-transactions.md), [Reference: orchestrator](/reference/config-schema/orchestrator.md) |
+| Default upstream timeout and egress address lists | `forward:` | [Reference: forward](/reference/config-schema/forward.md), [Dual-stack forwarding](/guides/dual-stack-forwarding.md) |
 
 On each [transaction](/glossary/index.md#transaction), policy currently runs at two hooks on the query path:
 
@@ -54,8 +54,8 @@ flowchart TD
 |-------|-----------|
 | `rules:` | [Reference: rules](/reference/config-schema/rules.md) |
 | `pools:` | [Reference: pools](/reference/config-schema/pools.md) |
-| `orchestrator:` | [Global limits](/policy-routing/retries-and-transactions.md#global-limits-orchestrator); overview in [Config file](/control-plane/config-file.md) |
-| `forward:` | [Dual-stack forwarding](/guides/dual-stack-forwarding.md) |
+| `orchestrator:` | [Reference: orchestrator](/reference/config-schema/orchestrator.md), [Retries and transactions — Global limits](/policy-routing/retries-and-transactions.md#global-limits-orchestrator) |
+| `forward:` | [Reference: forward](/reference/config-schema/forward.md), [Dual-stack forwarding](/guides/dual-stack-forwarding.md) |
 
 Rule and pool changes load into the [runtime snapshot](/glossary/index.md#runtime-snapshot) on reload or apply for **new** queries; in-flight [transactions](/glossary/index.md#transaction) keep the policy they started with. See [Configuration model](/control-plane/configuration-model.md) and [When changes to rules take effect](/policy-routing/rules-and-actions.md#when-changes-to-rules-take-effect).
 

@@ -1,6 +1,6 @@
 # Dual-stack forwarding
 
-This guide covers **upstream egress** — which local address Conduit uses when forwarding to [backends](/glossary/index.md#backend). For pool and backend layout, see [Pools and backends](/policy-routing/pools-and-backends.md). For the query path, see [Architecture and packet path](/concepts/architecture-and-packet-path.md).
+This guide covers **upstream egress** — which local address Conduit uses when forwarding to [backends](/glossary/index.md#backend). Config fields: [Reference: forward](/reference/config-schema/forward.md), [Reference: pools](/reference/config-schema/pools.md). For pool and backend layout, see [Pools and backends](/policy-routing/pools-and-backends.md). For the query path, see [Architecture and packet path](/concepts/architecture-and-packet-path.md).
 
 ## Global and per-pool sources
 

@@ -215,9 +215,9 @@ When every backend in the target pool was already tried, [Route](/concepts/archi
 
 A pool with only one [backend](/glossary/index.md#backend) cannot offer an alternate target on retry; the next retry attempt hits pool exhaustion immediately after the first forward fails.
 
-## Global limits (`orchestrator`)
+## Global limits (`orchestrator`) { #global-limits-orchestrator }
 
-The top-level **`orchestrator:`** block caps how long a transaction may loop and how many [Route](/concepts/architecture-and-packet-path.md#route) attempts are allowed. When omitted, Conduit uses the same defaults as in [Minimal configuration](/getting-started/minimal-configuration.md).
+The top-level **`orchestrator:`** block caps how long a transaction may loop and how many [Route](/concepts/architecture-and-packet-path.md#route) attempts are allowed. Field reference: [Reference: orchestrator](/reference/config-schema/orchestrator.md). When omitted, Conduit uses the same defaults as in [Minimal configuration](/getting-started/minimal-configuration.md).
 
 | Field | Default | Meaning |
 |-------|---------|---------|
