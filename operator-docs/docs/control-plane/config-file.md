@@ -38,8 +38,8 @@ Each block maps to a section in the canonical config model. Behavioral detail li
 | `schema_version` | Config schema version (**`1`**) | This page |
 | `listeners` | [Dataplane](/glossary/index.md#dataplane) ingress (client DNS) | [Reference: listeners](/reference/config-schema/listeners.md) |
 | `pools` | Upstream [pools](/glossary/index.md#pool) and [backends](/glossary/index.md#backend) | [Pools and backends](/policy-routing/pools-and-backends.md), [Reference: pools](/reference/config-schema/pools.md) |
-| `forward` | Upstream timeout, egress sources, transport | [Dual-stack forwarding](/guides/dual-stack-forwarding.md) |
-| `orchestrator` | [Retry](/glossary/index.md#retry) and [transaction](/glossary/index.md#transaction) limits | [Retries and transactions](/policy-routing/retries-and-transactions.md) |
+| `forward` | Upstream timeout, egress sources, transport | [Reference: forward](/reference/config-schema/forward.md), [Dual-stack forwarding](/guides/dual-stack-forwarding.md) |
+| `orchestrator` | [Retry](/glossary/index.md#retry) and [transaction](/glossary/index.md#transaction) limits | [Reference: orchestrator](/reference/config-schema/orchestrator.md), [Retries and transactions](/policy-routing/retries-and-transactions.md) |
 | `rules` | Declarative policy | [Rules and actions](/policy-routing/rules-and-actions.md), [Reference: rules](/reference/config-schema/rules.md) |
 | `rhai` | Script sandbox limits (scripts come from `rules`) | [Rhai](/rhai/index.md) |
 | `data_sources` | Lookup tables for [Rhai](/rhai/index.md) | [Data sources and lookups](/rhai/data-sources-and-lookups.md) |

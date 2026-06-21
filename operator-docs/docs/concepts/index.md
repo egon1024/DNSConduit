@@ -4,7 +4,7 @@ Mental models for how Conduit handles DNS — the query path on the [dataplane](
 
 **Read in order:**
 
-1. [Architecture and packet path](/concepts/architecture-and-packet-path.md) — listeners, [pipeline phases](/concepts/architecture-and-packet-path.md#pipeline-phases), [transactions](/glossary/index.md#transaction), [runtime snapshot](/glossary/index.md#runtime-snapshot), and how a query reaches upstream and back
+1. [Architecture and packet path](/concepts/architecture-and-packet-path.md) — [listeners](/glossary/index.md#listener), [pipeline phases](/concepts/architecture-and-packet-path.md#pipeline-phases), [transactions](/glossary/index.md#transaction), [runtime snapshot](/glossary/index.md#runtime-snapshot), and [how a query reaches upstream and back](/concepts/architecture-and-packet-path.md#end-to-end-path)
 
 **Where next:**
 

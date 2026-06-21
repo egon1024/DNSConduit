@@ -132,6 +132,8 @@ nav:
           - Overview: reference/config-schema/index.md
           - Listeners: reference/config-schema/listeners.md
           - Pools: reference/config-schema/pools.md
+          - Forward: reference/config-schema/forward.md
+          - Orchestrator: reference/config-schema/orchestrator.md
           - Rules: reference/config-schema/rules.md
           - Control: reference/config-schema/control.md
           - Events: reference/config-schema/events.md

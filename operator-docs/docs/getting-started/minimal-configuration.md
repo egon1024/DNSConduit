@@ -48,8 +48,8 @@ Conduit still loads and applies these blocks when they are absent from your file
 
 | Block {: .column-no-wrap } | What Conduit applies when omitted | Learn more |
 |-------|-----------------------------------|------------|
-| `forward` | Upstream timeout **2000** ms, **100** outstanding queries per backend, UDP-only transport | [Dual-stack forwarding](/guides/dual-stack-forwarding.md), [Config schema](/reference/config-schema/index.md) |
-| `orchestrator` | **3** max attempts, **5000** ms max [transaction](/glossary/index.md#transaction) duration, **1024** transaction table capacity | [Retries and transactions](/policy-routing/retries-and-transactions.md) |
+| `forward` | Upstream timeout **2000** ms, **100** outstanding queries per backend, UDP-only transport | [Reference: forward](/reference/config-schema/forward.md), [Dual-stack forwarding](/guides/dual-stack-forwarding.md) |
+| `orchestrator` | **3** max attempts, **5000** ms max [transaction](/glossary/index.md#transaction) duration, **1024** transaction table capacity | [Reference: orchestrator](/reference/config-schema/orchestrator.md), [Retries and transactions](/policy-routing/retries-and-transactions.md) |
 | `control` | **Off** when omitted — no gRPC listener; add a `control:` block with `listen_address` to enable [conduitctl](/control-plane/grpc-and-conduitctl.md) | [gRPC and conduitctl](/control-plane/grpc-and-conduitctl.md), [Reference: control](/reference/config-schema/control.md) |
 | `events` | Queue depth **4096**, **`drop_oldest`** policy, no sinks | [Event export](/observability/event-export.md), [Reference: events](/reference/config-schema/events.md) |
 | `rhai` | Sandbox limits (**10000** operations, call depth **32**); no scripts unless you add them | [Rhai](/rhai/index.md), [Sandbox limits](/rhai/sandbox-limits.md) |

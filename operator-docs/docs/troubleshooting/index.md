@@ -65,9 +65,9 @@ See [`conduit_forward_errors_total`](/observability/built-in-metrics.md#conduit_
 
 | Symptom | Likely cause | What to check |
 |---------|--------------|---------------|
-| Answers often **`SERVFAIL`** after ~2s (default) | **`forward.timeout_ms`** exceeded | Default **2000** ms when `forward:` omitted — [Minimal configuration — Defaults](/getting-started/minimal-configuration.md#defaults-you-do-not-need-to-write-yet); increase timeout or fix upstream latency |
+| Answers often **`SERVFAIL`** after ~2s (default) | **`forward.timeout_ms`** exceeded | Default **2000** ms — [Reference: forward](/reference/config-schema/forward.md); increase timeout or fix upstream latency |
 | Counter `reason="timeout"` on forward errors | Upstream slow or down | [`conduit_forward_errors_total`](/observability/built-in-metrics.md#conduit_forward_errors_total); test backend with `dig @BACKEND_IP -p PORT` |
-| `reason="table_full"` on forward errors | Too many in-flight queries to one backend | Lower load or raise **`forward.outstanding_per_backend`** (default **100**) — [Architecture — Forward](/concepts/architecture-and-packet-path.md#forward) |
+| `reason="table_full"` on forward errors | Too many in-flight queries to one backend | Lower load or raise **`forward.outstanding_per_backend`** (default **100**) — [Reference: forward](/reference/config-schema/forward.md) |
 | Wrong egress path (multi-homed host) | Source bind or pool **`sources_*`** | [Dual-stack forwarding](/guides/dual-stack-forwarding.md) |
 
 Response-hook **`retry`** can run after timeout — Conduit still reaches [Response rules](/concepts/architecture-and-packet-path.md#response-rules) so policy can fail over to another pool.
