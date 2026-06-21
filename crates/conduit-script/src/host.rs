@@ -9,6 +9,10 @@ pub enum ScriptPhase {
 /// Host transaction surface for Rhai scripts (implemented by `conduit-core::Transaction`).
 pub trait HostTransaction {
     fn txn_id(&self) -> u64;
+    /// Process-wide query index (YAML `every_nth_global`); default `0` when unset.
+    fn global_query_index(&self) -> u64 {
+        0
+    }
     fn phase(&self) -> ScriptPhase;
     fn question_qname(&self) -> Option<&str>;
     fn question_qtype(&self) -> Option<u16>;

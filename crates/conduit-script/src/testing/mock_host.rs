@@ -7,6 +7,7 @@ use std::time::Instant;
 
 pub struct MockHost {
     pub id: u64,
+    pub global_query_index: u64,
     pub qname: String,
     pub qtype: u16,
     pub qclass: u16,
@@ -34,6 +35,7 @@ impl Default for MockHost {
     fn default() -> Self {
         Self {
             id: 1,
+            global_query_index: 0,
             qname: "test.example.".into(),
             qtype: 1,
             qclass: 1,
@@ -62,6 +64,10 @@ impl Default for MockHost {
 impl HostTransaction for MockHost {
     fn txn_id(&self) -> u64 {
         self.id
+    }
+
+    fn global_query_index(&self) -> u64 {
+        self.global_query_index
     }
 
     fn phase(&self) -> ScriptPhase {

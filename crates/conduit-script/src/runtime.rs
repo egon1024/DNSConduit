@@ -4,7 +4,7 @@ use crate::host::{HostTransaction, ScriptPhase};
 use crate::dns_wire::{self, DnsOpcode, EdnsOptionCode, QueryClass, Rcode, RecordType};
 use crate::metrics::MetricRegistry;
 use crate::script_errors::{report_lookup_unknown_table, report_script_eval_error};
-use conduit_events::hash_sample_keyed;
+use conduit_events::{hash_sample_keyed, matches_every_nth_global, matches_every_nth_worker};
 use conduit_metrics::BuiltinRegistry;
 use rhai::{Dynamic, Engine, EvalAltResult, Scope};
 #[cfg(test)]
@@ -113,6 +113,11 @@ fn register_host_api(engine: &mut Engine) {
         .register_fn("clear_retry_source_v6", RhaiTxn::clear_retry_source_v6)
         .register_fn("sample_percent", RhaiTxn::sample_percent)
         .register_fn("sample_percent", RhaiTxn::sample_percent_keyed)
+        .register_fn("sample_percent_for_qname", RhaiTxn::sample_percent_for_qname)
+        .register_fn("sample_percent_for_rule", RhaiTxn::sample_percent_for_rule)
+        .register_fn("every_nth_worker", RhaiTxn::every_nth_worker)
+        .register_fn("every_nth_global", RhaiTxn::every_nth_global)
+        .register_fn("rule_name", RhaiTxn::rule_name)
         .register_fn("metric_inc", RhaiTxn::metric_inc)
         .register_fn("metric_inc_labels", RhaiTxn::metric_inc_labels)
         .register_fn("elapsed_ms", RhaiTxn::elapsed_ms)
@@ -215,6 +220,8 @@ enum TagOp {
 struct RhaiTxn {
     phase: ScriptPhase,
     txn_id: u64,
+    global_query_index: u64,
+    rule_name: String,
     qname: Option<String>,
     qtype: Option<u16>,
     qclass: Option<u16>,
@@ -475,6 +482,32 @@ impl RhaiTxn {
         decision
     }
 
+    fn sample_percent_for_qname(&mut self, percent: f64) -> bool {
+        let Some(qname) = self.qname.clone() else {
+            return false;
+        };
+        self.sample_percent_keyed(percent, &qname)
+    }
+
+    fn sample_percent_for_rule(&mut self, percent: f64) -> bool {
+        let rule_name = self.rule_name.clone();
+        self.sample_percent_keyed(percent, &rule_name)
+    }
+
+    fn every_nth_worker(&mut self, nth: i64) -> Result<bool, Box<EvalAltResult>> {
+        let nth = parse_every_nth_arg(nth)?;
+        Ok(matches_every_nth_worker(self.txn_id, nth))
+    }
+
+    fn every_nth_global(&mut self, nth: i64) -> Result<bool, Box<EvalAltResult>> {
+        let nth = parse_every_nth_arg(nth)?;
+        Ok(matches_every_nth_global(self.global_query_index, nth))
+    }
+
+    fn rule_name(&mut self) -> String {
+        self.rule_name.clone()
+    }
+
     fn metric_inc(&mut self, name: &str, delta: i64) -> Result<(), Box<EvalAltResult>> {
         self.metric_inc_labels(name, delta, rhai::Map::new())
     }
@@ -512,6 +545,13 @@ impl RhaiTxn {
     fn attempt_count(&mut self) -> i64 {
         self.attempt_count as i64
     }
+}
+
+fn parse_every_nth_arg(nth: i64) -> Result<u64, Box<EvalAltResult>> {
+    if nth < 1 {
+        return Err("every_nth value must be >= 1".into());
+    }
+    u64::try_from(nth).map_err(|_| "every_nth value out of range".into())
 }
 
 pub fn run_scripts(
@@ -664,6 +704,8 @@ fn run_one(
     let txn = RhaiTxn {
         phase,
         txn_id: host.txn_id(),
+        global_query_index: host.global_query_index(),
+        rule_name: script.rule_name.clone(),
         qname: host.question_qname().map(str::to_string),
         qtype: host.question_qtype(),
         qclass: host.question_qclass(),
@@ -804,6 +846,7 @@ rules:
         let scripting = compile_from_config(&cfg, Some(&dir)).unwrap();
         let mut host = MockHost {
             id: 51,
+            global_query_index: 0,
             qname: "test.example.".into(),
             qtype: 1,
             qclass: 1,
@@ -891,6 +934,7 @@ rules:
         let scripting = compile_from_config(&cfg, Some(&dir)).unwrap();
         let mut host = MockHost {
             id: 52,
+            global_query_index: 0,
             qname: "test.example.".into(),
             qtype: 1,
             qclass: 1,
@@ -978,6 +1022,7 @@ rules:
         let scripting = compile_from_config(&cfg, Some(&dir)).unwrap();
         let mut host = MockHost {
             id: 53,
+            global_query_index: 0,
             qname: "test.example.".into(),
             qtype: 1,
             qclass: 1,
@@ -1025,6 +1070,8 @@ rules:
         let txn = RhaiTxn {
             phase: ScriptPhase::Request,
             txn_id: 1,
+            global_query_index: 0,
+            rule_name: "test-rule".into(),
             qname: None,
             qtype: None,
             qclass: None,
@@ -1056,6 +1103,7 @@ rules:
         let script_id = scripting.rules_scripts[0].script_id;
         let mut host = MockHost {
             id: 3,
+            global_query_index: 0,
             qname: "bad.example.".into(),
             qtype: 1,
             qclass: 1,
@@ -1106,6 +1154,7 @@ rules:
             .script_id;
         let mut host = MockHost {
             id: 2,
+            global_query_index: 0,
             qname: "test.example.".into(),
             qtype: 1,
             qclass: 1,
@@ -1199,6 +1248,7 @@ rules:
             .script_id;
         let mut host = MockHost {
             id: 3,
+            global_query_index: 0,
             qname: "test.example.".into(),
             qtype: 1,
             qclass: 1,
@@ -1243,6 +1293,7 @@ rules:
         let scripting = compile_from_config(&cfg, Some(&base)).unwrap();
         let mut host = MockHost {
             id: 1,
+            global_query_index: 0,
             qname: "foo.vip.example.".into(),
             qtype: 1,
             qclass: 1,
@@ -1288,6 +1339,7 @@ rules:
         let before = rhai_script_errors_total();
         let mut host = MockHost {
             id: 9,
+            global_query_index: 0,
             qname: "test.example.".into(),
             qtype: 1,
             qclass: 1,
@@ -1333,6 +1385,7 @@ rules:
         let scripting = compile_from_config(&cfg, Some(&base)).unwrap();
         let mut host = MockHost {
             id: 10,
+            global_query_index: 0,
             qname: "loop.example.".into(),
             qtype: 1,
             qclass: 1,
@@ -1377,6 +1430,7 @@ rules:
         let scripting = compile_from_config(&cfg, Some(&base)).unwrap();
         let mut host = MockHost {
             id: 11,
+            global_query_index: 0,
             qname: "eu.example.".into(),
             qtype: 1,
             qclass: 1,
@@ -1431,6 +1485,7 @@ rules:
 
         let mut host = MockHost {
             id: 20,
+            global_query_index: 0,
             qname: "foo.vip.example.".into(),
             qtype: 1,
             qclass: 1,
@@ -1556,6 +1611,7 @@ rules:
 
         let mut host = MockHost {
             id: 21,
+            global_query_index: 0,
             qname: "eu.example.".into(),
             qtype: 1,
             qclass: 1,
@@ -1644,6 +1700,7 @@ rules:
 
         let mut host = MockHost {
             id: 12,
+            global_query_index: 0,
             qname: "login.suspicious.example.".into(),
             qtype: 1,
             qclass: 1,
@@ -1703,6 +1760,7 @@ rules:
     fn last_forward_ms_exposed_to_script() {
         let mut host = MockHost {
             id: 20,
+            global_query_index: 0,
             qname: "slow.example.".into(),
             qtype: 1,
             qclass: 1,
@@ -1813,6 +1871,7 @@ rules:
         let script = r#"txn.set_tag("flag", true); txn.clear_tag("flag");"#;
         let mut host = MockHost {
             id: 30,
+            global_query_index: 0,
             qname: "test.example.".into(),
             qtype: 1,
             qclass: 1,
@@ -1846,6 +1905,7 @@ rules:
         let script = r#"txn.clear_tag("tier");"#;
         let mut host = MockHost {
             id: 31,
+            global_query_index: 0,
             qname: "test.example.".into(),
             qtype: 1,
             qclass: 1,
@@ -1879,6 +1939,7 @@ rules:
         let script = r#"if !txn.has_tag("tier") { throw "missing tier"; } txn.clear_tag("tier"); if txn.has_tag("tier") { throw "tier still present"; }"#;
         let mut host = MockHost {
             id: 32,
+            global_query_index: 0,
             qname: "test.example.".into(),
             qtype: 1,
             qclass: 1,
@@ -1971,6 +2032,7 @@ rules:
         let before_body = encode(builtin.as_ref());
         let mut host = MockHost {
             id: 90,
+            global_query_index: 0,
             qname: "test.example.".into(),
             qtype: 1,
             qclass: 1,
@@ -2021,5 +2083,64 @@ rules:
             "after:\n{after_body}"
         );
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn rhai_sampling_extended_api() {
+        reset_thread_runtime_for_tests();
+        let mut engine = Engine::new();
+        register_host_api(&mut engine);
+        let effects = Arc::new(Mutex::new(ScriptEffects::default()));
+        let txn = RhaiTxn {
+            phase: ScriptPhase::Request,
+            txn_id: 8,
+            global_query_index: 12,
+            rule_name: "audit-canary".into(),
+            qname: Some("login.example.".into()),
+            qtype: Some(1),
+            qclass: Some(1),
+            opcode: Some(0),
+            edns_option_codes: Vec::new(),
+            dns_id: 1,
+            rcode: None,
+            attempt_count: 1,
+            started_at: Instant::now(),
+            last_forward_ms: 0,
+            tags_snapshot_bools: HashMap::new(),
+            tags_snapshot_strings: HashMap::new(),
+            metrics: Arc::new(MetricRegistry::default()),
+            effects: effects.clone(),
+        };
+        let mut scope = Scope::new();
+        scope.push("txn", txn);
+        assert!(engine
+            .eval_with_scope::<bool>(&mut scope, "txn.every_nth_worker(4)")
+            .unwrap());
+        assert!(!engine
+            .eval_with_scope::<bool>(&mut scope, "txn.every_nth_worker(3)")
+            .unwrap());
+        assert!(engine
+            .eval_with_scope::<bool>(&mut scope, "txn.every_nth_global(4)")
+            .unwrap());
+        assert_eq!(
+            engine
+                .eval_with_scope::<String>(&mut scope, "txn.rule_name()")
+                .unwrap(),
+            "audit-canary"
+        );
+        let keyed = hash_sample_keyed(8, 0.10, Some("audit-canary"));
+        assert_eq!(
+            engine
+                .eval_with_scope::<bool>(&mut scope, "txn.sample_percent_for_rule(10.0)")
+                .unwrap(),
+            keyed
+        );
+        let qname_keyed = hash_sample_keyed(8, 0.10, Some("login.example."));
+        assert_eq!(
+            engine
+                .eval_with_scope::<bool>(&mut scope, "txn.sample_percent_for_qname(10.0)")
+                .unwrap(),
+            qname_keyed
+        );
     }
 }

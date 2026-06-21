@@ -17,6 +17,7 @@ fn main() {
 
     let mut host = MockHost {
         id: 99,
+            global_query_index: 0,
         qname: "foo.vip.example.".into(),
         ..Default::default()
     };
