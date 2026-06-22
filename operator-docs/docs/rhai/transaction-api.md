@@ -2038,15 +2038,11 @@ if txn.response_rcode() == Rcode::NOERROR {
 
 ## Routing { #routing }
 
+**`set_pool`** and **`set_retry_pool`** interact over multiple [Route](/concepts/architecture-and-packet-path.md#route) attempts — first forward vs retry, one-shot **`retry_pool`**, and how **`selected_pool`** updates after each Route. See [Pool selection lifecycle](/policy-routing/retries-and-transactions.md#pool-selection-lifecycle).
+
 <p class="txn-api-index" markdown="1">
 
 **Methods:** [`txn.clear_retry_pool`](#txnclear_retry_pool) · [`txn.set_pool`](#txnset_poolname) · [`txn.set_retry_pool`](#txnset_retry_poolname)
-
-</p>
-
-<p class="txn-api-stub" markdown="1">
-
-**`set_pool`** and **`set_retry_pool`** interact over multiple [Route](/concepts/architecture-and-packet-path.md#route) attempts — first forward vs retry, one-shot **`retry_pool`**, and how **`selected_pool`** updates after each Route. See [Pool selection lifecycle](/policy-routing/retries-and-transactions.md#pool-selection-lifecycle).
 
 </p>
 

@@ -74,6 +74,7 @@ nav:
   - Home: index.md
   - Getting started:
       - Overview: getting-started/index.md
+      - What Conduit is for: getting-started/what-conduit-is-for.md
       - Install and run: getting-started/install-and-run.md
       - Minimal configuration: getting-started/minimal-configuration.md
       - First query: getting-started/first-query.md

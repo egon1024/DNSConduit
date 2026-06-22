@@ -110,7 +110,7 @@ On the response hook:
 - **`txn.request_retry_now()`** — hard retry in the current pool (same as **`retry_now`** in YAML).
 - **`txn.set_retry_pool("pool-name")`** — pool for retry Route if retry occurs; first Route ignores. Add **`txn.request_retry()`** or **`txn.request_retry_now()`** to trigger failover.
 
-See [Rhai](/rhai/index.md) (reference pages in progress).
+See [Transaction API — Outcomes](/rhai/transaction-api.md#outcomes) (`request_retry`, `request_retry_now`) and [Routing](/rhai/transaction-api.md#routing) (`set_retry_pool`).
 
 ## What happens on each attempt
 

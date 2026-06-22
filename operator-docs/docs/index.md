@@ -2,15 +2,14 @@
 
 DNS Conduit is a DNS forwarding and observability platform.
 
+New here? Read [What Conduit is for](/getting-started/what-conduit-is-for.md) — typical roles, deployment patterns, and what the product does and does not cover — then follow [Getting started](/getting-started/index.md).
+
 Use the **[Versions](versions.md)** page to open documentation for a specific release.
 
 DNS Conduit is licensed under the [Apache License, Version 2.0](license.md).
 
 !!! note "AI-assisted development"
-    DNS Conduit was built with significant assistance from AI tools. I understand if
-    that makes you disinterested in or unwilling to use the project; that is a
-    reasonable reaction. It is not a decision I expect to revisit, let alone
-    reverse. Criticism on this point will be ignored.
-
-!!! info "Work in progress"
-    Operator documentation content and site structure are expanded in a later phase.
+    This project was built with extensive assistance from AI tools. Some operators
+    and contributors prefer software written without that involvement — a view I
+    respect. I am not seeking to change how DNS Conduit was developed, and I will
+    not engage in arguments about that decision here.
