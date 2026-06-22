@@ -297,16 +297,6 @@
   font-size: 0.95em;
 }
 
-.md-typeset .txn-api-stub {
-  margin: 0 0 1.5rem;
-  font-size: 0.9em;
-  color: var(--md-default-fg-color--light);
-}
-
-.md-typeset .txn-api-stub + hr {
-  margin-top: 0;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .md-typeset .txn-api-entry,
   .md-typeset .txn-api-entry-header,

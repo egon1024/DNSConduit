@@ -4,10 +4,10 @@ DNS forwarding and observability platform (Rust).
 
 ## AI-assisted development
 
-DNS Conduit was built with significant assistance from AI tools. I understand if
-that makes you disinterested in or unwilling to use the project; that is a
-reasonable reaction. It is not a decision I expect to revisit, let alone
-reverse. Criticism on this point will be ignored.
+This project was built with extensive assistance from AI tools. Some operators
+and contributors prefer software written without that involvement — a view I
+respect. I am not seeking to change how DNS Conduit was developed, and I will
+not engage in arguments about that decision here.
 
 ## Development
 
