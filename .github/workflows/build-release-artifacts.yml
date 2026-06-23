@@ -89,8 +89,8 @@ jobs:
           curl -sL "https://github.com/goreleaser/nfpm/releases/download/v${NFPM_VERSION}/nfpm_${NFPM_VERSION}_amd64.deb" -o /tmp/nfpm.deb
           sudo dpkg -i /tmp/nfpm.deb
 
-      - name: Install cyclonedx-rust-cargo
-        run: cargo install cyclonedx-rust-cargo --locked
+      - name: Install cargo-cyclonedx
+        run: cargo install cargo-cyclonedx --locked
 
       - name: Build release artifacts
         env:

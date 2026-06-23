@@ -38,7 +38,7 @@ jobs:
           fi
           echo "No forbidden internal doc paths in operator-docs."
 
-      - name: Test release-notes finalize script
+      - name: Test operator-docs scripts
         run: python3 -m unittest discover -s operator-docs/scripts -p 'test_*.py'
 
       - name: Build documentation
