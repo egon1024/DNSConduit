@@ -1,4 +1,8 @@
 # Creates a semver tag and GitHub Release on merge to main, then dispatches docs and release artifacts.
+#
+# Ordering: version + release notes are committed to main before any tag or GitHub Release.
+# Docs deploy and artifact builds run only after gh release create succeeds.
+# See tests/manual/release-workflow.md for failure recovery.
 
 name: Release
 
@@ -10,7 +14,8 @@ on:
       release_version:
         description: >-
           Publish this version (e.g. 0.12.0). Use when main already has the Cargo bump
-          but the GitHub release failed. Leave empty to compute from tags and PR bump rules.
+          and release notes but the GitHub release failed. Leave empty to compute from
+          tags and PR bump rules.
         required: false
         type: string
 
@@ -96,14 +101,40 @@ jobs:
             echo "skip=false" >>"$GITHUB_OUTPUT"
           fi
 
+      - name: Set up Python
+        if: steps.exists.outputs.skip != 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install documentation dependencies
+        if: steps.exists.outputs.skip != 'true'
+        run: pip install -r requirements.txt
+
       - name: Bump Cargo.toml workspace version
         if: steps.exists.outputs.skip != 'true'
         env:
           NEXT_VERSION: ${{ steps.release_version.outputs.next_version }}
         run: bash .github/scripts/bump-cargo-versions.sh
 
-      - name: Commit version bump
+      - name: Finalize release notes
         if: steps.exists.outputs.skip != 'true'
+        env:
+          NEXT_VERSION: ${{ steps.release_version.outputs.next_version }}
+        run: |
+          set -euo pipefail
+          python3 operator-docs/scripts/finalize_release_notes.py \
+            --version "${NEXT_VERSION}" \
+            --repo "https://github.com/${GITHUB_REPOSITORY}"
+
+      - name: Verify operator docs build
+        if: steps.exists.outputs.skip != 'true'
+        run: make docs-build
+
+      - name: Commit release preparation
+        if: steps.exists.outputs.skip != 'true'
+        id: commit
         env:
           NEXT_VERSION: ${{ steps.release_version.outputs.next_version }}
           # Admin PAT (repo owner): push release branch + gh pr merge --admin.
@@ -115,14 +146,17 @@ jobs:
             echo "::error::RELEASE_PUSH_TOKEN secret is not configured (admin PAT for release bump PR)."
             exit 1
           fi
-          if git diff --quiet Cargo.toml; then
-            echo "Cargo.toml already at ${NEXT_VERSION}; nothing to commit."
+
+          git add Cargo.toml operator-docs/docs/release-notes/
+          if git diff --cached --quiet; then
+            echo "committed=false" >>"$GITHUB_OUTPUT"
+            echo "Release preparation already on main for ${NEXT_VERSION}; skipping commit."
             exit 0
           fi
+
           release_branch="chore/release-${NEXT_VERSION}"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Cargo.toml
           git commit -m "chore: release ${NEXT_VERSION}"
           # Ephemeral branch; replace prior failed run (non-fast-forward).
           gh api -X DELETE "repos/${GITHUB_REPOSITORY}/git/refs/heads/${release_branch}" 2>/dev/null || true
@@ -134,10 +168,42 @@ jobs:
           if [[ -z "${pr_number}" ]]; then
             gh pr create --base main --head "${release_branch}" \
               --title "chore: release ${NEXT_VERSION}" \
-              --body "Automated version bump after release ${NEXT_VERSION}. #no-docs"
+              --body "Automated version bump and release notes for ${NEXT_VERSION}. #no-docs"
             pr_number="$(gh pr view "${release_branch}" --json number --jq .number)"
           fi
           gh pr merge "${pr_number}" --rebase --admin --delete-branch
+          echo "committed=true" >>"$GITHUB_OUTPUT"
+
+      - name: Verify release preparation on main
+        if: steps.exists.outputs.skip != 'true'
+        env:
+          NEXT_VERSION: ${{ steps.release_version.outputs.next_version }}
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          notes_path="operator-docs/docs/release-notes/${NEXT_VERSION}.md"
+          if ! git cat-file -e "origin/main:${notes_path}" 2>/dev/null; then
+            echo "::error::Release notes missing on main: ${notes_path}"
+            exit 1
+          fi
+          cargo_ver="$(git show "origin/main:Cargo.toml" | awk '
+            /^\[workspace\.package\]/ { in_pkg=1; next }
+            /^\[/ { if (in_pkg) exit }
+            in_pkg && /^version = / {
+              gsub(/"/, "", $3)
+              print $3
+              exit
+            }
+          ')"
+          if [[ "${cargo_ver}" != "${NEXT_VERSION}" ]]; then
+            echo "::error::Cargo.toml on main is ${cargo_ver:-unknown}; expected ${NEXT_VERSION}"
+            exit 1
+          fi
+          if git rev-parse "refs/tags/${NEXT_VERSION}" >/dev/null 2>&1; then
+            echo "::error::Tag ${NEXT_VERSION} already exists locally; refusing to create release"
+            exit 1
+          fi
+          echo "Verified ${notes_path} and Cargo.toml ${NEXT_VERSION} on origin/main."
 
       - name: Create GitHub Release
         if: steps.exists.outputs.skip != 'true'
@@ -147,6 +213,10 @@ jobs:
         run: |
           set -euo pipefail
           git fetch origin main
+          if gh release view "$NEXT_VERSION" >/dev/null 2>&1; then
+            echo "::error::Release ${NEXT_VERSION} already exists"
+            exit 1
+          fi
           gh release create "$NEXT_VERSION" \
             --target main \
             --title "$NEXT_VERSION" \
