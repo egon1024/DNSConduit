@@ -178,37 +178,23 @@ fn compile_tracing(t: Option<&TracingConfig>) -> CompiledTracing {
 /// Whether pipeline tracing should be enabled for this transaction (after RequestRules).
 pub fn trace_activation_matches(
     activation: &CompiledTraceActivation,
-    txn_id: u64,
-    qname: Option<&str>,
-    qtype: Option<u16>,
-    rcode: Option<u16>,
-    qclass: Option<u16>,
-    opcode: Option<u8>,
-    edns_option_codes: &[u16],
-    tag_has: &dyn Fn(&str) -> bool,
+    ctx: &SelectorMatchCtx<'_>,
 ) -> bool {
     if let Some(ref key) = activation.tag_required {
-        if !tag_has(key) {
+        if !(ctx.tag_has)(key) {
             return false;
         }
     }
-    let ctx = SelectorMatchCtx {
-        txn_id,
-        global_query_index: 0,
-        qname,
-        qtype,
-        rcode,
-        qclass,
-        opcode,
-        edns_option_codes,
-        tag_has,
-    };
-    if !activation.selectors.is_empty() && !activation.selectors.iter().all(|s| s.matches_ctx(&ctx))
+    if !activation.selectors.is_empty() && !activation.selectors.iter().all(|s| s.matches_ctx(ctx))
     {
         return false;
     }
-    let salt = resolve_sample_key(&activation.sample_key, &ctx);
-    hash_sample_keyed(txn_id, activation.sample_percent / 100.0, salt.as_deref())
+    let salt = resolve_sample_key(&activation.sample_key, ctx);
+    hash_sample_keyed(
+        ctx.txn_id,
+        activation.sample_percent / 100.0,
+        salt.as_deref(),
+    )
 }
 
 pub fn validate_metrics_tracing(cfg: &Config) -> Vec<String> {
@@ -314,14 +300,20 @@ mod tests {
             ..Default::default()
         };
         let id = 42u64;
-        let a =
-            trace_activation_matches(&activation, id, None, None, None, None, None, &[], &|_| {
-                true
-            });
-        let b =
-            trace_activation_matches(&activation, id, None, None, None, None, None, &[], &|_| {
-                true
-            });
+        let tag_has = |_: &str| true;
+        let ctx = SelectorMatchCtx {
+            txn_id: id,
+            global_query_index: 0,
+            qname: None,
+            qtype: None,
+            rcode: None,
+            qclass: None,
+            opcode: None,
+            edns_option_codes: &[],
+            tag_has: &tag_has,
+        };
+        let a = trace_activation_matches(&activation, &ctx);
+        let b = trace_activation_matches(&activation, &ctx);
         assert_eq!(a, b);
     }
 

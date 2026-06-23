@@ -954,7 +954,7 @@ fn run_one(
         clear_soft_retry: fx.clear_soft_retry,
         clear_retry_pool: fx.clear_retry_pool,
         tag_ops: fx.tag_ops.clone(),
-        rcode: fx.rcode.clone(),
+        rcode: fx.rcode,
         soft_drop: fx.soft_drop,
         hard_drop: fx.hard_drop,
         clear_soft_drop: fx.clear_soft_drop,

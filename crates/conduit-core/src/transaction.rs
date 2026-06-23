@@ -6,7 +6,7 @@ use crate::routing::AttemptRecord;
 use conduit_metrics::TraceLog;
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::time::{Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Instant, SystemTime};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ClientProtocol {
