@@ -7,8 +7,8 @@ Operator-facing changes by release. For the full list of merged pull requests, s
 
 | Version | Summary |
 | --- | --- |
+| [0.14.0](0.14.0.md) | New features |
 
-_No published release notes yet. The first entry appears when the next version ships._
 
 ## In development
 
