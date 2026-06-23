@@ -2,7 +2,9 @@
 
 use crate::phase::Phase;
 use crate::transaction::Transaction;
-use conduit_script::{ClientProtocol as ScriptClientProtocol, HostTransaction, ResponseWireMeta, ScriptPhase};
+use conduit_script::{
+    ClientProtocol as ScriptClientProtocol, HostTransaction, ResponseWireMeta, ScriptPhase,
+};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 

@@ -276,9 +276,8 @@ impl CompiledSelector {
             }
             "opcode" => parse_selector_wire_value("opcode", &sel.value)
                 .map(|n| CompiledSelector::Opcode(n as u8)),
-            "edns_option" => {
-                parse_selector_wire_value("edns_option", &sel.value).map(CompiledSelector::EdnsOption)
-            }
+            "edns_option" => parse_selector_wire_value("edns_option", &sel.value)
+                .map(CompiledSelector::EdnsOption),
             "tag" => Ok(CompiledSelector::Tag(sel.value.clone())),
             "sample_percent" => {
                 let percent = parse_percent_key(sel.value.as_str())?;
@@ -313,10 +312,9 @@ impl CompiledSelector {
             CompiledSelector::Rcode(wire) => ctx.rcode == Some(*wire),
             CompiledSelector::Qclass(wire) => ctx.qclass == Some(*wire),
             CompiledSelector::Opcode(wire) => ctx.opcode == Some(*wire),
-            CompiledSelector::EdnsOption(wire) => ctx
-                .edns_option_codes
-                .iter()
-                .any(|code| *code == *wire),
+            CompiledSelector::EdnsOption(wire) => {
+                ctx.edns_option_codes.iter().any(|code| *code == *wire)
+            }
             CompiledSelector::Tag(key) => (ctx.tag_has)(key),
             CompiledSelector::SamplePercent { percent, key } => {
                 if matches!(key, SampleKey::FromQname) && ctx.qname.is_none() {

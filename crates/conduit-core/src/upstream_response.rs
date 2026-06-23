@@ -45,7 +45,11 @@ mod tests {
         let mut msg = Message::new();
         msg.set_response_code(hickory_proto::op::ResponseCode::NXDomain);
         let wire = encode(msg);
-        let mut txn = Transaction::new(1, "127.0.0.1:53".parse::<SocketAddr>().unwrap(), ClientProtocol::Udp);
+        let mut txn = Transaction::new(
+            1,
+            "127.0.0.1:53".parse::<SocketAddr>().unwrap(),
+            ClientProtocol::Udp,
+        );
         record_upstream_response(&mut txn, &wire, false);
         assert_eq!(txn.rcode(), Some(3));
         assert!(txn.response_meta.is_none());
@@ -59,11 +63,17 @@ mod tests {
         msg.add_answer(Record::from_rdata(
             name,
             300,
-            RData::A(hickory_proto::rr::rdata::A(std::net::Ipv4Addr::new(93, 184, 216, 34))),
+            RData::A(hickory_proto::rr::rdata::A(std::net::Ipv4Addr::new(
+                93, 184, 216, 34,
+            ))),
         ));
         msg.set_authoritative(true);
         let wire = encode(msg);
-        let mut txn = Transaction::new(1, "127.0.0.1:53".parse::<SocketAddr>().unwrap(), ClientProtocol::Udp);
+        let mut txn = Transaction::new(
+            1,
+            "127.0.0.1:53".parse::<SocketAddr>().unwrap(),
+            ClientProtocol::Udp,
+        );
         record_upstream_response(&mut txn, &wire, true);
         let meta = txn.response_meta.expect("meta");
         assert_eq!(meta.answer_count, 1);

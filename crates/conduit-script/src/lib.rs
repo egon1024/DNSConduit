@@ -16,11 +16,13 @@ pub mod testing;
 
 pub use compile::{compile_from_config, CompiledScripting, ScriptRef};
 pub use data_sources::DataSourceStore;
-pub use error::ScriptError;
-pub use host::{ClientProtocol, HostTransaction, ResponseWireMeta, ScriptPhase, unix_secs, utc_hour_and_weekday};
 pub use dns_wire::{
     qclass_canonical_name, qtype_canonical_name, rcode_canonical_name, DnsOpcode, EdnsOptionCode,
     QueryClass, Rcode, RecordType,
+};
+pub use error::ScriptError;
+pub use host::{
+    unix_secs, utc_hour_and_weekday, ClientProtocol, HostTransaction, ResponseWireMeta, ScriptPhase,
 };
 pub use metrics::{MetricRegistry, UserMetricDef, UserMetricExportTier};
 pub use runtime::{run_scripts, ScriptRunOutcome, ScriptRunStats};

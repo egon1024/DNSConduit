@@ -135,9 +135,7 @@ impl HostTransaction for MockHost {
     }
 
     fn selected_pool(&self) -> Option<&str> {
-        self.selected_pool
-            .as_deref()
-            .or(self.pool.as_deref())
+        self.selected_pool.as_deref().or(self.pool.as_deref())
     }
 
     fn selected_backend(&self) -> Option<SocketAddr> {

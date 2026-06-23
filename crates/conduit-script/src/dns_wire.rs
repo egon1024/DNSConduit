@@ -31,7 +31,9 @@ macro_rules! impl_wire_newtype {
 
             fn from_number_rhai(number: i64) -> Result<Self, Box<EvalAltResult>> {
                 if !(0..=65535).contains(&number) {
-                    return Err(format!("{rhai} number out of range: {number}", rhai = $rhai).into());
+                    return Err(
+                        format!("{rhai} number out of range: {number}", rhai = $rhai).into(),
+                    );
                 }
                 Ok(Self(<$Inner>::from(number as u16)))
             }
@@ -61,7 +63,11 @@ macro_rules! impl_wire_newtype {
 impl_wire_newtype!(RecordType, conduit_dns_wire::RecordType, "RecordType");
 impl_wire_newtype!(Rcode, conduit_dns_wire::Rcode, "Rcode");
 impl_wire_newtype!(QueryClass, conduit_dns_wire::QueryClass, "QueryClass");
-impl_wire_newtype!(EdnsOptionCode, conduit_dns_wire::EdnsOptionCode, "EdnsOptionCode");
+impl_wire_newtype!(
+    EdnsOptionCode,
+    conduit_dns_wire::EdnsOptionCode,
+    "EdnsOptionCode"
+);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct DnsOpcode(pub conduit_dns_wire::DnsOpcode);
