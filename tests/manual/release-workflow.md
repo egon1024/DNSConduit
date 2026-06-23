@@ -47,6 +47,25 @@ python3 -m unittest discover -s operator-docs/scripts -p 'test_*.py'
 | Docs deploy | OK | OK | Old version | **Workflow dispatch** → **Docs deploy** → `version={tag}` |
 | Release artifacts | OK | OK | OK | Re-dispatch **Build release artifacts** (see [release-artifacts.md](release-artifacts.md)) |
 
+### Retry release artifacts only
+
+Use when the GitHub Release and tag exist but **Build release artifacts** failed (no tarballs/debs on the release page):
+
+```bash
+gh workflow run build-release-artifacts.yml -f version=0.14.0
+```
+
+**Important:** the workflow checks out `refs/tags/{version}`, so the tag commit must include the fixed workflow/script. After merging a fix to `main`, move the tag forward:
+
+```bash
+git checkout main && git pull
+git tag -fa 0.14.0 -m "0.14.0"
+git push origin 0.14.0 --force
+gh workflow run build-release-artifacts.yml -f version=0.14.0
+```
+
+See [release-artifacts.md](release-artifacts.md) for expected assets and rebuild rules.
+
 ### Retry GitHub Release only
 
 Use when `main` already has `Cargo.toml` and `operator-docs/docs/release-notes/{version}.md` but the release step failed:
@@ -62,6 +81,42 @@ The workflow skips finalize when the version page already exists, skips commit w
 ```bash
 gh workflow run docs-deploy.yml --ref 0.14.0 -f version=0.14.0
 ```
+
+Use after merging a fix to the docs deploy workflow or `gen_versions_index.py` (for example stale **`latest`** alias on the Versions page). Move the tag to the fixed commit first — see **Clean up a partial release (same version)** below.
+
+### Clean up a partial release (same version)
+
+Use when the GitHub Release and tag exist but docs or artifacts need pipeline fixes (no new semver).
+
+1. Merge fixes to **`main`** (docs Versions page, `cargo-cyclonedx`, etc.).
+2. Move the tag to the fixed commit on **`main`**:
+
+   ```bash
+   git checkout main
+   git pull origin main
+   git tag -fa 0.14.0 -m "0.14.0"
+   git push origin 0.14.0 --force
+   ```
+
+3. Redeploy docs (refreshes Versions page and `/latest/`):
+
+   ```bash
+   gh workflow run docs-deploy.yml --ref 0.14.0 -f version=0.14.0
+   gh run watch
+   ```
+
+4. Build and upload release assets:
+
+   ```bash
+   gh workflow run build-release-artifacts.yml -f version=0.14.0
+   gh run watch
+   ```
+
+5. Verify:
+   - [GitHub Release](https://github.com/egon1024/DNSConduit/releases/tag/0.14.0) lists tarballs, debs, `SHA256SUMS`, SBOM
+   - [Versions page](https://egon1024.github.io/DNSConduit/latest/versions/) shows **`latest`** → `0.14.0`
+
+Do **not** re-run the full **Release** workflow unless the tag or GitHub Release object is missing.
 
 ### Accidental partial state on main (no tag)
 

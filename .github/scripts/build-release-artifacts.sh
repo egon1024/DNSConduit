@@ -75,16 +75,17 @@ echo "Generating SHA256SUMS..."
 )
 
 SBOM_PATH="${OUT_DIR}/conduit-${VERSION}.spdx.json"
-if command -v cyclonedx-rust-cargo >/dev/null 2>&1; then
+if cargo cyclonedx --version >/dev/null 2>&1; then
   echo "Generating SBOM..."
-  cyclonedx-rust-cargo --all-features --manifest-path Cargo.toml \
-    --format json --output "$SBOM_PATH"
+  cargo cyclonedx --manifest-path crates/conduit/Cargo.toml \
+    --format json --all-features --describe crate -q
+  mv "crates/conduit/conduit.cdx.json" "$SBOM_PATH"
   (
     cd "$OUT_DIR"
     sha256sum "$(basename "$SBOM_PATH")" >>SHA256SUMS
   )
 else
-  echo "cyclonedx-rust-cargo not installed; skipping SBOM"
+  echo "cargo-cyclonedx not installed; skipping SBOM"
 fi
 
 echo "Release artifacts in ${OUT_DIR}:"

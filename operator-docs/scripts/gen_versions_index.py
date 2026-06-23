@@ -74,6 +74,52 @@ def format_aliases(aliases: list[str] | None) -> str:
     return ", ".join(f"`{alias}`" for alias in sorted(aliases))
 
 
+def strip_aliases_from_other_versions(
+    entries: list[dict[str, Any]], version: str, aliases: list[str]
+) -> None:
+    """Remove alias names from every version except *version* (mike moves aliases on deploy)."""
+    if not aliases:
+        return
+    alias_set = set(aliases)
+    for entry in entries:
+        if (entry.get("version") or entry.get("title")) == version:
+            continue
+        entry["aliases"] = [
+            a for a in (entry.get("aliases") or []) if a not in alias_set
+        ]
+
+
+def merge_current_version(
+    entries: list[dict[str, Any]], current_version: str, current_aliases: list[str]
+) -> None:
+    """Ensure the version being built is present and owns any pending alias updates."""
+    if not current_version:
+        return
+
+    found = False
+    for entry in entries:
+        if (entry.get("version") or entry.get("title")) == current_version:
+            found = True
+            if current_aliases:
+                entry["aliases"] = list(current_aliases)
+            break
+
+    if not found:
+        aliases: list[str] = list(current_aliases)
+        if not aliases and "-dev." in current_version:
+            aliases = ["dev"]
+        entries.append(
+            {
+                "version": current_version,
+                "title": current_version,
+                "aliases": aliases,
+            }
+        )
+
+    if current_aliases:
+        strip_aliases_from_other_versions(entries, current_version, current_aliases)
+
+
 def render_versions_md(
     entries: list[dict[str, Any]], site_url: str, current_version: str
 ) -> str:
@@ -151,26 +197,7 @@ def main() -> None:
         if a.strip()
     ]
 
-    # Include or refresh the version currently being built if not yet in versions.json.
-    if args.current_version:
-        found = False
-        for entry in entries:
-            if (entry.get("version") or entry.get("title")) == args.current_version:
-                found = True
-                if current_aliases:
-                    entry["aliases"] = current_aliases
-                break
-        if not found:
-            aliases: list[str] = list(current_aliases)
-            if not aliases and "-dev." in args.current_version:
-                aliases = ["dev"]
-            entries.append(
-                {
-                    "version": args.current_version,
-                    "title": args.current_version,
-                    "aliases": aliases,
-                }
-            )
+    merge_current_version(entries, args.current_version, current_aliases)
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(

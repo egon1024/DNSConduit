@@ -128,3 +128,26 @@ jobs:
           else
             echo "::warning::No latest or dev alias; skipping root redirect."
           fi
+
+      - name: Refresh versions index from deployed gh-pages metadata
+        env:
+          TAG: ${{ env.DEPLOY_VERSION }}
+        run: |
+          set -euo pipefail
+          git fetch origin gh-pages:gh-pages
+          git show gh-pages:versions.json > /tmp/versions-after-deploy.json
+          python operator-docs/scripts/gen_versions_index.py \
+            --versions-json /tmp/versions-after-deploy.json \
+            --output operator-docs/docs/versions.md \
+            --current-version "${TAG}"
+
+      - name: Redeploy docs with updated versions page
+        env:
+          TAG: ${{ env.DEPLOY_VERSION }}
+          DOCS_PRODUCT_VERSION: ${{ env.DEPLOY_VERSION }}
+        run: |
+          set -euo pipefail
+          cd operator-docs
+          export DOCS_PRODUCT_VERSION="${TAG}"
+          # shellcheck disable=SC2086
+          mike deploy --push "${TAG}" ${MIKE_ALIAS_ARGS:-} ${MIKE_STABLE_1_ARGS:-}
