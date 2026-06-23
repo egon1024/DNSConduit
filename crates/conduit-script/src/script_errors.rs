@@ -55,7 +55,7 @@ fn truncate_script_log(message: &str) -> String {
         return message.to_string();
     }
     let mut out = message[..MAX_SCRIPT_LOG_LEN].to_string();
-    out.push_str("…");
+    out.push('…');
     out
 }
 

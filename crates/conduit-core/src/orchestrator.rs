@@ -8,6 +8,7 @@ use crate::snapshot::RuntimeSnapshot;
 use crate::transaction::Transaction;
 use conduit_config::logging::log_text;
 use conduit_events::EventHub;
+use conduit_events::SelectorMatchCtx;
 use conduit_metrics::{trace_activation_matches, MetricsHub, TracingHub};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -33,17 +34,18 @@ fn observe_after_request_rules(
         if let Some(th) = tracing {
             if snapshot.tracing_master_enabled() {
                 let tag_has = |k: &str| txn.tags.has(k);
-                if trace_activation_matches(
-                    &th.compiled.activation,
-                    txn.id,
-                    txn.qname.as_deref(),
-                    txn.qtype,
-                    txn.rcode(),
-                    txn.qclass,
-                    txn.opcode,
-                    &txn.edns_option_codes,
-                    &tag_has,
-                ) {
+                let ctx = SelectorMatchCtx {
+                    txn_id: txn.id,
+                    global_query_index: 0,
+                    qname: txn.qname.as_deref(),
+                    qtype: txn.qtype,
+                    rcode: txn.rcode(),
+                    qclass: txn.qclass,
+                    opcode: txn.opcode,
+                    edns_option_codes: &txn.edns_option_codes,
+                    tag_has: &tag_has,
+                };
+                if trace_activation_matches(&th.compiled.activation, &ctx) {
                     txn.trace_log = Some(conduit_metrics::TraceLog::default());
                 }
             }
