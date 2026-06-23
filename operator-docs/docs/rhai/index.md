@@ -18,8 +18,9 @@ Rhai for rules does **not** edit DNS wire bytes. Rhai for processor chains does 
 ### Rhai for rules (shipped)
 
 1. [Rule Rhai overview](/rhai/rule-rhai.md) — when to use scripts, how they attach to rules, minimal example
-2. [Hooks and phases](/rhai/hooks-and-phases.md) — request vs response hooks, phase guards
-3. [Transaction API](/rhai/transaction-api.md) — `txn` methods and YAML equivalents
+2. [Rhai policy](/guides/rhai-policy.md) — blocklist drop and CSV pool routing labs (request hook)
+3. [Hooks and phases](/rhai/hooks-and-phases.md) — request vs response hooks, phase guards
+4. [Transaction API](/rhai/transaction-api.md) — `txn` methods and YAML equivalents
 
 Behavioral context: [Rules and actions](/policy-routing/rules-and-actions.md), [Policy & routing](/policy-routing/index.md).
 
