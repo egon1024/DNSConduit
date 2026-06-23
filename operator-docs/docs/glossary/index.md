@@ -38,7 +38,7 @@ YAML serialization of the **[effective config](/glossary/index.md#effective-conf
 
 → [Reload and export](/control-plane/reload-and-export.md)
 
-### Reload from disk { #reload-from-disk #file-wins-reload }
+### Reload from disk
 
 **SIGHUP** or **`conduitctl reload`**: re-read the startup config file from disk, **clear the overlay**, validate, and swap the [runtime snapshot](/glossary/index.md#runtime-snapshot). Afterward, effective config comes from the on-disk file only.
 
@@ -114,6 +114,12 @@ Condition on a [rule](/policy-routing/rules-and-actions.md) that tests query or 
 
 → [Rules and actions](/policy-routing/rules-and-actions.md)
 
+### RCODE
+
+DNS response code for the current forward attempt (for example **SERVFAIL**, **NOERROR**). [Response rules](/concepts/architecture-and-packet-path.md#response-rules) match on `rcode` selectors; [Rule Rhai](/glossary/index.md#rule-rhai) uses `txn.response_rcode()` on the response hook.
+
+→ [Rules and actions — Selectors](/policy-routing/rules-and-actions.md#selectors), [Transaction API — Query and response](/rhai/transaction-api.md#query-and-response)
+
 ### sample_percent
 
 Deterministic sampling on a **`0..100`** scale. `0` never matches; `100` always matches. By default the hash uses the transaction id only. Optional **`key`** (static string) or **`key_from`** (`qname`, `rule_name` on rules, `sink_name` on event sinks) selects an independent bucket namespace — see [Sampling and cadence](/policy-routing/rules-and-actions.md#sampling-and-cadence).
@@ -134,13 +140,19 @@ Built-in effect on a matching [rule](/policy-routing/rules-and-actions.md) (for 
 
 → [Rules and actions](/policy-routing/rules-and-actions.md)
 
-### Rule Rhai { #rule-rhai #rhai }
+### Rule Rhai
 
 **Also called:** Rhai for rules.
 
 Scripted **policy** on [rules](/policy-routing/rules-and-actions.md) in current releases: `.rhai` files referenced from `rhai` [actions](/glossary/index.md#action), loaded into the [runtime snapshot](/glossary/index.md#runtime-snapshot) on reload or apply, run at [Request rules](/concepts/architecture-and-packet-path.md#request-rules) and [Response rules](/concepts/architecture-and-packet-path.md#response-rules) within [sandbox limits](/rhai/sandbox-limits.md). Uses the `txn` API — not DNS wire editing.
 
 → [Rule Rhai](/rhai/rule-rhai.md), [Rhai](/rhai/index.md), [Rules and actions](/policy-routing/rules-and-actions.md)
+
+### Rhai
+
+Embedded scripting in Conduit — [Rule Rhai](/glossary/index.md#rule-rhai) on `rules:` today; [Processor-chain Rhai](/glossary/index.md#processor-chain-rhai) when [processor chains](/glossary/index.md#processor-chains) ship.
+
+→ [Rhai](/rhai/index.md)
 
 ## Planned plugin models
 

@@ -156,7 +156,7 @@ if region != "" {
 }
 ```
 
-Downstream sinks can filter on **`tag_required`** or rules can branch on **`txn.has_tag("region")`**.
+Downstream sinks can filter on **`tag_required`** or rules can branch on **`txn.has_tag("region")`**. Walkthrough: [Event export and dnstap — Tag-gated export](/guides/event-export-dnstap.md#5-optional-checks).
 
 ### Pool or egress map
 

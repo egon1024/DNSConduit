@@ -1,0 +1,32 @@
+# Contributing to the operator documentation
+
+Operator-facing documentation lives in **`operator-docs/`** in the DNS Conduit repository. The published site is built with **MkDocs Material** and deployed to GitHub Pages on release tags.
+
+## When to update docs
+
+Pull requests that change **operator-visible** behavior should update **`operator-docs/`** or the root **`README.md`** — for example:
+
+- Config schema, validation, or defaults
+- `conduitctl` or control-plane gRPC behavior
+- Metrics, logging, event export, or tracing
+- Rhai scripting surfaces, limits, or examples
+
+Purely internal refactors, test-only changes, or dependency bumps with no operator impact do not require doc edits.
+
+## Documentation override
+
+If a PR changes operator-surface code but documentation is genuinely unnecessary, add **`#no-docs`** in the **pull request description** with a one-line reason. CI enforces this policy on protected branches.
+
+## Local build
+
+From the repository root:
+
+```bash
+make docs-build
+```
+
+Use **`make docs-serve`** for live preview while editing. The build runs **`mkdocs build --strict`** — broken internal links fail the build.
+
+## Contributing code
+
+Source code contribution, DCO sign-off, and `make test` expectations are in the repository root [**CONTRIBUTING.md**](https://github.com/egon1024/DNSConduit/blob/main/CONTRIBUTING.md) on GitHub.

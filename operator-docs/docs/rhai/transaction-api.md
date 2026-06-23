@@ -1114,14 +1114,16 @@ Sets soft-drop intent — resolved at end of rule; later script lines still run.
 
 #### Example
 
-Request hook — tag and soft-drop a blocked name (repository fixture `blocklist.rhai` / `with-rhai-blocklist.yaml`):
+Request hook — custom metric and soft-drop a blocked name (walkthrough: [Rhai policy — Blocklist drop](/guides/rhai-policy.md#example-1-blocklist-drop-request-hook); repository fixture `blocklist.rhai` / `with-rhai-blocklist.yaml`):
 
 ```rhai
 if table_lookup("blocklist", question_qname(txn)) == "block" {
-    txn.set_tag("blocked", true);
+    txn.metric_inc("block_hits", 1);
     txn.drop_query();
 }
 ```
+
+On a silent request drop, **`metric_inc`** is more useful than **`set_tag`** for observability — tags are not exported to clients or query dnstap frames when the query drops. See [User metrics](/rhai/user-metrics.md).
 
 </div>
 
@@ -1300,14 +1302,20 @@ On the [request hook](/rhai/hooks-and-phases.md#request-hook), calls are ignored
 
 Response hook only — invalid on `hook: request` (config validation fails).
 
+Prefer declarative **`retry`** when **`retry_pool`** is already set on the request hook — see [Retries and transactions — Declarative examples](/policy-routing/retries-and-transactions.md#declarative-examples). Use Rhai when the response rule needs logic beyond an **`rcode`** selector.
+
 #### Example
 
-Response hook — retry in a backup pool on **SERVFAIL** (selector on the rule; script from `tests/fixtures/rhai/servfail-retry.rhai` / `with-rhai-servfail-retry.yaml`):
+Response hook — retry after slow **SERVFAIL** (Rhai adds a latency gate declarative selectors cannot express):
 
 ```rhai
-txn.set_retry_pool("secondary");
-txn.request_retry();
+if txn.response_rcode() == Rcode::SERVFAIL && txn.last_forward_ms() > 2000 {
+    txn.set_retry_pool("secondary");
+    txn.request_retry();
+}
 ```
+
+When **`retry_pool`** is already stashed on the request hook, the response script can call **`txn.request_retry()`** alone. Repository fixture `servfail-retry.rhai` / `with-rhai-servfail-retry.yaml` exercises API parity with built-in **`set_retry_pool`** + **`retry`**.
 
 </div>
 
@@ -2013,10 +2021,10 @@ There is no YAML equivalent.
 
 #### Example
 
-Response hook — servfail retry (repository fixture `servfail-retry.rhai` / `with-rhai-servfail-retry.yaml`):
+Response hook — conditional retry when upstream was slow (see [Hooks and phases — Pairing](/rhai/hooks-and-phases.md#pairing-request-and-response-scripts)):
 
 ```rhai
-if txn.response_rcode() == Rcode::SERVFAIL {
+if txn.response_rcode() == Rcode::SERVFAIL && txn.last_forward_ms() > 2000 {
     txn.set_retry_pool("secondary");
     txn.request_retry();
 }
@@ -2221,20 +2229,20 @@ Stashes a pool name consumed once on the next retry Route; does not trigger retr
   value: secondary
 ```
 
-Pair with **`retry`** or **`retry_now`** on a response rule to fail over — see [Retry actions](/policy-routing/rules-and-actions.md#retry-actions).
+Pair with **`retry`** or **`retry_now`** on a response rule to fail over — see [Retry actions](/policy-routing/rules-and-actions.md#retry-actions). Built-in **`set_retry_pool`** on the request or response hook is equivalent when you do not need script logic.
 
 #### Example
 
-Response script — fail over to a backup pool on **SERVFAIL** (same pattern as `tests/fixtures/rhai/servfail-retry.rhai` in the repository):
+Response script — fail over when **SERVFAIL** followed a slow forward:
 
 ```rhai
-if txn.response_rcode() == Rcode::SERVFAIL {
+if txn.response_rcode() == Rcode::SERVFAIL && txn.last_forward_ms() > 2000 {
     txn.set_retry_pool("secondary");
     txn.request_retry();
 }
 ```
 
-Request hook — route to **primary** now, stash **secondary** if a later retry occurs (built-in actions can do the same; see `tests/fixtures/config/with-rhai-servfail-retry.yaml`):
+Request hook — route to **primary** now, stash **secondary** if a later retry occurs (built-in actions on the request rule are equivalent; see `tests/fixtures/config/with-rhai-servfail-retry.yaml`):
 
 ```rhai
 txn.set_pool("primary");
