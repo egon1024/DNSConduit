@@ -312,9 +312,7 @@ impl CompiledSelector {
             CompiledSelector::Rcode(wire) => ctx.rcode == Some(*wire),
             CompiledSelector::Qclass(wire) => ctx.qclass == Some(*wire),
             CompiledSelector::Opcode(wire) => ctx.opcode == Some(*wire),
-            CompiledSelector::EdnsOption(wire) => {
-                ctx.edns_option_codes.iter().any(|code| *code == *wire)
-            }
+            CompiledSelector::EdnsOption(wire) => ctx.edns_option_codes.contains(wire),
             CompiledSelector::Tag(key) => (ctx.tag_has)(key),
             CompiledSelector::SamplePercent { percent, key } => {
                 if matches!(key, SampleKey::FromQname) && ctx.qname.is_none() {
