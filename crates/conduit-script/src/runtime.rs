@@ -1,9 +1,14 @@
 use crate::compile::{CompiledScript, CompiledScripting, ScriptLimits};
 use crate::data_sources::DataSourceStore;
-use crate::host::{ClientProtocol, HostTransaction, ResponseWireMeta, ScriptPhase, unix_secs, utc_hour_and_weekday};
 use crate::dns_wire::{self, DnsOpcode, EdnsOptionCode, QueryClass, Rcode, RecordType};
+use crate::host::{
+    unix_secs, utc_hour_and_weekday, ClientProtocol, HostTransaction, ResponseWireMeta, ScriptPhase,
+};
 use crate::metrics::MetricRegistry;
-use crate::script_errors::{report_lookup_unknown_table, report_script_eval_error, report_script_log_info, report_script_log_warn};
+use crate::script_errors::{
+    report_lookup_unknown_table, report_script_eval_error, report_script_log_info,
+    report_script_log_warn,
+};
 use conduit_events::{hash_sample_keyed, matches_every_nth_global, matches_every_nth_worker};
 use conduit_metrics::BuiltinRegistry;
 use rhai::{Dynamic, Engine, EvalAltResult, Scope};
@@ -142,7 +147,10 @@ fn register_host_api(engine: &mut Engine) {
         .register_fn("clear_retry_source_v6", RhaiTxn::clear_retry_source_v6)
         .register_fn("sample_percent", RhaiTxn::sample_percent)
         .register_fn("sample_percent", RhaiTxn::sample_percent_keyed)
-        .register_fn("sample_percent_for_qname", RhaiTxn::sample_percent_for_qname)
+        .register_fn(
+            "sample_percent_for_qname",
+            RhaiTxn::sample_percent_for_qname,
+        )
         .register_fn("sample_percent_for_rule", RhaiTxn::sample_percent_for_rule)
         .register_fn("every_nth_worker", RhaiTxn::every_nth_worker)
         .register_fn("every_nth_global", RhaiTxn::every_nth_global)
@@ -161,8 +169,14 @@ fn register_host_api(engine: &mut Engine) {
         .register_fn("selected_backend", RhaiTxn::selected_backend)
         .register_fn("response_truncated", RhaiTxn::response_truncated)
         .register_fn("response_answer_count", RhaiTxn::response_answer_count)
-        .register_fn("response_authority_count", RhaiTxn::response_authority_count)
-        .register_fn("response_additional_count", RhaiTxn::response_additional_count)
+        .register_fn(
+            "response_authority_count",
+            RhaiTxn::response_authority_count,
+        )
+        .register_fn(
+            "response_additional_count",
+            RhaiTxn::response_additional_count,
+        )
         .register_fn("response_authoritative", RhaiTxn::response_authoritative)
         .register_fn("metric_inc", RhaiTxn::metric_inc)
         .register_fn("metric_inc_labels", RhaiTxn::metric_inc_labels)
@@ -351,7 +365,10 @@ impl RhaiTxn {
             map.insert("backend".into(), Dynamic::from(backend.to_string()));
         }
         if let Some(meta) = self.response_meta {
-            map.insert("answer_count".into(), Dynamic::from(meta.answer_count as i64));
+            map.insert(
+                "answer_count".into(),
+                Dynamic::from(meta.answer_count as i64),
+            );
             map.insert(
                 "authority_count".into(),
                 Dynamic::from(meta.authority_count as i64),
@@ -666,9 +683,7 @@ impl RhaiTxn {
     }
 
     fn response_authoritative(&mut self) -> bool {
-        self.response_meta
-            .map(|m| m.authoritative)
-            .unwrap_or(false)
+        self.response_meta.map(|m| m.authoritative).unwrap_or(false)
     }
 
     fn metric_inc(&mut self, name: &str, delta: i64) -> Result<(), Box<EvalAltResult>> {
@@ -956,9 +971,9 @@ fn run_one(
 
 #[cfg(test)]
 mod tests {
-    use crate::host::ResponseWireMeta;
     use super::*;
     use crate::compile::compile_from_config;
+    use crate::host::ResponseWireMeta;
     use crate::rhai_script_errors_total;
     use crate::testing::MockHost;
     use conduit_config::load_yaml;
@@ -2390,7 +2405,9 @@ rules:
         let mut scope = Scope::new();
         scope.push("txn", txn);
         assert_eq!(
-            engine.eval_with_scope::<i64>(&mut scope, "txn.txn_id()").unwrap(),
+            engine
+                .eval_with_scope::<i64>(&mut scope, "txn.txn_id()")
+                .unwrap(),
             42
         );
         assert_eq!(
@@ -2418,7 +2435,9 @@ rules:
             "127.0.0.1:53"
         );
         assert_eq!(
-            engine.eval_with_scope::<i64>(&mut scope, "txn.utc_hour()").unwrap(),
+            engine
+                .eval_with_scope::<i64>(&mut scope, "txn.utc_hour()")
+                .unwrap(),
             4
         );
     }

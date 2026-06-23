@@ -388,10 +388,8 @@ rules:
 
     #[test]
     fn enables_response_wire_meta_when_script_references_truncated() {
-        let dir = std::env::temp_dir().join(format!(
-            "conduit-script-wire-meta-{}",
-            std::process::id()
-        ));
+        let dir =
+            std::env::temp_dir().join(format!("conduit-script-wire-meta-{}", std::process::id()));
         let _ = std::fs::create_dir_all(&dir);
         let script_path = dir.join("check-tc.rhai");
         std::fs::write(

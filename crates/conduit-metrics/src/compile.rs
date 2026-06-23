@@ -314,28 +314,14 @@ mod tests {
             ..Default::default()
         };
         let id = 42u64;
-        let a = trace_activation_matches(
-            &activation,
-            id,
-            None,
-            None,
-            None,
-            None,
-            None,
-            &[],
-            &|_| true,
-        );
-        let b = trace_activation_matches(
-            &activation,
-            id,
-            None,
-            None,
-            None,
-            None,
-            None,
-            &[],
-            &|_| true,
-        );
+        let a =
+            trace_activation_matches(&activation, id, None, None, None, None, None, &[], &|_| {
+                true
+            });
+        let b =
+            trace_activation_matches(&activation, id, None, None, None, None, None, &[], &|_| {
+                true
+            });
         assert_eq!(a, b);
     }
 

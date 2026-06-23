@@ -4,9 +4,9 @@ use crate::forward::egress::{EgressSourceSelection, WorkerForwardEgress};
 use crate::forward::tcp::forward_tcp;
 use crate::forward::{ForwardKey, TxnTable};
 use conduit_config::forward::UpstreamTransport;
-use conduit_core::record_upstream_response;
 use conduit_core::phase::Phase;
 use conduit_core::pipeline::{PipelineStage, StageOutcome};
+use conduit_core::record_upstream_response;
 use conduit_core::snapshot::RuntimeSnapshot;
 use conduit_core::transaction::{ClientProtocol, Transaction};
 use conduit_metrics::MetricsHub;
@@ -231,7 +231,13 @@ impl PipelineStage for ForwardTransport {
                                 bind_v6,
                             ) {
                                 Ok(tcp_wire) => {
-                                    return self.finish_response(txn, key, tcp_wire, started, parse_wire_meta);
+                                    return self.finish_response(
+                                        txn,
+                                        key,
+                                        tcp_wire,
+                                        started,
+                                        parse_wire_meta,
+                                    );
                                 }
                                 Err(e) => {
                                     tracing::warn!(

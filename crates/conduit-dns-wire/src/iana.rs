@@ -3,195 +3,686 @@
 use super::WireEnumEntry;
 
 pub const KNOWN_RECORD_TYPES: &[WireEnumEntry] = &[
-    WireEnumEntry { number: 0, name: "ZERO" },
-    WireEnumEntry { number: 1, name: "A" },
-    WireEnumEntry { number: 2, name: "NS" },
-    WireEnumEntry { number: 3, name: "MD" },
-    WireEnumEntry { number: 4, name: "MF" },
-    WireEnumEntry { number: 5, name: "CNAME" },
-    WireEnumEntry { number: 6, name: "SOA" },
-    WireEnumEntry { number: 7, name: "MB" },
-    WireEnumEntry { number: 8, name: "MG" },
-    WireEnumEntry { number: 9, name: "MR" },
-    WireEnumEntry { number: 10, name: "NULL" },
-    WireEnumEntry { number: 11, name: "WKS" },
-    WireEnumEntry { number: 12, name: "PTR" },
-    WireEnumEntry { number: 13, name: "HINFO" },
-    WireEnumEntry { number: 14, name: "MINFO" },
-    WireEnumEntry { number: 15, name: "MX" },
-    WireEnumEntry { number: 16, name: "TXT" },
-    WireEnumEntry { number: 17, name: "RP" },
-    WireEnumEntry { number: 18, name: "AFSDB" },
-    WireEnumEntry { number: 19, name: "X25" },
-    WireEnumEntry { number: 20, name: "ISDN" },
-    WireEnumEntry { number: 21, name: "RT" },
-    WireEnumEntry { number: 22, name: "NSAP" },
-    WireEnumEntry { number: 23, name: "NSAP_PTR" },
-    WireEnumEntry { number: 24, name: "SIG" },
-    WireEnumEntry { number: 25, name: "KEY" },
-    WireEnumEntry { number: 26, name: "PX" },
-    WireEnumEntry { number: 27, name: "GPOS" },
-    WireEnumEntry { number: 28, name: "AAAA" },
-    WireEnumEntry { number: 29, name: "LOC" },
-    WireEnumEntry { number: 30, name: "NXT" },
-    WireEnumEntry { number: 31, name: "EID" },
-    WireEnumEntry { number: 32, name: "NIMLOC" },
-    WireEnumEntry { number: 33, name: "SRV" },
-    WireEnumEntry { number: 34, name: "ATMA" },
-    WireEnumEntry { number: 35, name: "NAPTR" },
-    WireEnumEntry { number: 36, name: "KX" },
-    WireEnumEntry { number: 37, name: "CERT" },
-    WireEnumEntry { number: 38, name: "A6" },
-    WireEnumEntry { number: 39, name: "DNAME" },
-    WireEnumEntry { number: 40, name: "SINK" },
-    WireEnumEntry { number: 41, name: "OPT" },
-    WireEnumEntry { number: 42, name: "APL" },
-    WireEnumEntry { number: 43, name: "DS" },
-    WireEnumEntry { number: 44, name: "SSHFP" },
-    WireEnumEntry { number: 45, name: "IPSECKEY" },
-    WireEnumEntry { number: 46, name: "RRSIG" },
-    WireEnumEntry { number: 47, name: "NSEC" },
-    WireEnumEntry { number: 48, name: "DNSKEY" },
-    WireEnumEntry { number: 49, name: "DHCID" },
-    WireEnumEntry { number: 50, name: "NSEC3" },
-    WireEnumEntry { number: 51, name: "NSEC3PARAM" },
-    WireEnumEntry { number: 52, name: "TLSA" },
-    WireEnumEntry { number: 53, name: "SMIMEA" },
-    WireEnumEntry { number: 54, name: "UNASSIGNED" },
-    WireEnumEntry { number: 55, name: "HIP" },
-    WireEnumEntry { number: 56, name: "NINFO" },
-    WireEnumEntry { number: 57, name: "RKEY" },
-    WireEnumEntry { number: 58, name: "TALINK" },
-    WireEnumEntry { number: 59, name: "CDS" },
-    WireEnumEntry { number: 60, name: "CDNSKEY" },
-    WireEnumEntry { number: 61, name: "OPENPGPKEY" },
-    WireEnumEntry { number: 62, name: "CSYNC" },
-    WireEnumEntry { number: 63, name: "ZONEMD" },
-    WireEnumEntry { number: 64, name: "SVCB" },
-    WireEnumEntry { number: 65, name: "HTTPS" },
-    WireEnumEntry { number: 66, name: "DSYNC" },
-    WireEnumEntry { number: 67, name: "HHIT" },
-    WireEnumEntry { number: 68, name: "BRID" },
-    WireEnumEntry { number: 99, name: "SPF" },
-    WireEnumEntry { number: 100, name: "UINFO" },
-    WireEnumEntry { number: 101, name: "UID" },
-    WireEnumEntry { number: 102, name: "GID" },
-    WireEnumEntry { number: 103, name: "UNSPEC" },
-    WireEnumEntry { number: 104, name: "NID" },
-    WireEnumEntry { number: 105, name: "L32" },
-    WireEnumEntry { number: 106, name: "L64" },
-    WireEnumEntry { number: 107, name: "LP" },
-    WireEnumEntry { number: 108, name: "EUI48" },
-    WireEnumEntry { number: 109, name: "EUI64" },
-    WireEnumEntry { number: 128, name: "NXNAME" },
-    WireEnumEntry { number: 249, name: "TKEY" },
-    WireEnumEntry { number: 250, name: "TSIG" },
-    WireEnumEntry { number: 251, name: "IXFR" },
-    WireEnumEntry { number: 252, name: "AXFR" },
-    WireEnumEntry { number: 253, name: "MAILB" },
-    WireEnumEntry { number: 254, name: "MAILA" },
-    WireEnumEntry { number: 256, name: "URI" },
-    WireEnumEntry { number: 257, name: "CAA" },
-    WireEnumEntry { number: 258, name: "AVC" },
-    WireEnumEntry { number: 259, name: "DOA" },
-    WireEnumEntry { number: 260, name: "AMTRELAY" },
-    WireEnumEntry { number: 261, name: "RESINFO" },
-    WireEnumEntry { number: 262, name: "WALLET" },
-    WireEnumEntry { number: 263, name: "CLA" },
-    WireEnumEntry { number: 264, name: "IPN" },
-    WireEnumEntry { number: 32768, name: "TA" },
-    WireEnumEntry { number: 32769, name: "DLV" },
-    WireEnumEntry { number: 65305, name: "ANAME" },
-    WireEnumEntry { number: 65535, name: "RESERVED" },
+    WireEnumEntry {
+        number: 0,
+        name: "ZERO",
+    },
+    WireEnumEntry {
+        number: 1,
+        name: "A",
+    },
+    WireEnumEntry {
+        number: 2,
+        name: "NS",
+    },
+    WireEnumEntry {
+        number: 3,
+        name: "MD",
+    },
+    WireEnumEntry {
+        number: 4,
+        name: "MF",
+    },
+    WireEnumEntry {
+        number: 5,
+        name: "CNAME",
+    },
+    WireEnumEntry {
+        number: 6,
+        name: "SOA",
+    },
+    WireEnumEntry {
+        number: 7,
+        name: "MB",
+    },
+    WireEnumEntry {
+        number: 8,
+        name: "MG",
+    },
+    WireEnumEntry {
+        number: 9,
+        name: "MR",
+    },
+    WireEnumEntry {
+        number: 10,
+        name: "NULL",
+    },
+    WireEnumEntry {
+        number: 11,
+        name: "WKS",
+    },
+    WireEnumEntry {
+        number: 12,
+        name: "PTR",
+    },
+    WireEnumEntry {
+        number: 13,
+        name: "HINFO",
+    },
+    WireEnumEntry {
+        number: 14,
+        name: "MINFO",
+    },
+    WireEnumEntry {
+        number: 15,
+        name: "MX",
+    },
+    WireEnumEntry {
+        number: 16,
+        name: "TXT",
+    },
+    WireEnumEntry {
+        number: 17,
+        name: "RP",
+    },
+    WireEnumEntry {
+        number: 18,
+        name: "AFSDB",
+    },
+    WireEnumEntry {
+        number: 19,
+        name: "X25",
+    },
+    WireEnumEntry {
+        number: 20,
+        name: "ISDN",
+    },
+    WireEnumEntry {
+        number: 21,
+        name: "RT",
+    },
+    WireEnumEntry {
+        number: 22,
+        name: "NSAP",
+    },
+    WireEnumEntry {
+        number: 23,
+        name: "NSAP_PTR",
+    },
+    WireEnumEntry {
+        number: 24,
+        name: "SIG",
+    },
+    WireEnumEntry {
+        number: 25,
+        name: "KEY",
+    },
+    WireEnumEntry {
+        number: 26,
+        name: "PX",
+    },
+    WireEnumEntry {
+        number: 27,
+        name: "GPOS",
+    },
+    WireEnumEntry {
+        number: 28,
+        name: "AAAA",
+    },
+    WireEnumEntry {
+        number: 29,
+        name: "LOC",
+    },
+    WireEnumEntry {
+        number: 30,
+        name: "NXT",
+    },
+    WireEnumEntry {
+        number: 31,
+        name: "EID",
+    },
+    WireEnumEntry {
+        number: 32,
+        name: "NIMLOC",
+    },
+    WireEnumEntry {
+        number: 33,
+        name: "SRV",
+    },
+    WireEnumEntry {
+        number: 34,
+        name: "ATMA",
+    },
+    WireEnumEntry {
+        number: 35,
+        name: "NAPTR",
+    },
+    WireEnumEntry {
+        number: 36,
+        name: "KX",
+    },
+    WireEnumEntry {
+        number: 37,
+        name: "CERT",
+    },
+    WireEnumEntry {
+        number: 38,
+        name: "A6",
+    },
+    WireEnumEntry {
+        number: 39,
+        name: "DNAME",
+    },
+    WireEnumEntry {
+        number: 40,
+        name: "SINK",
+    },
+    WireEnumEntry {
+        number: 41,
+        name: "OPT",
+    },
+    WireEnumEntry {
+        number: 42,
+        name: "APL",
+    },
+    WireEnumEntry {
+        number: 43,
+        name: "DS",
+    },
+    WireEnumEntry {
+        number: 44,
+        name: "SSHFP",
+    },
+    WireEnumEntry {
+        number: 45,
+        name: "IPSECKEY",
+    },
+    WireEnumEntry {
+        number: 46,
+        name: "RRSIG",
+    },
+    WireEnumEntry {
+        number: 47,
+        name: "NSEC",
+    },
+    WireEnumEntry {
+        number: 48,
+        name: "DNSKEY",
+    },
+    WireEnumEntry {
+        number: 49,
+        name: "DHCID",
+    },
+    WireEnumEntry {
+        number: 50,
+        name: "NSEC3",
+    },
+    WireEnumEntry {
+        number: 51,
+        name: "NSEC3PARAM",
+    },
+    WireEnumEntry {
+        number: 52,
+        name: "TLSA",
+    },
+    WireEnumEntry {
+        number: 53,
+        name: "SMIMEA",
+    },
+    WireEnumEntry {
+        number: 54,
+        name: "UNASSIGNED",
+    },
+    WireEnumEntry {
+        number: 55,
+        name: "HIP",
+    },
+    WireEnumEntry {
+        number: 56,
+        name: "NINFO",
+    },
+    WireEnumEntry {
+        number: 57,
+        name: "RKEY",
+    },
+    WireEnumEntry {
+        number: 58,
+        name: "TALINK",
+    },
+    WireEnumEntry {
+        number: 59,
+        name: "CDS",
+    },
+    WireEnumEntry {
+        number: 60,
+        name: "CDNSKEY",
+    },
+    WireEnumEntry {
+        number: 61,
+        name: "OPENPGPKEY",
+    },
+    WireEnumEntry {
+        number: 62,
+        name: "CSYNC",
+    },
+    WireEnumEntry {
+        number: 63,
+        name: "ZONEMD",
+    },
+    WireEnumEntry {
+        number: 64,
+        name: "SVCB",
+    },
+    WireEnumEntry {
+        number: 65,
+        name: "HTTPS",
+    },
+    WireEnumEntry {
+        number: 66,
+        name: "DSYNC",
+    },
+    WireEnumEntry {
+        number: 67,
+        name: "HHIT",
+    },
+    WireEnumEntry {
+        number: 68,
+        name: "BRID",
+    },
+    WireEnumEntry {
+        number: 99,
+        name: "SPF",
+    },
+    WireEnumEntry {
+        number: 100,
+        name: "UINFO",
+    },
+    WireEnumEntry {
+        number: 101,
+        name: "UID",
+    },
+    WireEnumEntry {
+        number: 102,
+        name: "GID",
+    },
+    WireEnumEntry {
+        number: 103,
+        name: "UNSPEC",
+    },
+    WireEnumEntry {
+        number: 104,
+        name: "NID",
+    },
+    WireEnumEntry {
+        number: 105,
+        name: "L32",
+    },
+    WireEnumEntry {
+        number: 106,
+        name: "L64",
+    },
+    WireEnumEntry {
+        number: 107,
+        name: "LP",
+    },
+    WireEnumEntry {
+        number: 108,
+        name: "EUI48",
+    },
+    WireEnumEntry {
+        number: 109,
+        name: "EUI64",
+    },
+    WireEnumEntry {
+        number: 128,
+        name: "NXNAME",
+    },
+    WireEnumEntry {
+        number: 249,
+        name: "TKEY",
+    },
+    WireEnumEntry {
+        number: 250,
+        name: "TSIG",
+    },
+    WireEnumEntry {
+        number: 251,
+        name: "IXFR",
+    },
+    WireEnumEntry {
+        number: 252,
+        name: "AXFR",
+    },
+    WireEnumEntry {
+        number: 253,
+        name: "MAILB",
+    },
+    WireEnumEntry {
+        number: 254,
+        name: "MAILA",
+    },
+    WireEnumEntry {
+        number: 256,
+        name: "URI",
+    },
+    WireEnumEntry {
+        number: 257,
+        name: "CAA",
+    },
+    WireEnumEntry {
+        number: 258,
+        name: "AVC",
+    },
+    WireEnumEntry {
+        number: 259,
+        name: "DOA",
+    },
+    WireEnumEntry {
+        number: 260,
+        name: "AMTRELAY",
+    },
+    WireEnumEntry {
+        number: 261,
+        name: "RESINFO",
+    },
+    WireEnumEntry {
+        number: 262,
+        name: "WALLET",
+    },
+    WireEnumEntry {
+        number: 263,
+        name: "CLA",
+    },
+    WireEnumEntry {
+        number: 264,
+        name: "IPN",
+    },
+    WireEnumEntry {
+        number: 32768,
+        name: "TA",
+    },
+    WireEnumEntry {
+        number: 32769,
+        name: "DLV",
+    },
+    WireEnumEntry {
+        number: 65305,
+        name: "ANAME",
+    },
+    WireEnumEntry {
+        number: 65535,
+        name: "RESERVED",
+    },
 ];
 
 pub const RECORD_TYPE_PARSE_ALIASES: &[(&str, u16)] = &[];
 
 pub const KNOWN_RCODES: &[WireEnumEntry] = &[
-    WireEnumEntry { number: 0, name: "NOERROR" },
-    WireEnumEntry { number: 1, name: "FORMERR" },
-    WireEnumEntry { number: 2, name: "SERVFAIL" },
-    WireEnumEntry { number: 3, name: "NXDOMAIN" },
-    WireEnumEntry { number: 4, name: "NOTIMP" },
-    WireEnumEntry { number: 5, name: "REFUSED" },
-    WireEnumEntry { number: 6, name: "YXDOMAIN" },
-    WireEnumEntry { number: 7, name: "YXRRSET" },
-    WireEnumEntry { number: 8, name: "NXRRSET" },
-    WireEnumEntry { number: 9, name: "NOTAUTH" },
-    WireEnumEntry { number: 10, name: "NOTZONE" },
-    WireEnumEntry { number: 11, name: "DSOTYPENI" },
-    WireEnumEntry { number: 16, name: "BADVERS" },
-    WireEnumEntry { number: 17, name: "BADKEY" },
-    WireEnumEntry { number: 18, name: "BADTIME" },
-    WireEnumEntry { number: 19, name: "BADMODE" },
-    WireEnumEntry { number: 20, name: "BADNAME" },
-    WireEnumEntry { number: 21, name: "BADALG" },
-    WireEnumEntry { number: 22, name: "BADTRUNC" },
-    WireEnumEntry { number: 23, name: "BADCOOKIE" },
-    WireEnumEntry { number: 65535, name: "RESERVED_CAN_BE_ALLOCATED_BY_STANDARDS_ACTION" },
+    WireEnumEntry {
+        number: 0,
+        name: "NOERROR",
+    },
+    WireEnumEntry {
+        number: 1,
+        name: "FORMERR",
+    },
+    WireEnumEntry {
+        number: 2,
+        name: "SERVFAIL",
+    },
+    WireEnumEntry {
+        number: 3,
+        name: "NXDOMAIN",
+    },
+    WireEnumEntry {
+        number: 4,
+        name: "NOTIMP",
+    },
+    WireEnumEntry {
+        number: 5,
+        name: "REFUSED",
+    },
+    WireEnumEntry {
+        number: 6,
+        name: "YXDOMAIN",
+    },
+    WireEnumEntry {
+        number: 7,
+        name: "YXRRSET",
+    },
+    WireEnumEntry {
+        number: 8,
+        name: "NXRRSET",
+    },
+    WireEnumEntry {
+        number: 9,
+        name: "NOTAUTH",
+    },
+    WireEnumEntry {
+        number: 10,
+        name: "NOTZONE",
+    },
+    WireEnumEntry {
+        number: 11,
+        name: "DSOTYPENI",
+    },
+    WireEnumEntry {
+        number: 16,
+        name: "BADVERS",
+    },
+    WireEnumEntry {
+        number: 17,
+        name: "BADKEY",
+    },
+    WireEnumEntry {
+        number: 18,
+        name: "BADTIME",
+    },
+    WireEnumEntry {
+        number: 19,
+        name: "BADMODE",
+    },
+    WireEnumEntry {
+        number: 20,
+        name: "BADNAME",
+    },
+    WireEnumEntry {
+        number: 21,
+        name: "BADALG",
+    },
+    WireEnumEntry {
+        number: 22,
+        name: "BADTRUNC",
+    },
+    WireEnumEntry {
+        number: 23,
+        name: "BADCOOKIE",
+    },
+    WireEnumEntry {
+        number: 65535,
+        name: "RESERVED_CAN_BE_ALLOCATED_BY_STANDARDS_ACTION",
+    },
 ];
 
-pub const RCODE_PARSE_ALIASES: &[(&str, u16)] = &[
-    ("BADSIG", 16),
-];
+pub const RCODE_PARSE_ALIASES: &[(&str, u16)] = &[("BADSIG", 16)];
 
 pub const KNOWN_QUERY_CLASSES: &[WireEnumEntry] = &[
-    WireEnumEntry { number: 0, name: "RESERVED" },
-    WireEnumEntry { number: 1, name: "IN" },
-    WireEnumEntry { number: 2, name: "UNASSIGNED" },
-    WireEnumEntry { number: 3, name: "CH" },
-    WireEnumEntry { number: 4, name: "HS" },
-    WireEnumEntry { number: 254, name: "NONE" },
-    WireEnumEntry { number: 255, name: "ANY" },
-    WireEnumEntry { number: 65535, name: "RESERVED65535" },
+    WireEnumEntry {
+        number: 0,
+        name: "RESERVED",
+    },
+    WireEnumEntry {
+        number: 1,
+        name: "IN",
+    },
+    WireEnumEntry {
+        number: 2,
+        name: "UNASSIGNED",
+    },
+    WireEnumEntry {
+        number: 3,
+        name: "CH",
+    },
+    WireEnumEntry {
+        number: 4,
+        name: "HS",
+    },
+    WireEnumEntry {
+        number: 254,
+        name: "NONE",
+    },
+    WireEnumEntry {
+        number: 255,
+        name: "ANY",
+    },
+    WireEnumEntry {
+        number: 65535,
+        name: "RESERVED65535",
+    },
 ];
 
 pub const QUERY_CLASS_PARSE_ALIASES: &[(&str, u16)] = &[];
 
 pub const KNOWN_DNS_OPCODES: &[WireEnumEntry] = &[
-    WireEnumEntry { number: 0, name: "QUERY" },
-    WireEnumEntry { number: 1, name: "IQUERY" },
-    WireEnumEntry { number: 2, name: "STATUS" },
-    WireEnumEntry { number: 3, name: "UNASSIGNED" },
-    WireEnumEntry { number: 4, name: "NOTIFY" },
-    WireEnumEntry { number: 5, name: "UPDATE" },
-    WireEnumEntry { number: 6, name: "DNS_STATEFUL_OPERATIONS" },
+    WireEnumEntry {
+        number: 0,
+        name: "QUERY",
+    },
+    WireEnumEntry {
+        number: 1,
+        name: "IQUERY",
+    },
+    WireEnumEntry {
+        number: 2,
+        name: "STATUS",
+    },
+    WireEnumEntry {
+        number: 3,
+        name: "UNASSIGNED",
+    },
+    WireEnumEntry {
+        number: 4,
+        name: "NOTIFY",
+    },
+    WireEnumEntry {
+        number: 5,
+        name: "UPDATE",
+    },
+    WireEnumEntry {
+        number: 6,
+        name: "DNS_STATEFUL_OPERATIONS",
+    },
 ];
 
-pub const DNS_OPCODE_PARSE_ALIASES: &[(&str, u16)] = &[
-    ("DSO", 6),
-];
+pub const DNS_OPCODE_PARSE_ALIASES: &[(&str, u16)] = &[("DSO", 6)];
 
 pub const KNOWN_EDNS_OPTION_CODES: &[WireEnumEntry] = &[
-    WireEnumEntry { number: 0, name: "ZERO" },
-    WireEnumEntry { number: 1, name: "LLQ" },
-    WireEnumEntry { number: 2, name: "UPDATE_LEASE" },
-    WireEnumEntry { number: 3, name: "NSID" },
-    WireEnumEntry { number: 4, name: "RESERVED4" },
-    WireEnumEntry { number: 5, name: "DAU" },
-    WireEnumEntry { number: 6, name: "DHU" },
-    WireEnumEntry { number: 7, name: "N3U" },
-    WireEnumEntry { number: 8, name: "EDNS_CLIENT_SUBNET" },
-    WireEnumEntry { number: 9, name: "EDNS_EXPIRE" },
-    WireEnumEntry { number: 10, name: "COOKIE" },
-    WireEnumEntry { number: 11, name: "EDNS_TCP_KEEPALIVE" },
-    WireEnumEntry { number: 12, name: "PADDING" },
-    WireEnumEntry { number: 13, name: "CHAIN" },
-    WireEnumEntry { number: 14, name: "EDNS_KEY_TAG" },
-    WireEnumEntry { number: 15, name: "EXTENDED_DNS_ERROR" },
-    WireEnumEntry { number: 16, name: "EDNS_CLIENT_TAG" },
-    WireEnumEntry { number: 17, name: "EDNS_SERVER_TAG" },
-    WireEnumEntry { number: 18, name: "REPORT_CHANNEL" },
-    WireEnumEntry { number: 19, name: "ZONEVERSION" },
-    WireEnumEntry { number: 20, name: "MQTYPE_QUERY" },
-    WireEnumEntry { number: 21, name: "MQTYPE_RESPONSE" },
-    WireEnumEntry { number: 22, name: "EDE_EXTRA_TEXT_LANGUAGE" },
-    WireEnumEntry { number: 23, name: "FILTERING_CONTACT" },
-    WireEnumEntry { number: 24, name: "FILTERING_ORGANIZATION" },
-    WireEnumEntry { number: 25, name: "FILTERING_DB" },
-    WireEnumEntry { number: 20292, name: "UMBRELLA_IDENT" },
-    WireEnumEntry { number: 26946, name: "DEVICEID" },
-    WireEnumEntry { number: 65535, name: "RESERVED_FOR_FUTURE_EXPANSION" },
+    WireEnumEntry {
+        number: 0,
+        name: "ZERO",
+    },
+    WireEnumEntry {
+        number: 1,
+        name: "LLQ",
+    },
+    WireEnumEntry {
+        number: 2,
+        name: "UPDATE_LEASE",
+    },
+    WireEnumEntry {
+        number: 3,
+        name: "NSID",
+    },
+    WireEnumEntry {
+        number: 4,
+        name: "RESERVED4",
+    },
+    WireEnumEntry {
+        number: 5,
+        name: "DAU",
+    },
+    WireEnumEntry {
+        number: 6,
+        name: "DHU",
+    },
+    WireEnumEntry {
+        number: 7,
+        name: "N3U",
+    },
+    WireEnumEntry {
+        number: 8,
+        name: "EDNS_CLIENT_SUBNET",
+    },
+    WireEnumEntry {
+        number: 9,
+        name: "EDNS_EXPIRE",
+    },
+    WireEnumEntry {
+        number: 10,
+        name: "COOKIE",
+    },
+    WireEnumEntry {
+        number: 11,
+        name: "EDNS_TCP_KEEPALIVE",
+    },
+    WireEnumEntry {
+        number: 12,
+        name: "PADDING",
+    },
+    WireEnumEntry {
+        number: 13,
+        name: "CHAIN",
+    },
+    WireEnumEntry {
+        number: 14,
+        name: "EDNS_KEY_TAG",
+    },
+    WireEnumEntry {
+        number: 15,
+        name: "EXTENDED_DNS_ERROR",
+    },
+    WireEnumEntry {
+        number: 16,
+        name: "EDNS_CLIENT_TAG",
+    },
+    WireEnumEntry {
+        number: 17,
+        name: "EDNS_SERVER_TAG",
+    },
+    WireEnumEntry {
+        number: 18,
+        name: "REPORT_CHANNEL",
+    },
+    WireEnumEntry {
+        number: 19,
+        name: "ZONEVERSION",
+    },
+    WireEnumEntry {
+        number: 20,
+        name: "MQTYPE_QUERY",
+    },
+    WireEnumEntry {
+        number: 21,
+        name: "MQTYPE_RESPONSE",
+    },
+    WireEnumEntry {
+        number: 22,
+        name: "EDE_EXTRA_TEXT_LANGUAGE",
+    },
+    WireEnumEntry {
+        number: 23,
+        name: "FILTERING_CONTACT",
+    },
+    WireEnumEntry {
+        number: 24,
+        name: "FILTERING_ORGANIZATION",
+    },
+    WireEnumEntry {
+        number: 25,
+        name: "FILTERING_DB",
+    },
+    WireEnumEntry {
+        number: 20292,
+        name: "UMBRELLA_IDENT",
+    },
+    WireEnumEntry {
+        number: 26946,
+        name: "DEVICEID",
+    },
+    WireEnumEntry {
+        number: 65535,
+        name: "RESERVED_FOR_FUTURE_EXPANSION",
+    },
 ];
 
 pub const EDNS_OPTION_CODE_PARSE_ALIASES: &[(&str, u16)] = &[

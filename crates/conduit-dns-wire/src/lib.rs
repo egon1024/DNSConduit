@@ -198,7 +198,9 @@ pub fn parse_selector_wire_value(selector_type: &str, value: &str) -> Result<u16
         "qclass" => QueryClass::parse_name_or_err(value).map(QueryClass::number),
         "opcode" => DnsOpcode::parse_name_or_err(value).map(|o| o.number() as u16),
         "edns_option" => EdnsOptionCode::parse_name_or_err(value).map(EdnsOptionCode::number),
-        other => Err(format!("selector type '{other}' is not a wire-enum selector")),
+        other => Err(format!(
+            "selector type '{other}' is not a wire-enum selector"
+        )),
     }
 }
 
@@ -213,12 +215,12 @@ mod tests {
             RecordType::parse_name("TYPE1").map(RecordType::number),
             Some(1)
         );
-        assert_eq!(
-            Rcode::parse_name("SERVFAIL").map(Rcode::number),
-            Some(2)
-        );
+        assert_eq!(Rcode::parse_name("SERVFAIL").map(Rcode::number), Some(2));
         assert_eq!(Rcode::parse_name("RCODE2").map(Rcode::number), Some(2));
-        assert_eq!(QueryClass::parse_name("IN").map(QueryClass::number), Some(1));
+        assert_eq!(
+            QueryClass::parse_name("IN").map(QueryClass::number),
+            Some(1)
+        );
         assert_eq!(
             QueryClass::parse_name("CLASS1").map(QueryClass::number),
             Some(1)
