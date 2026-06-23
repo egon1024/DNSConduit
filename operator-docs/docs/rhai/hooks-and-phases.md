@@ -86,7 +86,7 @@ if txn.has_tag("suspicious") {
 }
 ```
 
-Runnable config: `tests/fixtures/config/with-rhai-slow-login.yaml` in the repository. Similar split patterns appear in servfail-retry (request pool + response retry) and dnstap tagging (request tag + sink `tag_required`).
+Runnable config: `tests/fixtures/config/with-rhai-slow-login.yaml` in the repository. For **tag + response-side logic**, see the slow-login pattern above. For **tag-gated dnstap export**, pair request **`set_tag`** with sink **`tag_required`** — [Event export — Filters](/observability/event-export.md#filters) and [Event export and dnstap — Optional checks](/guides/event-export-dnstap.md#5-optional-checks). **SERVFAIL** failover to another pool is usually declarative (**`set_retry_pool`** + **`retry`**) — [Retries and transactions — Declarative examples](/policy-routing/retries-and-transactions.md#declarative-examples).
 
 ## Script errors on a hook
 

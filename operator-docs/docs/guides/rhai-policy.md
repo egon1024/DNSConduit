@@ -325,4 +325,5 @@ Compile-time checks (unknown **`table_lookup`** table name, Rhai syntax, **`data
 - [Retries and transactions](/policy-routing/retries-and-transactions.md) — limits and pool lifecycle
 - [Rules and actions](/policy-routing/rules-and-actions.md) — selectors, action order, validation
 - [Control plane workflows](/guides/control-plane-workflows.md) — reload, apply, export
+- [Event export and dnstap](/guides/event-export-dnstap.md#5-optional-checks) — tag-gated export (`set_tag` + `tag_required`)
 - [Guides](/guides/index.md) — other walkthroughs

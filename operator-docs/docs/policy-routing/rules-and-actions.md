@@ -357,26 +357,28 @@ Conduit still uses **`match_mode: first_match`** on each hook: only the **first*
 
 The script can override earlier YAML effects (for example `txn.set_pool("vip")` after `set_pool: default`). One `.rhai` file can be referenced from multiple rules; Conduit compiles it once per `(rule_name, path)` and runs it only when that rule wins first-match on the matching hook.
 
-Request- and response-hook script examples:
+Request- and response-hook script examples (request hook — see [Rhai policy](/guides/rhai-policy.md) for runnable labs):
 
 ```yaml
     - name: block-on-list
       hook: request
       selectors:
         - type: qname_suffix
-          value: ".blocked."
+          value: "bad.example."
       actions:
         - type: rhai
           value: scripts/blocklist.rhai
-    - name: servfail-failover
-      hook: response
+    - name: route-by-table
+      hook: request
       selectors:
-        - type: rcode
-          value: SERVFAIL
+        - type: qname_suffix
+          value: "customer.example."
       actions:
         - type: rhai
-          value: scripts/servfail-retry.rhai
+          value: scripts/route-by-table.rhai
 ```
+
+Simple **SERVFAIL** failover to a backup pool does not need Rhai — use **`set_retry_pool`** + **`retry`** on the response hook ([Retries and transactions — Declarative examples](/policy-routing/retries-and-transactions.md#declarative-examples)). Reach for Rhai when policy depends on lookup tables, custom metrics, upstream latency, or other logic beyond built-in selectors.
 
 The script receives a sandboxed **`txn`** object — policy fields only ([pool](/glossary/index.md#pool), [tags](/glossary/index.md#tags), egress, drop, retry). It does **not** edit DNS wire bytes. Phase-specific behavior, guards, and pairing request/response scripts: [Hooks and phases](/rhai/hooks-and-phases.md). Method reference: [Transaction API](/rhai/transaction-api.md).
 
