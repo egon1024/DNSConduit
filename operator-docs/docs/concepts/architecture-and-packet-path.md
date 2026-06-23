@@ -254,17 +254,9 @@ Some changes update the snapshot immediately but still need a **process restart*
 
 ## Concurrency and workers
 
-**Current builds** use the **`sync`** runtime only. **Release v1.0** adds selectable runtimes (`dataplane.runtime`); **`split_io`** is the recommended production model when upstream latency or query volume would otherwise block ingress workers.
+Current releases run the [dataplane](/glossary/index.md#dataplane) in a **sync-style** model: each **ingress worker** accepts a client query, runs the full [pipeline](/concepts/architecture-and-packet-path.md#pipeline-phases) on that OS thread — **including blocking upstream wait** at [Forward](/concepts/architecture-and-packet-path.md#forward) — then sends the reply before taking the next query on that thread. There is no separate policy or upstream I/O worker pool today.
 
-Conduit’s dataplane runtime is chosen at **process startup** (`dataplane.runtime`). Changing it requires a **process restart** (see [Configuration model](/control-plane/configuration-model.md)).
-
-### Runtime models
-
-| Model | Summary | Default? |
-|-------|---------|----------|
-| **`sync`** | Each ingress worker receives a query, runs the full [pipeline](/concepts/architecture-and-packet-path.md#pipeline-phases) on that thread, **including blocking upstream wait**, then replies before taking the next query | **Yes** when `dataplane.runtime` is omitted |
-| **`split_io`** | Separate **ingress**, **policy**, and **upstream I/O** worker pools; ingress does not block on upstream DNS wait; transactions **park** in a slot pool between Forward and [Wait for response](/concepts/architecture-and-packet-path.md#wait-for-response) | Opt-in; **recommended for production** at release v1.0 under load or slow upstreams |
-| **`tokio`** | Async task-based dataplane (post–v1.0) | Not in initial v1.0 releases |
+**`sync`** here is descriptive shorthand for that behavior. It is **not** a YAML config value — there is no runtime selector in current releases.
 
 ```mermaid
 flowchart LR
@@ -274,25 +266,20 @@ flowchart LR
     recv --> pipe[full pipeline + upstream wait]
     pipe --> send[reply]
   end
-
-  subgraph split [split_io — pools]
-    I[Ingress pool]
-    P[Policy pool]
-    IO[I/O backend]
-    I -->|slot id| P
-    P -->|submit| IO
-    IO -->|resume| P
-    P -->|reply| I
-  end
 ```
 
-### Worker counts
+### Worker counts and limits
 
-- **`listeners.threads`** — ingress workers per listener address (use **`listeners.reuse_port: true`** on UDP when `threads` > 1). Optional per-listener **`threads`** override on each `listeners.listeners[]` entry.
-- **`dataplane.policy_workers`** — concurrent policy/pipeline executions (`split_io` / future `tokio`).
-- **`dataplane.io_workers`** — upstream reply demux threads (`split_io`).
+Ingress concurrency is configured under **`listeners:`**:
 
-Concurrency is bounded by slot pool capacity (`orchestrator.txn_table_capacity`), `forward.outstanding_per_backend`, and optional per-pool `max_inflight` caps.
+- **`listeners.threads`** — worker threads **per** entry in `listeners.listeners` (use **`listeners.reuse_port: true`** on UDP when `threads` > 1). Total ingress workers = `threads` × number of listener entries. Field reference: [Reference: listeners](/reference/config-schema/listeners.md).
+- **`orchestrator.txn_table_capacity`** — capacity of the in-flight [transaction](/glossary/index.md#transaction) table on the datapath (bounds how many queries the process tracks at once, independent of per-query [retry](/glossary/index.md#retry) count). Field reference: [Reference: orchestrator](/reference/config-schema/orchestrator.md).
+- **`forward.outstanding_per_backend`** — cap on concurrent upstream queries per backend address. Field reference: [Reference: forward](/reference/config-schema/forward.md).
+
+Under load or slow upstreams, a busy ingress worker cannot accept another client query until the current transaction finishes (including upstream wait). Tune `threads` and `reuse_port` when you need more parallel ingress capacity.
+
+!!! note "Alternative runtime models (not shipped)"
+    Designs that split **ingress**, **policy**, and **upstream I/O** into separate worker pools — so ingress does not block on upstream DNS wait — have been discussed internally but are **not implemented**, **not configurable**, and **not committed** to any release. Do not expect related config keys in YAML today.
 
 ### Query outcomes and worker occupancy
 
@@ -301,7 +288,7 @@ Concurrency is bounded by slot pool capacity (`orchestrator.txn_table_capacity`)
 | **Drop** | No reply (silent) | Malformed wire, policy `drop` |
 | **Response** | DNS packet | Upstream answer or **synthesized error** (e.g. SERVFAIL when routing/forward/retries fail) |
 
-Under **`sync`**, one ingress worker is busy for the entire transaction (including upstream wait). Under **`split_io`**, ingress workers stay available for new queries while other slots wait on upstreams in the I/O pool.
+Under current builds, one ingress worker stays busy for the entire [transaction](/glossary/index.md#transaction), including upstream wait.
 
 [Metrics](/observability/metrics.md), [event export](/observability/event-export.md) ([dnstap](/glossary/index.md#dnstap)), and similar observation are handled separately from the query path. If an export queue fills up, Conduit drops export events and increments [`conduit_events_queue_dropped_total`](/observability/built-in-metrics.md#conduit_events_queue_dropped_total) rather than delaying DNS responses.
 

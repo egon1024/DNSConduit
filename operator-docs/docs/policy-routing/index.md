@@ -9,7 +9,7 @@ Read [Architecture and packet path](/concepts/architecture-and-packet-path.md) f
 | Concern | Config | Topic page |
 |---------|--------|------------|
 | Match queries; set pool, tags, egress, or drop | `rules:` | [Rules and actions](/policy-routing/rules-and-actions.md) |
-| Scripted policy on matching rules | `rules:` + `type: rhai` | [Rhai for rules](/rhai/rule-rhai.md) ([Rhai](/rhai/index.md)) |
+| Scripted policy on matching rules | `rules:` + `type: rhai` | [Rhai for rules](/rhai/rule-rhai.md) ([Rhai](/rhai/index.md)), [Rhai policy](/guides/rhai-policy.md) |
 | Group upstream resolvers and load-balance | `pools:` | [Pools and backends](/policy-routing/pools-and-backends.md) |
 | Caps and behavior on repeat attempts | `orchestrator:` | [Retries and transactions](/policy-routing/retries-and-transactions.md), [Reference: orchestrator](/reference/config-schema/orchestrator.md) |
 | Default upstream timeout and egress address lists | `forward:` | [Reference: forward](/reference/config-schema/forward.md), [Dual-stack forwarding](/guides/dual-stack-forwarding.md) |

@@ -143,7 +143,7 @@ if table_lookup("blocklist", question_qname(txn)) == "block" {
 }
 ```
 
-Config: `tests/fixtures/config/with-rhai-blocklist.yaml`.
+Config: inline **`conduit.yaml`** beside the CSV — see [Rhai policy — Blocklist drop](/guides/rhai-policy.md#example-1-blocklist-drop-request-hook).
 
 ### Tag for observability
 
@@ -171,13 +171,12 @@ List **`set_pool`** before **`rhai`** on the same rule when the script only refi
 
 ## Runnable examples
 
-| Script | Config | What it shows |
-|--------|--------|----------------|
-| `blocklist.rhai` | `with-rhai-blocklist.yaml` | Drop on CSV `block` |
-| `lookup-demo.rhai` | `with-rhai-lookup-demo.yaml` | Grant model — only configured tables |
-| `block-hits.rhai` | `with-rhai-block-hits.yaml` | Lookup + user metrics |
-
-Runnable fixture examples and manual steps: `tests/fixtures/rhai/README.md` in the repository.
+| Script | What it shows | Walkthrough |
+|--------|----------------|-------------|
+| `blocklist.rhai` | Drop on CSV `block` | [Rhai policy — Blocklist](/guides/rhai-policy.md#example-1-blocklist-drop-request-hook) |
+| `route-by-table.rhai` | CSV qname → pool | [Rhai policy — CSV pool routing](/guides/rhai-policy.md#example-2-csv-pool-routing-request-hook) |
+| `lookup-demo.rhai` | Grant model — only configured tables | [Data sources — Tag for observability](#tag-for-observability) |
+| `block-hits.rhai` | Lookup + user metrics | [User metrics](/rhai/user-metrics.md) |
 
 ## Limitations (current release)
 

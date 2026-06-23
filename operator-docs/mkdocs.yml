@@ -116,6 +116,7 @@ nav:
       - Logging: observability/logging.md
   - Guides:
       - Overview: guides/index.md
+      - Rhai policy: guides/rhai-policy.md
       - Dual-stack forwarding: guides/dual-stack-forwarding.md
       - Control plane workflows: guides/control-plane-workflows.md
       - Metrics and tracing: guides/metrics-and-tracing.md
