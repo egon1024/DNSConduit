@@ -13,6 +13,13 @@
 
 <!-- If skipping docs intentionally: -->
 
+## Release notes
+
+- [ ] Added bullet(s) under **`operator-docs/docs/release-notes/unreleased.md`** for operator-visible changes
+- [ ] Linked to canonical docs pages (not full duplicate explanations)
+- [ ] Noted upgrade or migration steps when relevant
+- [ ] Skipped when **`#no-docs`** and no operator impact (release automation writes a maintenance stub)
+
 ## Test plan
 
 - [ ] `make test`

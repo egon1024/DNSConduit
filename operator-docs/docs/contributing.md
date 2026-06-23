@@ -13,6 +13,14 @@ Pull requests that change **operator-visible** behavior should update **`operato
 
 Purely internal refactors, test-only changes, or dependency bumps with no operator impact do not require doc edits.
 
+## Release notes
+
+Operator-facing changes should add bullet(s) under **`operator-docs/docs/release-notes/unreleased.md`** in the same pull request. At release cut, automation promotes that content to a versioned page and resets **Unreleased**.
+
+- Use **`## New features`**, **`## Fixes`**, and **`## Upgrade notes`** sections when helpful.
+- Link to canonical docs pages; do not duplicate full explanations.
+- Internal-only changes (`#no-docs`) need no unreleased entry; the release gets a short maintenance stub.
+
 ## Documentation override
 
 If a PR changes operator-surface code but documentation is genuinely unnecessary, add **`#no-docs`** in the **pull request description** with a one-line reason. CI enforces this policy on protected branches.

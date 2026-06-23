@@ -128,6 +128,9 @@ nav:
       - mTLS: security/mtls.md
   - Troubleshooting: troubleshooting/index.md
   - Glossary: glossary/index.md
+  - Release notes:
+      - Overview: release-notes/index.md
+      - Unreleased: release-notes/unreleased.md
   - Reference:
       - Overview: reference/index.md
       - Config schema:
