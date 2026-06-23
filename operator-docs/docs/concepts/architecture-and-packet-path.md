@@ -13,7 +13,13 @@ Conduit combines two runtime roles:
 | **[Dataplane](/glossary/index.md#dataplane)** | Serves DNS — listeners, per-query pipeline, upstream forwarding | Always (the `conduit` service) |
 | **[Control plane](/glossary/index.md#control-plane)** | Config apply, export, reload, gRPC, `conduitctl` | Opt-in (`control:` block) |
 
-When the [dataplane](/glossary/index.md#dataplane) answers a query, it uses the **[runtime snapshot](/glossary/index.md#runtime-snapshot)** in force at that moment — your effective config, rules, and forward settings as Conduit has already loaded and validated them. When you change configuration (**SIGHUP**, `conduitctl reload`, or `conduitctl apply`), the [control plane](/glossary/index.md#control-plane) checks the new settings and swaps them in for later queries; queries already in progress finish on the config they started with. If the new config fails validation, Conduit keeps the previous working snapshot and DNS keeps flowing. See [Configuration model](/control-plane/configuration-model.md).
+When the [dataplane](/glossary/index.md#dataplane) answers a query, it uses the **[runtime snapshot](/glossary/index.md#runtime-snapshot)** in force at that moment — your effective config, rules, and forward settings as Conduit has already loaded and validated them. When you change configuration, Conduit validates the new settings and swaps them in for later queries; queries already in progress finish on the config they started with. If the new config fails validation, Conduit keeps the previous working snapshot and DNS keeps flowing. See [Configuration model](/control-plane/configuration-model.md).
+
+| Mechanism | Needs [control plane](/glossary/index.md#control-plane)? | Effect |
+|-----------|----------------------------|--------|
+| **SIGHUP** (Unix) | No | [Reload from disk](/glossary/index.md#reload-from-disk) — re-read startup file, clear overlay |
+| **`conduitctl reload`** | Yes (at process start) | Same as SIGHUP |
+| **`conduitctl apply`** | Yes (at process start) | Patch the in-memory [overlay](/glossary/index.md#overlay) only |
 
 ```mermaid
 flowchart TB
@@ -246,7 +252,7 @@ Full retry semantics, actions, and examples: [Retries and transactions](/policy-
 
 A **[runtime snapshot](/glossary/index.md#runtime-snapshot)** is the bundle of settings Conduit uses to answer queries at a given moment: effective config (listeners, pools, forward behavior), loaded rules and scripts, and observability filters. All listener workers share the same snapshot until you change configuration.
 
-When you reload or apply new settings (**SIGHUP**, `conduitctl reload`, or `conduitctl apply`), Conduit validates the change and builds a new snapshot for **later** queries. Queries already in flight keep using the settings they started with — they do not jump mid-query to a half-applied config. [`conduit_config_generation`](/observability/built-in-metrics.md#conduit_config_generation) reflects the active generation at scrape time.
+When you reload or apply new settings, Conduit validates the change and builds a new snapshot for **later** queries. **SIGHUP** and **`conduitctl reload`** [reload from disk](/glossary/index.md#reload-from-disk); **`conduitctl apply`** updates the [overlay](/glossary/index.md#overlay) through the [control plane](/glossary/index.md#control-plane). Queries already in flight keep using the settings they started with — they do not jump mid-query to a half-applied config. [`conduit_config_generation`](/observability/built-in-metrics.md#conduit_config_generation) reflects the active generation at scrape time.
 
 If validation fails, Conduit keeps the **[last-good snapshot](/glossary/index.md#last-good-snapshot)** (the previous working settings) and continues serving DNS.
 

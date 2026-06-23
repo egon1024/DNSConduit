@@ -17,7 +17,7 @@ Use a working directory per example (for example `~/conduit-lab/blocklist/` and 
 
 ## Example 1 — Blocklist drop (request hook)
 
-Lookup table on the **request hook**: match qname against a CSV, increment a **custom user metric** on blocks, then **drop** before [Forward](/concepts/architecture-and-packet-path.md#forward). Tags on a silent drop are not exported to clients or dnstap query frames — a [user metric](/rhai/user-metrics.md) gives you a scrapeable block counter instead.
+Lookup table on the **request hook**: match qname against a CSV, increment a **custom user metric** on blocks, then **drop** before [Forward](/concepts/architecture-and-packet-path.md#forward). The client gets no DNS reply. [Event export](/observability/event-export.md) still emits a **`query`** dnstap frame after request rules when sinks match — use **`tag_required`** or filters to scope blocked traffic, or rely on a [user metric](/rhai/user-metrics.md) for block counters.
 
 ```mermaid
 flowchart LR
@@ -85,7 +85,7 @@ metrics:
   enabled: true
   profile: full
   prometheus:
-    listen_address: "127.0.0.1:19090"
+    listen_address: "127.0.0.1:9090"
     path: /metrics
 rules:
   match_mode: first_match
@@ -139,7 +139,7 @@ dig @127.0.0.1 -p 15353 +time=3 +tries=1 evil.bad.example. A
 Custom block counter — after at least one blocked query, scrape Prometheus format and look for **`conduit_user_block_hits`**:
 
 ```bash
-curl -sS http://127.0.0.1:19090/metrics | grep '^conduit_user_block_hits'
+curl -sS http://127.0.0.1:9090/metrics | grep '^conduit_user_block_hits'
 ```
 
 **Expect:** a line with value **`1`** or higher (one increment per blocked query). Allowed and out-of-scope queries do not increment this counter.

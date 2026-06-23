@@ -31,7 +31,7 @@ metrics:
   enabled: true
   profile: minimal
   prometheus:
-    listen_address: "127.0.0.1:19090"
+    listen_address: "127.0.0.1:9090"
     path: /metrics
 ```
 
@@ -50,7 +50,7 @@ dig @127.0.0.1 -p 15353 +time=3 profiles-minimal.example.com AAAA
 Scrape and inspect query counters:
 
 ```bash
-curl -sS "http://127.0.0.1:19090/metrics" | grep '^conduit_queries_total'
+curl -sS "http://127.0.0.1:9090/metrics" | grep '^conduit_queries_total'
 ```
 
 Expect lines with labels like `listener="127.0.0.1:15353"` and `protocol="udp"` — **without** `qtype="A"` on the same metric (minimal does not add qtype/qclass/ip_family on the hot path).
@@ -58,7 +58,7 @@ Expect lines with labels like `listener="127.0.0.1:15353"` and `protocol="udp"` 
 Confirm phase histograms are absent:
 
 ```bash
-curl -sS "http://127.0.0.1:19090/metrics" | grep conduit_phase_duration || echo "no phase histograms (expected for minimal)"
+curl -sS "http://127.0.0.1:9090/metrics" | grep conduit_phase_duration || echo "no phase histograms (expected for minimal)"
 ```
 
 Stop Conduit before the next step.
@@ -72,7 +72,7 @@ metrics:
   enabled: true
   profile: full
   prometheus:
-    listen_address: "127.0.0.1:19090"
+    listen_address: "127.0.0.1:9090"
     path: /metrics
 ```
 
@@ -86,20 +86,20 @@ conduit /path/to/conduit-metrics-full.yaml
 Repeat the same `dig` commands (or use new QNAMEs). Scrape again:
 
 ```bash
-curl -sS "http://127.0.0.1:19090/metrics" | grep '^conduit_queries_total'
+curl -sS "http://127.0.0.1:9090/metrics" | grep '^conduit_queries_total'
 ```
 
 Expect **`qtype`**, **`qclass`**, and **`ip_family`** labels on query counters. After several queries:
 
 ```bash
-curl -sS "http://127.0.0.1:19090/metrics" | grep conduit_phase_duration | head
-curl -sS "http://127.0.0.1:19090/metrics" | grep conduit_forward_
+curl -sS "http://127.0.0.1:9090/metrics" | grep conduit_phase_duration | head
+curl -sS "http://127.0.0.1:9090/metrics" | grep conduit_forward_
 ```
 
 On Linux, **`full`** also exposes process gauges at scrape time:
 
 ```bash
-curl -sS "http://127.0.0.1:19090/metrics" | grep conduit_process_
+curl -sS "http://127.0.0.1:9090/metrics" | grep conduit_process_
 ```
 
 ## 3. Choosing a profile

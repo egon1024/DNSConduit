@@ -44,7 +44,7 @@ Script-discovered metrics default to **`export: full`**. Override to **`minimal`
 | `push_interval_ms` | integer | **15000** | Push period; minimum **1000** when set |
 | `allow_invalid_certs` | boolean | **`false`** | Accept invalid TLS server certs for **`https://`** endpoints |
 | `resource_attributes` | map | `{}` | Resource labels attached to pushed metrics |
-| `headers` | map | `{}` | OTLP HTTP headers (wired in code; operator auth story still evolving) |
+| `headers` | map | `{}` | HTTP headers sent with each OTLP metrics push (for example `Authorization: Bearer …`) |
 
 ## `tracing`
 

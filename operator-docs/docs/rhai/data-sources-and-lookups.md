@@ -171,12 +171,12 @@ List **`set_pool`** before **`rhai`** on the same rule when the script only refi
 
 ## Runnable examples
 
-| Script | What it shows | Walkthrough |
-|--------|----------------|-------------|
-| `blocklist.rhai` | Drop on CSV `block` | [Rhai policy — Blocklist](/guides/rhai-policy.md#example-1-blocklist-drop-request-hook) |
-| `route-by-table.rhai` | CSV qname → pool | [Rhai policy — CSV pool routing](/guides/rhai-policy.md#example-2-csv-pool-routing-request-hook) |
-| `lookup-demo.rhai` | Grant model — only configured tables | [Data sources — Tag for observability](#tag-for-observability) |
-| `block-hits.rhai` | Lookup + user metrics | [User metrics](/rhai/user-metrics.md) |
+| Script | In repository fixtures? | What it shows | Walkthrough |
+|--------|-------------------------|----------------|-------------|
+| `blocklist.rhai` | Yes (`tests/fixtures/rhai/`) | Drop on CSV `block` | [Rhai policy — Blocklist](/guides/rhai-policy.md#example-1-blocklist-drop-request-hook) |
+| `route-by-table.rhai` | Guide only (copy from lab YAML) | CSV qname → pool | [Rhai policy — CSV pool routing](/guides/rhai-policy.md#example-2-csv-pool-routing-request-hook) |
+| `lookup-demo.rhai` | Yes | Grant model — only configured tables | [Data sources — Tag for observability](#tag-for-observability) |
+| `block-hits.rhai` | Yes | Lookup + user metrics | [User metrics](/rhai/user-metrics.md) |
 
 ## Limitations (current release)
 
