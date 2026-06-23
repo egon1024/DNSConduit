@@ -1,4 +1,4 @@
 if table_lookup("blocklist", question_qname(txn)) == "block" {
-    txn.set_tag("blocked", true);
+    txn.metric_inc("block_hits", 1);
     txn.drop_query();
 }

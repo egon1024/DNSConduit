@@ -144,8 +144,9 @@ Adjust host, scrape port, and listener port to your config.
 | Periodic `otel metrics push failed` at **`warn`** | Collector down, TLS verify failure, or network block | Endpoint reachable; for self-signed HTTPS use `allow_invalid_certs: true` (lab only) or fix collector cert |
 | No push logs | Push interval default **15s**; successes log at **`debug`** only | Set `logging.level: debug` briefly to see `otel metrics push ok` |
 | Enabled OTEL after process start — no push | OTEL task starts at **process start** | **Restart** after adding or changing `metrics.otel` |
+| Push rejected with **401** / **403** | Collector requires auth | Set **`metrics.otel.headers`** (for example `Authorization: Bearer …`) — [Metrics — OTEL](/observability/metrics.md#export-architecture) |
 
-Authentication headers for collectors are **not** operator-supported yet. Bind Prometheus scrape to loopback or restrict with firewall — scrape has **no built-in auth** today.
+Bind Prometheus scrape to loopback or restrict with firewall — scrape has **no built-in auth** today.
 
 ### Event export / dnstap gaps
 

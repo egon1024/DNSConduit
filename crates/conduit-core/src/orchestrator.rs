@@ -19,6 +19,41 @@ pub enum RunOutcome {
     Dropped,
 }
 
+/// Query dnstap and pipeline-trace activation after request rules finish (including policy drop).
+fn observe_after_request_rules(
+    txn: &mut Transaction,
+    snapshot: &Arc<RuntimeSnapshot>,
+    events: Option<&EventHub>,
+    tracing: Option<&TracingHub>,
+) {
+    if txn.qname.is_none() {
+        return;
+    }
+    if txn.trace_log.is_none() {
+        if let Some(th) = tracing {
+            if snapshot.tracing_master_enabled() {
+                let tag_has = |k: &str| txn.tags.has(k);
+                if trace_activation_matches(
+                    &th.compiled.activation,
+                    txn.id,
+                    txn.qname.as_deref(),
+                    txn.qtype,
+                    txn.rcode(),
+                    txn.qclass,
+                    txn.opcode,
+                    &txn.edns_option_codes,
+                    &tag_has,
+                ) {
+                    txn.trace_log = Some(conduit_metrics::TraceLog::default());
+                }
+            }
+        }
+    }
+    if let Some(hub) = events {
+        emit_query(hub, txn, snapshot);
+    }
+}
+
 pub struct StageRegistry {
     stages: HashMap<Phase, Arc<dyn PipelineStage>>,
 }
@@ -130,6 +165,9 @@ impl Orchestrator {
                 txn.selected_pool.clone(),
                 txn.selected_backend.map(|a| a.to_string()),
             );
+            if phase == Phase::RequestRules {
+                observe_after_request_rules(txn, snapshot, events, tracing);
+            }
             match outcome {
                 StageOutcome::Drop => {
                     if let Some(hub) = metrics {
@@ -167,31 +205,6 @@ impl Orchestrator {
                                     hub.builtin.record_query_by_pool(pool);
                                 }
                             }
-                        }
-                    }
-                    if phase == Phase::RequestRules && txn.qname.is_some() {
-                        if txn.trace_log.is_none() {
-                            if let Some(th) = tracing {
-                                if snapshot.tracing_master_enabled() {
-                                    let tag_has = |k: &str| txn.tags.has(k);
-                                    if trace_activation_matches(
-                                        &th.compiled.activation,
-                                        txn.id,
-                                        txn.qname.as_deref(),
-                                        txn.qtype,
-                                        txn.rcode(),
-                                        txn.qclass,
-                                        txn.opcode,
-                                        &txn.edns_option_codes,
-                                        &tag_has,
-                                    ) {
-                                        txn.trace_log = Some(conduit_metrics::TraceLog::default());
-                                    }
-                                }
-                            }
-                        }
-                        if let Some(hub) = events {
-                            emit_query(hub, txn, snapshot);
                         }
                     }
                     if phase == Phase::ResponseRules && next == Phase::Route {
@@ -544,6 +557,26 @@ mod tests {
     }
 
     #[test]
+    fn query_observation_after_request_rules_on_policy_drop() {
+        use conduit_events::EventHub;
+
+        let yaml = include_str!("../../../tests/fixtures/config/with-rhai-blocklist-dnstap.yaml");
+        let snap = snapshot_from_fixture(yaml);
+        let hub = EventHub::from_compiled(&snap.events);
+        let orch = orchestrator_with_mock_forward();
+
+        let mut txn = Transaction::new(21, "127.0.0.1:15353".parse().unwrap(), ClientProtocol::Udp)
+            .with_query_wire(query_for("bad.example."));
+        let outcome = orch.run(&mut txn, &snap, &SystemClock, Some(&hub));
+        assert!(matches!(outcome, RunOutcome::Dropped));
+        let metrics = hub.sink_metrics_snapshot();
+        assert!(
+            metrics[0].enqueued_query >= 1,
+            "request-hook policy drop should still enqueue query observation"
+        );
+    }
+
+    #[test]
     fn rhai_blocklist_drops_blocked_name() {
         let yaml = include_str!("../../../tests/fixtures/config/with-rhai-blocklist.yaml");
         let snap = snapshot_from_fixture(yaml);
@@ -552,7 +585,6 @@ mod tests {
         let orch = orchestrator_with_mock_forward();
         let outcome = orch.run(&mut txn, &snap, &SystemClock, None);
         assert!(matches!(outcome, RunOutcome::Dropped));
-        assert!(txn.tags.has("blocked"));
     }
 
     #[test]

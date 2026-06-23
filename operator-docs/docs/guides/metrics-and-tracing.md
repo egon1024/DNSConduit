@@ -12,7 +12,7 @@ End-to-end lab setup: enable built-in [metrics](/observability/metrics.md) (Prom
 
 ## 1. Write the config
 
-Save as `conduit-obs-lab.yaml` (ports match common manual-test layouts: DNS **`15353`**, metrics **`19090`**, control **`5199`**):
+Save as `conduit-obs-lab.yaml` (ports match common lab layouts: DNS **`15353`**, metrics **`9090`**, control **`5199`**):
 
 ```yaml
 schema_version: 1
@@ -30,7 +30,7 @@ metrics:
   enabled: true
   profile: full
   prometheus:
-    listen_address: "127.0.0.1:19090"
+    listen_address: "127.0.0.1:9090"
     path: /metrics
 tracing:
   enabled: true
@@ -49,7 +49,7 @@ logging:
 | Block | Role in this lab |
 |-------|------------------|
 | `control:` | Required for `conduitctl trace` |
-| `metrics:` | Hot-path recording + Prometheus scrape on **`19090`** |
+| `metrics:` | Hot-path recording + Prometheus scrape on **`9090`** |
 | `tracing:` | Trace every **`A`** query (`sample_percent: 100`) |
 | `logging:` | Default **`info`** — quiet under load; bump to **`debug`** if you need `txn_id` on each query |
 
@@ -65,7 +65,7 @@ conduitctl validate --file conduit-obs-lab.yaml
 conduit /path/to/conduit-obs-lab.yaml
 ```
 
-Confirm startup in the log: **`dataplane startup summary`**, listener on **`15353`**, and no bind errors for **`19090`** or **`5199`**.
+Confirm startup in the log: **`dataplane startup summary`**, listener on **`15353`**, and no bind errors for **`9090`** or **`5199`**.
 
 !!! note "Restart after observability changes"
     Metrics export listeners and tracing activation are established at **process start**. If you change `metrics:`, `tracing:`, or add `control:` later, **restart** Conduit — reload alone does not rebind scrape or recompile tracing. See [Observability — Changing observability config](/observability/index.md#changing-observability-config).
@@ -75,7 +75,7 @@ Confirm startup in the log: **`dataplane startup summary`**, listener on **`1535
 Before traffic, scrape should respond (gauges may be zero):
 
 ```bash
-curl -sS "http://127.0.0.1:19090/metrics" | head
+curl -sS "http://127.0.0.1:9090/metrics" | head
 ```
 
 Send a query:
@@ -87,7 +87,7 @@ dig @127.0.0.1 -p 15353 +time=3 lab.example.com A
 Scrape again and look for query counters (names depend on profile — **`full`** includes `qtype` labels):
 
 ```bash
-curl -sS "http://127.0.0.1:19090/metrics" | grep conduit_queries
+curl -sS "http://127.0.0.1:9090/metrics" | grep conduit_queries
 ```
 
 Expect [`conduit_queries_total`](/observability/built-in-metrics.md#conduit_queries_total) and related series to increment. Series reference: [Built-in metrics](/observability/built-in-metrics.md).
@@ -108,7 +108,7 @@ Traces are stored in memory (**5 minute** TTL, **1000** entry cap). Activation m
 
 | Check | Command / action |
 |-------|------------------|
-| Config generation gauge | `curl -sS http://127.0.0.1:19090/metrics \| grep conduit_config_generation` |
+| Config generation gauge | `curl -sS http://127.0.0.1:9090/metrics \| grep conduit_config_generation` |
 | Phase histograms (**`full`** profile) | `grep conduit_phase_duration` on scrape output after several queries |
 | JSON trace on stderr | Set `tracing.output.log_json: true`, restart, send a matching query; look for `conduit::trace` at **`info`** |
 

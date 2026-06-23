@@ -1,6 +1,6 @@
-# Rhai example cookbook
+# Rhai fixture examples
 
-Runnable Rhai policy examples for DNS Conduit phase 3. Each example has a script under this directory and a matching config under `tests/fixtures/config/with-rhai-*.yaml`.
+Runnable Rhai policy scripts for development and CI. Each script under this directory has a matching config under `tests/fixtures/config/with-rhai-*.yaml`. Operator-facing walkthroughs live in **`operator-docs/`** ([Rhai policy guide](https://github.com/egon1024/DNSConduit/blob/main/operator-docs/docs/guides/rhai-policy.md)).
 
 ## Manual try workflow
 
@@ -33,11 +33,11 @@ Optional: `cargo run -p conduit-dnstap-tracer -- -u /tmp/dnstap.sock` for dnstap
 
 Paths in configs are relative to `tests/fixtures/config/`.
 
-**Port note:** Cookbook configs use **15353**, not 5353. On many Linux desktops, UDP 5353 is used by mDNS (Chrome, Synergy, etc.), which causes `Address already in use (os error 98)`.
+**Port note:** Fixture configs use **15353**, not 5353. On many Linux desktops, UDP 5353 is used by mDNS (Chrome, Synergy, etc.), which causes `Address already in use (os error 98)`.
 
-## Dnstap via tags (phase 2.7 + Rhai)
+## Dnstap via tags
 
-Declarative sink filters stay in YAML (`filters.tag_required`, `selectors`, `sample_percent`). Rhai sets tags; sinks gate export on those tags.
+Declarative sink filters stay in YAML (`filters.tag_required`, `selectors`, `sample_percent`). Rhai sets tags; sinks gate export on those tags. Request-hook **drops** still emit **`query`** dnstap frames when sink filters pass (no **`response`** frame).
 
 Example 4: script sets `dnstap` tag; sink uses `tag_required: dnstap`.
 
@@ -48,8 +48,9 @@ Example 5: `sample_percent(percent)` uses the same deterministic hash as observa
 | # | Script | Config | What it shows |
 |---|--------|--------|----------------|
 | 1 | `set-vip-pool.rhai` | `with-rhai-vip-pool.yaml` (or `with-rhai-minimal.yaml`) | VIP pool routing |
-| 2 | `blocklist.rhai` | `with-rhai-blocklist.yaml` | CSV `table_lookup` + drop |
-| 3 | `servfail-retry.rhai` | `with-rhai-servfail-retry.yaml` | Request `set_retry_pool` + response SERVFAIL retry to backup pool |
+| 2 | `blocklist.rhai` | `with-rhai-blocklist.yaml` | CSV `table_lookup` + `metric_inc` + soft drop |
+| 2b | `blocklist.rhai` | `with-rhai-blocklist-dnstap.yaml` | Same script; **`query`** dnstap on policy drop |
+| 3 | `servfail-retry.rhai` | `with-rhai-servfail-retry.yaml` | Rhai API parity for **`set_retry_pool`** + **`retry`** — prefer declarative YAML in production |
 | 4 | `mark-for-dnstap.rhai` | `with-rhai-dnstap-tag.yaml` | Tag-gated dnstap |
 | 5 | `smart-sample.rhai` | `with-rhai-sample.yaml` | Script sampling + `tag_required: sampled` |
 | 6 | `tag-suspicious.rhai` + `slow-login-alert.rhai` | `with-rhai-slow-login.yaml` | Request tag + response metric on slow path |
@@ -63,7 +64,7 @@ Example 5: `sample_percent(percent)` uses the same deterministic hash as observa
 
 On a matching rule, **every** `actions:` entry runs top to bottom — built-ins and `type: rhai` are interleaved at the position written. Put critical built-ins **above** a `rhai` step when they must run before script logic or when the script might fail.
 
-Example 3 (`with-rhai-servfail-retry.yaml`): request rule sets `set_pool: primary` and **`set_retry_pool: secondary`** (pool for retry Route if retry occurs — first Route ignores; no retry yet). Response rule runs `servfail-retry.rhai` on **SERVFAIL**, which calls `txn.set_retry_pool("secondary")` and `txn.request_retry()`; the next **Route** uses `retry_pool` when `attempt_count > 0`.
+Example 3 (`with-rhai-servfail-retry.yaml`): exercises Rhai **`set_retry_pool`** + **`request_retry()`** on SERVFAIL. Equivalent declarative policy uses **`set_retry_pool`** + **`retry`** on the response rule — see operator-docs [Retries and transactions](https://github.com/egon1024/DNSConduit/blob/main/operator-docs/docs/policy-routing/retries-and-transactions.md).
 
 ## Rhai API notes
 

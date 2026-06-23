@@ -57,7 +57,7 @@ events:
 | Field | Role in this lab |
 |-------|------------------|
 | `events.sinks[].destinations` | Must match the tracer’s Unix socket path |
-| `emit` | **`query`** after request rules; **`response`** at send |
+| `emit` | **`query`** after request rules (including policy drop); **`response`** at send |
 | `extra_fields` | Attach pool/backend JSON in the dnstap **`extra`** blob |
 
 Validate:

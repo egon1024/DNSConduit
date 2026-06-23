@@ -54,7 +54,7 @@ Conduit still loads and applies these blocks when they are absent from your file
 | `events` | Queue depth **4096**, **`drop_oldest`** policy, no sinks | [Event export](/observability/event-export.md), [Reference: events](/reference/config-schema/events.md) |
 | `rhai` | Sandbox limits (**10000** operations, call depth **32**); no scripts unless you add them | [Rhai](/rhai/index.md), [Sandbox limits](/rhai/sandbox-limits.md) |
 
-To see the effective configuration after defaults are applied, start Conduit and run `conduitctl export`, or validate and inspect with the steps in [Validate and run](#validate-and-run). For how file config, overlays, and export interact, see [Configuration model](/control-plane/configuration-model.md) and [Reload and export](/control-plane/reload-and-export.md).
+To see the effective configuration after defaults are applied, run **`conduitctl validate --file conduit.yaml`** (offline validation and snapshot compile — no running server required), or follow [Validate and run](#validate-and-run). To export normalized YAML from a **running** server with the control plane enabled, use **`conduitctl export`** — see [Configuration model](/control-plane/configuration-model.md) and [Reload and export](/control-plane/reload-and-export.md).
 
 ## Optional blocks not in this example
 

@@ -53,7 +53,18 @@ Hot-path counters and histograms are updated on listener workers while queries r
 curl -sS "http://127.0.0.1:9090/metrics" | head
 ```
 
-**OTEL** — `endpoint` must be an `http://` or `https://` URL for OTLP HTTP (typically ending in `/v1/metrics`). Conduit pushes built-in metrics on `push_interval_ms` over plain HTTP or HTTPS. **`https://`** endpoints validate server certificates against public roots by default; set **`allow_invalid_certs: true`** only for lab collectors with self-signed or otherwise invalid certificates. Optional `resource_attributes` attach resource labels to pushed metrics. Authentication headers for the collector are **not** supported yet (planned for a future release). This is **OTLP metrics only** — not distributed trace or log export (those are planned separately; see [Tracing](/observability/tracing.md) for pipeline traces).
+**OTEL** — `endpoint` must be an `http://` or `https://` URL for OTLP HTTP (typically ending in `/v1/metrics`). Conduit pushes built-in metrics on `push_interval_ms` over plain HTTP or HTTPS. **`https://`** endpoints validate server certificates against public roots by default; set **`allow_invalid_certs: true`** only for lab collectors with self-signed or otherwise invalid certificates. Optional `resource_attributes` attach resource labels to pushed metrics. Optional **`metrics.otel.headers`** (map of string keys to values) are sent as HTTP headers on each OTLP push — use for collector bearer tokens or API keys. This is **OTLP metrics only** — not distributed trace or log export (those are planned separately; see [Tracing](/observability/tracing.md) for pipeline traces).
+
+Example (lab collector with bearer auth):
+
+```yaml
+metrics:
+  enabled: true
+  otel:
+    endpoint: "https://collector.example:4318/v1/metrics"
+    headers:
+      Authorization: "Bearer <token>"
+```
 
 ## Profiles
 

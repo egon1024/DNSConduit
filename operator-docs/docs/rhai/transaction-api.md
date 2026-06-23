@@ -1123,7 +1123,7 @@ if table_lookup("blocklist", question_qname(txn)) == "block" {
 }
 ```
 
-On a silent request drop, **`metric_inc`** is more useful than **`set_tag`** for observability — tags are not exported to clients or query dnstap frames when the query drops. See [User metrics](/rhai/user-metrics.md).
+On a silent request drop, **`metric_inc`** is the usual choice for block counters; **`set_tag`** can still gate [event export](/observability/event-export.md) **`query`** frames when sinks use **`tag_required`**. See [User metrics](/rhai/user-metrics.md).
 
 </div>
 

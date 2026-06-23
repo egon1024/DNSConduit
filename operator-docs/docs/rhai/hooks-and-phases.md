@@ -40,8 +40,10 @@ Some `txn` methods and helpers are restricted to one hook. Calling them on the w
 | `txn.request_retry_now()` | No effect | Hard retry (stop rule); does not clear soft drop |
 | `txn.clear_retry()` | No effect | Clear soft retry |
 | `txn.clear_retry_pool()` | Clears `retry_pool` | Clears `retry_pool` |
-| `txn.drop_query()` | Soft drop | Soft drop |
-| `txn.drop_query_now()` | Hard drop (stop rule) | Hard drop (stop rule) |
+| `txn.drop_query()` | Soft drop — later actions on the rule still run | Soft drop |
+| `txn.drop_query_now()` | Hard drop — stops the rule immediately | Hard drop (stop rule) |
+
+Soft vs hard drop: [Transaction API — Outcomes](/rhai/transaction-api.md#outcomes) (`drop_query` vs `drop_query_now`).
 | `txn.clear_drop()` | Clears soft drop | Clears soft drop |
 | `txn.set_rcode()` | Yes | Yes |
 | `txn.sample_percent`, `txn.sample_percent_for_qname`, `txn.sample_percent_for_rule`, `txn.every_nth_worker`, `txn.every_nth_global`, `txn.rule_name`, `table_lookup` | Yes | Yes |
