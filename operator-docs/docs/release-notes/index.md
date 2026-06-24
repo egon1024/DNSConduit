@@ -7,7 +7,6 @@ Operator-facing changes by release. For the full list of merged pull requests, s
 
 | Version | Summary |
 | --- | --- |
-| [0.15.0](0.15.0.md) | Maintenance release |
 | [0.14.0](0.14.0.md) | New features |
 
 
