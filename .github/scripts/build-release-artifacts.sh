@@ -60,8 +60,12 @@ DEB_DBG="${OUT_DIR}/conduit-dbg_${VERSION}_${ARCH}.deb"
 # nfpm may emit slightly different names; normalize if needed
 for f in "$OUT_DIR"/*.deb; do
   case "$(basename "$f")" in
-    conduit_${VERSION}_*.deb) mv -f "$f" "$DEB_PROD" ;;
-    conduit-dbg_${VERSION}_*.deb) mv -f "$f" "$DEB_DBG" ;;
+    conduit_${VERSION}_*.deb)
+      [[ "$f" != "$DEB_PROD" ]] && mv -f "$f" "$DEB_PROD"
+      ;;
+    conduit-dbg_${VERSION}_*.deb)
+      [[ "$f" != "$DEB_DBG" ]] && mv -f "$f" "$DEB_DBG"
+      ;;
   esac
 done
 
