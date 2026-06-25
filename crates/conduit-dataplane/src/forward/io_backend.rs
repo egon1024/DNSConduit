@@ -1,6 +1,7 @@
 //! Non-blocking upstream I/O (split_io): reply demux and timeouts.
 
 use crate::forward::{ForwardKey, TxnTable};
+use crate::listener::DataplaneShutdown;
 use conduit_core::txn_store::SlotId;
 use conduit_metrics::MetricsHub;
 use std::collections::HashMap;
@@ -9,6 +10,9 @@ use std::net::{SocketAddr, UdpSocket};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
+
+/// Idle poll interval when no forwards are pending (also caps wait when pending exists).
+const IDLE_POLL_INTERVAL: Duration = Duration::from_millis(100);
 
 /// Outcome of an upstream wait leg completed by the I/O backend.
 #[derive(Debug, Clone)]
@@ -56,13 +60,19 @@ impl IoBackend {
         let poller = polling::Poller::new()?;
         let mut sockets = Vec::with_capacity(egress_sockets.len());
         for sock in egress_sockets {
+            // Egress sockets may carry SO_RCVTIMEO from bind; epoll + nonblocking recv does not need it.
+            sock.set_read_timeout(None)?;
             sock.set_nonblocking(true)?;
             sockets.push(sock);
         }
         for (idx, sock) in sockets.iter().enumerate() {
             // SAFETY: sockets outlive the poller and are not moved after registration.
             unsafe {
-                poller.add(sock, polling::Event::readable(idx))?;
+                poller.add_with_mode(
+                    sock,
+                    polling::Event::readable(idx),
+                    polling::PollMode::Level,
+                )?;
             }
         }
         let inner = Arc::new(IoBackendInner {
@@ -92,10 +102,18 @@ impl IoBackend {
         self.inner.pending.lock().unwrap().remove(&key);
     }
 
-    pub fn spawn_poll_thread(self, shutdown: Arc<AtomicBool>) -> std::thread::JoinHandle<()> {
+    pub fn spawn_poll_thread(
+        self,
+        io_stop: Arc<AtomicBool>,
+        dataplane_shutdown: DataplaneShutdown,
+    ) -> std::thread::JoinHandle<()> {
         std::thread::spawn(move || {
-            if let Err(e) = self.run_loop(&shutdown) {
-                tracing::error!(error = %e, "I/O backend poll loop exited");
+            if let Err(e) = self.run_loop(&io_stop) {
+                tracing::error!(
+                    error = %e,
+                    "I/O backend poll loop exited; signaling dataplane shutdown"
+                );
+                dataplane_shutdown.signal();
             }
         })
     }
@@ -106,15 +124,27 @@ impl IoBackend {
             if shutdown.load(Ordering::Relaxed) {
                 break;
             }
-            self.poll_timeouts()?;
+            self.poll_timeouts()
+                .map_err(|e| io_err("poll_timeouts", e))?;
+
             let wait = self
                 .next_wait_timeout()
-                .map(|d| d.min(Duration::from_millis(100)))
-                .or(Some(Duration::from_millis(100)));
-            self.inner.poller.wait(&mut events, wait)?;
+                .map(|d| d.min(IDLE_POLL_INTERVAL))
+                .or(Some(IDLE_POLL_INTERVAL));
+
+            // polling::Poller::wait appends; must clear before each wait.
+            events.clear();
+            self.inner
+                .poller
+                .wait(&mut events, wait)
+                .map_err(|e| io_err("poller.wait", e))?;
+
             for ev in events.iter() {
                 if ev.readable {
-                    self.on_readable(ev.key)?;
+                    self.on_readable(ev.key)
+                        .map_err(|e| io_err(&format!("on_readable(token={})", ev.key), e))?;
+                } else if ev.is_err() == Some(true) {
+                    tracing::warn!(token = ev.key, "io_backend: poll event with error flag (ignored)");
                 }
             }
         }
@@ -128,7 +158,7 @@ impl IoBackend {
             .values()
             .map(|p| p.deadline.saturating_duration_since(now))
             .min();
-        next.map(|d| d.min(Duration::from_millis(100)))
+        next.map(|d| d.min(IDLE_POLL_INTERVAL))
     }
 
     fn poll_timeouts(&self) -> io::Result<()> {
@@ -150,14 +180,17 @@ impl IoBackend {
     fn on_readable(&self, token: usize) -> io::Result<()> {
         let mut buf = [0u8; 4096];
         let Some(sock) = self.inner.sockets.get(token) else {
+            tracing::debug!(token, "io_backend: readable event for unknown socket token");
             return Ok(());
         };
-        let (len, from) = match sock.recv_from(&mut buf) {
-            Ok(r) => r,
-            Err(e) if e.kind() == io::ErrorKind::WouldBlock => return Ok(()),
-            Err(e) => return Err(e),
-        };
-        self.handle_reply(from, &buf[..len])
+        loop {
+            match sock.recv_from(&mut buf) {
+                Ok((len, from)) => self.handle_reply(from, &buf[..len])?,
+                Err(e) if e.kind() == io::ErrorKind::WouldBlock => break,
+                Err(e) => return Err(e),
+            }
+        }
+        Ok(())
     }
 
     fn handle_reply(&self, from: SocketAddr, wire: &[u8]) -> io::Result<()> {
@@ -213,6 +246,22 @@ impl IoBackend {
     fn drive_timeouts(&self) -> io::Result<()> {
         self.poll_timeouts()
     }
+
+    #[cfg(test)]
+    fn spawn_poll_thread_for_test(
+        self,
+        io_stop: Arc<AtomicBool>,
+    ) -> std::thread::JoinHandle<()> {
+        std::thread::spawn(move || {
+            if let Err(e) = self.run_loop(&io_stop) {
+                tracing::error!(error = %e, "I/O backend poll loop exited (test)");
+            }
+        })
+    }
+}
+
+fn io_err(op: &str, e: io::Error) -> io::Error {
+    io::Error::new(e.kind(), format!("io_backend {op}: {e}"))
 }
 
 /// Apply an I/O completion to a transaction before resuming the orchestrator.
@@ -299,6 +348,19 @@ mod tests {
 
         assert!(resume_rx.try_recv().is_err());
         assert!(table.lookup(key).is_some());
+    }
+
+    #[test]
+    fn poll_loop_survives_many_idle_waits() {
+        let table = Arc::new(TxnTable::new(64, 32));
+        let egress = UdpSocket::bind("127.0.0.1:0").unwrap();
+        let (io, _resume_rx) = IoBackend::new(vec![egress], table, 2000, None).unwrap();
+        let stop = Arc::new(AtomicBool::new(false));
+        let handle = io.spawn_poll_thread_for_test(stop.clone());
+        thread::sleep(Duration::from_secs(3));
+        assert!(!stop.load(Ordering::Relaxed));
+        stop.store(true, Ordering::Relaxed);
+        handle.join().expect("poll thread join");
     }
 
     #[test]

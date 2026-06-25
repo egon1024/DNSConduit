@@ -4,9 +4,10 @@ use crate::compile::BuiltinProfile;
 use crate::labels::{ip_family_label, qclass_label, qtype_label, rcode_class_label, rcode_label};
 use parking_lot::RwLock;
 use prometheus::{
-    Encoder, Gauge, GaugeVec, HistogramOpts, HistogramVec, IntCounterVec, IntGauge, Opts, Registry,
-    TextEncoder,
+    Encoder, Gauge, GaugeVec, HistogramOpts, HistogramVec, IntCounter, IntCounterVec, IntGauge,
+    Opts, Registry, TextEncoder,
 };
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -26,6 +27,9 @@ pub struct ScrapeGaugeSnapshot {
     pub config_generation: u64,
     pub pool_backend_counts: Vec<(String, u32)>,
     pub forward_outstanding: Vec<(String, String, u32)>,
+    pub slots_in_use: u32,
+    pub slots_capacity: u32,
+    pub slot_pool_exhausted_total: u64,
 }
 
 pub type ScrapeSnapshotFn = Arc<dyn Fn() -> ScrapeGaugeSnapshot + Send + Sync>;
@@ -56,6 +60,10 @@ pub struct BuiltinRegistry {
     script_errors_total: Option<IntCounterVec>,
     forward_outstanding: GaugeVec,
     pool_backends_configured: GaugeVec,
+    slots_in_use: Option<Gauge>,
+    slots_capacity: Option<Gauge>,
+    slot_pool_exhausted_total: Option<IntCounter>,
+    last_exhaustion_synced: AtomicU64,
     #[allow(dead_code)]
     build_info: IntGauge,
     #[allow(dead_code)]
@@ -261,6 +269,40 @@ impl BuiltinRegistry {
             .register(Box::new(config_generation.clone()))
             .expect("register");
 
+        let slot_pool_exhausted_total = if effective {
+            let v = IntCounter::with_opts(Opts::new(
+                "conduit_slot_pool_exhausted_total",
+                "Transaction slot pool acquire failures at capacity",
+            ))
+            .expect("metric");
+            registry.register(Box::new(v.clone())).expect("register");
+            Some(v)
+        } else {
+            None
+        };
+
+        let (slots_in_use, slots_capacity) = if is_full {
+            let in_use = Gauge::with_opts(Opts::new(
+                "conduit_slots_in_use",
+                "Transaction slots currently in use",
+            ))
+            .expect("metric");
+            let capacity = Gauge::with_opts(Opts::new(
+                "conduit_slots_capacity",
+                "Configured transaction slot pool capacity",
+            ))
+            .expect("metric");
+            registry
+                .register(Box::new(in_use.clone()))
+                .expect("register");
+            registry
+                .register(Box::new(capacity.clone()))
+                .expect("register");
+            (Some(in_use), Some(capacity))
+        } else {
+            (None, None)
+        };
+
         let (process_resident_bytes, process_open_fds) = if effective && is_full {
             let rss = Gauge::with_opts(Opts::new(
                 "conduit_process_resident_bytes",
@@ -295,6 +337,10 @@ impl BuiltinRegistry {
             script_errors_total,
             forward_outstanding,
             pool_backends_configured,
+            slots_in_use,
+            slots_capacity,
+            slot_pool_exhausted_total,
+            last_exhaustion_synced: AtomicU64::new(0),
             build_info,
             start_time_seconds,
             config_generation,
@@ -433,6 +479,17 @@ impl BuiltinRegistry {
         }
     }
 
+    fn sync_exhaustion_counter(&self, total: u64) {
+        let Some(counter) = self.slot_pool_exhausted_total.as_ref() else {
+            return;
+        };
+        let prev = self.last_exhaustion_synced.load(Ordering::Relaxed);
+        if total > prev {
+            counter.inc_by(total - prev);
+            self.last_exhaustion_synced.store(total, Ordering::Relaxed);
+        }
+    }
+
     fn refresh_scrape_gauges(&self) {
         let snapshot = self
             .scrape_fn
@@ -457,6 +514,14 @@ impl BuiltinRegistry {
                 .with_label_values(&[pool.as_str()])
                 .set(*count as f64);
         }
+
+        if let Some(g) = self.slots_in_use.as_ref() {
+            g.set(snapshot.slots_in_use as f64);
+        }
+        if let Some(g) = self.slots_capacity.as_ref() {
+            g.set(snapshot.slots_capacity as f64);
+        }
+        self.sync_exhaustion_counter(snapshot.slot_pool_exhausted_total);
 
         if self.profile == BuiltinProfile::Full {
             if let Some(ref rss) = self.process_resident_bytes {
@@ -633,8 +698,11 @@ mod tests {
             pool_backend_counts: vec![("default".into(), 2)],
             forward_outstanding: vec![
                 ("default".into(), "127.0.0.1:15300".into(), 0),
-                ("default".into(), "127.0.0.1:15301".into(), 3),
+                ("default".into(), "resolver-east".into(), 3),
             ],
+            slots_in_use: 10,
+            slots_capacity: 1024,
+            slot_pool_exhausted_total: 2,
         }));
         let body = encode_builtin(reg.gather());
         assert!(body.contains("conduit_config_generation 7"));
@@ -651,8 +719,17 @@ mod tests {
         );
         assert!(
             body.contains(
-                r#"conduit_forward_outstanding{backend="127.0.0.1:15301",pool="default"} 3"#
+                r#"conduit_forward_outstanding{backend="resolver-east",pool="default"} 3"#
             ),
+            "body:\n{body}"
+        );
+        assert!(body.contains("conduit_slots_in_use 10"), "body:\n{body}");
+        assert!(
+            body.contains("conduit_slots_capacity 1024"),
+            "body:\n{body}"
+        );
+        assert!(
+            body.contains("conduit_slot_pool_exhausted_total 2"),
             "body:\n{body}"
         );
     }

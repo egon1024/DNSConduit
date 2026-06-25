@@ -124,7 +124,7 @@ pub fn start_split_io(
         );
     }
     let io_shutdown_poll = io_shutdown.clone();
-    thread_handles.push(io_backend.spawn_poll_thread(io_shutdown_poll));
+    thread_handles.push(io_backend.spawn_poll_thread(io_shutdown_poll, shutdown.clone()));
 
     let policy_queue_io = policy_queue.clone();
     let io_resume_shutdown = shutdown.clone();

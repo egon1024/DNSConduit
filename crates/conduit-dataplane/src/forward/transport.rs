@@ -10,6 +10,7 @@ use conduit_config::forward::UpstreamTransport;
 use conduit_core::phase::Phase;
 use conduit_core::pipeline::{PipelineStage, StageOutcome};
 use conduit_core::record_upstream_response;
+use conduit_core::routing::backend_metric_label_for_addr;
 use conduit_core::snapshot::RuntimeSnapshot;
 use conduit_core::transaction::{ClientProtocol, Transaction};
 use conduit_core::txn_store::SlotId;
@@ -104,6 +105,7 @@ impl ForwardTransport {
     fn record_forward(
         &self,
         txn: &mut Transaction,
+        snapshot: &RuntimeSnapshot,
         backend: Option<std::net::SocketAddr>,
         outcome: &str,
         error_reason: Option<&str>,
@@ -118,7 +120,7 @@ impl ForwardTransport {
         }
         let pool = txn.selected_pool.as_deref().unwrap_or("unknown");
         let backend_label = backend
-            .map(|a| a.to_string())
+            .map(|addr| backend_metric_label_for_addr(&snapshot.config.pools, pool, addr))
             .unwrap_or_else(|| "unknown".into());
         hub.builtin
             .record_forward_attempt(pool, &backend_label, outcome);
@@ -146,12 +148,13 @@ impl ForwardTransport {
     fn finish_response(
         &self,
         txn: &mut Transaction,
+        snapshot: &RuntimeSnapshot,
         key: ForwardKey,
         wire: Vec<u8>,
         started: Instant,
         parse_wire_meta: bool,
     ) -> StageOutcome {
-        self.record_forward(txn, Some(key.backend), "success", None, started);
+        self.record_forward(txn, snapshot, Some(key.backend), "success", None, started);
         self.table.remove(key);
         record_upstream_response(txn, &wire, parse_wire_meta);
         txn.response_wire = Some(wire);
@@ -161,12 +164,13 @@ impl ForwardTransport {
     fn servfail(
         &self,
         txn: &mut Transaction,
+        snapshot: &RuntimeSnapshot,
         key: Option<ForwardKey>,
         reason: &str,
         started: Instant,
     ) -> StageOutcome {
         let backend = key.map(|k| k.backend);
-        self.record_forward(txn, backend, "error", Some(reason), started);
+        self.record_forward(txn, snapshot, backend, "error", Some(reason), started);
         if let Some(k) = key {
             self.table.remove(k);
             if let Some(io) = self.io_backend.as_ref() {
@@ -180,6 +184,7 @@ impl ForwardTransport {
     fn register_forward_key(
         &self,
         txn: &mut Transaction,
+        snapshot: &RuntimeSnapshot,
         backend: std::net::SocketAddr,
     ) -> Result<ForwardKey, StageOutcome> {
         let key = ForwardKey {
@@ -187,7 +192,7 @@ impl ForwardTransport {
             dns_id: txn.dns_id,
         };
         if !self.table.register(key, txn.id) {
-            return Err(self.servfail(txn, None, "table_full", Instant::now()));
+            return Err(self.servfail(txn, snapshot, None, "table_full", Instant::now()));
         }
         Ok(key)
     }
@@ -201,10 +206,10 @@ impl ForwardTransport {
         let parse_wire_meta = snapshot.scripting.needs_response_wire_meta;
         txn.mark_forward_started(started);
         let Some(backend) = txn.selected_backend else {
-            return self.servfail(txn, None, "no_backend", started);
+            return self.servfail(txn, snapshot, None, "no_backend", started);
         };
 
-        let key = match self.register_forward_key(txn, backend) {
+        let key = match self.register_forward_key(txn, snapshot, backend) {
             Ok(k) => k,
             Err(outcome) => return outcome,
         };
@@ -213,7 +218,7 @@ impl ForwardTransport {
             let pool = txn.selected_pool.as_deref().unwrap_or("default");
             if !inflight.try_acquire(pool) {
                 self.table.remove(key);
-                return self.servfail(txn, None, "pool_inflight_exceeded", started);
+                return self.servfail(txn, snapshot, None, "pool_inflight_exceeded", started);
             }
         }
 
@@ -221,7 +226,7 @@ impl ForwardTransport {
             self.table.remove(key);
             self.release_pool_inflight(txn);
             tracing::warn!(txn_id = txn.id, %backend, "tcp forward in submit mode not implemented");
-            return self.servfail(txn, None, "tcp_unsupported", started);
+            return self.servfail(txn, snapshot, None, "tcp_unsupported", started);
         }
 
         let pool = txn.selected_pool.as_deref();
@@ -245,13 +250,13 @@ impl ForwardTransport {
 
         if socket.send_to(&upstream_wire, backend).is_err() {
             self.release_pool_inflight(txn);
-            return self.servfail(txn, Some(key), "send_error", started);
+            return self.servfail(txn, snapshot, Some(key), "send_error", started);
         }
 
         let Some(io) = self.io_backend.as_ref() else {
             self.table.remove(key);
             self.release_pool_inflight(txn);
-            return self.servfail(txn, Some(key), "no_io_backend", started);
+            return self.servfail(txn, snapshot, Some(key), "no_io_backend", started);
         };
 
         let slot_id = SlotId::from_index(txn.id as u32);
@@ -269,12 +274,12 @@ impl ForwardTransport {
         let parse_wire_meta = snapshot.scripting.needs_response_wire_meta;
         txn.mark_forward_started(started);
         let Some(backend) = txn.selected_backend else {
-            self.record_forward(txn, None, "error", Some("no_backend"), started);
+            self.record_forward(txn, snapshot, None, "error", Some("no_backend"), started);
             txn.set_rcode_name("SERVFAIL");
             return StageOutcome::Continue(Phase::Send);
         };
 
-        let key = match self.register_forward_key(txn, backend) {
+        let key = match self.register_forward_key(txn, snapshot, backend) {
             Ok(k) => k,
             Err(outcome) => return outcome,
         };
@@ -308,10 +313,12 @@ impl ForwardTransport {
 
         if try_tcp {
             match forward_tcp(backend, upstream_wire, self.timeout(), bind_v4, bind_v6) {
-                Ok(wire) => return self.finish_response(txn, key, wire, started, parse_wire_meta),
+                Ok(wire) => {
+                    return self.finish_response(txn, snapshot, key, wire, started, parse_wire_meta)
+                }
                 Err(e) => {
                     tracing::warn!(txn_id = txn.id, %backend, error = %e, "tcp forward failed");
-                    return self.servfail(txn, Some(key), "tcp_error", started);
+                    return self.servfail(txn, snapshot, Some(key), "tcp_error", started);
                 }
             }
         }
@@ -337,7 +344,7 @@ impl ForwardTransport {
 
         if socket.send_to(upstream_wire, backend).is_err() {
             tracing::warn!(txn_id = txn.id, dns_id = txn.dns_id, %backend, "forward send failed");
-            return self.servfail(txn, Some(key), "send_error", started);
+            return self.servfail(txn, snapshot, Some(key), "send_error", started);
         }
 
         let mut buf = [0u8; 4096];
@@ -366,6 +373,7 @@ impl ForwardTransport {
                                 Ok(tcp_wire) => {
                                     return self.finish_response(
                                         txn,
+                                        snapshot,
                                         key,
                                         tcp_wire,
                                         started,
@@ -384,7 +392,7 @@ impl ForwardTransport {
                         }
                     }
                 }
-                self.finish_response(txn, key, wire, started, parse_wire_meta)
+                self.finish_response(txn, snapshot, key, wire, started, parse_wire_meta)
             }
             Err(_) => {
                 tracing::warn!(
@@ -393,7 +401,14 @@ impl ForwardTransport {
                     %backend,
                     "forward recv timeout"
                 );
-                self.record_forward(txn, Some(backend), "error", Some("timeout"), started);
+                self.record_forward(
+                    txn,
+                    snapshot,
+                    Some(backend),
+                    "error",
+                    Some("timeout"),
+                    started,
+                );
                 self.table.remove(key);
                 txn.set_rcode_name("SERVFAIL");
                 StageOutcome::Continue(Phase::ResponseRules)
