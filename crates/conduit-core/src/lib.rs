@@ -29,7 +29,9 @@ pub use orchestrator::{Orchestrator, OrchestratorRun, RunOutcome, StageRegistry}
 pub use parse_reject::ParseRejectReason;
 pub use phase::Phase;
 pub use pipeline::{PipelineStage, StageOutcome};
-pub use routing::{select_backend, AttemptRecord};
+pub use routing::{
+    backend_metric_label, backend_metric_label_for_addr, select_backend, AttemptRecord,
+};
 pub use rules::CompiledRules;
 pub use snapshot::{RuntimeSnapshot, SnapshotStore};
 pub use structural_parse::{apply_parsed_query, structural_parse, ParsedQuery};

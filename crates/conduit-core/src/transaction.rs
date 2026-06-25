@@ -109,6 +109,8 @@ pub struct Transaction {
     pub trace_log: Option<TraceLog>,
     /// Ingress structural parse already populated metadata; skip wire parse in orchestrator.
     pub pre_parsed: bool,
+    /// Wall time when the pipeline suspended (split_io I/O park); used for WaitResponse phase metrics.
+    pub suspend_phase_started_at: Option<Instant>,
     rcode: Option<u16>,
 }
 
@@ -151,6 +153,7 @@ impl Transaction {
             retry_source_override_v6: None,
             trace_log: None,
             pre_parsed: false,
+            suspend_phase_started_at: None,
             rcode: None,
         }
     }

@@ -93,6 +93,33 @@ pub fn default_pool_name(cfg: &Config) -> Option<String> {
     cfg.pools.first().map(|p| p.name.clone())
 }
 
+/// Metric/log label for a backend: configured `name` when set, else `address`.
+pub fn backend_metric_label(backend: &Backend) -> String {
+    backend
+        .name
+        .as_ref()
+        .filter(|n| !n.is_empty())
+        .cloned()
+        .unwrap_or_else(|| backend.address.clone())
+}
+
+/// Resolve metric label for a backend address within a pool.
+pub fn backend_metric_label_for_addr(pools: &[Pool], pool_name: &str, addr: SocketAddr) -> String {
+    pools
+        .iter()
+        .find(|p| p.name == pool_name)
+        .and_then(|pool| {
+            pool.backends.iter().find_map(|b| {
+                b.address
+                    .parse::<SocketAddr>()
+                    .ok()
+                    .filter(|a| a == &addr)
+                    .map(|_| backend_metric_label(b))
+            })
+        })
+        .unwrap_or_else(|| addr.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -122,6 +149,25 @@ mod tests {
             sources_v6: vec![],
             max_inflight: None,
         }
+    }
+
+    #[test]
+    fn backend_metric_label_prefers_name() {
+        use conduit_proto::config::Backend;
+        let b = Backend {
+            address: "127.0.0.1:5300".into(),
+            weight: Some(100),
+            name: Some("resolver-east".into()),
+        };
+        assert_eq!(backend_metric_label(&b), "resolver-east");
+        assert_eq!(
+            backend_metric_label(&Backend {
+                address: "127.0.0.1:5300".into(),
+                weight: Some(100),
+                name: None,
+            }),
+            "127.0.0.1:5300"
+        );
     }
 
     #[test]

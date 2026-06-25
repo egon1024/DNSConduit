@@ -145,6 +145,20 @@ impl Orchestrator {
         events: Option<&EventHub>,
         resume_phase: Phase,
     ) -> OrchestratorRun {
+        if resume_phase == Phase::WaitResponse {
+            if let Some(hub) = self.metrics.as_ref() {
+                if hub.metrics_enabled() {
+                    if let Some(started) = txn.suspend_phase_started_at.take() {
+                        hub.builtin.observe_phase(
+                            phase_name(Phase::WaitResponse),
+                            started.elapsed().as_secs_f64(),
+                        );
+                    }
+                }
+            } else {
+                let _ = txn.suspend_phase_started_at.take();
+            }
+        }
         txn.current_phase = resume_phase;
         self.run_loop(txn, snapshot, clock, events, true)
     }
@@ -241,9 +255,11 @@ impl Orchestrator {
 
             let phase = txn.current_phase;
             let phase_started = std::time::Instant::now();
+            let skip_post_phase_observe =
+                resumed && phase == Phase::WaitResponse && txn.suspend_phase_started_at.is_none();
             let outcome = stage.handle(txn, snapshot);
             if let Some(hub) = metrics {
-                if hub.metrics_enabled() {
+                if hub.metrics_enabled() && !skip_post_phase_observe {
                     hub.builtin
                         .observe_phase(phase_name(phase), phase_started.elapsed().as_secs_f64());
                 }
@@ -269,6 +285,7 @@ impl Orchestrator {
                     return OrchestratorRun::Finished(RunOutcome::Dropped);
                 }
                 StageOutcome::Suspend(resume_phase) => {
+                    txn.suspend_phase_started_at = Some(std::time::Instant::now());
                     return OrchestratorRun::Suspended { resume_phase };
                 }
                 StageOutcome::Continue(next) => {
@@ -551,6 +568,44 @@ mod tests {
         o.registry
             .register(Phase::WaitResponse, Arc::new(PassthroughWait));
         o
+    }
+
+    #[test]
+    fn suspend_sets_park_timestamp() {
+        let yaml = include_str!("../../../tests/fixtures/config/minimal.yaml");
+        let cfg = load_yaml(yaml).unwrap();
+        let snap = Arc::new(RuntimeSnapshot::from_config(cfg));
+        let mut txn = Transaction::new(1, "127.0.0.1:15353".parse().unwrap(), ClientProtocol::Udp)
+            .with_query_wire(example_query());
+        let orch = orchestrator_with_suspend_forward();
+        assert!(matches!(
+            orch.run_until_suspend(&mut txn, &snap, &SystemClock, None),
+            OrchestratorRun::Suspended { .. }
+        ));
+        assert!(txn.suspend_phase_started_at.is_some());
+    }
+
+    #[test]
+    fn resume_clears_park_timestamp() {
+        let yaml = include_str!("../../../tests/fixtures/config/minimal.yaml");
+        let cfg = load_yaml(yaml).unwrap();
+        let snap = Arc::new(RuntimeSnapshot::from_config(cfg));
+        let mut txn = Transaction::new(1, "127.0.0.1:15353".parse().unwrap(), ClientProtocol::Udp)
+            .with_query_wire(example_query());
+        let orch = orchestrator_with_suspend_forward();
+        assert!(matches!(
+            orch.run_until_suspend(&mut txn, &snap, &SystemClock, None),
+            OrchestratorRun::Suspended { .. }
+        ));
+        let mut msg = Message::new();
+        msg.set_id(txn.dns_id);
+        msg.set_response_code(ResponseCode::NoError);
+        let mut buf = Vec::new();
+        let mut encoder = BinEncoder::new(&mut buf);
+        msg.emit(&mut encoder).unwrap();
+        txn.response_wire = Some(buf);
+        let _ = orch.resume_after_suspend(&mut txn, &snap, &SystemClock, None, Phase::WaitResponse);
+        assert!(txn.suspend_phase_started_at.is_none());
     }
 
     #[test]

@@ -61,6 +61,7 @@ impl RuntimeSupervisor {
         metrics_hub.set_scrape_snapshot_fn(conduit_dataplane::metrics_scrape::scrape_snapshot_fn(
             store.clone(),
             dataplane.txn_table.clone(),
+            dataplane.txn_store.clone(),
         ));
         tracing::info!("dataplane listeners started");
 

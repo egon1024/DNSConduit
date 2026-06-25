@@ -185,6 +185,39 @@ fn split_io_garbage_query_does_not_consume_slot() {
 }
 
 #[test]
+fn split_io_survives_idle_then_second_query() {
+    let backend_port = bind_ephemeral();
+    let listen_port = bind_ephemeral();
+    let _upstream = mock_upstream(backend_port, Duration::ZERO);
+
+    let yaml = split_io_config(listen_port, backend_port, 4);
+    let cfg = load_yaml(&yaml).unwrap();
+    let store = Arc::new(SnapshotStore::new(RuntimeSnapshot::from_config(
+        cfg.clone(),
+    )));
+    let metrics = Arc::new(MetricsHub::from_config(&cfg));
+    let tracing = Arc::new(TracingHub::from_config(&cfg));
+    let handle = start(store, metrics, tracing).expect("split_io start");
+
+    let client = UdpSocket::bind("127.0.0.1:0").unwrap();
+    client
+        .set_read_timeout(Some(Duration::from_secs(2)))
+        .unwrap();
+    let target: std::net::SocketAddr = format!("127.0.0.1:{listen_port}").parse().unwrap();
+
+    client.send_to(&sample_query(11), target).unwrap();
+    let mut buf = [0u8; 512];
+    let (_, _) = client.recv_from(&mut buf).expect("first response");
+
+    thread::sleep(Duration::from_secs(3));
+
+    client.send_to(&sample_query(12), target).unwrap();
+    let (_, _) = client.recv_from(&mut buf).expect("second response after idle");
+
+    handle.shutdown();
+}
+
+#[test]
 fn split_io_valid_query_reaches_upstream() {
     let backend_port = bind_ephemeral();
     let listen_port = bind_ephemeral();
