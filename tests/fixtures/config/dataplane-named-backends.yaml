@@ -1,0 +1,12 @@
+# validate + conduitctl validate fixture
+schema_version: 1
+listeners:
+  threads: 1
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+pools:
+  - name: default
+    backends:
+      - name: resolver-east
+        address: "127.0.0.1:5300"

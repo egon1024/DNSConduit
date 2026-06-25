@@ -4,8 +4,8 @@ use crate::parse_reject::ParseRejectReason;
 use crate::phase::Phase;
 use crate::pipeline::{PipelineStage, StageOutcome};
 use crate::snapshot::RuntimeSnapshot;
+use crate::structural_parse::{apply_parsed_query, structural_parse};
 use crate::transaction::Transaction;
-use hickory_proto::op::{Message, MessageType};
 use std::sync::Arc;
 
 pub struct ParseStage;
@@ -23,41 +23,19 @@ impl PipelineStage for ParseStage {
     }
 
     fn handle(&self, txn: &mut Transaction, _snapshot: &Arc<RuntimeSnapshot>) -> StageOutcome {
-        if txn.query_wire.is_empty() {
-            return Self::drop_with(txn, ParseRejectReason::Empty);
+        if txn.pre_parsed {
+            if txn.qname.is_none() {
+                return Self::drop_with(txn, ParseRejectReason::WireError);
+            }
+            return StageOutcome::Continue(Phase::RequestRules);
         }
-        let message = match Message::from_vec(&txn.query_wire) {
-            Ok(m) => m,
-            Err(_) => return Self::drop_with(txn, ParseRejectReason::WireError),
-        };
-        if message.header().message_type() != MessageType::Query {
-            return Self::drop_with(txn, ParseRejectReason::NotQuery);
+        match structural_parse(&txn.query_wire) {
+            Ok(parsed) => {
+                apply_parsed_query(txn, parsed);
+                StageOutcome::Continue(Phase::RequestRules)
+            }
+            Err(reason) => Self::drop_with(txn, reason),
         }
-        let queries = message.queries();
-        if queries.is_empty() {
-            return Self::drop_with(txn, ParseRejectReason::NoQuestion);
-        }
-        if queries.len() > 1 {
-            return Self::drop_with(txn, ParseRejectReason::MultiQuestion);
-        }
-        txn.dns_id = message.id();
-        txn.opcode = Some(u8::from(message.header().op_code()));
-        let query = &queries[0];
-        txn.qname = Some(query.name().to_utf8());
-        txn.qtype = Some(u16::from(query.query_type()));
-        txn.qclass = Some(u16::from(query.query_class()));
-        if let Some(edns) = message.extensions() {
-            txn.client_udp_payload_size = Some(edns.max_payload());
-            txn.edns_option_codes = edns
-                .options()
-                .as_ref()
-                .keys()
-                .map(|code| u16::from(*code))
-                .collect();
-            txn.edns_option_codes.sort_unstable();
-            txn.edns_option_codes.dedup();
-        }
-        StageOutcome::Continue(Phase::RequestRules)
     }
 }
 
@@ -68,7 +46,7 @@ mod tests {
     use crate::snapshot::RuntimeSnapshot;
     use crate::transaction::ClientProtocol;
     use conduit_config::load_yaml;
-    use hickory_proto::op::{Message, Query};
+    use hickory_proto::op::{Message, MessageType, Query};
     use hickory_proto::rr::{Name, RecordType};
     use hickory_proto::serialize::binary::{BinEncodable, BinEncoder};
     use std::net::SocketAddr;
@@ -92,6 +70,27 @@ mod tests {
     }
 
     #[test]
+    fn parse_skips_wire_when_pre_parsed() {
+        let yaml = include_str!("../../../../tests/fixtures/config/minimal.yaml");
+        let cfg = load_yaml(yaml).unwrap();
+        let snap = Arc::new(RuntimeSnapshot::from_config(cfg));
+        let mut txn = Transaction::new(
+            1,
+            "127.0.0.1:15353".parse::<SocketAddr>().unwrap(),
+            ClientProtocol::Udp,
+        );
+        txn.pre_parsed = true;
+        txn.qname = Some("www.example.com.".into());
+        txn.qtype = Some(1);
+        txn.qclass = Some(1);
+        txn.dns_id = 42;
+        assert_eq!(
+            ParseStage.handle(&mut txn, &snap),
+            StageOutcome::Continue(Phase::RequestRules)
+        );
+    }
+
+    #[test]
     fn parse_valid_query() {
         let yaml = include_str!("../../../../tests/fixtures/config/minimal.yaml");
         let cfg = load_yaml(yaml).unwrap();
@@ -105,6 +104,7 @@ mod tests {
         let stage = ParseStage;
         let outcome = stage.handle(&mut txn, &snap);
         assert_eq!(outcome, StageOutcome::Continue(Phase::RequestRules));
+        assert!(txn.pre_parsed);
         assert!(txn
             .qname
             .as_deref()

@@ -8,10 +8,11 @@ use crate::defaults::{
 };
 use crate::error::ConfigError;
 use conduit_proto::config::{
-    Action, Backend, Config, ControlConfig, ControlTlsConfig, DataSource, EventSinkFilters,
-    EventsConfig, ForwardConfig, Listener, ListenersConfig, LoggingConfig, MetricsConfig,
-    OrchestratorConfig, OtelMetricsConfig, Pool, PrometheusMetricsConfig, RhaiConfig, Rule,
-    RulesConfig, Selector, TracingActivation, TracingConfig, TracingOutput, UserMetricExportConfig,
+    Action, Backend, Config, ControlConfig, ControlTlsConfig, DataSource, DataplaneConfig,
+    EventSinkFilters, EventsConfig, ForwardConfig, Listener, ListenersConfig, LoggingConfig,
+    MetricsConfig, OrchestratorConfig, OtelMetricsConfig, Pool, PrometheusMetricsConfig,
+    RhaiConfig, Rule, RulesConfig, Selector, TracingActivation, TracingConfig, TracingOutput,
+    UserMetricExportConfig,
 };
 use serde::{Deserialize, Serialize};
 
@@ -42,6 +43,8 @@ pub(crate) struct YamlConfig {
     metrics: Option<YamlMetrics>,
     #[serde(default)]
     tracing: Option<YamlTracing>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    dataplane: Option<YamlDataplane>,
 }
 
 /// Sparse overlay patch: omitted top-level keys stay unset (`None` / empty) in [`Config`].
@@ -73,6 +76,8 @@ pub(crate) struct YamlOverlayPatch {
     metrics: Option<YamlMetrics>,
     #[serde(default)]
     tracing: Option<YamlTracing>,
+    #[serde(default)]
+    dataplane: Option<YamlDataplane>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -81,6 +86,39 @@ pub(crate) struct YamlLogging {
     level: String,
     #[serde(default = "default_log_output")]
     output: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub(crate) struct YamlDataplane {
+    #[serde(default = "default_dataplane_runtime")]
+    runtime: String,
+    #[serde(default = "default_policy_workers")]
+    policy_workers: u32,
+    #[serde(default = "default_io_workers")]
+    io_workers: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    slot_chunk_size: Option<u32>,
+}
+
+fn default_dataplane_runtime() -> String {
+    crate::dataplane::DEFAULT_DATAPLANE_RUNTIME.into()
+}
+
+fn default_policy_workers() -> u32 {
+    crate::dataplane::DEFAULT_POLICY_WORKERS
+}
+
+fn default_io_workers() -> u32 {
+    crate::dataplane::DEFAULT_IO_WORKERS
+}
+
+impl YamlDataplane {
+    fn is_sync_default(&self) -> bool {
+        self.runtime == crate::dataplane::DEFAULT_DATAPLANE_RUNTIME
+            && self.policy_workers == crate::dataplane::DEFAULT_POLICY_WORKERS
+            && self.io_workers == crate::dataplane::DEFAULT_IO_WORKERS
+            && self.slot_chunk_size.is_none()
+    }
 }
 
 fn default_log_level() -> String {
@@ -195,6 +233,14 @@ impl YamlListeners {
 pub(crate) struct YamlListener {
     address: String,
     protocol: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    threads: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    reuse_port: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    rcvbuf: Option<u32>,
 }
 
 fn default_source_selection() -> String {
@@ -471,11 +517,16 @@ pub(crate) struct YamlPool {
     sources_v4: Vec<String>,
     #[serde(default)]
     sources_v6: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    max_inflight: Option<u32>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub(crate) struct YamlBackend {
+    #[serde(default)]
     address: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    name: Option<String>,
     /// Omitted in YAML means default weight (100).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     weight: Option<u32>,
@@ -638,6 +689,7 @@ impl From<YamlOverlayPatch> for Config {
             data_sources: y.data_sources.into_iter().map(Into::into).collect(),
             metrics: y.metrics.map(Into::into),
             tracing: y.tracing.map(Into::into),
+            dataplane: y.dataplane.map(Into::into),
         }
     }
 }
@@ -658,6 +710,18 @@ impl From<YamlConfig> for Config {
             data_sources: y.data_sources.into_iter().map(Into::into).collect(),
             metrics: y.metrics.map(Into::into),
             tracing: y.tracing.map(Into::into),
+            dataplane: y.dataplane.map(Into::into),
+        }
+    }
+}
+
+impl From<YamlDataplane> for DataplaneConfig {
+    fn from(y: YamlDataplane) -> Self {
+        DataplaneConfig {
+            runtime: y.runtime,
+            policy_workers: y.policy_workers,
+            io_workers: y.io_workers,
+            slot_chunk_size: y.slot_chunk_size,
         }
     }
 }
@@ -798,6 +862,10 @@ impl From<YamlListener> for Listener {
         Listener {
             address: y.address,
             protocol: y.protocol,
+            threads: y.threads,
+            reuse_port: y.reuse_port,
+            name: y.name,
+            rcvbuf: y.rcvbuf,
         }
     }
 }
@@ -913,6 +981,7 @@ impl From<YamlPool> for Pool {
             backends: y.backends.into_iter().map(Into::into).collect(),
             sources_v4: y.sources_v4,
             sources_v6: y.sources_v6,
+            max_inflight: y.max_inflight,
         }
     }
 }
@@ -922,6 +991,7 @@ impl From<YamlBackend> for Backend {
         Backend {
             address: y.address,
             weight: y.weight,
+            name: y.name,
         }
     }
 }
@@ -1001,6 +1071,19 @@ pub(crate) fn config_to_yaml(cfg: &Config) -> Result<YamlConfig, ConfigError> {
         data_sources: cfg.data_sources.iter().map(YamlDataSource::from).collect(),
         metrics: cfg.metrics.as_ref().map(YamlMetrics::from),
         tracing: cfg.tracing.as_ref().map(YamlTracing::from),
+        dataplane: cfg.dataplane.as_ref().and_then(|d| {
+            let y = YamlDataplane {
+                runtime: d.runtime.clone(),
+                policy_workers: d.policy_workers,
+                io_workers: d.io_workers,
+                slot_chunk_size: d.slot_chunk_size,
+            };
+            if y.is_sync_default() {
+                None
+            } else {
+                Some(y)
+            }
+        }),
     })
 }
 
@@ -1170,6 +1253,10 @@ impl From<&Listener> for YamlListener {
         YamlListener {
             address: ln.address.clone(),
             protocol: ln.protocol.clone(),
+            threads: ln.threads,
+            reuse_port: ln.reuse_port,
+            name: ln.name.clone(),
+            rcvbuf: ln.rcvbuf,
         }
     }
 }
@@ -1292,6 +1379,7 @@ impl TryFrom<&Pool> for YamlPool {
             backends: p.backends.iter().map(YamlBackend::from).collect(),
             sources_v4: p.sources_v4.clone(),
             sources_v6: p.sources_v6.clone(),
+            max_inflight: p.max_inflight,
         })
     }
 }
@@ -1300,6 +1388,7 @@ impl From<&Backend> for YamlBackend {
     fn from(b: &Backend) -> Self {
         YamlBackend {
             address: b.address.clone(),
+            name: b.name.clone(),
             weight: match b.weight {
                 None | Some(DEFAULT_BACKEND_WEIGHT) => None,
                 Some(w) => Some(w),

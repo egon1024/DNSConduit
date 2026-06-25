@@ -1,0 +1,32 @@
+# Phase 1d — sync default (no dataplane block; regression baseline).
+schema_version: 1
+listeners:
+  threads: 1
+  reuse_port: false
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+forward:
+  outstanding_per_backend: 100
+  timeout_ms: 2000
+orchestrator:
+  max_attempts: 3
+  max_txn_duration_ms: 5000
+  txn_table_capacity: 1024
+events:
+  queue_depth: 4096
+  drop_policy: drop_oldest
+pools:
+  - name: default
+    backends:
+      - address: "127.0.0.1:15300"
+        weight: 100
+control:
+  listen_address: "127.0.0.1:5199"
+  reflection_enabled: true
+metrics:
+  enabled: true
+  profile: full
+  prometheus:
+    listen_address: "127.0.0.1:19090"
+    path: /metrics

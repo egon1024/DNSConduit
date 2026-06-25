@@ -105,18 +105,22 @@ mod tests {
                 Backend {
                     address: "10.0.0.1:53".into(),
                     weight: Some(100),
+                    name: None,
                 },
                 Backend {
                     address: "10.0.0.2:53".into(),
                     weight: Some(100),
+                    name: None,
                 },
                 Backend {
                     address: "10.0.0.3:53".into(),
                     weight: Some(100),
+                    name: None,
                 },
             ],
             sources_v4: vec![],
             sources_v6: vec![],
+            max_inflight: None,
         }
     }
 
@@ -159,9 +163,11 @@ mod tests {
                 backends: vec![Backend {
                     address: "10.0.1.1:53".into(),
                     weight: Some(100),
+                    name: None,
                 }],
                 sources_v4: vec![],
                 sources_v6: vec![],
+                max_inflight: None,
             },
         ];
         let primary_tried = vec!["10.0.0.1:53".parse().unwrap()];

@@ -1,0 +1,37 @@
+# Phase 1d — per-listener threads / reuse_port / name overrides.
+schema_version: 1
+dataplane:
+  runtime: split_io
+  policy_workers: 4
+  io_workers: 1
+listeners:
+  threads: 2
+  reuse_port: false
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+      name: public-udp
+      threads: 4
+      reuse_port: true
+    - address: "127.0.0.1:15354"
+      protocol: tcp
+      name: lab-tcp
+      threads: 1
+forward:
+  outstanding_per_backend: 100
+  timeout_ms: 2000
+orchestrator:
+  max_attempts: 3
+  max_txn_duration_ms: 5000
+  txn_table_capacity: 1024
+events:
+  queue_depth: 4096
+  drop_policy: drop_oldest
+pools:
+  - name: default
+    backends:
+      - address: "127.0.0.1:15300"
+        weight: 100
+control:
+  listen_address: "127.0.0.1:5199"
+  reflection_enabled: true

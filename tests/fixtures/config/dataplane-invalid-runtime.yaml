@@ -1,0 +1,12 @@
+schema_version: 1
+dataplane:
+  runtime: not_a_runtime
+listeners:
+  threads: 1
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+pools:
+  - name: default
+    backends:
+      - address: "127.0.0.1:5300"
