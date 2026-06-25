@@ -18,6 +18,7 @@ message Config {
   repeated DataSource data_sources = 11;
   optional MetricsConfig metrics = 12;
   optional TracingConfig tracing = 13;
+  optional DataplaneConfig dataplane = 14;
 }
 
 // Phase 4: Prometheus scrape + OTEL push (design §7.1).
@@ -116,6 +117,18 @@ message ListenersConfig {
 message Listener {
   string address = 1;           // e.g. "0.0.0.0:53"
   string protocol = 2;          // "udp" | "tcp"
+  optional uint32 threads = 3;  // per-listener ingress worker override
+  optional bool reuse_port = 4;
+  optional string name = 5;     // stable metrics / log identity
+  optional uint32 rcvbuf = 6;
+}
+
+// Pluggable dataplane execution model (selected at process startup).
+message DataplaneConfig {
+  string runtime = 1;           // "sync" | "split_io" | "tokio"
+  uint32 policy_workers = 2;
+  uint32 io_workers = 3;
+  optional uint32 slot_chunk_size = 4;
 }
 
 message ForwardConfig {
@@ -181,11 +194,13 @@ message Pool {
   repeated Backend backends = 2;
   repeated string sources_v4 = 3;
   repeated string sources_v6 = 4;
+  optional uint32 max_inflight = 5;
 }
 
 message Backend {
   string address = 1;           // "ip:port"
   optional uint32 weight = 2;   // load-balancing weight; default 100 when unset
+  optional string name = 3;     // unique per pool when set
 }
 
 message ControlTlsConfig {

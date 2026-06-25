@@ -1,10 +1,12 @@
 //! Start listener worker threads for the active snapshot.
 
-use crate::forward::{ForwardTransport, TxnTable};
+use crate::forward::{ForwardTransport, TxnTable, WaitResponseStage};
 use crate::listener::{shutdown::DataplaneShutdown, startup_log, tcp, udp};
+use conduit_config::resolve_listener_ingress;
 use conduit_core::orchestrator::Orchestrator;
 use conduit_core::phase::Phase;
 use conduit_core::snapshot::SnapshotStore;
+use conduit_core::txn_store::{SharedTxnStore, DEFAULT_SLOT_CHUNK_SIZE};
 use conduit_events::EventHub;
 use conduit_metrics::{MetricsHub, TracingHub};
 use socket2::Socket;
@@ -14,12 +16,12 @@ use std::sync::Arc;
 use std::thread;
 
 /// Holds a duplicate of a bound listener socket so `shutdown()` can unblock workers.
-struct ListenerCloser {
+pub(crate) struct ListenerCloser {
     socket: Socket,
 }
 
 impl ListenerCloser {
-    fn new(socket: Socket) -> std::io::Result<Self> {
+    pub(crate) fn new(socket: Socket) -> std::io::Result<Self> {
         Ok(Self {
             socket: socket.try_clone()?,
         })
@@ -36,9 +38,28 @@ pub struct DataplaneHandle {
     threads: Vec<thread::JoinHandle<()>>,
     pub events: Arc<EventHub>,
     pub txn_table: Arc<TxnTable>,
+    pub txn_store: SharedTxnStore,
 }
 
 impl DataplaneHandle {
+    pub(crate) fn new(
+        shutdown: DataplaneShutdown,
+        listener_closers: Vec<ListenerCloser>,
+        threads: Vec<thread::JoinHandle<()>>,
+        events: Arc<EventHub>,
+        txn_table: Arc<TxnTable>,
+        txn_store: SharedTxnStore,
+    ) -> Self {
+        Self {
+            shutdown,
+            listener_closers,
+            threads,
+            events,
+            txn_table,
+            txn_store,
+        }
+    }
+
     /// Signal workers to stop, shut down listener sockets, and join worker threads.
     pub fn shutdown(self) {
         self.shutdown.signal();
@@ -77,16 +98,25 @@ pub fn start(
             .unwrap_or(100),
     ));
 
+    let slot_capacity = orch_cfg.map(|o| o.txn_table_capacity).unwrap_or(1024);
+    let slot_chunk = cfg
+        .dataplane
+        .as_ref()
+        .and_then(|d| d.slot_chunk_size)
+        .unwrap_or(DEFAULT_SLOT_CHUNK_SIZE);
+    let txn_store = SharedTxnStore::new(slot_capacity, slot_chunk);
+
     let shutdown = DataplaneShutdown::new();
 
     let Some(listeners) = listeners else {
-        return Ok(DataplaneHandle {
+        return Ok(DataplaneHandle::new(
             shutdown,
-            listener_closers: Vec::new(),
-            threads: Vec::new(),
-            events: events_hub,
-            txn_table: table,
-        });
+            Vec::new(),
+            Vec::new(),
+            events_hub,
+            table,
+            txn_store,
+        ));
     };
 
     let timeout_ms = snap.forward.timeout_ms;
@@ -94,23 +124,25 @@ pub fn start(
 
     let mut thread_handles = Vec::new();
     let mut listener_closers = Vec::new();
-    let threads = listeners.threads.max(1);
     for ln in &listeners.listeners {
+        let ingress = resolve_listener_ingress(listeners, ln);
         let proto = ln.protocol.to_lowercase();
-        for _ in 0..threads {
+        for _ in 0..ingress.threads {
             let ln = ln.clone();
             let store = store.clone();
             let table = table.clone();
             let forward_compiled = snap.forward.clone();
             let bind_addresses_v4 = snap.egress_bind_addresses_v4();
             let bind_addresses_v6 = snap.egress_bind_addresses_v6();
+            let parse_wire_meta = snap.scripting.needs_response_wire_meta;
             let obs = events_hub.clone();
             let metrics = metrics.clone();
             let tracing = tracing.clone();
-            let reuse = listeners.reuse_port;
-            let rcvbuf = listeners.rcvbuf;
+            let reuse = ingress.reuse_port;
+            let rcvbuf = ingress.rcvbuf;
             let worker_shutdown = shutdown.clone();
             let global_query_counter = global_query_counter.clone();
+            let txn_store = txn_store.clone();
 
             let (closer, worker) = if proto == "tcp" {
                 let (socket, addr) = tcp::bind_socket(&ln)?;
@@ -158,9 +190,10 @@ pub fn start(
                     }),
                 );
                 orchestrator.registry.register(Phase::Forward, forward);
-                orchestrator
-                    .registry
-                    .register(Phase::WaitResponse, Arc::new(NoopWaitStage));
+                orchestrator.registry.register(
+                    Phase::WaitResponse,
+                    Arc::new(WaitResponseStage::new(parse_wire_meta)),
+                );
                 let orchestrator = Arc::new(orchestrator);
 
                 let result = match worker {
@@ -168,6 +201,7 @@ pub fn start(
                         listener,
                         ln,
                         store,
+                        txn_store,
                         orchestrator,
                         obs,
                         worker_shutdown,
@@ -177,6 +211,7 @@ pub fn start(
                         udp,
                         ln,
                         store,
+                        txn_store,
                         orchestrator,
                         obs,
                         worker_shutdown,
@@ -190,34 +225,19 @@ pub fn start(
         }
     }
 
-    Ok(DataplaneHandle {
+    Ok(DataplaneHandle::new(
         shutdown,
         listener_closers,
-        threads: thread_handles,
-        events: events_hub,
-        txn_table: table,
-    })
+        thread_handles,
+        events_hub,
+        table,
+        txn_store,
+    ))
 }
 
 enum WorkerKind {
     Tcp(std::net::TcpListener),
     Udp(std::net::UdpSocket),
-}
-
-struct NoopWaitStage;
-
-impl conduit_core::PipelineStage for NoopWaitStage {
-    fn name(&self) -> &'static str {
-        "wait_response"
-    }
-
-    fn handle(
-        &self,
-        _txn: &mut conduit_core::Transaction,
-        _snapshot: &Arc<conduit_core::RuntimeSnapshot>,
-    ) -> conduit_core::StageOutcome {
-        conduit_core::StageOutcome::Continue(Phase::ResponseRules)
-    }
 }
 
 #[cfg(test)]

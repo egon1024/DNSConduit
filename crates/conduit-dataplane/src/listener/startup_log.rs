@@ -1,5 +1,6 @@
 //! Operator-facing startup summary for the active snapshot.
 
+use conduit_config::effective_dataplane_runtime;
 use conduit_core::snapshot::RuntimeSnapshot;
 use conduit_events::EventHub;
 
@@ -18,6 +19,7 @@ pub fn log_startup_summary(snap: &RuntimeSnapshot, events_hub: &EventHub) {
 
     tracing::info!(
         generation = snap.generation,
+        dataplane_runtime = effective_dataplane_runtime(cfg),
         listeners = listener_count,
         pools = pool_count,
         rules = rule_count,

@@ -1,18 +1,28 @@
 //! Configuration load, validate, merge, and export.
 
 pub mod backend;
+pub mod dataplane;
 pub mod defaults;
 pub mod error;
 pub mod export;
 pub mod file;
 pub mod forward;
+pub mod listeners;
 pub mod logging;
 pub mod merge;
 pub mod overlay;
 pub mod validate;
 
+#[cfg(test)]
+mod dataplane_tests;
+
 pub use backend::{effective_backend_weight, DEFAULT_BACKEND_WEIGHT};
 pub use conduit_proto::paths::resolve_config_path;
+pub use dataplane::{
+    effective_dataplane_runtime, effective_io_workers, effective_policy_workers,
+    parse_dataplane_runtime, validate_dataplane, DEFAULT_DATAPLANE_RUNTIME, DEFAULT_IO_WORKERS,
+    DEFAULT_POLICY_WORKERS,
+};
 pub use defaults::{
     DEFAULT_CONTROL_LISTEN_ADDRESS, DEFAULT_EVENTS_DROP_POLICY, DEFAULT_EVENTS_QUEUE_DEPTH,
     DEFAULT_FORWARD_OUTSTANDING_PER_BACKEND, DEFAULT_FORWARD_TIMEOUT_MS,
@@ -28,6 +38,7 @@ pub use forward::{
     validate_upstream_backend_addresses, CompiledForward, CompiledPoolForward, UpstreamTransport,
     DEFAULT_SOURCE_SELECTION, DEFAULT_UPSTREAM_TRANSPORT, MAX_SOURCES_V4, MAX_SOURCES_V6,
 };
+pub use listeners::{resolve_listener_ingress, ResolvedListenerIngress};
 pub use logging::{init_from_config, validate_logging, DEFAULT_LOG_LEVEL, DEFAULT_LOG_OUTPUT};
 pub use merge::{
     clear_overlay, is_overlay_patch_empty, merge_file_and_overlay, merge_overlay_patches,

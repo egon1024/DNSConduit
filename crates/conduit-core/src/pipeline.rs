@@ -9,6 +9,8 @@ use std::sync::Arc;
 pub enum StageOutcome {
     Continue(Phase),
     Drop,
+    /// Park the transaction until the runtime resumes at `resume_phase` (typically WaitResponse).
+    Suspend(Phase),
 }
 
 pub trait PipelineStage: Send + Sync {

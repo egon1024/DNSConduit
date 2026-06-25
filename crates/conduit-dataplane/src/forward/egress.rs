@@ -130,6 +130,20 @@ impl WorkerForwardEgress {
             .get(&addr)
             .unwrap_or(&self.default_socket_v6)
     }
+
+    /// All distinct egress UDP sockets (for I/O backend registration).
+    pub fn all_udp_sockets(&self) -> Vec<UdpSocket> {
+        let mut out = Vec::new();
+        out.push(self.default_socket_v4.try_clone().expect("clone udp v4"));
+        out.push(self.default_socket_v6.try_clone().expect("clone udp v6"));
+        for sock in self.sockets_v4.values() {
+            out.push(sock.try_clone().expect("clone udp v4"));
+        }
+        for sock in self.sockets_v6.values() {
+            out.push(sock.try_clone().expect("clone udp v6"));
+        }
+        out
+    }
 }
 
 fn bind_udp_v4(addr: Ipv4Addr, timeout: Duration) -> std::io::Result<UdpSocket> {

@@ -20,6 +20,22 @@ pub enum RunOutcome {
     Dropped,
 }
 
+/// Result of one orchestrator execution slice (complete or parked at suspend).
+#[derive(Debug, PartialEq, Eq)]
+pub enum OrchestratorRun {
+    Finished(RunOutcome),
+    Suspended { resume_phase: Phase },
+}
+
+impl OrchestratorRun {
+    pub fn into_outcome(self) -> Option<RunOutcome> {
+        match self {
+            Self::Finished(o) => Some(o),
+            Self::Suspended { .. } => None,
+        }
+    }
+}
+
 /// Query dnstap and pipeline-trace activation after request rules finish (including policy drop).
 fn observe_after_request_rules(
     txn: &mut Transaction,
@@ -89,13 +105,82 @@ pub struct Orchestrator {
 }
 
 impl Orchestrator {
+    /// Run the full pipeline to completion (sync runtime). Suspends at WaitResponse are
+    /// completed inline via the registered wait stage when present.
     pub fn run(
+        &self,
+        txn: &mut Transaction,
+        snapshot: &Arc<RuntimeSnapshot>,
+        clock: &dyn Clock,
+        events: Option<&EventHub>,
+    ) -> RunOutcome {
+        let mut step = self.run_until_suspend(txn, snapshot, clock, events);
+        loop {
+            match step {
+                OrchestratorRun::Finished(outcome) => return outcome,
+                OrchestratorRun::Suspended { resume_phase } => {
+                    step = self.resume_inline_wait(txn, snapshot, clock, events, resume_phase);
+                }
+            }
+        }
+    }
+
+    /// Run until the pipeline completes or a stage returns [`StageOutcome::Suspend`].
+    pub fn run_until_suspend(
+        &self,
+        txn: &mut Transaction,
+        snapshot: &Arc<RuntimeSnapshot>,
+        clock: &dyn Clock,
+        events: Option<&EventHub>,
+    ) -> OrchestratorRun {
+        self.run_loop(txn, snapshot, clock, events, false)
+    }
+
+    /// Continue from a suspend point (typically after upstream I/O completes).
+    pub fn resume_after_suspend(
+        &self,
+        txn: &mut Transaction,
+        snapshot: &Arc<RuntimeSnapshot>,
+        clock: &dyn Clock,
+        events: Option<&EventHub>,
+        resume_phase: Phase,
+    ) -> OrchestratorRun {
+        txn.current_phase = resume_phase;
+        self.run_loop(txn, snapshot, clock, events, true)
+    }
+
+    fn resume_inline_wait(
+        &self,
+        txn: &mut Transaction,
+        snapshot: &Arc<RuntimeSnapshot>,
+        clock: &dyn Clock,
+        events: Option<&EventHub>,
+        resume_phase: Phase,
+    ) -> OrchestratorRun {
+        txn.current_phase = resume_phase;
+        if let Some(stage) = self.registry.get(resume_phase) {
+            let outcome = stage.handle(txn, snapshot);
+            match outcome {
+                StageOutcome::Drop => return OrchestratorRun::Finished(RunOutcome::Dropped),
+                StageOutcome::Continue(next) => txn.current_phase = next,
+                StageOutcome::Suspend(next) => {
+                    return OrchestratorRun::Suspended { resume_phase: next };
+                }
+            }
+        } else {
+            txn.current_phase = next_phase(resume_phase);
+        }
+        self.run_until_suspend(txn, snapshot, clock, events)
+    }
+
+    fn run_loop(
         &self,
         txn: &mut Transaction,
         snapshot: &Arc<RuntimeSnapshot>,
         _clock: &dyn Clock,
         events: Option<&EventHub>,
-    ) -> RunOutcome {
+        resumed: bool,
+    ) -> OrchestratorRun {
         let metrics = self.metrics.as_deref();
         let tracing = self.tracing.as_deref();
         let max_attempts = snapshot
@@ -111,8 +196,10 @@ impl Orchestrator {
             .map(|o| o.max_txn_duration_ms)
             .unwrap_or(5000);
 
-        txn.snapshot_generation = snapshot.generation;
-        txn.current_phase = Phase::Parse;
+        if !resumed {
+            txn.snapshot_generation = snapshot.generation;
+            txn.current_phase = Phase::Parse;
+        }
 
         loop {
             if txn.started_at.elapsed() > Duration::from_millis(max_duration as u64) {
@@ -179,7 +266,10 @@ impl Orchestrator {
                             }
                         }
                     }
-                    return RunOutcome::Dropped;
+                    return OrchestratorRun::Finished(RunOutcome::Dropped);
+                }
+                StageOutcome::Suspend(resume_phase) => {
+                    return OrchestratorRun::Suspended { resume_phase };
                 }
                 StageOutcome::Continue(next) => {
                     if phase == Phase::Parse && next == Phase::RequestRules {
@@ -251,6 +341,12 @@ impl Orchestrator {
             RunOutcome::Dropped
         };
 
+        self.finalize_trace(txn, tracing);
+        self.log_run_outcome(txn, &outcome);
+        OrchestratorRun::Finished(outcome)
+    }
+
+    fn finalize_trace(&self, txn: &mut Transaction, tracing: Option<&TracingHub>) {
         if let Some(th) = tracing {
             if let Some(log) = txn.trace_log.take() {
                 if !log.events.is_empty() {
@@ -268,8 +364,10 @@ impl Orchestrator {
                 }
             }
         }
+    }
 
-        match &outcome {
+    fn log_run_outcome(&self, txn: &Transaction, outcome: &RunOutcome) {
+        match outcome {
             RunOutcome::Response(_) => tracing::debug!(
                 txn_id = txn.id,
                 dns_id = txn.dns_id,
@@ -292,8 +390,6 @@ impl Orchestrator {
                 "query dropped"
             ),
         }
-
-        outcome
     }
 }
 
@@ -434,6 +530,169 @@ mod tests {
         o.registry
             .register(Phase::WaitResponse, Arc::new(PassthroughWait));
         o
+    }
+
+    struct SuspendForwardStage;
+
+    impl PipelineStage for SuspendForwardStage {
+        fn name(&self) -> &'static str {
+            "suspend_forward"
+        }
+
+        fn handle(&self, _txn: &mut Transaction, _snapshot: &Arc<RuntimeSnapshot>) -> StageOutcome {
+            StageOutcome::Suspend(Phase::WaitResponse)
+        }
+    }
+
+    fn orchestrator_with_suspend_forward() -> Orchestrator {
+        let mut o = Orchestrator::with_default_stages();
+        o.registry
+            .register(Phase::Forward, Arc::new(SuspendForwardStage));
+        o.registry
+            .register(Phase::WaitResponse, Arc::new(PassthroughWait));
+        o
+    }
+
+    #[test]
+    fn suspend_at_forward_parks_at_wait_response() {
+        let yaml = include_str!("../../../tests/fixtures/config/minimal.yaml");
+        let cfg = load_yaml(yaml).unwrap();
+        let snap = Arc::new(RuntimeSnapshot::from_config(cfg));
+        let mut txn = Transaction::new(1, "127.0.0.1:15353".parse().unwrap(), ClientProtocol::Udp)
+            .with_query_wire(example_query());
+        let orch = orchestrator_with_suspend_forward();
+        let step = orch.run_until_suspend(&mut txn, &snap, &SystemClock, None);
+        assert_eq!(
+            step,
+            OrchestratorRun::Suspended {
+                resume_phase: Phase::WaitResponse
+            }
+        );
+        assert_eq!(txn.current_phase, Phase::Forward);
+    }
+
+    #[test]
+    fn resume_after_upstream_reply_completes() {
+        let yaml = include_str!("../../../tests/fixtures/config/minimal.yaml");
+        let cfg = load_yaml(yaml).unwrap();
+        let snap = Arc::new(RuntimeSnapshot::from_config(cfg));
+        let mut txn = Transaction::new(1, "127.0.0.1:15353".parse().unwrap(), ClientProtocol::Udp)
+            .with_query_wire(example_query());
+        let orch = orchestrator_with_suspend_forward();
+        assert!(matches!(
+            orch.run_until_suspend(&mut txn, &snap, &SystemClock, None),
+            OrchestratorRun::Suspended { .. }
+        ));
+
+        let mut msg = Message::new();
+        msg.set_id(txn.dns_id);
+        msg.set_response_code(ResponseCode::NoError);
+        let mut buf = Vec::new();
+        let mut encoder = BinEncoder::new(&mut buf);
+        msg.emit(&mut encoder).unwrap();
+        txn.response_wire = Some(buf);
+
+        let step =
+            orch.resume_after_suspend(&mut txn, &snap, &SystemClock, None, Phase::WaitResponse);
+        assert!(matches!(
+            step,
+            OrchestratorRun::Finished(RunOutcome::Response(_))
+        ));
+    }
+
+    #[test]
+    fn max_txn_duration_includes_parked_wait() {
+        use std::thread;
+        use std::time::Duration;
+
+        let yaml = include_str!("../../../tests/fixtures/config/minimal.yaml");
+        let mut cfg = load_yaml(yaml).unwrap();
+        cfg.orchestrator.as_mut().unwrap().max_txn_duration_ms = 50;
+        let snap = Arc::new(RuntimeSnapshot::from_config(cfg));
+        let mut txn = Transaction::new(1, "127.0.0.1:15353".parse().unwrap(), ClientProtocol::Udp)
+            .with_query_wire(example_query());
+        let orch = orchestrator_with_suspend_forward();
+        assert!(matches!(
+            orch.run_until_suspend(&mut txn, &snap, &SystemClock, None),
+            OrchestratorRun::Suspended { .. }
+        ));
+        thread::sleep(Duration::from_millis(80));
+        let step =
+            orch.resume_after_suspend(&mut txn, &snap, &SystemClock, None, Phase::WaitResponse);
+        match step {
+            OrchestratorRun::Finished(RunOutcome::Response(_)) => {
+                assert_eq!(txn.rcode_label().as_deref(), Some("SERVFAIL"));
+            }
+            other => panic!("expected SERVFAIL after parked timeout, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn retry_loop_survives_suspend_and_resume() {
+        use std::sync::atomic::{AtomicU32, Ordering};
+
+        struct SuspendOnceThenRespond {
+            calls: AtomicU32,
+        }
+
+        impl PipelineStage for SuspendOnceThenRespond {
+            fn name(&self) -> &'static str {
+                "suspend_once_forward"
+            }
+
+            fn handle(
+                &self,
+                txn: &mut Transaction,
+                _snapshot: &Arc<RuntimeSnapshot>,
+            ) -> StageOutcome {
+                if self.calls.fetch_add(1, Ordering::Relaxed) == 0 {
+                    return StageOutcome::Suspend(Phase::WaitResponse);
+                }
+                let mut msg = Message::new();
+                msg.set_id(txn.dns_id);
+                msg.set_response_code(ResponseCode::ServFail);
+                let mut buf = Vec::new();
+                let mut encoder = BinEncoder::new(&mut buf);
+                msg.emit(&mut encoder).unwrap();
+                txn.response_wire = Some(buf);
+                txn.set_rcode(2);
+                StageOutcome::Continue(Phase::WaitResponse)
+            }
+        }
+
+        let yaml = include_str!("../../../tests/fixtures/config/with-rules.yaml");
+        let cfg = load_yaml(yaml).unwrap();
+        let snap = Arc::new(RuntimeSnapshot::from_config(cfg));
+        let mut txn = Transaction::new(2, "127.0.0.1:15353".parse().unwrap(), ClientProtocol::Udp)
+            .with_query_wire(example_query());
+        let mut orch = Orchestrator::with_default_stages();
+        orch.registry.register(
+            Phase::Forward,
+            Arc::new(SuspendOnceThenRespond {
+                calls: AtomicU32::new(0),
+            }),
+        );
+        orch.registry
+            .register(Phase::WaitResponse, Arc::new(PassthroughWait));
+
+        assert!(matches!(
+            orch.run_until_suspend(&mut txn, &snap, &SystemClock, None),
+            OrchestratorRun::Suspended { .. }
+        ));
+
+        let mut msg = Message::new();
+        msg.set_id(txn.dns_id);
+        msg.set_response_code(ResponseCode::ServFail);
+        let mut buf = Vec::new();
+        let mut encoder = BinEncoder::new(&mut buf);
+        msg.emit(&mut encoder).unwrap();
+        txn.response_wire = Some(buf);
+        txn.set_rcode(2);
+
+        let step =
+            orch.resume_after_suspend(&mut txn, &snap, &SystemClock, None, Phase::WaitResponse);
+        assert!(matches!(step, OrchestratorRun::Finished(_)));
+        assert!(txn.attempts.len() >= 2, "attempts={:?}", txn.attempts);
     }
 
     #[test]

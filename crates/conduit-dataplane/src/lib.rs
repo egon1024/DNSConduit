@@ -3,7 +3,9 @@
 pub mod forward;
 pub mod listener;
 pub mod metrics_scrape;
+pub mod query_slot;
+pub mod runtime;
 pub mod stages;
 
 pub use listener::{supervisor, DataplaneShutdown};
-pub use supervisor::{start, DataplaneHandle};
+pub use runtime::{start, DataplaneHandle};

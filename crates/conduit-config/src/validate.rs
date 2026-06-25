@@ -1,8 +1,10 @@
 use crate::backend::effective_backend_weight;
+use crate::dataplane::validate_dataplane;
 use crate::forward::{
     parse_sources_v4, parse_sources_v6, parse_upstream_transport,
     validate_upstream_backend_addresses,
 };
+use crate::listeners::validate_listeners;
 use crate::logging::validate_logging;
 use conduit_events::{
     parse_connect_retry, parse_extra_fields, parse_extra_tags, validate_sink_identity_uniqueness,
@@ -53,15 +55,10 @@ pub fn validate(cfg: &Config) -> ValidationResult {
     }
 
     if let Some(l) = &cfg.listeners {
-        if l.threads == 0 {
-            errors.push("listeners.threads must be >= 1".into());
-        }
-        for ln in &l.listeners {
-            if ln.address.is_empty() {
-                errors.push("listener address must not be empty".into());
-            }
-        }
+        errors.extend(validate_listeners(l));
     }
+
+    errors.extend(validate_dataplane(cfg));
 
     if let Some(o) = &cfg.orchestrator {
         if o.max_attempts == 0 {
@@ -99,7 +96,19 @@ pub fn validate(cfg: &Config) -> ValidationResult {
         if p.backends.is_empty() {
             errors.push(format!("pool '{}' has no backends", p.name));
         }
+        let mut backend_names = std::collections::HashSet::new();
         for backend in &p.backends {
+            if backend.address.is_empty() {
+                errors.push(format!(
+                    "pool '{}' backend address must not be empty",
+                    p.name
+                ));
+            }
+            if let Some(name) = backend.name.as_ref().filter(|n| !n.is_empty()) {
+                if !backend_names.insert(name.clone()) {
+                    errors.push(format!("pool '{}' duplicate backend name '{name}'", p.name));
+                }
+            }
             if effective_backend_weight(backend) == 0 {
                 errors.push(format!(
                     "pool '{}' backend '{}' weight must be >= 1",
@@ -112,6 +121,14 @@ pub fn validate(cfg: &Config) -> ValidationResult {
         }
         if let Err(e) = parse_sources_v6(&p.sources_v6) {
             errors.push(format!("pool '{}': {e}", p.name));
+        }
+        if let Some(max_inflight) = p.max_inflight {
+            if max_inflight == 0 {
+                errors.push(format!(
+                    "pool '{}' max_inflight must be >= 1 when set",
+                    p.name
+                ));
+            }
         }
     }
 

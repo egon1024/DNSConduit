@@ -5,8 +5,8 @@
 
 use crate::snapshot::{RuntimeSnapshot, SnapshotStore};
 use conduit_config::{
-    clear_overlay, is_overlay_patch_empty, load_yaml, merge_overlay_patches, validate,
-    validate_overlay_patch, EffectiveConfig, ValidationResult,
+    clear_overlay, is_overlay_patch_empty, load_yaml, merge_file_and_overlay,
+    merge_overlay_patches, validate, validate_overlay_patch, EffectiveConfig, ValidationResult,
 };
 use conduit_proto::config::Config;
 use std::fmt;
@@ -264,6 +264,7 @@ fn apply_overlay_mode(
             if is_overlay_patch_empty(patch) {
                 clear_overlay(eff);
             } else {
+                merge_file_and_overlay(&eff.file, patch).map_err(|e| vec![e.to_string()])?;
                 eff.overlay = Some(patch.clone());
             }
             Ok(())
@@ -276,10 +277,14 @@ fn apply_overlay_mode(
             if is_overlay_patch_empty(patch) {
                 return Ok(());
             }
-            eff.overlay = Some(match &eff.overlay {
-                Some(existing) => merge_overlay_patches(existing, patch),
+            let new_overlay = match &eff.overlay {
+                Some(existing) => {
+                    merge_overlay_patches(existing, patch).map_err(|e| vec![e.to_string()])?
+                }
                 None => patch.clone(),
-            });
+            };
+            merge_file_and_overlay(&eff.file, &new_overlay).map_err(|e| vec![e.to_string()])?;
+            eff.overlay = Some(new_overlay);
             Ok(())
         }
     }

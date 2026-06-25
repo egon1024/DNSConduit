@@ -107,6 +107,8 @@ pub struct Transaction {
     pub retry_source_override_v6: Option<std::net::Ipv6Addr>,
     /// Pipeline trace buffer; `None` when tracing is off for this transaction.
     pub trace_log: Option<TraceLog>,
+    /// Ingress structural parse already populated metadata; skip wire parse in orchestrator.
+    pub pre_parsed: bool,
     rcode: Option<u16>,
 }
 
@@ -148,6 +150,7 @@ impl Transaction {
             retry_source_override_v4: None,
             retry_source_override_v6: None,
             trace_log: None,
+            pre_parsed: false,
             rcode: None,
         }
     }

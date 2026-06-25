@@ -1,9 +1,11 @@
 //! UDP DNS listener worker.
 
 use crate::listener::DataplaneShutdown;
-use conduit_core::orchestrator::{Orchestrator, RunOutcome};
+use crate::query_slot::run_in_slot;
+use conduit_core::orchestrator::Orchestrator;
 use conduit_core::snapshot::SnapshotStore;
 use conduit_core::transaction::{ClientProtocol, Transaction};
+use conduit_core::txn_store::SharedTxnStore;
 use conduit_events::EventHub;
 use conduit_proto::config::Listener;
 use socket2::{Domain, Protocol, Socket, Type};
@@ -41,10 +43,12 @@ pub fn bind_socket(
     Ok((socket, bound))
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn run_worker(
     udp: std::net::UdpSocket,
     listener: Listener,
     store: Arc<SnapshotStore>,
+    txn_store: SharedTxnStore,
     orchestrator: Arc<Orchestrator>,
     observation: Arc<EventHub>,
     shutdown: DataplaneShutdown,
@@ -62,17 +66,28 @@ pub fn run_worker(
             Ok((len, peer)) => {
                 let snap = store.load();
                 let global_query_index = global_query_counter.fetch_add(1, Ordering::Relaxed) + 1;
-                let mut txn = Transaction::new(next_id, peer, ClientProtocol::Udp)
-                    .with_global_query_index(global_query_index)
-                    .with_listener_label(listener.address.clone())
-                    .with_query_wire(buf[..len].to_vec());
-                next_id = next_id.wrapping_add(1);
-                if let RunOutcome::Response(wire) = orchestrator.run(
-                    &mut txn,
+                let query_bytes = buf[..len].to_vec();
+                let wire = match run_in_slot(
+                    &txn_store,
+                    orchestrator.as_ref(),
                     &snap,
-                    &conduit_core::SystemClock,
-                    Some(observation.as_ref()),
+                    observation.as_ref(),
+                    |slot| {
+                        slot.txn = Transaction::new(next_id, peer, ClientProtocol::Udp)
+                            .with_global_query_index(global_query_index)
+                            .with_listener_label(listener.address.clone())
+                            .with_query_wire(query_bytes.clone());
+                        let _ = slot.query.set_from_slice(&query_bytes);
+                    },
                 ) {
+                    Ok(w) => w,
+                    Err(_) => {
+                        tracing::debug!(txn_id = next_id, "slot pool exhausted; dropping query");
+                        None
+                    }
+                };
+                next_id = next_id.wrapping_add(1);
+                if let Some(wire) = wire {
                     let _ = udp.send_to(&wire, peer);
                 }
             }

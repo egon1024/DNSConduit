@@ -1,9 +1,11 @@
 //! TCP DNS listener (RFC 1035 length-prefixed).
 
 use crate::listener::DataplaneShutdown;
-use conduit_core::orchestrator::{Orchestrator, RunOutcome};
+use crate::query_slot::run_in_slot;
+use conduit_core::orchestrator::Orchestrator;
 use conduit_core::snapshot::SnapshotStore;
 use conduit_core::transaction::{ClientProtocol, Transaction};
+use conduit_core::txn_store::SharedTxnStore;
 use conduit_events::EventHub;
 use conduit_proto::config::Listener;
 use socket2::{Domain, Protocol, Socket, Type};
@@ -32,10 +34,12 @@ pub fn bind_socket(listener: &Listener) -> std::io::Result<(Socket, SocketAddr)>
     Ok((socket, bound))
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn run_worker(
     tcp: std::net::TcpListener,
     listener: Listener,
     store: Arc<SnapshotStore>,
+    txn_store: SharedTxnStore,
     orchestrator: Arc<Orchestrator>,
     observation: Arc<EventHub>,
     shutdown: DataplaneShutdown,
@@ -68,17 +72,24 @@ pub fn run_worker(
                 }
                 let snap = store.load();
                 let global_query_index = global_query_counter.fetch_add(1, Ordering::Relaxed) + 1;
-                let mut txn = Transaction::new(next_id, peer, ClientProtocol::Tcp)
-                    .with_global_query_index(global_query_index)
-                    .with_listener_label(listener.address.clone())
-                    .with_query_wire(buf);
-                next_id = next_id.wrapping_add(1);
-                if let RunOutcome::Response(wire) = orchestrator.run(
-                    &mut txn,
+                let wire: Option<Vec<u8>> = run_in_slot(
+                    &txn_store,
+                    orchestrator.as_ref(),
                     &snap,
-                    &conduit_core::SystemClock,
-                    Some(observation.as_ref()),
-                ) {
+                    observation.as_ref(),
+                    |slot| {
+                        slot.txn = Transaction::new(next_id, peer, ClientProtocol::Tcp)
+                            .with_global_query_index(global_query_index)
+                            .with_listener_label(listener.address.clone())
+                            .with_query_wire(buf.clone());
+                        if slot.query.set_from_slice(&buf).is_err() {
+                            slot.response_overflow = Some(buf.clone());
+                        }
+                    },
+                )
+                .unwrap_or_default();
+                next_id = next_id.wrapping_add(1);
+                if let Some(wire) = wire {
                     let len = (wire.len() as u16).to_be_bytes();
                     let _ = stream.write_all(&len);
                     let _ = stream.write_all(&wire);
