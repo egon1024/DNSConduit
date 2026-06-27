@@ -102,7 +102,11 @@ Prints pipeline trace events when [tracing](/observability/tracing.md) captured 
 
 ## Access logs
 
-Successful and failed control RPCs log at **`info`** as **`control rpc`**: gRPC method, peer address, requestor identity (anonymous, API key, mTLS, or rejected), status, and latency. Request and response bodies are **not** logged.
+Every control RPC logs at **`info`** as **`control rpc`** (the **transport** line): gRPC method (`rpc`), peer address (`peer`), requestor identity (`requestor`: anonymous, API key, mTLS, or rejected), gRPC status (`grpc_code`, e.g. `Ok`, `InvalidArgument`), and latency (`latency_ms`). Request and response bodies are **not** logged.
+
+Config RPCs (`ApplyConfig`, `ValidateConfig`, `ReloadFromFile`) additionally emit a **separate** `control rpc outcome` line (the **application** line) with `rpc`, `outcome` (`ok` or `rejected`), `error_count`, and the joined `errors`.
+
+The two lines report different layers. A config that fails validation is rejected **in-band** — the RPC still succeeds at the transport layer — so it logs `control rpc` with `grpc_code=Ok` **and** a `control rpc outcome` with `outcome=rejected` and `error_count>0`. `conduitctl` surfaces the same rejection as a non-zero exit with the validation messages.
 
 ## gRPC reflection
 

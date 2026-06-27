@@ -153,6 +153,22 @@ impl RuntimeSupervisor {
         self.configurator.shutdown().await;
         tracing::debug!("configurator stopped");
 
+        // Best-effort graceful drain of in-flight transaction slots before the
+        // abrupt listener teardown (preparation for zero-downtime-upgrade).
+        let drain_timeout = self.dataplane.drain_timeout();
+        match self.dataplane.drain(drain_timeout, None) {
+            conduit_dataplane::DrainOutcome::Drained => {
+                tracing::debug!("dataplane slots drained");
+            }
+            conduit_dataplane::DrainOutcome::TimedOut { remaining } => {
+                tracing::warn!(
+                    remaining,
+                    timeout_ms = drain_timeout.as_millis() as u64,
+                    "dataplane drain timed out; forcing shutdown"
+                );
+            }
+        }
+
         self.dataplane.shutdown();
         tracing::info!("services stopped");
     }

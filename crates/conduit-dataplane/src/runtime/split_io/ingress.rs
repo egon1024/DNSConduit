@@ -2,6 +2,7 @@
 
 use super::queue::{PolicyQueue, PolicyWork, ReplyRoutes, ReplyTarget};
 use crate::listener::{tcp, udp, DataplaneShutdown};
+use conduit_core::routing::listener_metric_label;
 use conduit_core::structural_parse::{apply_parsed_query, structural_parse, ParsedQuery};
 use conduit_core::transaction::{ClientProtocol, Transaction};
 use conduit_core::txn_store::{AcquireError, SharedTxnStore};
@@ -25,6 +26,7 @@ pub fn run_udp_ingress(
     metrics: Arc<MetricsHub>,
 ) -> std::io::Result<()> {
     udp.set_read_timeout(Some(Duration::from_secs(1)))?;
+    let listener_label = listener_metric_label(&listener);
     let mut buf = [0u8; 4096];
     loop {
         if shutdown.is_shutdown() {
@@ -45,7 +47,7 @@ pub fn run_udp_ingress(
                     &txn_store,
                     peer,
                     ClientProtocol::Udp,
-                    &listener.address,
+                    &listener_label,
                     global_query_index,
                     &query_bytes,
                     parsed,
@@ -90,6 +92,7 @@ pub fn run_tcp_ingress(
     metrics: Arc<MetricsHub>,
 ) -> std::io::Result<()> {
     tcp.set_nonblocking(true)?;
+    let listener_label = listener_metric_label(&listener);
     loop {
         if shutdown.is_shutdown() {
             break;
@@ -125,7 +128,7 @@ pub fn run_tcp_ingress(
                     &txn_store,
                     peer,
                     ClientProtocol::Tcp,
-                    &listener.address,
+                    &listener_label,
                     global_query_index,
                     &buf,
                     parsed,

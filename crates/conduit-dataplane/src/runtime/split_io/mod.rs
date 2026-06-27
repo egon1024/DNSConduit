@@ -45,6 +45,9 @@ pub fn start_split_io(
     ));
 
     let slot_capacity = orch_cfg.map(|o| o.txn_table_capacity).unwrap_or(1024);
+    let drain_timeout = crate::listener::supervisor::drain_timeout_from_config(
+        orch_cfg.map(|o| o.max_txn_duration_ms),
+    );
     let slot_chunk = cfg
         .dataplane
         .as_ref()
@@ -67,12 +70,7 @@ pub fn start_split_io(
         timeout_ms,
     )?;
     let egress_sockets = egress.all_udp_sockets();
-    let (io_backend, io_resume_rx) = IoBackend::new(
-        egress_sockets,
-        table.clone(),
-        timeout_ms,
-        Some(metrics.clone()),
-    )?;
+    let (io_backend, io_resume_rx) = IoBackend::new(egress_sockets, table.clone(), timeout_ms)?;
     let io_shutdown = Arc::new(AtomicBool::new(false));
     let io_backend_for_orchestrator = Arc::new(io_backend.clone());
 
@@ -148,6 +146,7 @@ pub fn start_split_io(
             events_hub,
             table,
             txn_store,
+            drain_timeout,
         ));
     };
 
@@ -217,6 +216,7 @@ pub fn start_split_io(
         events_hub,
         table,
         txn_store,
+        drain_timeout,
     ))
 }
 

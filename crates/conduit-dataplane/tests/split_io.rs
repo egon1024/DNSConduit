@@ -47,6 +47,62 @@ fn mock_upstream(port: u16, delay: Duration) -> thread::JoinHandle<()> {
     })
 }
 
+/// Upstream that accepts queries but never replies, so forwards park and time out.
+fn mock_blackhole(port: u16) -> thread::JoinHandle<()> {
+    thread::spawn(move || {
+        let sock = UdpSocket::bind(format!("127.0.0.1:{port}")).unwrap();
+        sock.set_read_timeout(Some(Duration::from_secs(30)))
+            .unwrap();
+        let mut buf = [0u8; 512];
+        loop {
+            let _ = sock.recv_from(&mut buf);
+        }
+    })
+}
+
+/// split_io config with metrics enabled (full) and a named backend, used to
+/// assert forward attempt/duration metrics resolve the configured backend name.
+fn split_io_named_metrics_config(listen_port: u16, backend_port: u16, timeout_ms: u32) -> String {
+    format!(
+        r#"
+schema_version: 1
+dataplane:
+  runtime: split_io
+  policy_workers: 2
+  io_workers: 1
+listeners:
+  threads: 1
+  reuse_port: false
+  listeners:
+    - address: "127.0.0.1:{listen_port}"
+      protocol: udp
+      name: lab-udp
+forward:
+  outstanding_per_backend: 32
+  timeout_ms: {timeout_ms}
+orchestrator:
+  max_attempts: 1
+  max_txn_duration_ms: 10000
+  txn_table_capacity: 64
+events:
+  queue_depth: 256
+  drop_policy: drop_oldest
+  sinks: []
+metrics:
+  enabled: true
+  profile: full
+pools:
+  - name: default
+    backends:
+      - name: resolver-east
+        address: "127.0.0.1:{backend_port}"
+        weight: 100
+control:
+  listen_address: "127.0.0.1:0"
+"#
+    )
+}
+
 fn split_io_config(listen_port: u16, backend_port: u16, capacity: u32) -> String {
     format!(
         r#"
@@ -212,8 +268,104 @@ fn split_io_survives_idle_then_second_query() {
     thread::sleep(Duration::from_secs(3));
 
     client.send_to(&sample_query(12), target).unwrap();
-    let (_, _) = client.recv_from(&mut buf).expect("second response after idle");
+    let (_, _) = client
+        .recv_from(&mut buf)
+        .expect("second response after idle");
 
+    handle.shutdown();
+}
+
+#[test]
+fn split_io_records_forward_success_metric_with_backend_name() {
+    let backend_port = bind_ephemeral();
+    let listen_port = bind_ephemeral();
+    let _upstream = mock_upstream(backend_port, Duration::ZERO);
+
+    let yaml = split_io_named_metrics_config(listen_port, backend_port, 5000);
+    let cfg = load_yaml(&yaml).unwrap();
+    assert!(validate(&cfg).ok);
+    let store = Arc::new(SnapshotStore::new(RuntimeSnapshot::from_config(
+        cfg.clone(),
+    )));
+    let metrics = Arc::new(MetricsHub::from_config(&cfg));
+    let tracing = Arc::new(TracingHub::from_config(&cfg));
+    let handle = start(store, metrics.clone(), tracing).expect("split_io start");
+
+    let client = UdpSocket::bind("127.0.0.1:0").unwrap();
+    client
+        .set_read_timeout(Some(Duration::from_secs(5)))
+        .unwrap();
+    let target: std::net::SocketAddr = format!("127.0.0.1:{listen_port}").parse().unwrap();
+    client.send_to(&sample_query(21), target).unwrap();
+    let mut buf = [0u8; 512];
+    let (_, _) = client.recv_from(&mut buf).expect("response from split_io");
+
+    let body = conduit_metrics::render_prometheus(&metrics, &[]);
+    assert!(
+        body.contains(
+            r#"conduit_forward_attempts_total{backend="resolver-east",outcome="success",pool="default"} 1"#
+        ),
+        "expected named-backend success attempt; body:\n{body}"
+    );
+    assert!(
+        body.contains(
+            r#"conduit_forward_duration_seconds_count{backend="resolver-east",pool="default"} 1"#
+        ),
+        "expected forward duration observation for named backend; body:\n{body}"
+    );
+    assert!(
+        body.contains(r#"listener="lab-udp""#),
+        "expected listener label to use the configured name; body:\n{body}"
+    );
+    assert!(
+        !body.contains(&format!(r#"listener="127.0.0.1:{listen_port}""#)),
+        "listener label must be the name, not the bind address; body:\n{body}"
+    );
+    handle.shutdown();
+}
+
+#[test]
+fn split_io_records_forward_timeout_metric_with_pool_and_name() {
+    let dead_port = bind_ephemeral();
+    let listen_port = bind_ephemeral();
+    let _blackhole = mock_blackhole(dead_port);
+
+    let yaml = split_io_named_metrics_config(listen_port, dead_port, 300);
+    let cfg = load_yaml(&yaml).unwrap();
+    let store = Arc::new(SnapshotStore::new(RuntimeSnapshot::from_config(
+        cfg.clone(),
+    )));
+    let metrics = Arc::new(MetricsHub::from_config(&cfg));
+    let tracing = Arc::new(TracingHub::from_config(&cfg));
+    let handle = start(store, metrics.clone(), tracing).expect("split_io start");
+
+    let client = UdpSocket::bind("127.0.0.1:0").unwrap();
+    client
+        .set_read_timeout(Some(Duration::from_secs(2)))
+        .unwrap();
+    let target: std::net::SocketAddr = format!("127.0.0.1:{listen_port}").parse().unwrap();
+    client.send_to(&sample_query(31), target).unwrap();
+    // SERVFAIL is returned after the forward times out (~300 ms); the metric is
+    // recorded on the WaitResponse resume before Send, so it exists by then.
+    let mut buf = [0u8; 512];
+    let _ = client.recv_from(&mut buf);
+    thread::sleep(Duration::from_millis(50));
+
+    let body = conduit_metrics::render_prometheus(&metrics, &[]);
+    assert!(
+        body.contains(
+            r#"conduit_forward_attempts_total{backend="resolver-east",outcome="error",pool="default"} 1"#
+        ),
+        "expected named-backend timeout attempt with real pool; body:\n{body}"
+    );
+    assert!(
+        body.contains(r#"conduit_forward_errors_total{pool="default",reason="timeout"} 1"#),
+        "expected timeout forward error on the default pool; body:\n{body}"
+    );
+    assert!(
+        !body.contains(r#"pool="unknown""#),
+        "timeout must not record pool=\"unknown\"; body:\n{body}"
+    );
     handle.shutdown();
 }
 

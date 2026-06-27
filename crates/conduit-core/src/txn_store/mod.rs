@@ -129,6 +129,17 @@ impl TxnStore {
         self.allocated().saturating_sub(self.free_list.len() as u32)
     }
 
+    /// Count non-`Free` slots matching `pred` (drain enumeration; includes parked `IoWait`).
+    pub fn active_slots_matching<F>(&self, pred: F) -> u32
+    where
+        F: Fn(&TxnSlot) -> bool,
+    {
+        self.slots
+            .iter()
+            .filter(|slot| slot.state != SlotState::Free && pred(slot))
+            .count() as u32
+    }
+
     /// Cumulative acquire failures when at capacity (`conduit_slot_pool_exhausted_total` hook).
     pub fn exhaustion_total(&self) -> u64 {
         self.exhaustion_total.load(Ordering::Relaxed)
@@ -239,6 +250,14 @@ impl SharedTxnStore {
 
     pub fn in_use(&self) -> u32 {
         self.lock().in_use()
+    }
+
+    /// Count non-`Free` slots matching `pred` (drain enumeration; includes parked `IoWait`).
+    pub fn active_slots_matching<F>(&self, pred: F) -> u32
+    where
+        F: Fn(&TxnSlot) -> bool,
+    {
+        self.lock().active_slots_matching(pred)
     }
 
     pub fn exhaustion_total(&self) -> u64 {

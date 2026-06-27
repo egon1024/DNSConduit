@@ -35,3 +35,9 @@ pools:
 control:
   listen_address: "127.0.0.1:5199"
   reflection_enabled: true
+metrics:
+  enabled: true
+  profile: full
+  prometheus:
+    listen_address: "127.0.0.1:19090"
+    path: /metrics

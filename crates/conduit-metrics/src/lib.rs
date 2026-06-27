@@ -14,7 +14,9 @@ mod user;
 pub use build_metadata::{
     label_pairs as build_info_label_pairs, BUILD_PROFILE, DIRTY, REVISION, VERSION,
 };
-pub use builtin::{BuiltinRegistry, ScrapeGaugeSnapshot, ScrapeSnapshotFn};
+pub use builtin::{
+    BackendIdentity, BuiltinRegistry, ListenerIdentity, ScrapeGaugeSnapshot, ScrapeSnapshotFn,
+};
 pub use compile::{
     compile_from_config, trace_activation_matches, validate_metrics_tracing, BuiltinProfile,
     CompiledMetrics, CompiledTraceActivation, CompiledTracing,

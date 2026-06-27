@@ -1,5 +1,6 @@
 //! Start listener worker threads for the active snapshot.
 
+use crate::drain::{drain_slots, DrainFilter, DrainOutcome, DEFAULT_DRAIN_TIMEOUT};
 use crate::forward::{ForwardTransport, TxnTable, WaitResponseStage};
 use crate::listener::{shutdown::DataplaneShutdown, startup_log, tcp, udp};
 use conduit_config::resolve_listener_ingress;
@@ -14,6 +15,7 @@ use std::net::Shutdown;
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 use std::thread;
+use std::time::Duration;
 
 /// Holds a duplicate of a bound listener socket so `shutdown()` can unblock workers.
 pub(crate) struct ListenerCloser {
@@ -39,6 +41,7 @@ pub struct DataplaneHandle {
     pub events: Arc<EventHub>,
     pub txn_table: Arc<TxnTable>,
     pub txn_store: SharedTxnStore,
+    drain_timeout: Duration,
 }
 
 impl DataplaneHandle {
@@ -49,6 +52,7 @@ impl DataplaneHandle {
         events: Arc<EventHub>,
         txn_table: Arc<TxnTable>,
         txn_store: SharedTxnStore,
+        drain_timeout: Duration,
     ) -> Self {
         Self {
             shutdown,
@@ -57,7 +61,22 @@ impl DataplaneHandle {
             events,
             txn_table,
             txn_store,
+            drain_timeout,
         }
+    }
+
+    /// Default drain wait derived from `orchestrator.max_txn_duration_ms`.
+    pub fn drain_timeout(&self) -> Duration {
+        self.drain_timeout
+    }
+
+    /// Wait for in-flight transaction slots to drain, or until `timeout`.
+    ///
+    /// `filter` selects which slots to wait on; `None` drains all slots. This
+    /// blocks on the [`SharedTxnStore`] slot lifecycle (including parked
+    /// `IoWait` legs); it does not stop listeners or implement process handoff.
+    pub fn drain(&self, timeout: Duration, filter: Option<DrainFilter>) -> DrainOutcome {
+        drain_slots(&self.txn_store, timeout, filter)
     }
 
     /// Signal workers to stop, shut down listener sockets, and join worker threads.
@@ -105,6 +124,7 @@ pub fn start(
         .and_then(|d| d.slot_chunk_size)
         .unwrap_or(DEFAULT_SLOT_CHUNK_SIZE);
     let txn_store = SharedTxnStore::new(slot_capacity, slot_chunk);
+    let drain_timeout = drain_timeout_from_config(orch_cfg.map(|o| o.max_txn_duration_ms));
 
     let shutdown = DataplaneShutdown::new();
 
@@ -116,6 +136,7 @@ pub fn start(
             events_hub,
             table,
             txn_store,
+            drain_timeout,
         ));
     };
 
@@ -192,7 +213,10 @@ pub fn start(
                 orchestrator.registry.register(Phase::Forward, forward);
                 orchestrator.registry.register(
                     Phase::WaitResponse,
-                    Arc::new(WaitResponseStage::new(parse_wire_meta)),
+                    Arc::new(WaitResponseStage::new(
+                        parse_wire_meta,
+                        Some(metrics.clone()),
+                    )),
                 );
                 let orchestrator = Arc::new(orchestrator);
 
@@ -232,7 +256,17 @@ pub fn start(
         events_hub,
         table,
         txn_store,
+        drain_timeout,
     ))
+}
+
+/// Drain wait derived from `orchestrator.max_txn_duration_ms` (bounds parked
+/// `IoWait` legs); falls back to [`DEFAULT_DRAIN_TIMEOUT`] when unset or zero.
+pub(crate) fn drain_timeout_from_config(max_txn_duration_ms: Option<u32>) -> Duration {
+    match max_txn_duration_ms {
+        Some(ms) if ms > 0 => Duration::from_millis(ms as u64),
+        _ => DEFAULT_DRAIN_TIMEOUT,
+    }
 }
 
 enum WorkerKind {

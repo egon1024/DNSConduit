@@ -54,7 +54,10 @@ pub fn build_orchestrator(
     orchestrator.registry.register(Phase::Forward, forward);
     orchestrator.registry.register(
         Phase::WaitResponse,
-        Arc::new(WaitResponseStage::new(parse_wire_meta)),
+        Arc::new(WaitResponseStage::new(
+            parse_wire_meta,
+            Some(metrics.clone()),
+        )),
     );
     Ok(Arc::new(orchestrator))
 }
