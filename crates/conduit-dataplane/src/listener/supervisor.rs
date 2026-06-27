@@ -10,7 +10,6 @@ use conduit_core::snapshot::SnapshotStore;
 use conduit_core::txn_store::{SharedTxnStore, DEFAULT_SLOT_CHUNK_SIZE};
 use conduit_events::EventHub;
 use conduit_metrics::{MetricsHub, TracingHub};
-use conduit_proto::config::Config;
 use socket2::Socket;
 use std::net::Shutdown;
 use std::sync::atomic::{AtomicBool, AtomicU64};
@@ -42,12 +41,9 @@ pub struct DataplaneHandle {
     pub events: Arc<EventHub>,
     pub txn_table: Arc<TxnTable>,
     pub txn_store: SharedTxnStore,
-    drain_enabled: bool,
-    drain_timeout: Duration,
 }
 
 impl DataplaneHandle {
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         shutdown: DataplaneShutdown,
         listener_closers: Vec<ListenerCloser>,
@@ -55,8 +51,6 @@ impl DataplaneHandle {
         events: Arc<EventHub>,
         txn_table: Arc<TxnTable>,
         txn_store: SharedTxnStore,
-        drain_enabled: bool,
-        drain_timeout: Duration,
     ) -> Self {
         Self {
             shutdown,
@@ -65,20 +59,7 @@ impl DataplaneHandle {
             events,
             txn_table,
             txn_store,
-            drain_enabled,
-            drain_timeout,
         }
-    }
-
-    /// Whether to drain in-flight transactions before listener teardown
-    /// (`shutdown.drain`, default enabled).
-    pub fn drain_enabled(&self) -> bool {
-        self.drain_enabled
-    }
-
-    /// Drain wait from `shutdown.drain_timeout_ms` (default 5s).
-    pub fn drain_timeout(&self) -> Duration {
-        self.drain_timeout
     }
 
     /// Wait for in-flight transaction slots to drain, or until `timeout`, or
@@ -143,7 +124,6 @@ pub fn start(
         .and_then(|d| d.slot_chunk_size)
         .unwrap_or(DEFAULT_SLOT_CHUNK_SIZE);
     let txn_store = SharedTxnStore::new(slot_capacity, slot_chunk);
-    let (drain_enabled, drain_timeout) = drain_settings_from_config(cfg);
 
     let shutdown = DataplaneShutdown::new();
 
@@ -155,8 +135,6 @@ pub fn start(
             events_hub,
             table,
             txn_store,
-            drain_enabled,
-            drain_timeout,
         ));
     };
 
@@ -276,17 +254,7 @@ pub fn start(
         events_hub,
         table,
         txn_store,
-        drain_enabled,
-        drain_timeout,
     ))
-}
-
-/// Resolve shutdown drain settings (`shutdown.drain`, `shutdown.drain_timeout_ms`)
-/// into `(drain_enabled, drain_timeout)`. Defaults: enabled, 5s.
-pub(crate) fn drain_settings_from_config(cfg: &Config) -> (bool, Duration) {
-    let enabled = conduit_config::effective_drain(cfg);
-    let timeout = Duration::from_millis(conduit_config::effective_drain_timeout_ms(cfg) as u64);
-    (enabled, timeout)
 }
 
 enum WorkerKind {

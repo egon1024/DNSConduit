@@ -567,8 +567,12 @@ increment with each `+tcp` query.
 ## 9. Drain on shutdown smoke (optional)
 
 Drain runs automatically on process shutdown: the supervisor waits for in-flight
-transaction slots to drain (up to `orchestrator.max_txn_duration_ms`) before
-tearing down listeners.
+transaction slots to drain (up to `shutdown.drain_timeout_ms`, default **5000 ms**)
+before tearing down listeners. The drain settings are read from the **live** config
+snapshot when shutdown begins, so `conduitctl apply` / reload changes take effect
+without a restart (verified in §9c).
+
+### 9a. Basic drain on first signal
 
 1. **Terminal A:** stop dnsmasq so a forward will park (as in section 3).
 2. **Terminal B:** start split_io with the slow-upstream config and debug logs:
@@ -583,7 +587,7 @@ tearing down listeners.
    dig @127.0.0.1 -p 15353 +time=20 +tries=1 drain-test.example.com A &
    ```
 
-4. **Terminal B:** while the query is in flight, press `Ctrl+C` once to trigger
+4. **Terminal B:** while the query is in flight, press `Ctrl+C` **once** to trigger
    shutdown.
 
 **Expect (Terminal B logs one of):**
@@ -594,13 +598,55 @@ tearing down listeners.
   (warn) — drain window elapsed with slots still in flight.
 
 Either outcome is a pass: shutdown is orderly and the in-flight slot is accounted
-for (no panic, no indefinite hang). Restart dnsmasq afterward.
-
-> Protocol-scoped `DrainFilter` (UDP-only leaves TCP slots) is covered by the
-> automated unit test `udp_only_drain_ignores_tcp_slots`; there is no CLI flag
-> for selective drain yet. Listener-scoped drain is a deferred future feature.
+for (no panic, no indefinite hang).
 
 **Pass / fail:** ___________ / N/A
+
+### 9b. Second signal abandons the drain
+
+Repeat steps 1–3 above (a parked query in flight), then in **Terminal B** press
+`Ctrl+C` **twice** in quick succession.
+
+**Expect:** the second signal logs
+`second shutdown signal received; abandoning drain` (warn) and the process exits
+**immediately** — it does **not** wait out `shutdown.drain_timeout_ms`.
+
+**Pass / fail:** ___________ / N/A
+
+### 9c. Applied drain change takes effect without restart
+
+This confirms the `shutdown:` block is dynamic. The slow-upstream config enables
+the control plane; if yours does not, add a `control:` block first.
+
+1. Start the process as in 9a (dnsmasq stopped, debug logs on). Note the running
+   process has the default 5000 ms drain.
+2. **Terminal C:** apply a short drain timeout (no restart):
+
+   ```bash
+   printf 'schema_version: 1\nshutdown:\n  drain_timeout_ms: 1000\n' > overlay-drain.yaml
+   conduitctl apply --file overlay-drain.yaml
+   conduitctl export | rg -A2 '^shutdown:'   # confirm drain_timeout_ms: 1000
+   ```
+
+3. **Terminal C:** start a parked query, then in **Terminal B** press `Ctrl+C`
+   **once**:
+
+   ```bash
+   dig @127.0.0.1 -p 15353 +time=20 +tries=1 drain-test.example.com A &
+   ```
+
+**Expect:** if the slot is still parked, the timeout warning reports
+`timeout_ms=1000` (the applied value), **not** `5000` — proving the running
+process picked up the new `shutdown.drain_timeout_ms` without restarting. Restart
+dnsmasq afterward.
+
+**Pass / fail:** ___________ / N/A
+
+> Protocol-scoped `DrainFilter` (UDP-only leaves TCP slots) is covered by the
+> automated unit test `udp_only_drain_ignores_tcp_slots`; dynamic drain-setting
+> resolution is covered by `drain_settings_track_live_snapshot_swaps`. There is no
+> CLI flag for selective drain yet. Listener-scoped drain is a deferred future
+> feature.
 
 ---
 
@@ -626,5 +672,6 @@ for (no panic, no indefinite hang). Restart dnsmasq afterward.
 | 2026-06-25 | Added `conduit_listener_info` and `conduit_backend_info` identity metrics (always `1`) carrying both the join-key label and the `address`+`name`, so dashboards can recover both via a PromQL join. Added reference rows, a join example in the label note, and `_info` checks to §5 (backend) and §6 (listener) |
 | 2026-06-25 | Enriched `conduit_listener_info` with `protocol`/`ip_family`/`reuse_port` (protocol disambiguates UDP/TCP on a shared address; join now `on(listener,protocol)`); added numeric gauges `conduit_listener_ingress_threads`, `conduit_listener_rcvbuf_bytes`, and `conduit_backend_weight` (numbers as gauge values, not labels). Updated reference table and §5/§6 checks |
 | 2026-06-26 | Gate A signed off (egon) — required sections 1–8 validated (§9 drain smoke optional); approved to start operator documentation (Task 12.x) |
+| 2026-06-27 | §9 drain smoke rewritten for the configurable `shutdown` block: corrected the wait bound to `shutdown.drain_timeout_ms`, split into 9a (basic drain), 9b (second-signal abort), and 9c (applied `drain_timeout_ms` takes effect without restart) |
 ```
 
