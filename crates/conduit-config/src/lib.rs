@@ -11,6 +11,7 @@ pub mod listeners;
 pub mod logging;
 pub mod merge;
 pub mod overlay;
+pub mod shutdown;
 pub mod validate;
 
 #[cfg(test)]
@@ -45,6 +46,10 @@ pub use merge::{
     EffectiveConfig,
 };
 pub use overlay::validate_overlay_patch;
+pub use shutdown::{
+    effective_drain, effective_drain_timeout_ms, validate_shutdown, DEFAULT_DRAIN_ENABLED,
+    DEFAULT_DRAIN_TIMEOUT_MS,
+};
 pub use validate::{validate, ValidationResult};
 
 use conduit_proto::config::Config;

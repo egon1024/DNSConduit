@@ -3,7 +3,7 @@
 //! # Phase 0 merge strategy
 //!
 //! - **Top-level sections** (`listeners`, `forward`, `orchestrator`, `events`,
-//!   `rhai`, `control`, `dataplane`): if the overlay has the section set (`Option::is_some`), replace
+//!   `rhai`, `control`, `dataplane`, `shutdown`): if the overlay has the section set (`Option::is_some`), replace
 //!   the entire sub-message on the effective config.
 //! - **`schema_version`**: overlay value wins.
 //! - **`pools`**: match pools by `name`; for each overlay pool, match backends by
@@ -67,6 +67,9 @@ pub fn merge_file_and_overlay(file: &Config, overlay: &Config) -> Result<Config,
     if overlay.dataplane.is_some() {
         merged.dataplane = overlay.dataplane.clone();
     }
+    if overlay.shutdown.is_some() {
+        merged.shutdown = overlay.shutdown;
+    }
     if !overlay.data_sources.is_empty() {
         merged.data_sources = overlay.data_sources.clone();
     }
@@ -92,6 +95,7 @@ pub fn is_overlay_patch_empty(cfg: &Config) -> bool {
         && cfg.control.is_none()
         && cfg.logging.is_none()
         && cfg.dataplane.is_none()
+        && cfg.shutdown.is_none()
         && cfg.pools.is_empty()
         && cfg.data_sources.is_empty()
 }

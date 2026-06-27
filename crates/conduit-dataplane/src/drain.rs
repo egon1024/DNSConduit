@@ -21,9 +21,11 @@
 
 use conduit_core::txn_store::{SharedTxnStore, TxnSlot};
 use conduit_core::ClientProtocol;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-/// Default drain wait used by the shutdown hook when no explicit timeout is given.
+/// Default drain wait when no explicit timeout is given. Mirrors
+/// `conduit_config::DEFAULT_DRAIN_TIMEOUT_MS` (`shutdown.drain_timeout_ms`).
 pub const DEFAULT_DRAIN_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// Poll interval while waiting for slots to reach a terminal/free state.
@@ -59,6 +61,9 @@ pub enum DrainOutcome {
     Drained,
     /// Timeout elapsed with `remaining` matching slots still in flight.
     TimedOut { remaining: u32 },
+    /// The caller cancelled the wait (e.g. a second shutdown signal) with
+    /// `remaining` matching slots still in flight.
+    Aborted { remaining: u32 },
 }
 
 impl DrainOutcome {
@@ -67,13 +72,18 @@ impl DrainOutcome {
     }
 }
 
-/// Wait until matching non-`Free` slots drain, or `timeout` elapses.
+/// Wait until matching non-`Free` slots drain, or `timeout` elapses, or the
+/// caller-supplied `cancel` flag is set.
 ///
 /// A `None` filter drains all slots. A zero timeout performs a single check.
+/// When `cancel` is provided and becomes `true` while slots are still in
+/// flight, the wait returns [`DrainOutcome::Aborted`] (used to let a second
+/// `SIGINT`/`SIGTERM` skip the remaining drain wait and exit promptly).
 pub fn drain_slots(
     txn_store: &SharedTxnStore,
     timeout: Duration,
     filter: Option<DrainFilter>,
+    cancel: Option<&AtomicBool>,
 ) -> DrainOutcome {
     let filter = filter.unwrap_or_default();
     let deadline = Instant::now() + timeout;
@@ -81,6 +91,9 @@ pub fn drain_slots(
         let remaining = txn_store.active_slots_matching(|slot| filter.matches(slot));
         if remaining == 0 {
             return DrainOutcome::Drained;
+        }
+        if cancel.is_some_and(|c| c.load(Ordering::Relaxed)) {
+            return DrainOutcome::Aborted { remaining };
         }
         let now = Instant::now();
         if now >= deadline {
@@ -118,7 +131,7 @@ mod tests {
     fn drain_returns_immediately_when_no_active_slots() {
         let store = SharedTxnStore::new(8, 4);
         assert_eq!(
-            drain_slots(&store, Duration::from_millis(0), None),
+            drain_slots(&store, Duration::from_millis(0), None, None),
             DrainOutcome::Drained
         );
     }
@@ -134,7 +147,8 @@ mod tests {
             drain_slots(
                 &store,
                 Duration::from_millis(0),
-                Some(DrainFilter::protocol(ClientProtocol::Udp))
+                Some(DrainFilter::protocol(ClientProtocol::Udp)),
+                None,
             ),
             DrainOutcome::TimedOut { remaining: 1 }
         );
@@ -147,13 +161,14 @@ mod tests {
                 &store,
                 Duration::from_millis(50),
                 Some(DrainFilter::protocol(ClientProtocol::Udp)),
+                None,
             ),
             DrainOutcome::Drained
         );
 
         // A full (default) drain still reports the outstanding TCP slot.
         assert_eq!(
-            drain_slots(&store, Duration::from_millis(0), None),
+            drain_slots(&store, Duration::from_millis(0), None, None),
             DrainOutcome::TimedOut { remaining: 1 }
         );
     }
@@ -172,9 +187,32 @@ mod tests {
         };
 
         assert_eq!(
-            drain_slots(&store, Duration::from_secs(2), None),
+            drain_slots(&store, Duration::from_secs(2), None, None),
             DrainOutcome::Drained
         );
         releaser.join().unwrap();
+    }
+
+    #[test]
+    fn drain_aborts_when_cancel_flag_set() {
+        let store = SharedTxnStore::new(8, 4);
+        let _active = acquire_active(&store, ClientProtocol::Udp);
+        let cancel = AtomicBool::new(true);
+        // Long timeout, but the pre-set cancel flag forces an immediate abort.
+        assert_eq!(
+            drain_slots(&store, Duration::from_secs(60), None, Some(&cancel)),
+            DrainOutcome::Aborted { remaining: 1 }
+        );
+    }
+
+    #[test]
+    fn drain_ignores_cancel_when_already_drained() {
+        let store = SharedTxnStore::new(8, 4);
+        let cancel = AtomicBool::new(true);
+        // No active slots: success takes precedence over the cancel flag.
+        assert_eq!(
+            drain_slots(&store, Duration::from_millis(0), None, Some(&cancel)),
+            DrainOutcome::Drained
+        );
     }
 }

@@ -45,9 +45,8 @@ pub fn start_split_io(
     ));
 
     let slot_capacity = orch_cfg.map(|o| o.txn_table_capacity).unwrap_or(1024);
-    let drain_timeout = crate::listener::supervisor::drain_timeout_from_config(
-        orch_cfg.map(|o| o.max_txn_duration_ms),
-    );
+    let (drain_enabled, drain_timeout) =
+        crate::listener::supervisor::drain_settings_from_config(cfg);
     let slot_chunk = cfg
         .dataplane
         .as_ref()
@@ -146,6 +145,7 @@ pub fn start_split_io(
             events_hub,
             table,
             txn_store,
+            drain_enabled,
             drain_timeout,
         ));
     };
@@ -216,6 +216,7 @@ pub fn start_split_io(
         events_hub,
         table,
         txn_store,
+        drain_enabled,
         drain_timeout,
     ))
 }

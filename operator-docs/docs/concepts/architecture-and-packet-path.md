@@ -188,7 +188,7 @@ If the pool name does not exist, the pool has no backends, every backend in the 
 
 **Source addresses.** Conduit binds outbound packets using global `forward.sources_v4` / `forward.sources_v6`, optional per-pool `sources_v4` / `sources_v6`, and any source overrides from rules or [Rhai](/rhai/index.md). IPv4 and IPv6 backends use the matching address family. See [Dual-stack forwarding](/guides/dual-stack-forwarding.md) and [Reference: forward](/reference/config-schema/forward.md).
 
-Immediate forward errors (for example send failure or too many outstanding queries to the same backend) set **SERVFAIL** and jump to [Send](/concepts/architecture-and-packet-path.md#send). A successful send continues to [Wait for response](/concepts/architecture-and-packet-path.md#wait-for-response). Each failed attempt increments [`conduit_forward_errors_total`](/observability/built-in-metrics.md#conduit_forward_errors_total). With the **full** metrics profile, each attempt also updates [`conduit_forward_attempts_total`](/observability/built-in-metrics.md#conduit_forward_attempts_total) and [`conduit_forward_duration_seconds`](/observability/built-in-metrics.md#conduit_forward_duration_seconds).
+Immediate forward errors (for example send failure or too many outstanding queries to the same backend) set **SERVFAIL** and jump to [Send](/concepts/architecture-and-packet-path.md#send). A successful send continues to [Wait for response](/concepts/architecture-and-packet-path.md#wait-for-response). Under the **`split_io`** runtime, Forward **submits** the query to an I/O worker and parks the [transaction](/glossary/index.md#transaction) rather than blocking — see [Concurrency and workers](#concurrency-and-workers). Each failed attempt increments [`conduit_forward_errors_total`](/observability/built-in-metrics.md#conduit_forward_errors_total). With the **full** metrics profile, each attempt also updates [`conduit_forward_attempts_total`](/observability/built-in-metrics.md#conduit_forward_attempts_total) and [`conduit_forward_duration_seconds`](/observability/built-in-metrics.md#conduit_forward_duration_seconds).
 
 ### Wait for response
 
@@ -198,7 +198,7 @@ Immediate forward errors (for example send failure or too many outstanding queri
 - **Timeout** — no answer before `forward.timeout_ms`; [`conduit_forward_errors_total`](/observability/built-in-metrics.md#conduit_forward_errors_total) records `reason="timeout"` and processing still continues to [Response rules](/concepts/architecture-and-packet-path.md#response-rules) so retry policy can run another attempt.
 - **Hard forward failure** — some errors skip waiting and go directly to [Send](/concepts/architecture-and-packet-path.md#send) with **SERVFAIL** (see [Forward](/concepts/architecture-and-packet-path.md#forward) above).
 
-In current releases the wait runs on the same worker as [Forward](/concepts/architecture-and-packet-path.md#forward) before [Response rules](/concepts/architecture-and-packet-path.md#response-rules); the separate pipeline step keeps tracing and diagrams aligned with the full path. Retry behavior after a timeout or error: [Retries and transactions](/policy-routing/retries-and-transactions.md).
+How the wait is carried out depends on the [dataplane runtime model](#concurrency-and-workers): under **`sync`** the worker that ran [Forward](/concepts/architecture-and-packet-path.md#forward) blocks here until the reply or timeout; under **`split_io`** Forward submits the query and parks the [transaction](/glossary/index.md#transaction), and an **I/O worker** resumes it on reply, timeout, or error. Either way the pipeline order is the same, and the separate step keeps tracing and diagrams aligned with the full path. Retry behavior after a timeout or error: [Retries and transactions](/policy-routing/retries-and-transactions.md).
 
 ### Response rules
 
@@ -256,13 +256,24 @@ When you reload or apply new settings, Conduit validates the change and builds a
 
 If validation fails, Conduit keeps the **[last-good snapshot](/glossary/index.md#last-good-snapshot)** (the previous working settings) and continues serving DNS.
 
-Some changes update the snapshot immediately but still need a **process restart** to take effect on the wire — for example listener bind addresses and forward egress sockets. Conduit logs when that applies; see [Configuration model](/control-plane/configuration-model.md) and [Reload and export](/control-plane/reload-and-export.md) for reload, overlays, and what requires a restart.
+Some changes update the snapshot immediately but still need a **process restart** to take effect on the wire — for example listener bind addresses, forward egress sockets, and the **`dataplane.runtime`** model and its worker counts (see [Concurrency and workers](#concurrency-and-workers)). Conduit logs when that applies; see [Configuration model](/control-plane/configuration-model.md) and [Reload and export](/control-plane/reload-and-export.md) for reload, overlays, and what requires a restart.
 
 ## Concurrency and workers
 
-Current releases run the [dataplane](/glossary/index.md#dataplane) in a **sync-style** model: each **ingress worker** accepts a client query, runs the full [pipeline](/concepts/architecture-and-packet-path.md#pipeline-phases) on that OS thread — **including blocking upstream wait** at [Forward](/concepts/architecture-and-packet-path.md#forward) — then sends the reply before taking the next query on that thread. There is no separate policy or upstream I/O worker pool today.
+Conduit chooses a **dataplane runtime model** once at process startup with **`dataplane.runtime`**. The runtime decides *how* the work in the [pipeline](/concepts/architecture-and-packet-path.md#pipeline-phases) is spread across OS threads — it does **not** change the [pipeline phases](/concepts/architecture-and-packet-path.md#pipeline-phases) themselves. Every query still walks the same phases in the same order regardless of runtime. The model is fixed for the life of the process: changing `dataplane.runtime` or its worker counts takes effect only after a **restart**, not on [reload](/glossary/index.md#reload-from-disk).
 
-**`sync`** here is descriptive shorthand for that behavior. It is **not** a YAML config value — there is no runtime selector in current releases.
+Two runtime models ship today:
+
+| Runtime {: .column-no-wrap } | How a query is executed | When to use |
+|---------|-------------------------|-------------|
+| **`sync`** (default) | One ingress worker runs the whole pipeline on its own thread — **including the blocking upstream wait** — then sends the reply before taking the next query. | Simple deployments, fast upstreams, labs and tests. |
+| **`split_io`** | Separate **ingress**, **policy**, and **I/O** worker pools. Upstream waits are parked so ingress keeps accepting queries during slow upstreams. | Production with slower or variable upstreams, where ingress should not stall on upstream latency. |
+
+Omitting the `dataplane:` block uses `sync`.
+
+### Sync runtime (default)
+
+In the **`sync`** model, each **ingress worker** accepts a client query, runs the full [pipeline](/concepts/architecture-and-packet-path.md#pipeline-phases) on that OS thread — **including the blocking upstream wait** at [Forward](/concepts/architecture-and-packet-path.md#forward) / [Wait for response](/concepts/architecture-and-packet-path.md#wait-for-response) — then sends the reply before taking the next query on that thread. There is no separate policy or I/O worker pool.
 
 ```mermaid
 flowchart LR
@@ -274,18 +285,43 @@ flowchart LR
   end
 ```
 
+Under load or slow upstreams, a busy ingress worker cannot accept another client query until the current [transaction](/glossary/index.md#transaction) finishes, including the upstream wait. Add ingress threads (see [Worker counts and limits](#worker-counts-and-limits)) when you need more parallel capacity.
+
+### Split I/O runtime
+
+Setting **`dataplane.runtime: split_io`** splits the work into three worker roles so that waiting on a slow upstream does not tie up the thread that accepts client traffic:
+
+- **Ingress workers** — accept the client message (UDP or TCP), do the structural [Parse](/concepts/architecture-and-packet-path.md#parse) check (valid DNS, single question), take a [transaction](/glossary/index.md#transaction) slot, and hand it off. They do **not** block on upstream replies. Count comes from **`listeners.threads`** (per listener, with optional per-listener override).
+- **Policy workers** — run the orchestrator phases — [Request rules](/concepts/architecture-and-packet-path.md#request-rules), [Route](/concepts/architecture-and-packet-path.md#route), the [Forward](/concepts/architecture-and-packet-path.md#forward) submit — and finish the [transaction](/glossary/index.md#transaction) at [Response rules](/concepts/architecture-and-packet-path.md#response-rules) / [Send](/concepts/architecture-and-packet-path.md#send) once a reply is in. Count comes from **`dataplane.policy_workers`**.
+- **I/O workers** — own the upstream sockets: they match incoming upstream replies to parked transactions, enforce `forward.timeout_ms`, and resume each transaction at [Wait for response](/concepts/architecture-and-packet-path.md#wait-for-response). Count comes from **`dataplane.io_workers`**.
+
+The difference from `sync` is at [Forward](/concepts/architecture-and-packet-path.md#forward) → [Wait for response](/concepts/architecture-and-packet-path.md#wait-for-response): instead of blocking, Forward **submits** the upstream query and **parks** the transaction; an I/O worker later resumes it on reply, timeout, or error. Ingress and policy workers stay free to handle other queries in the meantime.
+
+```mermaid
+flowchart LR
+  C[DNS clients] --> I[Ingress workers]
+  I -->|slot handoff| P[Policy workers]
+  P -->|Forward: submit + park| IO[I/O workers]
+  IO -->|upstream query| U[Upstream backends]
+  U -->|reply / timeout| IO
+  IO -->|resume parked transaction| P
+  P -->|response| S[Send to client]
+```
+
+A parked transaction still holds a [transaction](/glossary/index.md#transaction) slot while it waits, and it continues to count toward [`conduit_forward_outstanding`](/observability/built-in-metrics.md#conduit_forward_outstanding).
+
 ### Worker counts and limits
 
-Ingress concurrency is configured under **`listeners:`**:
+Concurrency is bounded by ingress thread counts, the runtime worker pools (`split_io`), the [transaction](/glossary/index.md#transaction) slot pool, and per-backend caps:
 
-- **`listeners.threads`** — worker threads **per** entry in `listeners.listeners` (use **`listeners.reuse_port: true`** on UDP when `threads` > 1). Total ingress workers = `threads` × number of listener entries. Field reference: [Reference: listeners](/reference/config-schema/listeners.md).
-- **`orchestrator.txn_table_capacity`** — capacity of the in-flight [transaction](/glossary/index.md#transaction) table on the datapath (bounds how many queries the process tracks at once, independent of per-query [retry](/glossary/index.md#retry) count). Field reference: [Reference: orchestrator](/reference/config-schema/orchestrator.md).
+- **`listeners.threads`** — ingress worker threads **per** entry in `listeners.listeners` (use **`listeners.reuse_port: true`** on UDP when `threads` > 1). Total ingress workers = `threads` × number of listener entries; a listener entry may override the global default with its own `threads`. Field reference: [Reference: listeners](/reference/config-schema/listeners.md).
+- **`dataplane.policy_workers`** / **`dataplane.io_workers`** — size of the policy and I/O pools under **`split_io`** (each defaults to **1**; ignored by `sync`). Raise `policy_workers` for more concurrent policy/[Rhai](/rhai/index.md) execution; raise `io_workers` for more upstream socket fan-out.
+- **`orchestrator.txn_table_capacity`** — capacity of the in-flight [transaction](/glossary/index.md#transaction) slot pool (bounds how many queries the process tracks at once, independent of per-query [retry](/glossary/index.md#retry) count). Field reference: [Reference: orchestrator](/reference/config-schema/orchestrator.md).
 - **`forward.outstanding_per_backend`** — cap on concurrent upstream queries per backend address. Field reference: [Reference: forward](/reference/config-schema/forward.md).
 
-Under load or slow upstreams, a busy ingress worker cannot accept another client query until the current transaction finishes (including upstream wait). Tune `threads` and `reuse_port` when you need more parallel ingress capacity.
+### Transaction slot pool
 
-!!! note "Alternative runtime models (not shipped)"
-    Designs that split **ingress**, **policy**, and **upstream I/O** into separate worker pools — so ingress does not block on upstream DNS wait — have been discussed internally but are **not implemented**, **not configurable**, and **not committed** to any release. Do not expect related config keys in YAML today.
+Both runtime models track in-flight queries in a **transaction slot pool** — a preallocated arena of [transaction](/glossary/index.md#transaction) slots that grows in chunks up to **`orchestrator.txn_table_capacity`** (chunk size: optional **`dataplane.slot_chunk_size`**). A slot is held from [Receive](/concepts/architecture-and-packet-path.md#receive) until [Send](/concepts/architecture-and-packet-path.md#send) — including while a `split_io` transaction is parked at [Wait for response](/concepts/architecture-and-packet-path.md#wait-for-response). When every slot is in use, Conduit applies backpressure instead of growing without bound. Slot-pool gauges (in use, capacity, and exhaustion) appear in [Built-in metrics](/observability/built-in-metrics.md).
 
 ### Query outcomes and worker occupancy
 
@@ -294,11 +330,17 @@ Under load or slow upstreams, a busy ingress worker cannot accept another client
 | **Drop** | No reply (silent) | Malformed wire, policy `drop` |
 | **Response** | DNS packet | Upstream answer or **synthesized error** (e.g. SERVFAIL when routing/forward/retries fail) |
 
-Under current builds, one ingress worker stays busy for the entire [transaction](/glossary/index.md#transaction), including upstream wait.
+Under **`sync`**, one ingress worker stays busy for the entire [transaction](/glossary/index.md#transaction), including the upstream wait. Under **`split_io`**, ingress hands off after the structural parse, so the upstream wait occupies a parked slot and an I/O worker rather than the ingress thread — that is what lets ingress keep accepting queries during slow upstreams.
 
 [Metrics](/observability/metrics.md), [event export](/observability/event-export.md) ([dnstap](/glossary/index.md#dnstap)), and similar observation are handled separately from the query path. If an export queue fills up, Conduit drops export events and increments [`conduit_events_queue_dropped_total`](/observability/built-in-metrics.md#conduit_events_queue_dropped_total) rather than delaying DNS responses.
 
 For reload, in-flight queries, and validation failures, see [Runtime snapshot](#runtime-snapshot).
+
+### Graceful drain on shutdown
+
+When Conduit receives a shutdown signal (**SIGTERM** or **SIGINT** / Ctrl+C — **not** SIGHUP, which [reloads](/glossary/index.md#reload-from-disk)), it stops the [control plane](/glossary/index.md#control-plane) and metrics endpoints, then drains in-flight transactions before tearing down listeners: it waits for every active [transaction](/glossary/index.md#transaction) slot — including `split_io` transactions parked at [Wait for response](/concepts/architecture-and-packet-path.md#wait-for-response) — to finish. The drain wait is bounded by **`orchestrator.max_txn_duration_ms`** (falling back to **5 s** when unset); if it elapses, Conduit logs how many transactions remain and shuts down anyway. A clean drain is logged at debug.
+
+Drain applies to all runtime models.
 
 ## Related topics
 

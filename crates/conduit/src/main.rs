@@ -5,8 +5,11 @@ use conduit_core::{spawn_configurator, ConfiguratorState, RuntimeSnapshot, Snaps
 use conduit_metrics::{MetricsHub, TracingHub};
 #[cfg(unix)]
 use runtime::SighupReloadTask;
-use runtime::{wait_for_shutdown_signal, RuntimeSupervisor, RuntimeSupervisorArgs};
+use runtime::{
+    spawn_force_exit_listener, wait_for_shutdown_signal, RuntimeSupervisor, RuntimeSupervisorArgs,
+};
 use std::path::PathBuf;
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 
 #[tokio::main]
@@ -75,6 +78,12 @@ async fn main() -> anyhow::Result<()> {
 
     wait_for_shutdown_signal().await?;
     tracing::info!("shutdown signal received");
-    supervisor.shutdown().await;
+
+    // Watch for a second signal so an operator can abandon the drain wait and
+    // exit immediately instead of waiting out shutdown.drain_timeout_ms.
+    let force_exit = Arc::new(AtomicBool::new(false));
+    spawn_force_exit_listener(force_exit.clone());
+
+    supervisor.shutdown(force_exit).await;
     Ok(())
 }

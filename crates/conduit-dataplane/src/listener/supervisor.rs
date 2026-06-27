@@ -1,6 +1,6 @@
 //! Start listener worker threads for the active snapshot.
 
-use crate::drain::{drain_slots, DrainFilter, DrainOutcome, DEFAULT_DRAIN_TIMEOUT};
+use crate::drain::{drain_slots, DrainFilter, DrainOutcome};
 use crate::forward::{ForwardTransport, TxnTable, WaitResponseStage};
 use crate::listener::{shutdown::DataplaneShutdown, startup_log, tcp, udp};
 use conduit_config::resolve_listener_ingress;
@@ -10,9 +10,10 @@ use conduit_core::snapshot::SnapshotStore;
 use conduit_core::txn_store::{SharedTxnStore, DEFAULT_SLOT_CHUNK_SIZE};
 use conduit_events::EventHub;
 use conduit_metrics::{MetricsHub, TracingHub};
+use conduit_proto::config::Config;
 use socket2::Socket;
 use std::net::Shutdown;
-use std::sync::atomic::AtomicU64;
+use std::sync::atomic::{AtomicBool, AtomicU64};
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
@@ -41,10 +42,12 @@ pub struct DataplaneHandle {
     pub events: Arc<EventHub>,
     pub txn_table: Arc<TxnTable>,
     pub txn_store: SharedTxnStore,
+    drain_enabled: bool,
     drain_timeout: Duration,
 }
 
 impl DataplaneHandle {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         shutdown: DataplaneShutdown,
         listener_closers: Vec<ListenerCloser>,
@@ -52,6 +55,7 @@ impl DataplaneHandle {
         events: Arc<EventHub>,
         txn_table: Arc<TxnTable>,
         txn_store: SharedTxnStore,
+        drain_enabled: bool,
         drain_timeout: Duration,
     ) -> Self {
         Self {
@@ -61,22 +65,37 @@ impl DataplaneHandle {
             events,
             txn_table,
             txn_store,
+            drain_enabled,
             drain_timeout,
         }
     }
 
-    /// Default drain wait derived from `orchestrator.max_txn_duration_ms`.
+    /// Whether to drain in-flight transactions before listener teardown
+    /// (`shutdown.drain`, default enabled).
+    pub fn drain_enabled(&self) -> bool {
+        self.drain_enabled
+    }
+
+    /// Drain wait from `shutdown.drain_timeout_ms` (default 5s).
     pub fn drain_timeout(&self) -> Duration {
         self.drain_timeout
     }
 
-    /// Wait for in-flight transaction slots to drain, or until `timeout`.
+    /// Wait for in-flight transaction slots to drain, or until `timeout`, or
+    /// until `cancel` is set.
     ///
     /// `filter` selects which slots to wait on; `None` drains all slots. This
     /// blocks on the [`SharedTxnStore`] slot lifecycle (including parked
     /// `IoWait` legs); it does not stop listeners or implement process handoff.
-    pub fn drain(&self, timeout: Duration, filter: Option<DrainFilter>) -> DrainOutcome {
-        drain_slots(&self.txn_store, timeout, filter)
+    /// A `cancel` flag that becomes `true` mid-wait yields
+    /// [`DrainOutcome::Aborted`] so a second shutdown signal can exit promptly.
+    pub fn drain(
+        &self,
+        timeout: Duration,
+        filter: Option<DrainFilter>,
+        cancel: Option<&AtomicBool>,
+    ) -> DrainOutcome {
+        drain_slots(&self.txn_store, timeout, filter, cancel)
     }
 
     /// Signal workers to stop, shut down listener sockets, and join worker threads.
@@ -124,7 +143,7 @@ pub fn start(
         .and_then(|d| d.slot_chunk_size)
         .unwrap_or(DEFAULT_SLOT_CHUNK_SIZE);
     let txn_store = SharedTxnStore::new(slot_capacity, slot_chunk);
-    let drain_timeout = drain_timeout_from_config(orch_cfg.map(|o| o.max_txn_duration_ms));
+    let (drain_enabled, drain_timeout) = drain_settings_from_config(cfg);
 
     let shutdown = DataplaneShutdown::new();
 
@@ -136,6 +155,7 @@ pub fn start(
             events_hub,
             table,
             txn_store,
+            drain_enabled,
             drain_timeout,
         ));
     };
@@ -256,17 +276,17 @@ pub fn start(
         events_hub,
         table,
         txn_store,
+        drain_enabled,
         drain_timeout,
     ))
 }
 
-/// Drain wait derived from `orchestrator.max_txn_duration_ms` (bounds parked
-/// `IoWait` legs); falls back to [`DEFAULT_DRAIN_TIMEOUT`] when unset or zero.
-pub(crate) fn drain_timeout_from_config(max_txn_duration_ms: Option<u32>) -> Duration {
-    match max_txn_duration_ms {
-        Some(ms) if ms > 0 => Duration::from_millis(ms as u64),
-        _ => DEFAULT_DRAIN_TIMEOUT,
-    }
+/// Resolve shutdown drain settings (`shutdown.drain`, `shutdown.drain_timeout_ms`)
+/// into `(drain_enabled, drain_timeout)`. Defaults: enabled, 5s.
+pub(crate) fn drain_settings_from_config(cfg: &Config) -> (bool, Duration) {
+    let enabled = conduit_config::effective_drain(cfg);
+    let timeout = Duration::from_millis(conduit_config::effective_drain_timeout_ms(cfg) as u64);
+    (enabled, timeout)
 }
 
 enum WorkerKind {
