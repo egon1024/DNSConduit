@@ -11,8 +11,8 @@ use conduit_proto::config::{
     Action, Backend, Config, ControlConfig, ControlTlsConfig, DataSource, DataplaneConfig,
     EventSinkFilters, EventsConfig, ForwardConfig, Listener, ListenersConfig, LoggingConfig,
     MetricsConfig, OrchestratorConfig, OtelMetricsConfig, Pool, PrometheusMetricsConfig,
-    RhaiConfig, Rule, RulesConfig, Selector, TracingActivation, TracingConfig, TracingOutput,
-    UserMetricExportConfig,
+    RhaiConfig, Rule, RulesConfig, Selector, ShutdownConfig, TracingActivation, TracingConfig,
+    TracingOutput, UserMetricExportConfig,
 };
 use serde::{Deserialize, Serialize};
 
@@ -45,6 +45,8 @@ pub(crate) struct YamlConfig {
     tracing: Option<YamlTracing>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     dataplane: Option<YamlDataplane>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    shutdown: Option<YamlShutdown>,
 }
 
 /// Sparse overlay patch: omitted top-level keys stay unset (`None` / empty) in [`Config`].
@@ -78,6 +80,23 @@ pub(crate) struct YamlOverlayPatch {
     tracing: Option<YamlTracing>,
     #[serde(default)]
     dataplane: Option<YamlDataplane>,
+    #[serde(default)]
+    shutdown: Option<YamlShutdown>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct YamlShutdown {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    drain: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    drain_timeout_ms: Option<u32>,
+}
+
+impl YamlShutdown {
+    fn is_default(&self) -> bool {
+        self.drain.is_none() && self.drain_timeout_ms.is_none()
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -690,6 +709,7 @@ impl From<YamlOverlayPatch> for Config {
             metrics: y.metrics.map(Into::into),
             tracing: y.tracing.map(Into::into),
             dataplane: y.dataplane.map(Into::into),
+            shutdown: y.shutdown.map(Into::into),
         }
     }
 }
@@ -711,6 +731,16 @@ impl From<YamlConfig> for Config {
             metrics: y.metrics.map(Into::into),
             tracing: y.tracing.map(Into::into),
             dataplane: y.dataplane.map(Into::into),
+            shutdown: y.shutdown.map(Into::into),
+        }
+    }
+}
+
+impl From<YamlShutdown> for ShutdownConfig {
+    fn from(y: YamlShutdown) -> Self {
+        ShutdownConfig {
+            drain: y.drain,
+            drain_timeout_ms: y.drain_timeout_ms,
         }
     }
 }
@@ -1079,6 +1109,17 @@ pub(crate) fn config_to_yaml(cfg: &Config) -> Result<YamlConfig, ConfigError> {
                 slot_chunk_size: d.slot_chunk_size,
             };
             if y.is_sync_default() {
+                None
+            } else {
+                Some(y)
+            }
+        }),
+        shutdown: cfg.shutdown.as_ref().and_then(|s| {
+            let y = YamlShutdown {
+                drain: s.drain,
+                drain_timeout_ms: s.drain_timeout_ms,
+            };
+            if y.is_default() {
                 None
             } else {
                 Some(y)
@@ -1536,5 +1577,42 @@ pools:
         let rules = cfg.rules.as_ref().expect("rules");
         assert_eq!(rules.rules.len(), 2);
         assert_eq!(rules.rules[0].name, "use-primary");
+    }
+
+    #[test]
+    fn shutdown_block_round_trips() {
+        let yaml = r#"
+schema_version: 1
+listeners:
+  threads: 1
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+pools:
+  - name: default
+    backends:
+      - address: "127.0.0.1:5300"
+shutdown:
+  drain: false
+  drain_timeout_ms: 250
+"#;
+        let cfg: Config = load_yaml(yaml).expect("parse");
+        let shutdown = cfg.shutdown.as_ref().expect("shutdown block present");
+        assert_eq!(shutdown.drain, Some(false));
+        assert_eq!(shutdown.drain_timeout_ms, Some(250));
+
+        let exported = crate::export_yaml(&cfg).expect("export");
+        assert!(exported.contains("shutdown:"));
+        let reparsed = load_yaml(&exported).expect("reparse");
+        assert_eq!(reparsed.shutdown, cfg.shutdown);
+    }
+
+    #[test]
+    fn shutdown_block_absent_omitted_on_export() {
+        let yaml = include_str!("../../../tests/fixtures/config/minimal.yaml");
+        let cfg: Config = load_yaml(yaml).expect("parse");
+        assert!(cfg.shutdown.is_none());
+        let exported = crate::export_yaml(&cfg).expect("export");
+        assert!(!exported.contains("shutdown:"));
     }
 }

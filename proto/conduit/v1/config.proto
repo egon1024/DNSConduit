@@ -19,6 +19,13 @@ message Config {
   optional MetricsConfig metrics = 12;
   optional TracingConfig tracing = 13;
   optional DataplaneConfig dataplane = 14;
+  optional ShutdownConfig shutdown = 15;
+}
+
+// Process shutdown behavior: graceful drain of in-flight transactions before exit.
+message ShutdownConfig {
+  optional bool drain = 1;             // wait for in-flight transactions to finish before exit; default true
+  optional uint32 drain_timeout_ms = 2; // max wait for the drain; default 5000; a second SIGINT/SIGTERM abandons the wait
 }
 
 // Phase 4: Prometheus scrape + OTEL push (design §7.1).

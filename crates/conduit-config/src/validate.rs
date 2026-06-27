@@ -6,6 +6,7 @@ use crate::forward::{
 };
 use crate::listeners::validate_listeners;
 use crate::logging::validate_logging;
+use crate::shutdown::validate_shutdown;
 use conduit_events::{
     parse_connect_retry, parse_extra_fields, parse_extra_tags, validate_sink_identity_uniqueness,
 };
@@ -59,6 +60,8 @@ pub fn validate(cfg: &Config) -> ValidationResult {
     }
 
     errors.extend(validate_dataplane(cfg));
+
+    errors.extend(validate_shutdown(cfg));
 
     if let Some(o) = &cfg.orchestrator {
         if o.max_attempts == 0 {

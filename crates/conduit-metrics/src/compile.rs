@@ -334,6 +334,7 @@ mod tests {
             metrics: None,
             tracing: None,
             dataplane: None,
+            shutdown: None,
         };
         let (_, t) = compile_from_config(&cfg);
         assert!(!t.enabled);
@@ -371,6 +372,7 @@ mod tests {
             data_sources: vec![],
             metrics: None,
             dataplane: None,
+            shutdown: None,
         };
         let (_, t) = compile_from_config(&cfg);
         assert!(t.enabled);
@@ -410,6 +412,7 @@ mod tests {
             data_sources: vec![],
             tracing: None,
             dataplane: None,
+            shutdown: None,
         };
         let (m, _) = compile_from_config(&cfg);
         assert_eq!(

@@ -608,9 +608,9 @@ for (no panic, no indefinite hang). Restart dnsmasq afterward.
 
 | Reviewer | Date | Notes |
 |----------|------|-------|
-| | | |
+| egon | 2026-06-26 | Signed off — required sections 1–8 validated (§9 drain smoke optional); cleared to start operator documentation (Task 12.x) |
 
-**Approved to start operator documentation (Task 12.x):** yes / no
+**Approved to start operator documentation (Task 12.x):** **yes**
 
 ---
 
@@ -625,5 +625,6 @@ for (no panic, no indefinite hang). Restart dnsmasq afterward.
 | 2026-06-25 | `listener` metric label now uses the configured listener `name` when set (else bind address), matching backend label behavior. Updated label note and §2/§6/§8 expectations to use names (`lab-udp`, `public-udp`, `lab-tcp`) |
 | 2026-06-25 | Added `conduit_listener_info` and `conduit_backend_info` identity metrics (always `1`) carrying both the join-key label and the `address`+`name`, so dashboards can recover both via a PromQL join. Added reference rows, a join example in the label note, and `_info` checks to §5 (backend) and §6 (listener) |
 | 2026-06-25 | Enriched `conduit_listener_info` with `protocol`/`ip_family`/`reuse_port` (protocol disambiguates UDP/TCP on a shared address; join now `on(listener,protocol)`); added numeric gauges `conduit_listener_ingress_threads`, `conduit_listener_rcvbuf_bytes`, and `conduit_backend_weight` (numbers as gauge values, not labels). Updated reference table and §5/§6 checks |
+| 2026-06-26 | Gate A signed off (egon) — required sections 1–8 validated (§9 drain smoke optional); approved to start operator documentation (Task 12.x) |
 ```
 

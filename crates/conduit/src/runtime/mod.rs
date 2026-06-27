@@ -16,6 +16,7 @@ use conduit_metrics::{
 use conduit_proto::config::Config;
 use std::net::SocketAddr;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 pub struct RuntimeSupervisorArgs {
@@ -126,7 +127,14 @@ impl RuntimeSupervisor {
         })
     }
 
-    pub async fn shutdown(self) {
+    /// Stop all services and drain in-flight transactions before tearing down
+    /// listeners.
+    ///
+    /// `force_exit` is shared with a background task watching for a second
+    /// `SIGINT`/`SIGTERM`; when it flips to `true` the drain wait is abandoned
+    /// and the process proceeds straight to listener teardown. Draining is
+    /// skipped entirely when disabled via `shutdown.drain: false`.
+    pub async fn shutdown(self, force_exit: Arc<AtomicBool>) {
         tracing::info!("stopping services");
 
         if let Some(control) = self.control {
@@ -155,23 +163,45 @@ impl RuntimeSupervisor {
 
         // Best-effort graceful drain of in-flight transaction slots before the
         // abrupt listener teardown (preparation for zero-downtime-upgrade).
-        let drain_timeout = self.dataplane.drain_timeout();
-        match self.dataplane.drain(drain_timeout, None) {
-            conduit_dataplane::DrainOutcome::Drained => {
-                tracing::debug!("dataplane slots drained");
+        if self.dataplane.drain_enabled() {
+            let drain_timeout = self.dataplane.drain_timeout();
+            match self.dataplane.drain(drain_timeout, None, Some(&force_exit)) {
+                conduit_dataplane::DrainOutcome::Drained => {
+                    tracing::debug!("dataplane slots drained");
+                }
+                conduit_dataplane::DrainOutcome::TimedOut { remaining } => {
+                    tracing::warn!(
+                        remaining,
+                        timeout_ms = drain_timeout.as_millis() as u64,
+                        "dataplane drain timed out; forcing shutdown"
+                    );
+                }
+                conduit_dataplane::DrainOutcome::Aborted { remaining } => {
+                    tracing::warn!(
+                        remaining,
+                        "second shutdown signal received; abandoning drain and exiting"
+                    );
+                }
             }
-            conduit_dataplane::DrainOutcome::TimedOut { remaining } => {
-                tracing::warn!(
-                    remaining,
-                    timeout_ms = drain_timeout.as_millis() as u64,
-                    "dataplane drain timed out; forcing shutdown"
-                );
-            }
+        } else {
+            tracing::debug!("drain disabled (shutdown.drain: false); skipping graceful drain");
         }
 
         self.dataplane.shutdown();
         tracing::info!("services stopped");
     }
+}
+
+/// Spawn a background task that flips `force_exit` to `true` on the next
+/// `SIGINT`/`SIGTERM`, letting an in-progress drain abandon its wait. Call this
+/// after the first shutdown signal has already been received.
+pub fn spawn_force_exit_listener(force_exit: Arc<AtomicBool>) {
+    tokio::spawn(async move {
+        if wait_for_shutdown_signal().await.is_ok() {
+            force_exit.store(true, Ordering::SeqCst);
+            tracing::warn!("second shutdown signal received; abandoning drain");
+        }
+    });
 }
 
 /// Background SIGHUP → config reload handler (Unix only).
