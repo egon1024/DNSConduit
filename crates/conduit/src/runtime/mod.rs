@@ -5,7 +5,9 @@
 //! - Hot-start/stop control plane when `control:` changes via reload (restart required today)
 
 use conduit_api::ControlHandle;
-use conduit_config::{control_listen_addr, EffectiveConfig};
+use conduit_config::{
+    control_listen_addr, effective_drain, effective_drain_timeout_ms, EffectiveConfig,
+};
 use conduit_core::configurator::{ConfiguratorHandle, ConfiguratorSpawn};
 use conduit_core::snapshot::SnapshotStore;
 use conduit_dataplane::DataplaneHandle;
@@ -18,6 +20,7 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 pub struct RuntimeSupervisorArgs {
     pub store: Arc<SnapshotStore>,
@@ -37,6 +40,10 @@ pub struct RuntimeSupervisor {
     prometheus: Option<PrometheusServerHandle>,
     otel: Option<OtelPushHandle>,
     configurator: ConfiguratorSpawn,
+    /// Live config snapshot, read at shutdown so drain settings (`shutdown.drain`,
+    /// `shutdown.drain_timeout_ms`) reflect the latest applied/reloaded config
+    /// rather than the values captured at process start.
+    store: Arc<SnapshotStore>,
     #[cfg(unix)]
     sighup: Option<SighupReloadTask>,
 }
@@ -56,6 +63,10 @@ impl RuntimeSupervisor {
         } = args;
 
         let configurator_handle = configurator.handle();
+
+        // Keep a handle to the live snapshot so shutdown can read drain settings
+        // dynamically (the `store` below is moved into the control plane).
+        let drain_store = store.clone();
 
         let dataplane =
             conduit_dataplane::start(store.clone(), metrics_hub.clone(), tracing_hub.clone())?;
@@ -122,6 +133,7 @@ impl RuntimeSupervisor {
             prometheus,
             otel,
             configurator,
+            store: drain_store,
             #[cfg(unix)]
             sighup,
         })
@@ -129,6 +141,11 @@ impl RuntimeSupervisor {
 
     /// Stop all services and drain in-flight transactions before tearing down
     /// listeners.
+    ///
+    /// Drain settings are resolved from the **live** config snapshot at the
+    /// moment shutdown begins, so a `conduitctl apply` or reload that changed
+    /// `shutdown.drain` / `shutdown.drain_timeout_ms` takes effect on the next
+    /// shutdown without a process restart.
     ///
     /// `force_exit` is shared with a background task watching for a second
     /// `SIGINT`/`SIGTERM`; when it flips to `true` the drain wait is abandoned
@@ -163,8 +180,10 @@ impl RuntimeSupervisor {
 
         // Best-effort graceful drain of in-flight transaction slots before the
         // abrupt listener teardown (preparation for zero-downtime-upgrade).
-        if self.dataplane.drain_enabled() {
-            let drain_timeout = self.dataplane.drain_timeout();
+        // Resolve drain behavior from the live snapshot so an applied/reloaded
+        // `shutdown:` change takes effect here without a restart.
+        let (drain_enabled, drain_timeout) = drain_settings(&self.store);
+        if drain_enabled {
             match self.dataplane.drain(drain_timeout, None, Some(&force_exit)) {
                 conduit_dataplane::DrainOutcome::Drained => {
                     tracing::debug!("dataplane slots drained");
@@ -190,6 +209,17 @@ impl RuntimeSupervisor {
         self.dataplane.shutdown();
         tracing::info!("services stopped");
     }
+}
+
+/// Resolve the drain behavior (`shutdown.drain`, `shutdown.drain_timeout_ms`)
+/// from the current snapshot. Reading the live store here — rather than caching
+/// values at process start — is what makes the `shutdown:` block hot: an
+/// `apply`/reload swaps a new snapshot in, and the next shutdown observes it.
+fn drain_settings(store: &SnapshotStore) -> (bool, Duration) {
+    let snap = store.load();
+    let enabled = effective_drain(&snap.config);
+    let timeout = Duration::from_millis(effective_drain_timeout_ms(&snap.config) as u64);
+    (enabled, timeout)
 }
 
 /// Spawn a background task that flips `force_exit` to `true` on the next
@@ -278,5 +308,88 @@ pub async fn wait_for_shutdown_signal() -> std::io::Result<()> {
     {
         tokio::signal::ctrl_c().await?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use conduit_core::RuntimeSnapshot;
+    use conduit_proto::config::ShutdownConfig;
+
+    /// Minimal config that compiles into a snapshot without panicking.
+    const BASE_YAML: &str = r#"
+schema_version: 1
+listeners:
+  threads: 1
+  listeners:
+    - address: "127.0.0.1:0"
+      protocol: udp
+forward:
+  outstanding_per_backend: 10
+  timeout_ms: 1000
+orchestrator:
+  max_attempts: 1
+  max_txn_duration_ms: 1000
+  txn_table_capacity: 64
+pools:
+  - name: default
+    backends:
+      - address: "127.0.0.1:5300"
+        weight: 100
+"#;
+
+    fn config_with_shutdown(shutdown: Option<ShutdownConfig>) -> Config {
+        let mut cfg = conduit_config::load_yaml(BASE_YAML).expect("base yaml parses");
+        cfg.shutdown = shutdown;
+        cfg
+    }
+
+    fn store_with(shutdown: Option<ShutdownConfig>) -> SnapshotStore {
+        SnapshotStore::new(RuntimeSnapshot::from_config(config_with_shutdown(shutdown)))
+    }
+
+    #[test]
+    fn drain_settings_use_defaults_when_block_absent() {
+        let store = store_with(None);
+        let (enabled, timeout) = drain_settings(&store);
+        assert!(enabled);
+        assert_eq!(timeout, Duration::from_millis(5000));
+    }
+
+    #[test]
+    fn drain_settings_reflect_explicit_values() {
+        let store = store_with(Some(ShutdownConfig {
+            drain: Some(false),
+            drain_timeout_ms: Some(250),
+        }));
+        let (enabled, timeout) = drain_settings(&store);
+        assert!(!enabled);
+        assert_eq!(timeout, Duration::from_millis(250));
+    }
+
+    #[test]
+    fn drain_settings_track_live_snapshot_swaps() {
+        // Start with a 1s drain...
+        let store = store_with(Some(ShutdownConfig {
+            drain: Some(true),
+            drain_timeout_ms: Some(1000),
+        }));
+        let (enabled, timeout) = drain_settings(&store);
+        assert!(enabled);
+        assert_eq!(timeout, Duration::from_millis(1000));
+
+        // ...then simulate `conduitctl apply`/reload swapping a new snapshot in.
+        store.swap(RuntimeSnapshot::from_config(config_with_shutdown(Some(
+            ShutdownConfig {
+                drain: Some(false),
+                drain_timeout_ms: Some(250),
+            },
+        ))));
+
+        // The resolver reads the live snapshot, so the new values win without a restart.
+        let (enabled, timeout) = drain_settings(&store);
+        assert!(!enabled);
+        assert_eq!(timeout, Duration::from_millis(250));
     }
 }
