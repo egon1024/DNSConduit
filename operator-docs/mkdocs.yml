@@ -81,14 +81,12 @@ nav:
   - Concepts:
       - Overview: concepts/index.md
       - Architecture and packet path: concepts/architecture-and-packet-path.md
-      - Planned plugin models: concepts/planned-plugin-models.md
+      - Runtime and concurrency: concepts/runtime-and-concurrency.md
   - Policy & routing:
       - Overview: policy-routing/index.md
       - Rules and actions: policy-routing/rules-and-actions.md
       - Pools and backends: policy-routing/pools-and-backends.md
       - Retries and transactions: policy-routing/retries-and-transactions.md
-  - Processor chains:
-      - Overview: processor-chains/index.md
   - Control plane:
       - Overview: control-plane/index.md
       - Configuration model: control-plane/configuration-model.md
@@ -101,9 +99,6 @@ nav:
           - Overview: rhai/rule-rhai.md
           - Hooks and phases: rhai/hooks-and-phases.md
           - Transaction API: rhai/transaction-api.md
-      - For processor chains:
-          - Overview: rhai/processor-chain-rhai.md
-          - Message API: rhai/message-api.md
       - Data sources and lookups: rhai/data-sources-and-lookups.md
       - User metrics: rhai/user-metrics.md
       - Sandbox limits: rhai/sandbox-limits.md
@@ -139,6 +134,7 @@ nav:
           - Pools: reference/config-schema/pools.md
           - Forward: reference/config-schema/forward.md
           - Orchestrator: reference/config-schema/orchestrator.md
+          - Shutdown: reference/config-schema/shutdown.md
           - Rules: reference/config-schema/rules.md
           - Control: reference/config-schema/control.md
           - Events: reference/config-schema/events.md

@@ -321,7 +321,7 @@ Per-sink counters are included at scrape time from `EventHub` snapshots (not inc
 |--|--|
 | **Type** | Counter |
 | **Labels** | `sink` |
-| **When** | Export queue overflow ([Concurrency and workers](/concepts/architecture-and-packet-path.md#concurrency-and-workers)) |
+| **When** | Export queue overflow ([Runtime and concurrency](/concepts/runtime-and-concurrency.md#query-outcomes-and-worker-occupancy)) |
 
 ### conduit_events_delivered_total { #conduit_events_delivered_total }
 

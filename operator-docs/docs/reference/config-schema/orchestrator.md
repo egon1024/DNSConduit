@@ -26,7 +26,7 @@ Conduit checks **`max_attempts`** and **`max_txn_duration_ms`** before each [Rou
 
 When a limit is exceeded (or the pool is exhausted), Conduit typically sets **SERVFAIL** and moves to [Send](/concepts/architecture-and-packet-path.md#send) instead of forwarding again — see [Retries and transactions — What the client sees when limits hit](/policy-routing/retries-and-transactions.md#what-the-client-sees-when-limits-hit).
 
-**`txn_table_capacity`** is independent of **`max_attempts`**: it caps how many transactions the datapath tracks at once under load. See [Architecture — Concurrency and workers](/concepts/architecture-and-packet-path.md#concurrency-and-workers).
+**`txn_table_capacity`** is independent of **`max_attempts`**: it caps how many transactions the datapath tracks at once under load. See [Runtime and concurrency — Worker counts and limits](/concepts/runtime-and-concurrency.md#worker-counts-and-limits).
 
 ## Reload and overlay
 

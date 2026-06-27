@@ -2,8 +2,6 @@
 
 **Rhai for rules** ([Rule Rhai](/rhai/rule-rhai.md)) runs on the DNS query path inside a bounded sandbox. This page describes the global **`rhai:`** limits in your [config file](/control-plane/config-file.md), what happens when a script hits a guard or fault, and patterns that keep policy safe under load.
 
-Processor-chain Rhai limits are **not shipped** — see [Processor-chain Rhai](/rhai/processor-chain-rhai.md) when that feature lands.
-
 For hook timing and phase-specific APIs, see [Hooks and phases](/rhai/hooks-and-phases.md). For compile-time script checks, see [Reload and validation](#reload-and-validation) below.
 
 ## Overview

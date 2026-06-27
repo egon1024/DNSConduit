@@ -62,6 +62,6 @@ Rule and pool changes load into the [runtime snapshot](/glossary/index.md#runtim
 ## Related
 
 - [Dual-stack forwarding](/guides/dual-stack-forwarding.md) — `forward.sources_*`, pool `sources_*`, per-query `set_source_v4` / `set_source_v6`
-- [Rhai](/rhai/index.md) — Rhai for rules and Rhai for processor chains
+- [Rhai](/rhai/index.md) — Rhai for rules
 - [Rhai for rules](/rhai/rule-rhai.md) — scripted policy on request and response hooks
 - [Built-in metrics](/observability/built-in-metrics.md) — `pool` labels and forward health after you add pools and rules

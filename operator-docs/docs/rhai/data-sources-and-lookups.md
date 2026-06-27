@@ -6,7 +6,7 @@ toc_depth: 3
 
 Lookup tables declared under **`data_sources:`** in config supply read-only data for **`table_lookup(table, key)`** in [Rhai for rules](/rhai/rule-rhai.md) scripts. Conduit loads tables into the [runtime snapshot](/glossary/index.md#runtime-snapshot) at compile/reload time; scripts cannot open arbitrary files.
 
-API reference card: [Transaction API — Lookups](/rhai/transaction-api.md#lookups). Hook availability: [Hooks and phases — phase guards](/rhai/hooks-and-phases.md#phase-guards). Planned shared use by other backends: [Lookup tables (host feature)](/concepts/planned-plugin-models.md#lookup-tables-host-feature).
+API reference card: [Transaction API — Lookups](/rhai/transaction-api.md#lookups). Hook availability: [Hooks and phases — phase guards](/rhai/hooks-and-phases.md#phase-guards).
 
 ## Overview
 
@@ -183,7 +183,7 @@ List **`set_pool`** before **`rhai`** on the same rule when the script only refi
 - **`type: csv`** only — no HTTP, LMDB, or dynamic plugins yet.
 - Simple CSV splitting — no RFC 4180 quoting; avoid commas inside fields.
 - Read-only from scripts — no write-back or per-query cache invalidation.
-- [Rhai for rules](/rhai/rule-rhai.md) only — processor-chain Rhai does not expose **`table_lookup`** until that backend ships ([Processor chains](/processor-chains/index.md)).
+- [Rhai for rules](/rhai/rule-rhai.md) only — `table_lookup` is available to rule scripts on the request and response hooks.
 
 ## Related topics
 

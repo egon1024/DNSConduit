@@ -8,6 +8,7 @@ Field-level reference for the Conduit YAML **`schema_version: 1`** document. Syn
 | `pools` | [Pools](/reference/config-schema/pools.md) |
 | `forward` | [Forward](/reference/config-schema/forward.md) |
 | `orchestrator` | [Orchestrator](/reference/config-schema/orchestrator.md) |
+| `shutdown` | [Shutdown](/reference/config-schema/shutdown.md) |
 | `rules` | [Rules](/reference/config-schema/rules.md) |
 | `control` | [Control](/reference/config-schema/control.md) |
 | `events` | [Events](/reference/config-schema/events.md) |

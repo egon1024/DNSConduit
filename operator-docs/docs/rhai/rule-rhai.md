@@ -2,7 +2,7 @@
 
 **Rhai for rules** — [Rule Rhai](/glossary/index.md#rule-rhai) — is Conduit’s **scripted policy** on matching [rules](/policy-routing/rules-and-actions.md): logic you cannot express with built-in actions alone. You keep `.rhai` files beside your config, reference them from rules via `type: rhai`, and Conduit runs them at [Request rules](/concepts/architecture-and-packet-path.md#request-rules) and [Response rules](/concepts/architecture-and-packet-path.md#response-rules) on the [dataplane](/glossary/index.md#dataplane).
 
-For **Rhai for processor chains** ([Processor-chain Rhai](/glossary/index.md#processor-chain-rhai) — wire editing under `processors:`), see [Rhai overview](/rhai/index.md). For how rules and scripts fit together at the policy layer, see [Policy & routing](/policy-routing/index.md) and [Rules and actions](/policy-routing/rules-and-actions.md).
+Rhai for rules acts on a policy **`txn`** object; it does **not** edit DNS wire bytes. For how rules and scripts fit together at the policy layer, see [Policy & routing](/policy-routing/index.md) and [Rules and actions](/policy-routing/rules-and-actions.md).
 
 ## When to use Rhai for rules
 
@@ -126,7 +126,7 @@ Built-in actions on the same rule still ran before the script. Use [Logging](/ob
 
 ## Related
 
-- [Rhai overview](/rhai/index.md) — Rhai for rules vs Rhai for processor chains
+- [Rhai overview](/rhai/index.md) — Rhai for rules
 - [Policy & routing](/policy-routing/index.md) — pools, retries, and declarative policy
 - [Dual-stack forwarding](/guides/dual-stack-forwarding.md) — `set_source_v4` / `set_source_v6` in rules and Rhai
 - [Event export](/observability/event-export.md) — tag-based sink filters
