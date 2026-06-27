@@ -3,6 +3,7 @@
 use crate::listener::DataplaneShutdown;
 use crate::query_slot::run_in_slot;
 use conduit_core::orchestrator::Orchestrator;
+use conduit_core::routing::listener_metric_label;
 use conduit_core::snapshot::SnapshotStore;
 use conduit_core::transaction::{ClientProtocol, Transaction};
 use conduit_core::txn_store::SharedTxnStore;
@@ -46,6 +47,7 @@ pub fn run_worker(
     global_query_counter: Arc<AtomicU64>,
 ) -> std::io::Result<()> {
     tcp.set_nonblocking(true)?;
+    let listener_label = listener_metric_label(&listener);
     let mut next_id = 1u64;
     loop {
         if shutdown.is_shutdown() {
@@ -80,7 +82,7 @@ pub fn run_worker(
                     |slot| {
                         slot.txn = Transaction::new(next_id, peer, ClientProtocol::Tcp)
                             .with_global_query_index(global_query_index)
-                            .with_listener_label(listener.address.clone())
+                            .with_listener_label(listener_label.clone())
                             .with_query_wire(buf.clone());
                         if slot.query.set_from_slice(&buf).is_err() {
                             slot.response_overflow = Some(buf.clone());

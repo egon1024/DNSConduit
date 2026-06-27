@@ -3,7 +3,6 @@
 use crate::forward::{ForwardKey, TxnTable};
 use crate::listener::DataplaneShutdown;
 use conduit_core::txn_store::SlotId;
-use conduit_metrics::MetricsHub;
 use std::collections::HashMap;
 use std::io;
 use std::net::{SocketAddr, UdpSocket};
@@ -42,7 +41,6 @@ pub struct IoBackend {
 struct IoBackendInner {
     table: Arc<TxnTable>,
     timeout: Duration,
-    metrics: Option<Arc<MetricsHub>>,
     pending: Mutex<HashMap<ForwardKey, PendingForward>>,
     resume_tx: crossbeam_channel::Sender<IoResume>,
     poller: polling::Poller,
@@ -54,7 +52,6 @@ impl IoBackend {
         egress_sockets: Vec<UdpSocket>,
         table: Arc<TxnTable>,
         timeout_ms: u32,
-        metrics: Option<Arc<MetricsHub>>,
     ) -> io::Result<(Self, crossbeam_channel::Receiver<IoResume>)> {
         let (resume_tx, resume_rx) = crossbeam_channel::unbounded();
         let poller = polling::Poller::new()?;
@@ -78,7 +75,6 @@ impl IoBackend {
         let inner = Arc::new(IoBackendInner {
             table,
             timeout: Duration::from_millis(timeout_ms as u64),
-            metrics,
             pending: Mutex::new(HashMap::new()),
             resume_tx,
             poller,
@@ -144,7 +140,10 @@ impl IoBackend {
                     self.on_readable(ev.key)
                         .map_err(|e| io_err(&format!("on_readable(token={})", ev.key), e))?;
                 } else if ev.is_err() == Some(true) {
-                    tracing::warn!(token = ev.key, "io_backend: poll event with error flag (ignored)");
+                    tracing::warn!(
+                        token = ev.key,
+                        "io_backend: poll event with error flag (ignored)"
+                    );
                 }
             }
         }
@@ -219,27 +218,14 @@ impl IoBackend {
             return Ok(());
         };
         self.inner.table.remove(key);
-        if matches!(completion, WaitCompletion::Timeout) {
-            self.record_timeout_metrics(key.backend);
-        }
+        // Forward attempt metrics (success and timeout) are recorded on the
+        // policy worker in `WaitResponseStage`, where the transaction's selected
+        // pool/backend are available for correct, name-resolved labels.
         let _ = self.inner.resume_tx.send(IoResume {
             slot_id: pending.slot_id,
             completion,
         });
         Ok(())
-    }
-
-    fn record_timeout_metrics(&self, backend: SocketAddr) {
-        let Some(hub) = self.inner.metrics.as_ref() else {
-            return;
-        };
-        if !hub.metrics_enabled() {
-            return;
-        }
-        let backend_label = backend.to_string();
-        hub.builtin
-            .record_forward_attempt("unknown", &backend_label, "error");
-        hub.builtin.record_forward_error("unknown", "timeout");
     }
 
     #[cfg(test)]
@@ -248,10 +234,7 @@ impl IoBackend {
     }
 
     #[cfg(test)]
-    fn spawn_poll_thread_for_test(
-        self,
-        io_stop: Arc<AtomicBool>,
-    ) -> std::thread::JoinHandle<()> {
+    fn spawn_poll_thread_for_test(self, io_stop: Arc<AtomicBool>) -> std::thread::JoinHandle<()> {
         std::thread::spawn(move || {
             if let Err(e) = self.run_loop(&io_stop) {
                 tracing::error!(error = %e, "I/O backend poll loop exited (test)");
@@ -305,7 +288,7 @@ mod tests {
     fn delayed_reply_demuxes_by_dns_id() {
         let table = Arc::new(TxnTable::new(64, 32));
         let egress = UdpSocket::bind("127.0.0.1:0").unwrap();
-        let (io, resume_rx) = IoBackend::new(vec![egress], table.clone(), 2000, None).unwrap();
+        let (io, resume_rx) = IoBackend::new(vec![egress], table.clone(), 2000).unwrap();
 
         let backend: SocketAddr = "127.0.0.1:5301".parse().unwrap();
         let key = ForwardKey {
@@ -332,7 +315,7 @@ mod tests {
     fn unmatched_dns_id_is_ignored() {
         let table = Arc::new(TxnTable::new(64, 32));
         let egress = UdpSocket::bind("127.0.0.1:0").unwrap();
-        let (io, resume_rx) = IoBackend::new(vec![egress], table.clone(), 2000, None).unwrap();
+        let (io, resume_rx) = IoBackend::new(vec![egress], table.clone(), 2000).unwrap();
         let backend: SocketAddr = "127.0.0.1:5302".parse().unwrap();
         let key = ForwardKey {
             backend,
@@ -354,7 +337,7 @@ mod tests {
     fn poll_loop_survives_many_idle_waits() {
         let table = Arc::new(TxnTable::new(64, 32));
         let egress = UdpSocket::bind("127.0.0.1:0").unwrap();
-        let (io, _resume_rx) = IoBackend::new(vec![egress], table, 2000, None).unwrap();
+        let (io, _resume_rx) = IoBackend::new(vec![egress], table, 2000).unwrap();
         let stop = Arc::new(AtomicBool::new(false));
         let handle = io.spawn_poll_thread_for_test(stop.clone());
         thread::sleep(Duration::from_secs(3));
@@ -367,7 +350,7 @@ mod tests {
     fn timeout_emits_resume_without_wire() {
         let table = Arc::new(TxnTable::new(64, 32));
         let egress = UdpSocket::bind("127.0.0.1:0").unwrap();
-        let (io, resume_rx) = IoBackend::new(vec![egress], table.clone(), 50, None).unwrap();
+        let (io, resume_rx) = IoBackend::new(vec![egress], table.clone(), 50).unwrap();
 
         let backend: SocketAddr = "127.0.0.1:9".parse().unwrap();
         let key = ForwardKey {

@@ -465,7 +465,7 @@ mod tests {
     fn submit_mode_suspends_at_wait_response() {
         let table = Arc::new(TxnTable::new(64, 16));
         let egress = UdpSocket::bind("127.0.0.1:0").unwrap();
-        let (io, _resume_rx) = IoBackend::new(vec![egress], table.clone(), 1000, None).unwrap();
+        let (io, _resume_rx) = IoBackend::new(vec![egress], table.clone(), 1000).unwrap();
         let forward = ForwardTransport::new_with_mode(
             table.clone(),
             &compiled_forward(),

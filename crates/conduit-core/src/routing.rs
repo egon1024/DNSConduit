@@ -1,7 +1,7 @@
 //! Weighted pool/backend selection (spec pool-routing).
 
 use conduit_config::effective_backend_weight;
-use conduit_proto::config::{Backend, Config, Pool};
+use conduit_proto::config::{Backend, Config, Listener, Pool};
 
 /// Effective weight for pool selection (phase 5 hook for hot overrides in 5b).
 #[inline]
@@ -103,6 +103,19 @@ pub fn backend_metric_label(backend: &Backend) -> String {
         .unwrap_or_else(|| backend.address.clone())
 }
 
+/// Metric/log label for a listener: configured `name` when set, else bind `address`.
+///
+/// Mirrors [`backend_metric_label`] so listener and backend labels follow the
+/// same name-when-set convention.
+pub fn listener_metric_label(listener: &Listener) -> String {
+    listener
+        .name
+        .as_ref()
+        .filter(|n| !n.is_empty())
+        .cloned()
+        .unwrap_or_else(|| listener.address.clone())
+}
+
 /// Resolve metric label for a backend address within a pool.
 pub fn backend_metric_label_for_addr(pools: &[Pool], pool_name: &str, addr: SocketAddr) -> String {
     pools
@@ -168,6 +181,32 @@ mod tests {
             }),
             "127.0.0.1:5300"
         );
+    }
+
+    #[test]
+    fn listener_metric_label_prefers_name() {
+        use conduit_proto::config::Listener;
+        let named = Listener {
+            address: "127.0.0.1:15353".into(),
+            protocol: "udp".into(),
+            threads: None,
+            reuse_port: None,
+            name: Some("lab-udp".into()),
+            rcvbuf: None,
+        };
+        assert_eq!(listener_metric_label(&named), "lab-udp");
+
+        let unnamed = Listener {
+            name: None,
+            ..named.clone()
+        };
+        assert_eq!(listener_metric_label(&unnamed), "127.0.0.1:15353");
+
+        let empty_name = Listener {
+            name: Some(String::new()),
+            ..named
+        };
+        assert_eq!(listener_metric_label(&empty_name), "127.0.0.1:15353");
     }
 
     #[test]

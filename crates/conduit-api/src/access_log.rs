@@ -17,6 +17,21 @@ use tonic::transport::server::{TcpConnectInfo, TlsConnectInfo};
 use tonic::{Code, GrpcMethod, Status};
 use tower::{Layer, Service};
 
+/// Emit the **application-level** outcome of a control RPC as its own log line,
+/// separate from the transport-level `control rpc` line emitted by the access-log
+/// middleware. Handlers whose verdict lives in the message body (`ok`/`errors`)
+/// rather than the gRPC status call this so a rejected apply/validate/reload is
+/// visible even though the transport status is `Ok`.
+pub fn log_control_outcome(rpc: &str, ok: bool, errors: &[String]) {
+    tracing::info!(
+        rpc,
+        outcome = if ok { "ok" } else { "rejected" },
+        error_count = errors.len(),
+        errors = ?errors.join("; "),
+        "control rpc outcome"
+    );
+}
+
 #[derive(Clone)]
 pub struct AccessLogLayer {
     snapshots: std::sync::Arc<SnapshotStore>,
@@ -133,7 +148,7 @@ fn log_control_rpc(rpc: &str, peer: &str, requestor: &str, code: Code, latency_m
         rpc,
         peer,
         requestor,
-        grpc_code = %code,
+        grpc_code = ?code,
         latency_ms,
         "control rpc"
     );
@@ -205,7 +220,7 @@ pub fn log_interceptor_denial(
         rpc,
         peer,
         requestor,
-        grpc_code = %status.code(),
+        grpc_code = ?status.code(),
         latency_ms = 0_u64,
         "control rpc"
     );

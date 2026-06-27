@@ -107,7 +107,7 @@ When sections change, Conduit may log concise diffs (pool counts, rule counts, o
 
 ### Control plane access
 
-When **`control:`** is enabled, each gRPC RPC logs at **`info`** as **`control rpc`**: method path, peer address, requestor identity (**`anonymous`**, **`api_key`**, **`mtls`**, etc. — never the secret value), gRPC status, and latency. Request and response bodies are **not** logged.
+When **`control:`** is enabled, each gRPC RPC logs at **`info`** as **`control rpc`**: method path, peer address, requestor identity (**`anonymous`**, **`api_key`**, **`mtls`**, etc. — never the secret value), gRPC status (**`grpc_code`**), and latency. Config RPCs (`ApplyConfig`, `ValidateConfig`, `ReloadFromFile`) also emit a **separate** **`control rpc outcome`** line carrying the application **`outcome`** (**`ok`**/**`rejected`**), **`error_count`**, and **`errors`**. Request and response bodies are **not** logged. A config rejected by validation logs **`grpc_code=Ok`** on the transport line **and** **`outcome=rejected`** on the outcome line, because the verdict is returned in-band, not as a transport error.
 
 Details: [gRPC and conduitctl — Access logs](/control-plane/grpc-and-conduitctl.md#access-logs).
 

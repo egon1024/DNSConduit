@@ -3,6 +3,7 @@
 use crate::listener::DataplaneShutdown;
 use crate::query_slot::run_in_slot;
 use conduit_core::orchestrator::Orchestrator;
+use conduit_core::routing::listener_metric_label;
 use conduit_core::snapshot::SnapshotStore;
 use conduit_core::transaction::{ClientProtocol, Transaction};
 use conduit_core::txn_store::SharedTxnStore;
@@ -56,6 +57,7 @@ pub fn run_worker(
 ) -> std::io::Result<()> {
     udp.set_read_timeout(Some(Duration::from_secs(1)))?;
 
+    let listener_label = listener_metric_label(&listener);
     let mut buf = [0u8; 4096];
     let mut next_id = 1u64;
     loop {
@@ -75,7 +77,7 @@ pub fn run_worker(
                     |slot| {
                         slot.txn = Transaction::new(next_id, peer, ClientProtocol::Udp)
                             .with_global_query_index(global_query_index)
-                            .with_listener_label(listener.address.clone())
+                            .with_listener_label(listener_label.clone())
                             .with_query_wire(query_bytes.clone());
                         let _ = slot.query.set_from_slice(&query_bytes);
                     },

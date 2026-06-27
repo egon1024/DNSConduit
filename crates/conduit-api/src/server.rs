@@ -1,6 +1,6 @@
 //! gRPC control plane service (spec §8).
 
-use crate::access_log::{AccessLogLayer, AccessLogService};
+use crate::access_log::{log_control_outcome, AccessLogLayer, AccessLogService};
 use crate::auth::ControlInterceptor;
 use crate::tls::server_tls_config;
 use conduit_config::{export_yaml, validate, EffectiveConfig};
@@ -75,6 +75,7 @@ impl ConduitControl for ControlService {
             .config
             .ok_or_else(|| Status::invalid_argument("missing config"))?;
         let v = validate(&control_to_runtime(cfg));
+        log_control_outcome("ValidateConfig", v.ok, &v.errors);
         Ok(Response::new(ValidateConfigResponse {
             ok: v.ok,
             errors: v.errors,
@@ -97,6 +98,7 @@ impl ConduitControl for ControlService {
             }
         };
         let result = self.configurator.apply_overlay(overlay, mode, None).await;
+        log_control_outcome("ApplyConfig", result.ok, &result.errors);
         Ok(Response::new(ApplyConfigResponse {
             ok: result.ok,
             errors: result.errors,
@@ -131,6 +133,7 @@ impl ConduitControl for ControlService {
             .configurator
             .reload_from_file(ProposalSource::File)
             .await;
+        log_control_outcome("ReloadFromFile", result.ok, &result.errors);
         Ok(Response::new(ReloadFromFileResponse {
             ok: result.ok,
             errors: result.errors,

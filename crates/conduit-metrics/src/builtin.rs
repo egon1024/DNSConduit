@@ -30,6 +30,53 @@ pub struct ScrapeGaugeSnapshot {
     pub slots_in_use: u32,
     pub slots_capacity: u32,
     pub slot_pool_exhausted_total: u64,
+    /// Listener identity rows: `(label, address, name)`. `label` is the value used
+    /// on traffic metrics (`listener` label = name-when-set, else address).
+    pub listeners: Vec<ListenerIdentity>,
+    /// Backend identity rows: `(pool, label, address, name)`. `label` is the value
+    /// used on forward metrics (`backend` label = name-when-set, else address).
+    pub backends: Vec<BackendIdentity>,
+}
+
+/// One listener's identity + resolved ingress settings.
+///
+/// Drives `conduit_listener_info` (descriptive labels) plus the numeric
+/// `conduit_listener_ingress_threads` / `conduit_listener_rcvbuf_bytes` gauges.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ListenerIdentity {
+    /// Join key: matches the `listener` label on traffic metrics.
+    pub label: String,
+    /// Bind address (always present).
+    pub address: String,
+    /// Configured name, or empty when unnamed.
+    pub name: String,
+    /// `udp` / `tcp`.
+    pub protocol: String,
+    /// `v4` / `v6` (derived from the bind address).
+    pub ip_family: String,
+    /// Resolved `reuse_port` setting.
+    pub reuse_port: bool,
+    /// Resolved ingress worker thread count.
+    pub threads: u32,
+    /// Resolved socket receive buffer size in bytes (0 = OS default).
+    pub rcvbuf: u32,
+}
+
+/// One backend's identity + resolved settings.
+///
+/// Drives `conduit_backend_info` (descriptive labels) plus the numeric
+/// `conduit_backend_weight` gauge.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct BackendIdentity {
+    pub pool: String,
+    /// Join key: matches the `backend` label on forward metrics.
+    pub label: String,
+    /// Backend `ip:port` address (always present).
+    pub address: String,
+    /// Configured name, or empty when unnamed.
+    pub name: String,
+    /// Effective load-balancing weight.
+    pub weight: u32,
 }
 
 pub type ScrapeSnapshotFn = Arc<dyn Fn() -> ScrapeGaugeSnapshot + Send + Sync>;
@@ -60,6 +107,11 @@ pub struct BuiltinRegistry {
     script_errors_total: Option<IntCounterVec>,
     forward_outstanding: GaugeVec,
     pool_backends_configured: GaugeVec,
+    listener_info: GaugeVec,
+    listener_ingress_threads: GaugeVec,
+    listener_rcvbuf_bytes: GaugeVec,
+    backend_info: GaugeVec,
+    backend_weight: GaugeVec,
     slots_in_use: Option<Gauge>,
     slots_capacity: Option<Gauge>,
     slot_pool_exhausted_total: Option<IntCounter>,
@@ -210,6 +262,53 @@ impl BuiltinRegistry {
             &["pool"],
         )
         .expect("metric");
+        let listener_info = GaugeVec::new(
+            Opts::new(
+                "conduit_listener_info",
+                "Configured listener identity; join on `listener` (and `protocol`)",
+            ),
+            &[
+                "listener",
+                "address",
+                "name",
+                "protocol",
+                "ip_family",
+                "reuse_port",
+            ],
+        )
+        .expect("metric");
+        let listener_ingress_threads = GaugeVec::new(
+            Opts::new(
+                "conduit_listener_ingress_threads",
+                "Resolved ingress worker threads per listener",
+            ),
+            &["listener", "protocol"],
+        )
+        .expect("metric");
+        let listener_rcvbuf_bytes = GaugeVec::new(
+            Opts::new(
+                "conduit_listener_rcvbuf_bytes",
+                "Resolved socket receive buffer per listener (0 = OS default)",
+            ),
+            &["listener", "protocol"],
+        )
+        .expect("metric");
+        let backend_info = GaugeVec::new(
+            Opts::new(
+                "conduit_backend_info",
+                "Configured backend identity; join on `pool` and the `backend` label",
+            ),
+            &["pool", "backend", "address", "name"],
+        )
+        .expect("metric");
+        let backend_weight = GaugeVec::new(
+            Opts::new(
+                "conduit_backend_weight",
+                "Effective load-balancing weight per backend",
+            ),
+            &["pool", "backend"],
+        )
+        .expect("metric");
 
         let mut build_info_opts = Opts::new("conduit_build_info", "Build information");
         for (name, value) in crate::build_metadata::label_pairs() {
@@ -258,6 +357,21 @@ impl BuiltinRegistry {
             .expect("register");
         registry
             .register(Box::new(pool_backends_configured.clone()))
+            .expect("register");
+        registry
+            .register(Box::new(listener_info.clone()))
+            .expect("register");
+        registry
+            .register(Box::new(listener_ingress_threads.clone()))
+            .expect("register");
+        registry
+            .register(Box::new(listener_rcvbuf_bytes.clone()))
+            .expect("register");
+        registry
+            .register(Box::new(backend_info.clone()))
+            .expect("register");
+        registry
+            .register(Box::new(backend_weight.clone()))
             .expect("register");
         registry
             .register(Box::new(build_info.clone()))
@@ -337,6 +451,11 @@ impl BuiltinRegistry {
             script_errors_total,
             forward_outstanding,
             pool_backends_configured,
+            listener_info,
+            listener_ingress_threads,
+            listener_rcvbuf_bytes,
+            backend_info,
+            backend_weight,
             slots_in_use,
             slots_capacity,
             slot_pool_exhausted_total,
@@ -513,6 +632,45 @@ impl BuiltinRegistry {
             self.pool_backends_configured
                 .with_label_values(&[pool.as_str()])
                 .set(*count as f64);
+        }
+
+        self.listener_info.reset();
+        self.listener_ingress_threads.reset();
+        self.listener_rcvbuf_bytes.reset();
+        for l in &snapshot.listeners {
+            let reuse_port = if l.reuse_port { "true" } else { "false" };
+            self.listener_info
+                .with_label_values(&[
+                    l.label.as_str(),
+                    l.address.as_str(),
+                    l.name.as_str(),
+                    l.protocol.as_str(),
+                    l.ip_family.as_str(),
+                    reuse_port,
+                ])
+                .set(1.0);
+            self.listener_ingress_threads
+                .with_label_values(&[l.label.as_str(), l.protocol.as_str()])
+                .set(l.threads as f64);
+            self.listener_rcvbuf_bytes
+                .with_label_values(&[l.label.as_str(), l.protocol.as_str()])
+                .set(l.rcvbuf as f64);
+        }
+
+        self.backend_info.reset();
+        self.backend_weight.reset();
+        for b in &snapshot.backends {
+            self.backend_info
+                .with_label_values(&[
+                    b.pool.as_str(),
+                    b.label.as_str(),
+                    b.address.as_str(),
+                    b.name.as_str(),
+                ])
+                .set(1.0);
+            self.backend_weight
+                .with_label_values(&[b.pool.as_str(), b.label.as_str()])
+                .set(b.weight as f64);
         }
 
         if let Some(g) = self.slots_in_use.as_ref() {
@@ -703,9 +861,85 @@ mod tests {
             slots_in_use: 10,
             slots_capacity: 1024,
             slot_pool_exhausted_total: 2,
+            listeners: vec![
+                ListenerIdentity {
+                    label: "lab-udp".into(),
+                    address: "127.0.0.1:15353".into(),
+                    name: "lab-udp".into(),
+                    protocol: "udp".into(),
+                    ip_family: "v4".into(),
+                    reuse_port: true,
+                    threads: 4,
+                    rcvbuf: 1_048_576,
+                },
+                ListenerIdentity {
+                    label: "127.0.0.1:15354".into(),
+                    address: "127.0.0.1:15354".into(),
+                    name: String::new(),
+                    protocol: "tcp".into(),
+                    ip_family: "v4".into(),
+                    reuse_port: false,
+                    threads: 1,
+                    rcvbuf: 0,
+                },
+            ],
+            backends: vec![
+                BackendIdentity {
+                    pool: "default".into(),
+                    label: "resolver-east".into(),
+                    address: "127.0.0.1:15300".into(),
+                    name: "resolver-east".into(),
+                    weight: 100,
+                },
+                BackendIdentity {
+                    pool: "default".into(),
+                    label: "127.0.0.1:15301".into(),
+                    address: "127.0.0.1:15301".into(),
+                    name: String::new(),
+                    weight: 50,
+                },
+            ],
         }));
         let body = encode_builtin(reg.gather());
         assert!(body.contains("conduit_config_generation 7"));
+        assert!(
+            body.contains(
+                r#"conduit_listener_info{address="127.0.0.1:15353",ip_family="v4",listener="lab-udp",name="lab-udp",protocol="udp",reuse_port="true"} 1"#
+            ),
+            "body:\n{body}"
+        );
+        assert!(
+            body.contains(
+                r#"conduit_listener_info{address="127.0.0.1:15354",ip_family="v4",listener="127.0.0.1:15354",name="",protocol="tcp",reuse_port="false"} 1"#
+            ),
+            "body:\n{body}"
+        );
+        assert!(
+            body.contains(
+                r#"conduit_listener_ingress_threads{listener="lab-udp",protocol="udp"} 4"#
+            ),
+            "body:\n{body}"
+        );
+        assert!(
+            body.contains(
+                r#"conduit_listener_rcvbuf_bytes{listener="lab-udp",protocol="udp"} 1048576"#
+            ),
+            "body:\n{body}"
+        );
+        assert!(
+            body.contains(
+                r#"conduit_backend_info{address="127.0.0.1:15300",backend="resolver-east",name="resolver-east",pool="default"} 1"#
+            ),
+            "body:\n{body}"
+        );
+        assert!(
+            body.contains(r#"conduit_backend_weight{backend="resolver-east",pool="default"} 100"#),
+            "body:\n{body}"
+        );
+        assert!(
+            body.contains(r#"conduit_backend_weight{backend="127.0.0.1:15301",pool="default"} 50"#),
+            "body:\n{body}"
+        );
         assert!(body.contains(r#"pool="default""#));
         assert!(
             body.contains("conduit_forward_outstanding"),
