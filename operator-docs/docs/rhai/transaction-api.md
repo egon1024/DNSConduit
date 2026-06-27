@@ -5,7 +5,7 @@ toc_collapsible: true
 
 # Transaction API
 
-**Rhai for rules** ([Rule Rhai](/rhai/rule-rhai.md)) scripts receive a sandboxed **`txn`** object. Methods on **`txn`** set policy on the current [transaction](/glossary/index.md#transaction) — pools, [tags](/glossary/index.md#tags), drop/retry intent, egress overrides, and observability side effects. They do **not** edit DNS wire bytes (see [Rhai for processor chains](/rhai/processor-chain-rhai.md) for wire editing).
+**Rhai for rules** ([Rule Rhai](/rhai/rule-rhai.md)) scripts receive a sandboxed **`txn`** object. Methods on **`txn`** set policy on the current [transaction](/glossary/index.md#transaction) — pools, [tags](/glossary/index.md#tags), drop/retry intent, egress overrides, and observability side effects. They do **not** edit DNS wire bytes.
 
 For which hook each API allows, see [Hooks and phases](/rhai/hooks-and-phases.md#phase-guards) (summary table) and [Request vs response](/rhai/hooks-and-phases.md#request-vs-response-script-perspective) (when each hook runs).
 
@@ -1518,7 +1518,7 @@ if txn.response_rcode() == Rcode::SERVFAIL && txn.get_attempt_count() >= 3 {
 
 ## Query and response { #query-and-response }
 
-Read-only access to the **client question** and, on the [response hook](/rhai/hooks-and-phases.md#response-hook), the **upstream outcome metadata** Conduit recorded after [Wait for response](/concepts/architecture-and-packet-path.md#wait-for-response). These APIs expose qname, typed DNS wire enums ([`RecordType`](#recordtype), [`QueryClass`](#queryclass), [`DnsOpcode`](#dnsopcode), [`EdnsOptionCode`](#ednsoptioncode)), message **ID**, and [`Rcode`](#rcode) — not full answer records or wire bytes. For editing DNS payloads, see [Rhai for processor chains](/rhai/processor-chain-rhai.md).
+Read-only access to the **client question** and, on the [response hook](/rhai/hooks-and-phases.md#response-hook), the **upstream outcome metadata** Conduit recorded after [Wait for response](/concepts/architecture-and-packet-path.md#wait-for-response). These APIs expose qname, typed DNS wire enums ([`RecordType`](#recordtype), [`QueryClass`](#queryclass), [`DnsOpcode`](#dnsopcode), [`EdnsOptionCode`](#ednsoptioncode)), message **ID**, and [`Rcode`](#rcode) — not full answer records or wire bytes.
 
 On the **request hook**, only the question is meaningful — upstream has not answered yet. On the **response hook**, the question is unchanged and **`txn.response()`** / **`txn.response_rcode()`** reflect the outcome of the **current** forward attempt (including timeout or pool exhaustion, which Conduit typically records as **`SERVFAIL`**). See [Hooks and phases — phase guards](/rhai/hooks-and-phases.md#phase-guards).
 
@@ -1898,7 +1898,7 @@ There is no YAML equivalent.
   - **`qname`**, **`qtype`**, **`qclass`**, **`opcode`**, **`edns_options`** — same as **`txn.question()`**
 - **Compile-time gating:** Conduit scans response-hook Rhai sources at snapshot compile. If **no** script references wire-derived fields (`truncated`, `answer_count`, etc.), the forward stage skips parsing upstream response sections — **`rcode`** is still extracted. When any script needs wire metadata, parsing is enabled for **all** queries on that snapshot.
 - Dedicated accessors — [`txn.response_truncated()`](#txnresponse_truncated), [`txn.response_answer_count()`](#txnresponse_answer_count), etc. — return defaults when wire metadata was not parsed (**`-1`** for counts, **`false`** for booleans).
-- Does **not** expose answer RRs, TTLs, or wire bytes — only transaction-level metadata scripts use for policy. For packet editing, see [Rhai for processor chains](/rhai/processor-chain-rhai.md).
+- Does **not** expose answer RRs, TTLs, or wire bytes — only transaction-level metadata scripts use for policy.
 - On a retried query, the map reflects **this attempt only** — compare with **`txn.get_attempt_count()`** when policy depends on retry generation.
 - For simple **`rcode`** branching, **`txn.response_rcode()`** is usually clearer and is safe to call on both hooks (returns **`()`** on the request hook when no rcode is available).
 

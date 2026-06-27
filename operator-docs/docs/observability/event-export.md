@@ -190,7 +190,7 @@ Export never blocks the query path. When a per-sink queue is full, Conduit appli
 
 With [metrics](/observability/metrics.md) enabled, scrape or OTEL push includes per-sink [event-export counters](/observability/built-in-metrics.md#event-export) (`conduit_events_enqueued_*`, `conduit_events_delivered_total`, `conduit_events_queue_dropped_total`). Use them to detect collector lag or chronic overload.
 
-Details: [Concurrency and workers](/concepts/architecture-and-packet-path.md#concurrency-and-workers).
+Details: [Runtime and concurrency](/concepts/runtime-and-concurrency.md#query-outcomes-and-worker-occupancy).
 
 ## Changing events config
 

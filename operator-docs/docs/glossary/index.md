@@ -150,37 +150,9 @@ Scripted **policy** on [rules](/policy-routing/rules-and-actions.md) in current 
 
 ### Rhai
 
-Embedded scripting in Conduit — [Rule Rhai](/glossary/index.md#rule-rhai) on `rules:` today; [Processor-chain Rhai](/glossary/index.md#processor-chain-rhai) when [processor chains](/glossary/index.md#processor-chains) ship.
+Embedded scripting in Conduit — [Rule Rhai](/glossary/index.md#rule-rhai) on `rules:` for policy on the request and response hooks.
 
 → [Rhai](/rhai/index.md)
-
-## Planned plugin models
-
-### WASM
-
-Planned in-process plugin model: compiled `.wasm` plugins on the same request/response hooks as [Rule Rhai](/glossary/index.md#rule-rhai). **Not yet shipped.**
-
-→ [Planned plugin models](/concepts/planned-plugin-models.md)
-
-### Sidecar
-
-Planned sidecar plugin model: separate processes Conduit calls on the same logical hooks as [Rule Rhai](/glossary/index.md#rule-rhai) and [WASM](/glossary/index.md#wasm). **Not yet shipped.**
-
-→ [Planned plugin models](/concepts/planned-plugin-models.md)
-
-### Processor chains
-
-Planned datapath feature with `processors:` config: DNS wire editing and (when shipped) transaction refinement such as **`set_tag`** and ingress **`set_pool`** after [rules](/policy-routing/rules-and-actions.md) — separate from [Rule Rhai](/glossary/index.md#rule-rhai). **Not yet shipped.**
-
-→ [Processor chains](/processor-chains/index.md), [Planned plugin models](/concepts/planned-plugin-models.md#processor-chains-planned)
-
-### Processor-chain Rhai { #processor-chain-rhai }
-
-**Also called:** Rhai for processor chains.
-
-Planned [Rhai](/glossary/index.md#rhai) scripts in [processor chains](/glossary/index.md#processor-chains): `processors:` config and **message API** (`conduit-dns`) for wire editing — not the rule `txn` surface. **Not yet shipped.**
-
-→ [Processor-chain Rhai](/rhai/processor-chain-rhai.md), [Message API](/rhai/message-api.md), [Processor chains](/processor-chains/index.md)
 
 ## Control and operations
 

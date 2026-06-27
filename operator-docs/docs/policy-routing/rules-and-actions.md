@@ -1,6 +1,6 @@
 # Rules and actions
 
-This page is the **behavioral home** for declarative policy in Conduit: how you declare rules under `rules:` in your [config file](/control-plane/config-file.md), what they can change on each query, and when they run on the [dataplane](/glossary/index.md#dataplane). For the query pipeline, see [Architecture and packet path](/concepts/architecture-and-packet-path.md). For **Rhai for rules** ([Rule Rhai](/glossary/index.md#rule-rhai)), see [Rhai](/rhai/index.md) ([Rule Rhai overview](/rhai/rule-rhai.md)). For planned [processor chains](/processor-chains/index.md) and **Rhai for processor chains** ([Processor-chain Rhai](/glossary/index.md#processor-chain-rhai)), see [Processor chains](/processor-chains/index.md). For planned [WASM](/glossary/index.md#wasm) and [sidecar](/glossary/index.md#sidecar) on rule hooks, see [Planned plugin models](/concepts/planned-plugin-models.md).
+This page is the **behavioral home** for declarative policy in Conduit: how you declare rules under `rules:` in your [config file](/control-plane/config-file.md), what they can change on each query, and when they run on the [dataplane](/glossary/index.md#dataplane). For the query pipeline, see [Architecture and packet path](/concepts/architecture-and-packet-path.md). For **Rhai for rules** ([Rule Rhai](/glossary/index.md#rule-rhai)), see [Rhai](/rhai/index.md) ([Rule Rhai overview](/rhai/rule-rhai.md)).
 
 ## Overview
 
@@ -382,8 +382,6 @@ Simple **SERVFAIL** failover to a backup pool does not need Rhai — use **`set_
 
 The script receives a sandboxed **`txn`** object — policy fields only ([pool](/glossary/index.md#pool), [tags](/glossary/index.md#tags), egress, drop, retry). It does **not** edit DNS wire bytes. Phase-specific behavior, guards, and pairing request/response scripts: [Hooks and phases](/rhai/hooks-and-phases.md). Method reference: [Transaction API](/rhai/transaction-api.md).
 
-When [processor chains](/processor-chains/index.md) ship, they are planned to refine policy **after** rules on the same [transaction](/glossary/index.md#transaction) — alongside wire editing. See [Policy refinement (planned)](/processor-chains/index.md#policy-refinement-planned).
-
 Overview and when to use scripts: [Rhai for rules](/rhai/rule-rhai.md) ([Rhai](/rhai/index.md)).
 
 ## Validation errors (common)
@@ -413,5 +411,4 @@ Full validation rules: [Reference: rules](/reference/config-schema/rules.md).
 - [Event export](/observability/event-export.md) — request `set_tag` plus sink filters
 - [Tracing](/observability/tracing.md) — `activation.sample_percent` and selectors without a matching rule
 - [Dual-stack forwarding](/guides/dual-stack-forwarding.md) — `set_source_v4` / `set_source_v6`
-- [Rhai](/rhai/index.md) — Rhai for rules and Rhai for processor chains; [Rule Rhai overview](/rhai/rule-rhai.md); [Hooks and phases](/rhai/hooks-and-phases.md) for script-specific phase behavior
-- [Planned plugin models](/concepts/planned-plugin-models.md) — [WASM](/glossary/index.md#wasm), [sidecar](/glossary/index.md#sidecar) (not yet shipped)
+- [Rhai](/rhai/index.md) — Rhai for rules; [Rule Rhai overview](/rhai/rule-rhai.md); [Hooks and phases](/rhai/hooks-and-phases.md) for script-specific phase behavior

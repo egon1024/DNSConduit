@@ -156,7 +156,7 @@ Name **outside** the rule’s **`qname_suffix`** selector never runs the script 
 dig @127.0.0.1 -p 15353 +time=3 +tries=1 example.com A
 ```
 
-**What you verified:** [Data sources](/rhai/data-sources-and-lookups.md) grant model, request-hook Rhai, policy **drop** vs forward, and a **custom user metric** on blocks (`conduit_user_block_hits`). Deeper behavior: [Architecture — Query outcomes](/concepts/architecture-and-packet-path.md#query-outcomes-and-worker-occupancy), [User metrics](/rhai/user-metrics.md), [Troubleshooting — no client response](/troubleshooting/index.md#client-gets-no-response-timeout-or-silence).
+**What you verified:** [Data sources](/rhai/data-sources-and-lookups.md) grant model, request-hook Rhai, policy **drop** vs forward, and a **custom user metric** on blocks (`conduit_user_block_hits`). Deeper behavior: [Runtime and concurrency — Query outcomes](/concepts/runtime-and-concurrency.md#query-outcomes-and-worker-occupancy), [User metrics](/rhai/user-metrics.md), [Troubleshooting — no client response](/troubleshooting/index.md#client-gets-no-response-timeout-or-silence).
 
 ---
 

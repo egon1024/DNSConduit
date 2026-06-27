@@ -98,7 +98,7 @@ Built-in actions on the same rule have **already run** by then — see [Scripted
 
 ## Related topics
 
-- [Rhai overview](/rhai/index.md) — Rhai for rules vs Rhai for processor chains
+- [Rhai overview](/rhai/index.md) — Rhai for rules
 - [Rhai for rules](/rhai/rule-rhai.md) — when to use scripts, minimal example, reload behavior
 - [Transaction API](/rhai/transaction-api.md) — `txn` methods and YAML equivalents
 - [Rules and actions](/policy-routing/rules-and-actions.md) — hooks, selectors, built-in actions, `rhai` wiring

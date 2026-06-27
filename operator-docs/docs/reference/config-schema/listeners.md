@@ -28,7 +28,7 @@ When the block is omitted entirely, Conduit applies defaults at parse time (`thr
 
 Total ingress workers = **`threads` ×** number of entries in `listeners.listeners`.
 
-Example — two UDP sockets and `threads: 2` starts **four** worker threads (two per address). Under the **`sync`** runtime, each worker handles one query at a time through upstream wait; see [Architecture and packet path — Concurrency and workers](/concepts/architecture-and-packet-path.md#concurrency-and-workers).
+Example — two UDP sockets and `threads: 2` starts **four** worker threads (two per address). Under the **`sync`** runtime, each worker handles one query at a time through upstream wait; see [Runtime and concurrency — Sync runtime](/concepts/runtime-and-concurrency.md#sync-runtime-default).
 
 ### `reuse_port` and `threads`
 
