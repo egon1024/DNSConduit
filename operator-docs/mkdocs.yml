@@ -134,6 +134,7 @@ nav:
           - Pools: reference/config-schema/pools.md
           - Forward: reference/config-schema/forward.md
           - Orchestrator: reference/config-schema/orchestrator.md
+          - Dataplane: reference/config-schema/dataplane.md
           - Shutdown: reference/config-schema/shutdown.md
           - Rules: reference/config-schema/rules.md
           - Control: reference/config-schema/control.md

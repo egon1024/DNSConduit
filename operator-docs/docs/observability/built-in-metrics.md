@@ -4,6 +4,8 @@ Catalog of **built-in** Prometheus series exported by Conduit (not Rhai `conduit
 
 Built-in labels never include `qname`, client IP, or transaction id — use [event export](/observability/event-export.md) or [tracing](/observability/tracing.md) for per-name detail.
 
+The **`backend`** label on forward metrics ([`conduit_forward_attempts_total`](#conduit_forward_attempts_total), [`conduit_forward_duration_seconds`](#conduit_forward_duration_seconds), [`conduit_forward_outstanding`](#conduit_forward_outstanding)) is the backend [`name`](/policy-routing/pools-and-backends.md#backend-names) when one is set, otherwise its `address`. Naming a backend keeps its time series stable across an address change; see [Backend names](/policy-routing/pools-and-backends.md#backend-names).
+
 ## Profiles { #profiles }
 
 Built-in recording uses a **`metrics.profile`** of **`minimal`** or **`full`** (see [Metrics](/observability/metrics.md) for enabling export, Prometheus scrape, OTEL push, and restart semantics). When the `metrics:` block is omitted, built-ins are off — no hot-path increments and no export.
@@ -28,11 +30,12 @@ Use **`minimal`** when you want query volume, pool mix, response mix, and alerta
 - Richer [`conduit_queries_total`](#conduit_queries_total) labels (`qtype`, `qclass`, `ip_family`)
 - Fine [`conduit_responses_total`](#conduit_responses_total) `rcode` labels and `ip_family`
 - Forward attempt counts, forward RTT histograms, per-phase timing histograms (see table below)
+- Transaction slot-pool gauges ([`conduit_slots_in_use`](#conduit_slots_in_use), [`conduit_slots_capacity`](#conduit_slots_capacity)) at scrape time
 - Linux process gauges ([`conduit_process_resident_bytes`](#conduit_process_resident_bytes), [`conduit_process_open_fds`](#conduit_process_open_fds)) at scrape time
 
 Use **`full`** for day-two operations, SLO dashboards, and debugging upstream or pipeline behavior. Built-in labels still never include `qname`, client IP, or transaction id at either profile.
 
-**Scrape-time** series ([Scrape-time gauges](#scrape-time-gauges)) are largely the same for both profiles; only the process gauges require **`full`**.
+**Scrape-time** series ([Scrape-time gauges](#scrape-time-gauges)) are largely the same for both profiles; the slot-pool gauges ([`conduit_slots_in_use`](#conduit_slots_in_use), [`conduit_slots_capacity`](#conduit_slots_capacity)) and the process gauges require **`full`**. The slot exhaustion counter ([`conduit_slot_pool_exhausted_total`](#conduit_slot_pool_exhausted_total)) is exported on both profiles.
 
 | Series | Hot path `minimal` | Hot path `full` | [Scrape-time](#scrape-time-gauges) only |
 |--------|-------------------|-----------------|-------------|
@@ -46,6 +49,8 @@ Use **`full`** for day-two operations, SLO dashboards, and debugging upstream or
 | Phase / forward-attempt / forward-duration histograms below | no | yes | — |
 | [`conduit_forward_outstanding`](#conduit_forward_outstanding) | — | — | yes |
 | [`conduit_pool_backends_configured`](#conduit_pool_backends_configured) | — | — | yes |
+| [`conduit_slots_in_use`](#conduit_slots_in_use), [`conduit_slots_capacity`](#conduit_slots_capacity) | — | — | yes (`full` only) |
+| [`conduit_slot_pool_exhausted_total`](#conduit_slot_pool_exhausted_total) | — | — | yes |
 | [`conduit_build_info`](#conduit_build_info), [`conduit_start_time_seconds`](#conduit_start_time_seconds), [`conduit_config_generation`](#conduit_config_generation) | — | — | yes |
 | [`conduit_process_resident_bytes`](#conduit_process_resident_bytes), [`conduit_process_open_fds`](#conduit_process_open_fds) | — | — | yes (`full` only, Linux `/proc`) |
 
@@ -226,6 +231,39 @@ Series marked **Scrape-time only** in the [profile table](#profiles) above. Valu
 | **Labels** | `pool`, `backend` |
 | **Meaning** | In-flight upstream forwards per backend at scrape time |
 
+A forward counts as outstanding from the moment it is submitted upstream until the reply arrives, times out, or errors. Under the **`split_io`** [runtime](/concepts/runtime-and-concurrency.md#runtime-models) this includes **parked** waits — transactions suspended in the [Wait for response](/concepts/architecture-and-packet-path.md#wait-for-response) phase whose [slot](/concepts/runtime-and-concurrency.md#transaction-slot-pool) is held while the policy worker moves on to other queries. A sustained high value against a slow upstream is the expected `split_io` signal (concurrent waits), not a backlog of busy workers as it would be under `sync`.
+
+### conduit_slots_in_use { #conduit_slots_in_use }
+
+| | |
+|--|--|
+| **Type** | Gauge |
+| **Labels** | — |
+| **Profile** | `full` only |
+| **Meaning** | [Transaction slots](/concepts/runtime-and-concurrency.md#transaction-slot-pool) currently acquired (not `Free`) at scrape time |
+
+Every in-flight transaction holds one slot for its whole lifetime, including while parked in [Wait for response](/concepts/architecture-and-packet-path.md#wait-for-response) under `split_io`. Compare against [`conduit_slots_capacity`](#conduit_slots_capacity) to gauge headroom; sustained `in_use` near `capacity` precedes slot-pool exhaustion.
+
+### conduit_slots_capacity { #conduit_slots_capacity }
+
+| | |
+|--|--|
+| **Type** | Gauge |
+| **Labels** | — |
+| **Profile** | `full` only |
+| **Meaning** | Configured transaction slot-pool capacity (`orchestrator.txn_table_capacity`) at scrape time |
+
+### conduit_slot_pool_exhausted_total { #conduit_slot_pool_exhausted_total }
+
+| | |
+|--|--|
+| **Type** | Counter |
+| **Labels** | — |
+| **Profile** | `minimal` and `full` |
+| **Meaning** | Cumulative slot-acquire failures because the pool was at capacity |
+
+Each increment is a query that could not get a [slot](/concepts/runtime-and-concurrency.md#transaction-slot-pool) and was shed (backpressure). The cumulative total is synced into the export registry at scrape time. A non-zero rate means the slot pool is the bottleneck — raise `orchestrator.txn_table_capacity` (a **restart** is required to grow the pool) or reduce inbound load. See [Per-pool in-flight limit](/reference/config-schema/pools.md#per-pool-in-flight-limit) for a pool-scoped cap that returns SERVFAIL instead.
+
 ### conduit_pool_backends_configured { #conduit_pool_backends_configured }
 
 | | |
@@ -350,6 +388,9 @@ sum(rate(conduit_responses_total[5m])) by (rcode, ip_family)   # full profile on
 sum(rate(conduit_forward_errors_total[5m])) by (pool, reason)
 sum(rate(conduit_script_errors_total[5m])) by (reason)
 histogram_quantile(0.99, sum(rate(conduit_forward_duration_seconds_bucket[5m])) by (le, pool))
+sum(conduit_forward_outstanding) by (pool, backend)                 # concurrent upstream waits (split_io)
+conduit_slots_in_use / conduit_slots_capacity                       # slot-pool utilization (full profile)
+sum(rate(conduit_slot_pool_exhausted_total[5m]))                    # slot exhaustion (alert on > 0)
 conduit_config_generation
 conduit_build_info{revision="abc1234", dirty="false", profile="release"}
 ```

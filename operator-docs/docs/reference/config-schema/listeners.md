@@ -18,7 +18,7 @@ When the block is omitted entirely, Conduit applies defaults at parse time (`thr
 
 | Field {: .column-no-wrap } | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| `threads` | integer | no | **1** | Number of worker threads **per** [listener entry](#listener-object) below. Must be **≥ 1**. Each worker runs the full query [pipeline](/concepts/architecture-and-packet-path.md#pipeline-phases) on its thread in current **`sync`** builds. |
+| `threads` | integer | no | **1** | Default number of **ingress worker** threads **per** [listener entry](#listener-object) below. Must be **≥ 1**. Each thread is an ingress worker: under **`sync`** it runs the whole query [pipeline](/concepts/architecture-and-packet-path.md#pipeline-phases) on its thread; under **`split_io`** it accepts and hands off (see [Runtime and concurrency](/concepts/runtime-and-concurrency.md#runtime-models)). A listener entry may override this — see [Per-listener overrides](#per-listener-overrides-and-inheritance). |
 | `reuse_port` | boolean | no | **`false`** | When **`true`**, UDP sockets use **`SO_REUSEPORT`** (Unix only) so multiple workers can bind the same address. Use **`true`** when `threads` > **1** on UDP. Ignored on non-Unix platforms and for TCP listeners. |
 | `rcvbuf` | integer | no | **0** (OS default) | When **> 0**, sets the UDP socket receive buffer size (bytes) before bind. **0** leaves the OS default. Applies to UDP listeners only. |
 | `sndbuf` | integer | no | **0** | Reserved — accepted in YAML but **not applied** to sockets in current releases. |
@@ -26,9 +26,9 @@ When the block is omitted entirely, Conduit applies defaults at parse time (`thr
 
 ### Worker count
 
-Total ingress workers = **`threads` ×** number of entries in `listeners.listeners`.
+Total ingress workers = the **sum of each entry's resolved `threads`** — the block `threads` for entries that don't override it (see [Per-listener overrides](#per-listener-overrides-and-inheritance)). With no per-listener overrides this is simply **`threads` ×** the number of entries in `listeners.listeners`.
 
-Example — two UDP sockets and `threads: 2` starts **four** worker threads (two per address). Under the **`sync`** runtime, each worker handles one query at a time through upstream wait; see [Runtime and concurrency — Sync runtime](/concepts/runtime-and-concurrency.md#sync-runtime-default).
+Example — two UDP sockets and `threads: 2` (no overrides) starts **four** worker threads (two per address). Under the **`sync`** runtime, each worker handles one query at a time through upstream wait; see [Runtime and concurrency — Sync runtime](/concepts/runtime-and-concurrency.md#sync-runtime-default).
 
 ### `reuse_port` and `threads`
 
@@ -48,6 +48,25 @@ Each list entry under `listeners.listeners` is one bind address and protocol.
 |-------|------|----------|---------|-------------|
 | `address` | string | yes | — | Client-facing socket address as `host:port`. IPv6 literals use bracket notation, for example **`[::1]:53`**. Must parse as a socket address; must not be empty. |
 | `protocol` | string | yes | — | **`udp`** or **`tcp`**. Comparison is case-insensitive. Values other than **`tcp`** are treated as UDP. |
+| `threads` | integer | no | inherits block **`threads`** | Per-entry [ingress worker](#worker-count) override for this listener only. Must be **≥ 1** when set. |
+| `reuse_port` | boolean | no | inherits block **`reuse_port`** | Per-entry **`SO_REUSEPORT`** override (UDP, Unix only). |
+| `name` | string | no | derived from `address` | Stable identity for this listener. When set, it becomes the **`listener`** [metric](/observability/metrics.md) label instead of the address. Must be **unique** across entries when set. |
+| `rcvbuf` | integer | no | inherits block **`rcvbuf`** | Per-entry UDP receive-buffer override in bytes; **0** keeps the OS default. UDP only. |
+
+There is no per-listener **`sndbuf`** — `sndbuf` is a block-level reserved field only (see [Block fields](#block-fields)).
+
+### Per-listener overrides and inheritance
+
+`threads`, `reuse_port`, and `rcvbuf` on a listener entry are **optional overrides** of the [block-level](#block-fields) values. When a field is omitted, the entry **inherits** the block value; when it is set, the entry value wins for that listener only. This lets one block default cover most listeners while a specific entry tunes its own ingress.
+
+| Per-entry field | When omitted | When set |
+|-----------------|--------------|----------|
+| `threads` | Inherits block `threads` | Overrides for this entry; resolved value is forced to **≥ 1** |
+| `reuse_port` | Inherits block `reuse_port` | Overrides for this entry (UDP, Unix) |
+| `rcvbuf` | Inherits block `rcvbuf` | Overrides for this entry (UDP); **0** = OS default |
+| `name` | `listener` metric label is the `address` | `name` becomes the `listener` metric label; must be unique |
+
+Use a per-entry **`name`** to keep dashboards and logs stable when a listener's address changes, and per-entry **`threads`** to give a high-volume address more ingress workers than low-traffic listeners that share the block default.
 
 ### Address format
 
@@ -57,7 +76,7 @@ Each list entry under `listeners.listeners` is one bind address and protocol.
 | All interfaces | `"0.0.0.0:53"` | Requires privilege to bind port **53** on many systems |
 | IPv6 | `"[::1]:15353"` | Brackets required around the literal |
 
-The string in `address` is also the **`listener`** label on built-in [metrics](/observability/metrics.md) such as [`conduit_queries_total`](/observability/built-in-metrics.md#conduit_queries_total) (together with **`protocol`**: `udp` or `tcp`).
+By default the **`address`** string is the **`listener`** label on built-in [metrics](/observability/metrics.md) such as [`conduit_queries_total`](/observability/built-in-metrics.md#conduit_queries_total) (together with **`protocol`**: `udp` or `tcp`). Setting a per-listener [`name`](#per-listener-overrides-and-inheritance) replaces the address as that label.
 
 ### UDP vs TCP
 
@@ -77,7 +96,7 @@ Listener sockets are opened at **process start** from the config present when `c
 | Change | Snapshot after reload/apply? | On-the-wire effect |
 |--------|----------------------------|--------------------|
 | `pools`, `rules`, `orchestrator`, … | Yes — hot for new queries | N/A (not listener fields) |
-| **`listeners`** (addresses, `threads`, `reuse_port`, `rcvbuf`, entries) | Yes — stored in new snapshot | **Restart required** — existing sockets keep serving until restart |
+| **`listeners`** (addresses, `threads`, `reuse_port`, `rcvbuf`, `name`, per-listener overrides, entries) | Yes — stored in new snapshot | **Restart required** — existing sockets keep serving until restart |
 
 After a successful reload that changes **`listeners`**, Conduit logs **`pending (restart required)`** and continues on the **previous** bind until you restart the process. See [Configuration model — Pending reconcile](/control-plane/configuration-model.md#pending-reconcile-restart-required) and [Reload and export](/control-plane/reload-and-export.md).
 
@@ -88,6 +107,8 @@ After a successful reload that changes **`listeners`**, Conduit logs **`pending 
 | Rule | Error or outcome if violated |
 |------|------------------------------|
 | `listeners.threads` ≥ **1** | `listeners.threads must be >= 1` |
+| Per-listener `threads` ≥ **1** when set | `listener '<address>' threads must be >= 1` |
+| Per-listener `name` unique when set | `duplicate listener name '<name>'` |
 | Listener `address` non-empty | `listener address must not be empty` |
 | `address` parses as socket address | Bind error at startup (not caught by validate) |
 | Duplicate bind without `reuse_port` | Bind error at startup when `threads` > **1** or duplicate entries contend |
@@ -133,11 +154,28 @@ listeners:
       protocol: udp
 ```
 
+Per-listener overrides — a named public listener with extra ingress threads alongside a low-traffic internal one that keeps the block default:
+
+```yaml
+listeners:
+  threads: 2          # block default for entries that don't override
+  reuse_port: true
+  listeners:
+    - address: "0.0.0.0:53"
+      protocol: udp
+      name: public-udp
+      threads: 8        # this entry overrides the block default
+    - address: "127.0.0.1:53"
+      protocol: udp
+      name: internal-udp
+```
+
 ## Related topics
 
 - [Minimal configuration](/getting-started/minimal-configuration.md) — smallest `listeners` + `pools` example
 - [First query](/getting-started/first-query.md) — test with `dig` after bind
-- [Architecture and packet path](/concepts/architecture-and-packet-path.md) — Receive phase and worker concurrency
+- [Architecture and packet path](/concepts/architecture-and-packet-path.md#receive) — Receive phase
+- [Runtime and concurrency](/concepts/runtime-and-concurrency.md) — ingress workers, runtime models, slot pool
 - [Configuration model](/control-plane/configuration-model.md) — snapshot updates and restart-required changes
 - [Built-in metrics](/observability/built-in-metrics.md) — `listener` and `protocol` labels
 - [Security](/security/index.md) — dataplane listeners vs control-plane gRPC

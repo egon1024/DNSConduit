@@ -102,7 +102,7 @@ Merge rules (current release):
 | **`schema_version`** | Overlay value wins when present |
 | **`listeners`**, **`forward`**, **`orchestrator`**, **`events`**, **`rhai`**, **`control`**, **`logging`** | If the overlay includes the section, it **replaces** the file-layer section entirely |
 | **`data_sources`** | Non-empty overlay list replaces the file-layer list |
-| **`pools`** | Match pools by `name`; within a pool, match [backends](/glossary/index.md#backend) by `address` and update fields. New pools or backends in the overlay are **appended**. Unset `weight` in the overlay does **not** clear a file-layer weight |
+| **`pools`** | Match pools by `name`. Within a pool, match a [backend](/glossary/index.md#backend) by `name` when the overlay entry sets one, otherwise by `address`; matched fields are updated. A new pool — or an address-matched backend not already in the pool — is **appended**; an overlay backend whose `name` is not found in the pool is **rejected** (the apply fails). See [Targeting a backend by name or address](#targeting-a-backend-by-name-or-address). Unset `weight` in the overlay does **not** clear a file-layer weight |
 | **`rules`**, **`metrics`**, **`tracing`** | **File layer only** — not allowed in overlay patches; apply is rejected if the patch includes these keys |
 
 Example — shift weight on one backend without editing the main file (full merge/replace/clear walkthrough with sparse patches: [Reload and export — worked example](/control-plane/reload-and-export.md#worked-example-pool-weights)):
@@ -119,6 +119,33 @@ pools:
 Save as `overlay.yaml`, then `conduitctl apply --file overlay.yaml` (default **merge**). The file-layer pool definition stays on disk; the effective weight becomes **10** until you [clear](/glossary/index.md#clear-overlay-without-reload) or [reload from disk](/glossary/index.md#reload-from-disk).
 
 A second apply with another weight patch **merges** into the same overlay — for example maintenance weight **10**, then restore one backend to **100** without touching the file. To discard all overlay state at once, use **`conduitctl apply --clear`**, **`conduitctl apply --replace --file empty.yaml`** where `empty.yaml` contains only `schema_version: 1`, or **reload** / **SIGHUP**.
+
+### Targeting a backend by name or address
+
+Within a matched [pool](/glossary/index.md#pool), how Conduit finds the [backend](/glossary/index.md#backend) to patch depends on whether the overlay entry carries a `name`:
+
+| Overlay backend entry | Matched against | When not found |
+|-----------------------|-----------------|----------------|
+| Has a non-empty **`name`** | The backend with the same `name` in that pool — the `(pool, name)` key | Apply is **rejected** (`overlay pool '…' references unknown backend name '…'`) |
+| Has only an **`address`** | The backend with the same `address` in that pool | **Appended** as a new backend in the pool |
+
+Match by **`name`** to patch a backend you have given a [name](/reference/config-schema/pools.md#backend-object): the patch keeps working even when the upstream `address` changes, and a name-keyed entry can itself update the `address` (for example to repoint a resolver) without adding a second backend. Because an unknown `name` is **rejected rather than appended**, a typo fails the apply instead of silently creating an extra upstream — and the previous overlay is left untouched.
+
+Match by **`address`** (the default when the overlay entry has no `name`) updates a backend already present at that address; an address that is not present is **appended** as a new backend.
+
+Example — repoint and reweight the backend named `resolver-a` without editing the file, matching by `(pool, name)`:
+
+```yaml
+schema_version: 1
+pools:
+  - name: default
+    backends:
+      - name: resolver-a
+        address: "10.0.0.5:53"   # moved from 10.0.0.1:53
+        weight: 50
+```
+
+`conduitctl apply --file overlay.yaml` updates the backend identified by `(default, resolver-a)` in place: the `backend` [metric](/observability/metrics.md) label stays `resolver-a` ([Backend names](/policy-routing/pools-and-backends.md#backend-names)) while the effective address and weight change until you [clear](/glossary/index.md#clear-overlay-without-reload) or [reload from disk](/glossary/index.md#reload-from-disk). An overlay entry that names a backend the pool does not define (for example `name: resolver-z`) fails the apply, leaving the running [effective config](/glossary/index.md#effective-config) and the accumulated overlay unchanged.
 
 ## Runtime snapshot
 

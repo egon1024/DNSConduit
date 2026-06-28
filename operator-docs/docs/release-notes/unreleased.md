@@ -6,6 +6,8 @@ _Staging area for phase 1d (`dataplane-runtime-models`). Refine wording when eac
 
 - **Dataplane runtime models** — pluggable execution at startup: `sync` (default, unchanged behavior) and opt-in `split_io` (ingress, policy, and I/O worker pools with suspend/resume). Changing `dataplane.runtime` requires a process restart. _Staging: lands with architecture + config schema docs (checkpoint **A**)._
 - **Graceful shutdown drain controls** — `shutdown.drain` (default on) and `shutdown.drain_timeout_ms` (default 5000) make the on-shutdown drain of in-flight transactions configurable, and a second SIGTERM/SIGINT abandons the wait for an immediate exit. Settings are dynamic — `conduitctl apply`/reload takes effect on the next shutdown without a restart. _Staging: lands with architecture + shutdown config schema docs (checkpoint **A**)._
+- **Overlay merge by backend name** — control-plane `apply` patches can target a backend by `(pool, name)` when the backend has a `name`; a name the pool does not define is rejected instead of silently appended, and a name-keyed patch can repoint the backend's `address` without adding a second entry. _Staging: lands with configuration-model overlay docs (checkpoint **C**)._
+- **Transaction slot-pool metrics** — `conduit_slots_in_use` and `conduit_slots_capacity` gauges (`full` profile) plus the `conduit_slot_pool_exhausted_total` counter (both profiles); `conduit_forward_outstanding` counts parked upstream waits under `split_io`, and the `backend` label uses the backend `name` when set. _Staging: lands with built-in-metrics docs (checkpoint **C**)._
 
 ## New features
 
