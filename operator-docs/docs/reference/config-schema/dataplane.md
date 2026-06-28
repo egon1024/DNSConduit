@@ -30,7 +30,7 @@ When **`dataplane:`** is omitted, Conduit runs the **`sync`** runtime with the d
 | **`sync`** (default) | Shipped | One ingress worker runs the whole pipeline on its own thread, **including the blocking upstream wait**, then sends the reply before taking the next query. See [Sync runtime](/concepts/runtime-and-concurrency.md#sync-runtime-default). |
 | **`split_io`** | Shipped | Separate **ingress**, **policy**, and **I/O** worker pools; upstream waits are parked so ingress keeps accepting queries during slow upstreams. See [Split I/O runtime](/concepts/runtime-and-concurrency.md#split-io-runtime). |
 
-Any other value is rejected by **`conduitctl validate --file`**. The reserved name **`tokio`** passes config validation but is **not implemented**: starting Conduit with `runtime: tokio` fails at startup with an "not implemented yet" error. Use `sync` or `split_io`.
+Any other value is rejected by **`conduitctl validate --file`**. Use `sync` or `split_io`.
 
 ## Worker pools (`split_io`)
 
@@ -60,8 +60,8 @@ This differs from dynamic blocks such as [`shutdown:`](/reference/config-schema/
 
 **`conduitctl validate --file …`** rejects:
 
-- `runtime` other than `sync`, `split_io`, or `tokio` (`tokio` validates but fails at startup).
-- `policy_workers: 0` or `io_workers: 0` when `runtime` is `split_io` (or `tokio`).
+- `runtime` other than `sync` or `split_io`.
+- `policy_workers: 0` or `io_workers: 0` when `runtime` is `split_io`.
 - `slot_chunk_size: 0` when the field is set.
 
 Under `sync`, `policy_workers` and `io_workers` are not validated for range because they are unused.

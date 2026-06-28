@@ -5,6 +5,7 @@ Symptom-oriented pointers for common operator issues. Each section links to the 
 | Section | Covers |
 |---------|--------|
 | [DNS and forwarding](#dns-and-forwarding) | Startup bind failures, no client reply, **SERVFAIL**, upstream timeouts |
+| [Dataplane runtime and concurrency](#dataplane-runtime) | Slot-pool exhaustion, `split_io` runtime and worker misconfiguration |
 | [Control plane](#control-plane) | **`conduitctl`** connectivity, rejected reload/apply, overlay surprises, restart-pending changes |
 | [Observability](#observability) | Metrics scrape, OTEL push, dnstap, tracing, logging |
 
@@ -71,6 +72,35 @@ See [`conduit_forward_errors_total`](/observability/built-in-metrics.md#conduit_
 | Wrong egress path (multi-homed host) | Source bind or pool **`sources_*`** | [Dual-stack forwarding](/guides/dual-stack-forwarding.md) |
 
 Response-hook **`retry`** can run after timeout — Conduit still reaches [Response rules](/concepts/architecture-and-packet-path.md#response-rules) so policy can fail over to another pool.
+
+## Dataplane runtime and concurrency { #dataplane-runtime }
+
+For runtime models, worker pools, and the [transaction](/glossary/index.md#transaction) slot pool, see [Runtime and concurrency](/concepts/runtime-and-concurrency.md) and the [Dataplane runtime tuning](/guides/dataplane-runtime-tuning.md) guide. Settings under **`dataplane:`**, **`listeners:`**, and **`forward:`** are **start-time** — a [reload](/glossary/index.md#reload-from-disk) or `conduitctl apply` updates the stored snapshot but you must **restart** to apply them on the wire.
+
+### Slot pool exhaustion
+
+| Symptom | Likely cause | What to check |
+|---------|--------------|---------------|
+| [`conduit_slot_pool_exhausted_total`](/observability/built-in-metrics.md#conduit_slot_pool_exhausted_total) rising; queries shed under load | In-flight transactions hit **`orchestrator.txn_table_capacity`** (default **1024**) | Raise `orchestrator.txn_table_capacity` and **restart**; reduce inbound load — [Runtime and concurrency — Transaction slot pool](/concepts/runtime-and-concurrency.md#transaction-slot-pool) |
+| [`conduit_slots_in_use`](/observability/built-in-metrics.md#conduit_slots_in_use) sits near [`conduit_slots_capacity`](/observability/built-in-metrics.md#conduit_slots_capacity) | Concurrency near the ceiling — under **`split_io`**, parked upstream waits hold slots while waiting | Size capacity ≈ peak query rate × transaction duration, with headroom — [Dataplane runtime tuning — slot pool](/guides/dataplane-runtime-tuning.md#sizing-the-slot-pool-and-concurrency-caps) |
+| **`SERVFAIL`** spikes on **one pool** only under load | **`pools[].max_inflight`** concurrent-forward cap reached (`split_io`) | Raise or remove the pool `max_inflight` and **restart** — [Reference: pools — Per-pool in-flight limit](/reference/config-schema/pools.md#per-pool-in-flight-limit) |
+
+Slot gauges require the **`full`** [metrics profile](/observability/built-in-metrics.md#profiles); the exhaustion counter is exported on both profiles:
+
+```bash
+curl -sS "http://127.0.0.1:9090/metrics" \
+  | grep -E '^conduit_(slots_in_use|slots_capacity|slot_pool_exhausted_total)'
+```
+
+### Split I/O runtime or worker misconfiguration
+
+| Symptom | Likely cause | What to check |
+|---------|--------------|---------------|
+| **`policy_workers`** / **`io_workers`** appear to have no effect | Runtime is **`sync`** (or `dataplane:` omitted) — those pools exist only under `split_io` | Set **`dataplane.runtime: split_io`**; under `sync` the ingress thread does everything — [Reference: dataplane — Worker pools](/reference/config-schema/dataplane.md#worker-pools-split_io) |
+| `Address already in use` with **`threads` > 1** on UDP | Missing **`reuse_port`** | Set **`listeners.reuse_port: true`** (Unix, UDP) — [Reference: listeners — `reuse_port` and `threads`](/reference/config-schema/listeners.md#reuse_port-and-threads) |
+| Changed **`dataplane.runtime`** or worker counts — no change on the wire | Start-time settings; reload/apply only update the snapshot | **Restart** `conduit` — [Reference: dataplane — Reload and restart](/reference/config-schema/dataplane.md#reload-and-restart) |
+| High [`wait_response`](/observability/built-in-metrics.md#conduit_phase_duration_seconds) phase time, but ingress keeps accepting queries | **Expected** under `split_io` — upstream latency parks waits without stalling ingress | This is an upstream/forward issue, not a worker shortage — see [Upstream timeouts](#upstream-timeouts-and-slow-responses); [`conduit_forward_outstanding`](/observability/built-in-metrics.md#conduit_forward_outstanding) shows concurrent waits |
+| Ingress stalls during slow upstreams under **`sync`** | `sync` blocks the ingress thread on the upstream wait | Switch to `split_io`, or add ingress `threads` — [Runtime and concurrency — Sync runtime](/concepts/runtime-and-concurrency.md#sync-runtime-default), [Dataplane runtime tuning](/guides/dataplane-runtime-tuning.md#when-to-use-sync-vs-split_io) |
 
 ## Control plane { #control-plane }
 
@@ -180,6 +210,8 @@ Bind Prometheus scrape to loopback or restrict with firewall — scrape has **no
 - [Control plane workflows](/guides/control-plane-workflows.md) — reload, apply, export, and restart
 - [Config file](/control-plane/config-file.md) — validation, startup path, startup vs reload
 - [Configuration model](/control-plane/configuration-model.md) — overlay, last-good snapshot, pending reconcile
+- [Runtime and concurrency](/concepts/runtime-and-concurrency.md) — runtime models, worker pools, slot pool
+- [Dataplane runtime tuning](/guides/dataplane-runtime-tuning.md) — `sync` vs `split_io`, worker sizing, slot pool
 - [Observability](/observability/index.md) — which signal to use, OTEL naming, reload matrix
 - [Metrics and tracing](/guides/metrics-and-tracing.md) — metrics + tracing lab
 - [Event export and dnstap](/guides/event-export-dnstap.md) — dnstap lab
