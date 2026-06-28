@@ -115,7 +115,7 @@ Per-sink **`filters`** limit which transactions reach that sink. All configured 
 | **`sample_key`** | All emit kinds | Optional static salt for top-level `sample_percent` |
 | **`sample_key_from`** | All emit kinds | Optional `qname` or `sink_name` — dynamic salt for top-level `sample_percent` |
 | **`pool`** | **`response`** and **`retry`** only | Selected pool name must match |
-| **`backend`** | **`response`** and **`retry`** only | Selected backend address must match (`ip:port` string) |
+| **`backend`** | **`response`** and **`retry`** only | Selected backend **label** must match: the configured backend `name` when set, otherwise the `ip:port` address. Same name-when-set identity used in metrics, logs, and traces |
 
 **`pool`** and **`backend`** filters do not apply to **`query`** frames (pool/backend are not chosen until [Route](/concepts/architecture-and-packet-path.md#route)).
 
@@ -153,7 +153,7 @@ Optional **`extra_fields`** attach a JSON object to the dnstap **`extra`** field
 | Field | Content |
 |-------|---------|
 | **`pool`** | Selected pool name |
-| **`backend`** | Selected backend `ip:port` |
+| **`backend`** | Selected backend label — configured `name` when set, else `ip:port` |
 | **`attempt_count`** | Current attempt number on the transaction |
 | **`txn_id`** | Internal transaction id |
 | **`qname`** | Query name |

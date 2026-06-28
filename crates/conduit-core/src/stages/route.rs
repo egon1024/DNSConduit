@@ -2,7 +2,9 @@
 
 use crate::phase::Phase;
 use crate::pipeline::{PipelineStage, StageOutcome};
-use crate::routing::{default_pool_name, select_backend, tried_backends_in_pool};
+use crate::routing::{
+    backend_metric_label_for_addr, default_pool_name, select_backend, tried_backends_in_pool,
+};
 use crate::snapshot::RuntimeSnapshot;
 use crate::transaction::Transaction;
 use std::sync::Arc;
@@ -40,12 +42,14 @@ impl PipelineStage for RouteStage {
             return StageOutcome::Continue(Phase::Send);
         };
 
-        txn.record_attempt(pool.clone(), backend);
+        let backend_label = backend_metric_label_for_addr(&snapshot.config.pools, &pool, backend);
+        txn.record_attempt(pool.clone(), backend, backend_label.clone());
         tracing::debug!(
             txn_id = txn.id,
             dns_id = txn.dns_id,
             pool = %pool,
-            %backend,
+            backend = %backend_label,
+            backend_addr = %backend,
             attempt = txn.attempt_count,
             "route selected backend"
         );
@@ -82,6 +86,69 @@ mod tests {
         txn.retry_pool = Some("secondary".into());
         RouteStage.handle(&mut txn, &snap);
         assert_eq!(txn.selected_pool.as_deref(), Some("primary"));
+    }
+
+    #[test]
+    fn route_sets_backend_label_to_configured_name() {
+        let yaml = r#"
+schema_version: 1
+listeners:
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+pools:
+  - name: primary
+    backends:
+      - address: "127.0.0.1:5300"
+        name: resolver-east
+        weight: 100
+"#;
+        let cfg = load_yaml(yaml).unwrap();
+        let snap = Arc::new(RuntimeSnapshot::from_config(cfg));
+        let mut txn = Transaction::new(
+            1,
+            "127.0.0.1:53".parse::<SocketAddr>().unwrap(),
+            ClientProtocol::Udp,
+        );
+        txn.selected_pool = Some("primary".into());
+        RouteStage.handle(&mut txn, &snap);
+        assert_eq!(
+            txn.selected_backend,
+            Some("127.0.0.1:5300".parse::<SocketAddr>().unwrap())
+        );
+        assert_eq!(
+            txn.selected_backend_display().as_deref(),
+            Some("resolver-east")
+        );
+    }
+
+    #[test]
+    fn route_backend_label_falls_back_to_address_when_unnamed() {
+        let yaml = r#"
+schema_version: 1
+listeners:
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+pools:
+  - name: primary
+    backends:
+      - address: "127.0.0.1:5300"
+        weight: 100
+"#;
+        let cfg = load_yaml(yaml).unwrap();
+        let snap = Arc::new(RuntimeSnapshot::from_config(cfg));
+        let mut txn = Transaction::new(
+            1,
+            "127.0.0.1:53".parse::<SocketAddr>().unwrap(),
+            ClientProtocol::Udp,
+        );
+        txn.selected_pool = Some("primary".into());
+        RouteStage.handle(&mut txn, &snap);
+        assert_eq!(
+            txn.selected_backend_display().as_deref(),
+            Some("127.0.0.1:5300")
+        );
     }
 
     #[test]

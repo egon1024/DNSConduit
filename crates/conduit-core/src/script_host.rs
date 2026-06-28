@@ -83,6 +83,10 @@ impl HostTransaction for Transaction {
         self.selected_backend
     }
 
+    fn selected_backend_label(&self) -> Option<String> {
+        self.selected_backend_display()
+    }
+
     fn response_rcode_number(&self) -> Option<u16> {
         self.rcode()
     }

@@ -13,7 +13,7 @@ fn extra_source(txn: &Transaction, include_tags: bool) -> TxnExtraSource {
     };
     TxnExtraSource {
         pool: txn.selected_pool.clone(),
-        backend: txn.selected_backend.map(|a| a.to_string()),
+        backend: txn.selected_backend_display(),
         attempt_count: txn.attempt_count,
         txn_id: txn.id,
         qname: txn.qname.clone(),

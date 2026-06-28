@@ -167,6 +167,7 @@ fn register_host_api(engine: &mut Engine) {
         .register_fn("utc_weekday", RhaiTxn::utc_weekday)
         .register_fn("selected_pool", RhaiTxn::selected_pool)
         .register_fn("selected_backend", RhaiTxn::selected_backend)
+        .register_fn("selected_backend_name", RhaiTxn::selected_backend_name)
         .register_fn("response_truncated", RhaiTxn::response_truncated)
         .register_fn("response_answer_count", RhaiTxn::response_answer_count)
         .register_fn(
@@ -296,6 +297,7 @@ struct RhaiTxn {
     received_at: SystemTime,
     selected_pool: Option<String>,
     selected_backend: Option<SocketAddr>,
+    selected_backend_label: Option<String>,
     response_meta: Option<ResponseWireMeta>,
     attempt_count: u32,
     started_at: Instant,
@@ -363,6 +365,13 @@ impl RhaiTxn {
         }
         if let Some(backend) = self.selected_backend {
             map.insert("backend".into(), Dynamic::from(backend.to_string()));
+        }
+        if let Some(label) = self
+            .selected_backend_label
+            .clone()
+            .or_else(|| self.selected_backend.map(|a| a.to_string()))
+        {
+            map.insert("backend_name".into(), Dynamic::from(label));
         }
         if let Some(meta) = self.response_meta {
             map.insert(
@@ -660,6 +669,13 @@ impl RhaiTxn {
             .unwrap_or_default()
     }
 
+    fn selected_backend_name(&mut self) -> String {
+        self.selected_backend_label
+            .clone()
+            .or_else(|| self.selected_backend.map(|a| a.to_string()))
+            .unwrap_or_default()
+    }
+
     fn response_truncated(&mut self) -> bool {
         self.response_meta.map(|m| m.truncated).unwrap_or(false)
     }
@@ -898,6 +914,7 @@ fn run_one(
         received_at: host.received_at(),
         selected_pool: host.selected_pool().map(str::to_string),
         selected_backend: host.selected_backend(),
+        selected_backend_label: host.selected_backend_label(),
         response_meta: host.response_meta(),
         attempt_count: host.attempt_count(),
         started_at: host.started_at(),
@@ -1278,6 +1295,7 @@ rules:
             received_at: std::time::UNIX_EPOCH,
             selected_pool: None,
             selected_backend: None,
+            selected_backend_label: None,
             response_meta: None,
             attempt_count: 0,
             started_at: Instant::now(),
@@ -2325,6 +2343,7 @@ rules:
             received_at: std::time::UNIX_EPOCH,
             selected_pool: None,
             selected_backend: None,
+            selected_backend_label: None,
             response_meta: None,
             attempt_count: 1,
             started_at: Instant::now(),
@@ -2393,6 +2412,7 @@ rules:
             received_at: received,
             selected_pool: Some("vip".into()),
             selected_backend: Some("198.51.100.1:53".parse().unwrap()),
+            selected_backend_label: Some("vip-east".into()),
             response_meta: None,
             attempt_count: 0,
             started_at: Instant::now(),
@@ -2436,6 +2456,18 @@ rules:
         );
         assert_eq!(
             engine
+                .eval_with_scope::<String>(&mut scope, "txn.selected_backend()")
+                .unwrap(),
+            "198.51.100.1:53"
+        );
+        assert_eq!(
+            engine
+                .eval_with_scope::<String>(&mut scope, "txn.selected_backend_name()")
+                .unwrap(),
+            "vip-east"
+        );
+        assert_eq!(
+            engine
                 .eval_with_scope::<i64>(&mut scope, "txn.utc_hour()")
                 .unwrap(),
             4
@@ -2467,6 +2499,7 @@ rules:
             received_at: UNIX_EPOCH,
             selected_pool: Some("default".into()),
             selected_backend: Some("198.51.100.1:53".parse().unwrap()),
+            selected_backend_label: None,
             response_meta: Some(ResponseWireMeta {
                 answer_count: 2,
                 authority_count: 0,
@@ -2492,6 +2525,25 @@ rules:
                 .eval_with_scope::<i64>(&mut scope, "txn.response_answer_count()")
                 .unwrap(),
             2
+        );
+        assert!(engine
+            .eval_with_scope::<bool>(
+                &mut scope,
+                r#"txn.response()?.backend == "198.51.100.1:53""#
+            )
+            .unwrap());
+        // With no configured backend name, `backend_name` falls back to the address.
+        assert!(engine
+            .eval_with_scope::<bool>(
+                &mut scope,
+                r#"txn.response()?.backend_name == "198.51.100.1:53""#
+            )
+            .unwrap());
+        assert_eq!(
+            engine
+                .eval_with_scope::<String>(&mut scope, "txn.selected_backend_name()")
+                .unwrap(),
+            "198.51.100.1:53"
         );
     }
 }

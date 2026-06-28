@@ -22,6 +22,7 @@ pub struct MockHost {
     pub received_at: SystemTime,
     pub selected_pool: Option<String>,
     pub selected_backend: Option<SocketAddr>,
+    pub selected_backend_label: Option<String>,
     pub response_meta: Option<ResponseWireMeta>,
     pub pool: Option<String>,
     pub retry: Option<String>,
@@ -58,6 +59,7 @@ impl Default for MockHost {
             received_at: UNIX_EPOCH,
             selected_pool: None,
             selected_backend: None,
+            selected_backend_label: None,
             response_meta: None,
             pool: None,
             retry: None,
@@ -140,6 +142,12 @@ impl HostTransaction for MockHost {
 
     fn selected_backend(&self) -> Option<SocketAddr> {
         self.selected_backend
+    }
+
+    fn selected_backend_label(&self) -> Option<String> {
+        self.selected_backend_label
+            .clone()
+            .or_else(|| self.selected_backend.map(|a| a.to_string()))
     }
 
     fn response_rcode_number(&self) -> Option<u16> {

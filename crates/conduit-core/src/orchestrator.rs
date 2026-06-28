@@ -268,7 +268,7 @@ impl Orchestrator {
                 phase_name(phase),
                 None,
                 txn.selected_pool.clone(),
-                txn.selected_backend.map(|a| a.to_string()),
+                txn.selected_backend_display(),
             );
             if phase == Phase::RequestRules {
                 observe_after_request_rules(txn, snapshot, events, tracing);
@@ -393,8 +393,7 @@ impl Orchestrator {
                 pool = %log_text(txn.selected_pool.as_deref().unwrap_or("-")),
                 backend = %log_text(
                     &txn
-                        .selected_backend
-                        .map(|a| a.to_string())
+                        .selected_backend_display()
                         .unwrap_or_else(|| "-".into())
                 ),
                 attempts = txn.attempt_count,
