@@ -10,13 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://egon1024.github.io/DNSConduit/0.15.0/concepts/planned-plugin-models/">
+        <link rel="canonical" href="https://egon1024.github.io/DNSConduit/0.15.0/guides/dataplane-runtime-tuning/">
       
       
-        <link rel="prev" href="../architecture-and-packet-path/">
+        <link rel="prev" href="../dual-stack-forwarding/">
       
       
-        <link rel="next" href="../../policy-routing/">
+        <link rel="next" href="../control-plane-workflows/">
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
@@ -24,7 +24,7 @@
     
     
       
-        <title>Planned plugin models - DNS Conduit</title>
+        <title>Dataplane runtime tuning - DNS Conduit</title>
       
     
     
@@ -84,7 +84,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#planned-plugin-models" class="md-skip">
+        <a href="#dataplane-runtime-tuning" class="md-skip">
           Skip to content
         </a>
       
@@ -124,7 +124,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Planned plugin models
+              Dataplane runtime tuning
             
           </span>
         </div>
@@ -433,19 +433,17 @@
       
   
   
-    
   
   
-  
     
     
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
         
           
           <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
@@ -459,7 +457,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             Concepts
@@ -473,7 +471,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../" class="md-nav__link">
+      <a href="../../concepts/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -494,7 +492,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../architecture-and-packet-path/" class="md-nav__link">
+      <a href="../../concepts/architecture-and-packet-path/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -512,205 +510,18 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  <span class="md-ellipsis">
-    Planned plugin models
-  </span>
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../concepts/runtime-and-concurrency/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
-    Planned plugin models
+    Runtime and concurrency
   </span>
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        
-
-
-
-
-<li class="md-nav__item">
-  
-  <a href="#wasm-planned" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        WASM (planned)
-      
-    </span>
-  </a>
-  
-  
-</li>
-
-      
-        
-
-
-
-
-<li class="md-nav__item">
-  
-  <a href="#sidecar-planned" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Sidecar (planned)
-      
-    </span>
-  </a>
-  
-  
-</li>
-
-      
-        
-
-
-  
-    
-      
-    
-  
-
-
-
-<li class="md-nav__item">
-  
-  <a href="#processor-chains-planned" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Processor chains (planned)
-      
-    </span>
-  </a>
-  
-  
-    <nav class="md-nav md-toc__branch-children" aria-label="Processor chains (planned)">
-      <ul class="md-nav__list">
-        
-          
-            
-
-
-
-
-<li class="md-nav__item">
-  
-  <a href="#policy-refinement-planned" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Policy refinement (planned)
-      
-    </span>
-  </a>
-  
-  
-</li>
-
-          
-        
-      </ul>
-    </nav>
-  
-</li>
-
-      
-        
-
-
-
-
-<li class="md-nav__item">
-  
-  <a href="#lookup-tables-host-feature" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Lookup tables (host feature)
-      
-    </span>
-  </a>
-  
-  
-</li>
-
-      
-        
-
-
-
-
-<li class="md-nav__item">
-  
-  <a href="#policy-metrics-planned-sharing" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Policy metrics (planned sharing)
-      
-    </span>
-  </a>
-  
-  
-</li>
-
-      
-        
-
-
-
-
-<li class="md-nav__item">
-  
-  <a href="#related" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Related
-      
-    </span>
-  </a>
-  
-  
-</li>
-
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -870,7 +681,7 @@
             
   
   <span class="md-ellipsis">
-    Processor chains
+    Control plane
   </span>
   
 
@@ -879,69 +690,6 @@
         
         <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_5">
-            <span class="md-nav__icon md-icon"></span>
-            Processor chains
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../processor-chains/" class="md-nav__link">
-        
-  
-  <span class="md-ellipsis">
-    Overview
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    
-    
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
-        
-          
-          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
-            
-  
-  <span class="md-ellipsis">
-    Control plane
-  </span>
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_6">
             <span class="md-nav__icon md-icon"></span>
             Control plane
           </label>
@@ -1073,10 +821,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
         
           
-          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
             
   
   <span class="md-ellipsis">
@@ -1087,8 +835,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_7">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
             <span class="md-nav__icon md-icon"></span>
             Rhai
           </label>
@@ -1129,10 +877,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7_2" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_2" >
         
           
-          <label class="md-nav__link" for="__nav_7_2" id="__nav_7_2_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_6_2" id="__nav_6_2_label" tabindex="0">
             
   
   <span class="md-ellipsis">
@@ -1143,8 +891,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_7_2_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_7_2">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_2">
             <span class="md-nav__icon md-icon"></span>
             For rules
           </label>
@@ -1204,91 +952,6 @@
   
   <span class="md-ellipsis">
     Transaction API
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    
-    
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7_3" >
-        
-          
-          <label class="md-nav__link" for="__nav_7_3" id="__nav_7_3_label" tabindex="0">
-            
-  
-  <span class="md-ellipsis">
-    For processor chains
-  </span>
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_7_3_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_7_3">
-            <span class="md-nav__icon md-icon"></span>
-            For processor chains
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../rhai/processor-chain-rhai/" class="md-nav__link">
-        
-  
-  <span class="md-ellipsis">
-    Overview
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../rhai/message-api/" class="md-nav__link">
-        
-  
-  <span class="md-ellipsis">
-    Message API
   </span>
   
 
@@ -1390,10 +1053,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
         
           
-          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
             
   
   <span class="md-ellipsis">
@@ -1404,8 +1067,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_8">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
             <span class="md-nav__icon md-icon"></span>
             Observability
           </label>
@@ -1548,20 +1211,22 @@
       
   
   
+    
   
   
+  
     
     
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" checked>
         
           
-          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
             
   
   <span class="md-ellipsis">
@@ -1572,8 +1237,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_9">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_8">
             <span class="md-nav__icon md-icon"></span>
             Guides
           </label>
@@ -1586,7 +1251,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/" class="md-nav__link">
+      <a href="../" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1607,7 +1272,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/rhai-policy/" class="md-nav__link">
+      <a href="../rhai-policy/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1628,7 +1293,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/dual-stack-forwarding/" class="md-nav__link">
+      <a href="../dual-stack-forwarding/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1646,10 +1311,223 @@
                 
   
   
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  <span class="md-ellipsis">
+    Dataplane runtime tuning
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  <span class="md-ellipsis">
+    Dataplane runtime tuning
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        
+
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#when-to-use-sync-vs-split_io" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When to use sync vs split_io
+      
+    </span>
+  </a>
+  
+  
+</li>
+
+      
+        
+
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#baseline-split_io-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Baseline split_io configuration
+      
+    </span>
+  </a>
+  
+  
+</li>
+
+      
+        
+
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#sizing-the-worker-pools" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sizing the worker pools
+      
+    </span>
+  </a>
+  
+  
+</li>
+
+      
+        
+
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#sizing-the-slot-pool-and-concurrency-caps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sizing the slot pool and concurrency caps
+      
+    </span>
+  </a>
+  
+  
+</li>
+
+      
+        
+
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#socket-buffers-for-high-volume-udp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Socket buffers for high-volume UDP
+      
+    </span>
+  </a>
+  
+  
+</li>
+
+      
+        
+
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#verify-with-metrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verify with metrics
+      
+    </span>
+  </a>
+  
+  
+</li>
+
+      
+        
+
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#symptom-knob" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Symptom → knob
+      
+    </span>
+  </a>
+  
+  
+</li>
+
+      
+        
+
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#related-topics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Related topics
+      
+    </span>
+  </a>
+  
+  
+</li>
+
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
   
   
     <li class="md-nav__item">
-      <a href="../../guides/control-plane-workflows/" class="md-nav__link">
+      <a href="../control-plane-workflows/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1670,7 +1548,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/metrics-and-tracing/" class="md-nav__link">
+      <a href="../metrics-and-tracing/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1691,7 +1569,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/event-export-dnstap/" class="md-nav__link">
+      <a href="../event-export-dnstap/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1712,7 +1590,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/operator-metrics-profiles/" class="md-nav__link">
+      <a href="../operator-metrics-profiles/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1747,10 +1625,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" >
         
           
-          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
             
   
   <span class="md-ellipsis">
@@ -1761,8 +1639,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_10">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
             <span class="md-nav__icon md-icon"></span>
             Security
           </label>
@@ -1892,10 +1770,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_13" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_12" >
         
           
-          <label class="md-nav__link" for="__nav_13" id="__nav_13_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_12" id="__nav_12_label" tabindex="0">
             
   
   <span class="md-ellipsis">
@@ -1906,8 +1784,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_13_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_13">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_12">
             <span class="md-nav__icon md-icon"></span>
             Release notes
           </label>
@@ -1976,10 +1854,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_14" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_13" >
         
           
-          <label class="md-nav__link" for="__nav_14" id="__nav_14_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_13" id="__nav_13_label" tabindex="0">
             
   
   <span class="md-ellipsis">
@@ -1990,8 +1868,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_14_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_14">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_13_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_13">
             <span class="md-nav__icon md-icon"></span>
             Reference
           </label>
@@ -2032,10 +1910,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_14_2" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_13_2" >
         
           
-          <label class="md-nav__link" for="__nav_14_2" id="__nav_14_2_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_13_2" id="__nav_13_2_label" tabindex="0">
             
   
   <span class="md-ellipsis">
@@ -2046,8 +1924,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_14_2_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_14_2">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_13_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_13_2">
             <span class="md-nav__icon md-icon"></span>
             Config schema
           </label>
@@ -2149,6 +2027,48 @@
   
   <span class="md-ellipsis">
     Orchestrator
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/config-schema/dataplane/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Dataplane
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/config-schema/shutdown/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Shutdown
   </span>
   
 
@@ -2371,10 +2291,10 @@
 
 <li class="md-nav__item">
   
-  <a href="#wasm-planned" class="md-nav__link">
+  <a href="#when-to-use-sync-vs-split_io" class="md-nav__link">
     <span class="md-ellipsis">
       
-        WASM (planned)
+        When to use sync vs split_io
       
     </span>
   </a>
@@ -2390,81 +2310,10 @@
 
 <li class="md-nav__item">
   
-  <a href="#sidecar-planned" class="md-nav__link">
+  <a href="#baseline-split_io-configuration" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Sidecar (planned)
-      
-    </span>
-  </a>
-  
-  
-</li>
-
-      
-        
-
-
-  
-    
-      
-    
-  
-
-
-
-<li class="md-nav__item">
-  
-  <a href="#processor-chains-planned" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Processor chains (planned)
-      
-    </span>
-  </a>
-  
-  
-    <nav class="md-nav md-toc__branch-children" aria-label="Processor chains (planned)">
-      <ul class="md-nav__list">
-        
-          
-            
-
-
-
-
-<li class="md-nav__item">
-  
-  <a href="#policy-refinement-planned" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Policy refinement (planned)
-      
-    </span>
-  </a>
-  
-  
-</li>
-
-          
-        
-      </ul>
-    </nav>
-  
-</li>
-
-      
-        
-
-
-
-
-<li class="md-nav__item">
-  
-  <a href="#lookup-tables-host-feature" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Lookup tables (host feature)
+        Baseline split_io configuration
       
     </span>
   </a>
@@ -2480,10 +2329,10 @@
 
 <li class="md-nav__item">
   
-  <a href="#policy-metrics-planned-sharing" class="md-nav__link">
+  <a href="#sizing-the-worker-pools" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Policy metrics (planned sharing)
+        Sizing the worker pools
       
     </span>
   </a>
@@ -2499,10 +2348,86 @@
 
 <li class="md-nav__item">
   
-  <a href="#related" class="md-nav__link">
+  <a href="#sizing-the-slot-pool-and-concurrency-caps" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Related
+        Sizing the slot pool and concurrency caps
+      
+    </span>
+  </a>
+  
+  
+</li>
+
+      
+        
+
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#socket-buffers-for-high-volume-udp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Socket buffers for high-volume UDP
+      
+    </span>
+  </a>
+  
+  
+</li>
+
+      
+        
+
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#verify-with-metrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verify with metrics
+      
+    </span>
+  </a>
+  
+  
+</li>
+
+      
+        
+
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#symptom-knob" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Symptom → knob
+      
+    </span>
+  </a>
+  
+  
+</li>
+
+      
+        
+
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#related-topics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Related topics
       
     </span>
   </a>
@@ -2529,97 +2454,230 @@
   
 
 
-<h1 id="planned-plugin-models">Planned plugin models</h1>
-<p><a href="../../glossary/#wasm">WASM</a>, <a href="../../glossary/#sidecar">sidecar</a>, and <strong><a href="../../processor-chains/">processor chains</a></strong> are <strong>not yet shipped</strong>. This page describes what is planned — not what you can configure today.</p>
-<p><strong>Shipped today:</strong> declarative <a href="../../policy-routing/rules-and-actions/">rules</a> and <strong>Rhai for rules</strong> (<a href="../../glossary/#rule-rhai">Rule Rhai</a>) on the same request/response hooks. Behavioral home: <a href="../../policy-routing/">Policy &amp; routing</a>. Rhai reference: <a href="../../rhai/rule-rhai/">Rhai for rules</a> under <a href="../../rhai/">Rhai</a>. The <a href="../../rhai/">Rhai</a> section covers script APIs; <a href="../../processor-chains/">Processor chains</a> covers planned <code>processors:</code> wiring and backends.</p>
-<h2 id="wasm-planned">WASM (planned)</h2>
-<p><strong><a href="../../glossary/#wasm">WASM</a></strong> is a planned in-process plugin model: compiled <code>.wasm</code> files loaded inside <code>conduit</code> on the same <a href="../architecture-and-packet-path/#request-rules">Request rules</a> and <a href="../architecture-and-packet-path/#response-rules">Response rules</a> hooks as <a href="../../glossary/#rule-rhai">Rule Rhai</a>.</p>
-<p>Operators would deploy plugin artifacts, grant access to named lookup tables, and rely on Conduit’s sandbox around guest code. Targets near-native speed and stronger isolation for untrusted third-party logic.</p>
-<p>Configuration and workflows will be documented when the feature ships.</p>
-<h2 id="sidecar-planned">Sidecar (planned)</h2>
-<p><strong><a href="../../glossary/#sidecar">Sidecar</a></strong> is a planned plugin model: separate processes Conduit calls over gRPC or a Unix-domain socket on the same logical policy hooks as <a href="../../glossary/#rule-rhai">Rule Rhai</a> and <a href="../../glossary/#wasm">WASM</a>.</p>
-<p>Sidecars trade per-query latency for running code in another language or an existing service. They suit lower-QPS policy paths or teams that prefer a helper service over in-process plugins.</p>
-<p><strong>Not yet shipped.</strong></p>
-<h2 id="processor-chains-planned">Processor chains (planned)</h2>
-<p><strong>Processor chains</strong> are a planned datapath feature — separate from <code>rules:</code> — documented as a feature section when they ship. <strong>Feature home:</strong> <a href="../../processor-chains/">Processor chains</a>.</p>
-<p>They attach at named pipeline points (for example after <a href="../architecture-and-packet-path/#request-rules">Request rules</a> and after upstream response) and are the planned home for <strong>DNS wire editing</strong>: ingress query changes (including qname rewrite), egress response mutation, EDNS/EDE, and conveniences such as RD-bit control that Rhai for rules does not provide today.</p>
-<p>Backends in a chain may include:</p>
+<h1 id="dataplane-runtime-tuning">Dataplane runtime tuning</h1>
+<p>Practical guidance for choosing a <a href="../../concepts/runtime-and-concurrency/#runtime-models">dataplane runtime model</a> and sizing its worker pools for production. This guide is task-oriented: when to stay on <strong><code>sync</code></strong>, when to move to <strong><code>split_io</code></strong>, how to size ingress/policy/I/O workers and the slot pool, and how to confirm the result with metrics. For <em>how</em> each runtime executes a query, see <a href="../../concepts/runtime-and-concurrency/">Runtime and concurrency</a>; for field defaults and validation, see <a href="../../reference/config-schema/dataplane/">Reference: dataplane</a>, <a href="../../reference/config-schema/listeners/">Reference: listeners</a>, and <a href="../../reference/config-schema/forward/">Reference: forward</a>.</p>
+<div class="admonition note">
+<p class="admonition-title">Every setting on this page needs a restart</p>
+<p><code>dataplane:</code>, <code>listeners:</code>, and <code>forward:</code> are <strong>start-time</strong> settings. A <a href="../../glossary/#reload-from-disk">reload</a> or <code>conduitctl apply</code> updates the stored <a href="../../glossary/#runtime-snapshot">snapshot</a> so <a href="../../control-plane/reload-and-export/">export</a> reflects your intent, but the running runtime model, worker counts, sockets, and <code>max_inflight</code> do <strong>not</strong> change until you <strong>restart</strong> <code>conduit</code>. See <a href="../../control-plane/configuration-model/#pending-reconcile-restart-required">Configuration model — Pending reconcile</a>.</p>
+</div>
+<h2 id="when-to-use-sync-vs-split_io">When to use <code>sync</code> vs <code>split_io</code></h2>
+<p>The deciding factor is <strong>upstream latency under load</strong>. Under <a href="../../concepts/runtime-and-concurrency/#sync-runtime-default"><code>sync</code></a>, each ingress worker runs the whole pipeline on its own thread <em>including the blocking upstream wait</em>, so a busy worker cannot accept another client query until its current <a href="../../glossary/#transaction">transaction</a> finishes. Under <a href="../../concepts/runtime-and-concurrency/#split-io-runtime"><code>split_io</code></a>, the upstream wait is <strong>parked</strong> on an I/O worker, so ingress and policy workers keep serving other queries during slow upstreams.</p>
+<pre class="mermaid"><code>flowchart TD
+  start[Choosing a runtime] --&gt; q1{Upstreams fast and stable?}
+  q1 --&gt;|yes| q2{Concurrency met by ingress threads alone?}
+  q2 --&gt;|yes| sync[Use sync default]
+  q2 --&gt;|no| split1[Consider split_io]
+  q1 --&gt;|no, slow or variable| split2[Use split_io]
+  split1 --&gt; split[split_io]
+  split2 --&gt; split</code></pre>
 <table>
 <thead>
 <tr>
-<th>Backend</th>
-<th>Reference</th>
+<th>Choose <strong><code>sync</code></strong> when…</th>
+<th>Choose <strong><code>split_io</code></strong> when…</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><a href="../../glossary/#processor-chain-rhai">Processor-chain Rhai</a></td>
-<td><a href="../../rhai/processor-chain-rhai/">Rhai for processor chains</a>, <a href="../../rhai/message-api/">Message API</a> (<code>conduit-dns</code>)</td>
+<td>Upstreams are fast and on a low-latency network</td>
+<td>Upstreams are remote, variable, or occasionally slow</td>
 </tr>
 <tr>
-<td><a href="../../glossary/#wasm">WASM</a></td>
-<td>This page — WASM (planned)</td>
+<td>Deployment is small, a lab, or test</td>
+<td>You serve production load where ingress must not stall on upstream latency</td>
 </tr>
 <tr>
-<td><a href="../../glossary/#sidecar">Sidecar</a></td>
-<td>This page — Sidecar (planned)</td>
+<td>You want the simplest model with the fewest threads</td>
+<td>You need many concurrent in-flight upstream waits without one-thread-per-wait cost</td>
 </tr>
 </tbody>
 </table>
-<p>Rhai for rules and Rhai for processor chains are <strong>different</strong> config and APIs; both may coexist when processor chains ship.</p>
-<h3 id="policy-refinement-planned">Policy refinement (planned)</h3>
-<p>Processor chains are <strong>not</strong> a replacement for <a href="../../policy-routing/rules-and-actions/">rules</a>. <a href="../architecture-and-packet-path/#request-rules">Request rules</a> and <a href="../architecture-and-packet-path/#response-rules">Response rules</a> still run first on their hooks. Processors run at fixed pipeline slots <strong>after</strong> those phases and may <strong>refine</strong> the <a href="../../glossary/#transaction">transaction</a> before <a href="../architecture-and-packet-path/#route">Route</a> or before <a href="../architecture-and-packet-path/#response-rules">Response rules</a>.</p>
-<p>Full table and notes: <a href="../../processor-chains/#policy-refinement-planned">Processor chains — policy refinement</a>.</p>
-<p>Use <strong>tags</strong> to tie rules and processors to one logical decision: a rule (or Rhai for rules) matches on the <strong>client</strong> query and sets tags; a processor link runs with a matching <code>when:</code> guard (or checks tags in script) and rewrites wire or refines pool/tags before routing or response policy.</p>
-<p>Rhai for rules cannot set pool from wire inspection after rewrite — processor chains are the planned place for that combined behavior without overloading <code>rules:</code>.</p>
-<h2 id="lookup-tables-host-feature">Lookup tables (host feature)</h2>
-<p>Lookup tables under <strong><code>data_sources:</code></strong> are host-owned data loaded at <a href="../../glossary/#runtime-snapshot">runtime snapshot</a> build. In current releases, only Rhai for rules calls <strong><code>table_lookup</code></strong>; planned <a href="../../glossary/#wasm">WASM</a>, <a href="../../glossary/#sidecar">sidecar</a>, and processor-chain backends would share the same host lookup surface.</p>
-<p>Current behavior and config paths: <a href="../../rhai/data-sources-and-lookups/">Data sources and lookups</a>.</p>
-<h2 id="policy-metrics-planned-sharing">Policy metrics (planned sharing)</h2>
-<p>In current releases, only Rhai for rules can publish custom policy metrics (<code>metric_inc</code> → <code>conduit_user_*</code>). See <a href="../../rhai/user-metrics/">User metrics</a>.</p>
+<p><code>sync</code> is the default — omitting the <code>dataplane:</code> block runs it. Moving to <code>split_io</code> changes no pipeline behavior or policy semantics; it only changes how the wait is scheduled.</p>
+<h2 id="baseline-split_io-configuration">Baseline <code>split_io</code> configuration</h2>
+<p>A production starting point: dedicated ingress threads with <code>reuse_port</code> on UDP, a small policy pool, and a single I/O worker.</p>
+<div class="highlight"><pre><span></span><code><span class="nt">schema_version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="nt">dataplane</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">runtime</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">split_io</span>
+<span class="w">  </span><span class="nt">policy_workers</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span><span class="w">      </span><span class="c1"># concurrent policy/Rhai execution</span>
+<span class="w">  </span><span class="nt">io_workers</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w">          </span><span class="c1"># one I/O worker handles many parked waits</span>
+<span class="nt">listeners</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">threads</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span><span class="w">             </span><span class="c1"># ingress workers per listener entry</span>
+<span class="w">  </span><span class="nt">reuse_port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">       </span><span class="c1"># required on Unix when threads &gt; 1 on UDP</span>
+<span class="w">  </span><span class="nt">listeners</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">address</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;0.0.0.0:53&quot;</span>
+<span class="w">      </span><span class="nt">protocol</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">udp</span>
+<span class="w">      </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">public-udp</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">address</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;0.0.0.0:53&quot;</span>
+<span class="w">      </span><span class="nt">protocol</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tcp</span>
+<span class="w">      </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">public-tcp</span>
+<span class="nt">pools</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default</span>
+<span class="w">    </span><span class="nt">backends</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">address</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;10.0.0.1:53&quot;</span>
+<span class="w">        </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">resolver-a</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>conduitctl<span class="w"> </span>validate<span class="w"> </span>--file<span class="w"> </span>conduit.yaml
+conduit<span class="w"> </span>/path/to/conduit.yaml
+</code></pre></div>
+<p>Start from this and adjust one dimension at a time, re-checking metrics (below) after each change.</p>
+<h2 id="sizing-the-worker-pools">Sizing the worker pools</h2>
+<p><code>split_io</code> has three independent pools. Size them to the resource each one spends time on.</p>
 <table>
 <thead>
 <tr>
-<th>Mechanism</th>
-<th>Custom metrics (write)</th>
-<th>In current releases</th>
+<th>Pool</th>
+<th>Setting</th>
+<th>Default</th>
+<th>Raise when…</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Built-in <a href="../../policy-routing/rules-and-actions/">rules</a></td>
-<td>No</td>
-<td>Yes (rules only)</td>
+<td><strong>Ingress</strong></td>
+<td><a href="../../reference/config-schema/listeners/#block-fields"><code>listeners.threads</code></a> (per listener entry)</td>
+<td><strong>1</strong></td>
+<td>Inbound packet rate saturates the accept path; high-volume addresses can use a <a href="../../reference/config-schema/listeners/#per-listener-overrides-and-inheritance">per-listener <code>threads</code> override</a></td>
 </tr>
 <tr>
-<td><a href="../../glossary/#rule-rhai">Rule Rhai</a></td>
-<td>Yes</td>
-<td>Yes</td>
+<td><strong>Policy</strong></td>
+<td><a href="../../reference/config-schema/dataplane/#worker-pools-split_io"><code>dataplane.policy_workers</code></a></td>
+<td><strong>1</strong></td>
+<td>CPU-bound policy or <a href="../../rhai/">Rhai</a> work is the bottleneck (high <code>request_rules</code> / <code>response_rules</code> <a href="../../observability/built-in-metrics/#conduit_phase_duration_seconds">phase time</a>)</td>
 </tr>
 <tr>
-<td><a href="../../glossary/#wasm">WASM</a></td>
-<td>Planned — same host APIs as Rhai for rules</td>
-<td>No</td>
-</tr>
-<tr>
-<td><a href="../../glossary/#sidecar">Sidecar</a></td>
-<td>Planned — deltas via hook protocol</td>
-<td>No</td>
-</tr>
-<tr>
-<td>Processor chains</td>
-<td>Planned</td>
-<td>No</td>
+<td><strong>I/O</strong></td>
+<td><a href="../../reference/config-schema/dataplane/#worker-pools-split_io"><code>dataplane.io_workers</code></a></td>
+<td><strong>1</strong></td>
+<td>A single I/O worker cannot keep up with upstream socket fan-out at very high concurrency</td>
 </tr>
 </tbody>
 </table>
-<p>Built-in <a href="../../observability/metrics/">metrics</a> on the <a href="../../glossary/#dataplane">dataplane</a> still reflect rule outcomes regardless of plugin model.</p>
-<h2 id="related">Related</h2>
+<p>Guidelines:</p>
 <ul>
-<li><a href="../../processor-chains/">Processor chains</a></li>
-<li><a href="../../policy-routing/">Policy &amp; routing</a> — declarative policy and Rhai for rules today</li>
-<li><a href="../../rhai/">Rhai</a> — Rhai for rules and Rhai for processor chains</li>
-<li><a href="../architecture-and-packet-path/">Architecture and packet path</a> — pipeline phases</li>
+<li><strong>Start with <code>io_workers: 1</code>.</strong> One I/O worker parks and resumes many concurrent waits via the event loop; it is rarely the first bottleneck. Increase only if I/O is demonstrably saturated.</li>
+<li><strong>Set <code>policy_workers</code> to your available policy CPU budget</strong> (commonly a small multiple of cores, e.g. 2–8), especially with non-trivial Rhai. This pool runs the orchestrator phases and scripts.</li>
+<li><strong>Use <code>reuse_port: true</code> on UDP whenever <code>listeners.threads</code> &gt; 1.</strong> On Unix, a second UDP worker binding the same address fails at startup without it. It is ignored for TCP. See <a href="../../reference/config-schema/listeners/#reuse_port-and-threads"><code>reuse_port</code> and <code>threads</code></a>.</li>
+<li><strong>Give busy listeners their own <code>threads</code></strong> with a per-listener override and leave low-traffic listeners on the block default.</li>
+</ul>
+<h2 id="sizing-the-slot-pool-and-concurrency-caps">Sizing the slot pool and concurrency caps</h2>
+<p>Every in-flight query holds one <a href="../../concepts/runtime-and-concurrency/#transaction-slot-pool">transaction slot</a> for its whole lifetime — including while a <code>split_io</code> query is parked waiting upstream. The pool grows in chunks up to a ceiling:</p>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Default</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../../reference/config-schema/orchestrator/"><code>orchestrator.txn_table_capacity</code></a></td>
+<td><strong>1024</strong></td>
+<td>Hard ceiling on concurrent in-flight transactions. When full, Conduit applies backpressure and increments <a href="../../observability/built-in-metrics/#conduit_slot_pool_exhausted_total"><code>conduit_slot_pool_exhausted_total</code></a>.</td>
+</tr>
+<tr>
+<td><a href="../../reference/config-schema/dataplane/#slot-chunk-size"><code>dataplane.slot_chunk_size</code></a></td>
+<td><strong>256</strong></td>
+<td>Slots allocated per growth step — trades steady-state memory against allocation frequency. Does not change the ceiling.</td>
+</tr>
+<tr>
+<td><a href="../../reference/config-schema/forward/"><code>forward.outstanding_per_backend</code></a></td>
+<td><strong>100</strong></td>
+<td>Cap on concurrent upstream queries to a single backend address; excess fails with <code>table_full</code>.</td>
+</tr>
+<tr>
+<td><a href="../../reference/config-schema/pools/#per-pool-in-flight-limit"><code>pools[].max_inflight</code></a></td>
+<td>(unset)</td>
+<td>Optional per-pool concurrent-forward cap; over the cap returns <strong>SERVFAIL</strong> immediately. Enforced under <code>split_io</code> only.</td>
+</tr>
+</tbody>
+</table>
+<p>Size <code>txn_table_capacity</code> to roughly <strong>peak query rate × average transaction duration</strong> (including upstream wait), with headroom. With slow upstreams and high concurrency, the default 1024 can be too low — slot exhaustion shows up well before CPU or upstream limits. Raising the ceiling needs a <strong>restart</strong>.</p>
+<h2 id="socket-buffers-for-high-volume-udp">Socket buffers for high-volume UDP</h2>
+<p>For high-volume UDP ingress, a larger receive buffer reduces kernel drops during bursts:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">listeners</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">threads</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span>
+<span class="w">  </span><span class="nt">reuse_port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">rcvbuf</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4194304</span><span class="w">        </span><span class="c1"># 4 MiB; only applied when &gt; 0</span>
+<span class="w">  </span><span class="nt">listeners</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">address</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;10.0.0.5:53&quot;</span>
+<span class="w">      </span><span class="nt">protocol</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">udp</span>
+</code></pre></div>
+<p><code>rcvbuf</code> applies to UDP only and can be overridden per listener. There is no per-listener <code>sndbuf</code> today (the block-level <code>sndbuf</code> is reserved and not applied). See <a href="../../reference/config-schema/listeners/#block-fields">Reference: listeners — Block fields</a>.</p>
+<h2 id="verify-with-metrics">Verify with metrics</h2>
+<p>Run the <strong><code>full</code></strong> <a href="../../observability/built-in-metrics/#profiles">metrics profile</a> while tuning so the slot gauges and phase histograms are available, and scrape with <code>curl</code> (a Prometheus server is not required):</p>
+<div class="highlight"><pre><span></span><code>curl<span class="w"> </span>-sS<span class="w"> </span><span class="s2">&quot;http://127.0.0.1:9090/metrics&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-E<span class="w"> </span><span class="s1">&#39;^conduit_(forward_outstanding|slots_in_use|slots_capacity|slot_pool_exhausted_total)&#39;</span>
+</code></pre></div>
+<p>What to look for:</p>
+<ul>
+<li><a href="../../observability/built-in-metrics/#conduit_forward_outstanding"><code>conduit_forward_outstanding</code></a> — concurrent upstream waits per backend. Under <code>split_io</code>, a sustained high value against a slow upstream is the <strong>expected</strong> concurrency signal (parked waits), not busy-worker backlog.</li>
+<li><a href="../../observability/built-in-metrics/#conduit_slots_in_use"><code>conduit_slots_in_use</code></a> vs <a href="../../observability/built-in-metrics/#conduit_slots_capacity"><code>conduit_slots_capacity</code></a> — slot-pool utilization. Sustained <code>in_use</code> near <code>capacity</code> precedes exhaustion; raise <code>orchestrator.txn_table_capacity</code>.</li>
+<li><a href="../../observability/built-in-metrics/#conduit_slot_pool_exhausted_total"><code>conduit_slot_pool_exhausted_total</code></a> — any non-zero rate means the slot pool is the bottleneck (shed queries).</li>
+<li><a href="../../observability/built-in-metrics/#conduit_phase_duration_seconds"><code>conduit_phase_duration_seconds</code></a> — high <code>request_rules</code> / <code>response_rules</code> time points at policy CPU (raise <code>policy_workers</code>); high <code>wait_response</code> time is upstream latency (a forwarding/upstream problem, not a worker-count one).</li>
+</ul>
+<p>Useful PromQL:</p>
+<div class="highlight"><pre><span></span><code><span class="k">sum</span><span class="o">(</span><span class="nv">conduit_forward_outstanding</span><span class="o">)</span><span class="w"> </span><span class="k">by</span><span class="w"> </span><span class="o">(</span><span class="nv">pool</span><span class="p">,</span><span class="w"> </span><span class="nv">backend</span><span class="o">)</span>
+<span class="nv">conduit_slots_in_use</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="nv">conduit_slots_capacity</span>
+<span class="k">sum</span><span class="o">(</span><span class="kr">rate</span><span class="o">(</span><span class="nv">conduit_slot_pool_exhausted_total</span><span class="p">[</span><span class="s">5m</span><span class="p">]</span><span class="o">))</span>
+<span class="kr">histogram_quantile</span><span class="o">(</span><span class="mf">0.99</span><span class="p">,</span><span class="w"> </span><span class="k">sum</span><span class="o">(</span><span class="kr">rate</span><span class="o">(</span><span class="nv">conduit_phase_duration_seconds_bucket</span><span class="p">{</span><span class="nl">phase</span><span class="o">=</span><span class="p">&quot;</span><span class="s">wait_response</span><span class="p">&quot;}[</span><span class="s">5m</span><span class="p">]</span><span class="o">))</span><span class="w"> </span><span class="k">by</span><span class="w"> </span><span class="o">(</span><span class="nv">le</span><span class="o">))</span>
+</code></pre></div>
+<h2 id="symptom-knob">Symptom → knob</h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Likely cause</th>
+<th>Knob (restart)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Ingress stalls during slow upstreams under <code>sync</code></td>
+<td>Blocking upstream wait ties up ingress threads</td>
+<td>Switch to <code>dataplane.runtime: split_io</code></td>
+</tr>
+<tr>
+<td><code>conduit_slot_pool_exhausted_total</code> rising</td>
+<td>Slot pool ceiling too low for concurrency</td>
+<td>Raise <code>orchestrator.txn_table_capacity</code></td>
+</tr>
+<tr>
+<td>High <code>request_rules</code> / <code>response_rules</code> phase time</td>
+<td>Policy/Rhai CPU-bound</td>
+<td>Raise <code>dataplane.policy_workers</code></td>
+</tr>
+<tr>
+<td><code>forward_errors_total{reason="table_full"}</code></td>
+<td>Per-backend upstream cap hit</td>
+<td>Raise <code>forward.outstanding_per_backend</code> (or add backends)</td>
+</tr>
+<tr>
+<td>Startup bind error with <code>threads &gt; 1</code> on UDP</td>
+<td>Missing <code>SO_REUSEPORT</code></td>
+<td>Set <code>listeners.reuse_port: true</code></td>
+</tr>
+<tr>
+<td>Kernel UDP drops during bursts</td>
+<td>Receive buffer too small</td>
+<td>Set <code>listeners.rcvbuf</code> (UDP)</td>
+</tr>
+<tr>
+<td>SERVFAIL spikes only on one pool under load</td>
+<td><code>pools[].max_inflight</code> cap reached</td>
+<td>Raise or remove the pool <code>max_inflight</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="related-topics">Related topics</h2>
+<ul>
+<li><a href="../../concepts/runtime-and-concurrency/">Runtime and concurrency</a> — runtime models, worker roles, slot pool, drain</li>
+<li><a href="../../reference/config-schema/dataplane/">Reference: dataplane</a> — <code>runtime</code>, <code>policy_workers</code>, <code>io_workers</code>, <code>slot_chunk_size</code></li>
+<li><a href="../../reference/config-schema/listeners/">Reference: listeners</a> — ingress <code>threads</code>, <code>reuse_port</code>, <code>rcvbuf</code>, per-listener overrides</li>
+<li><a href="../../reference/config-schema/forward/">Reference: forward</a> — <code>timeout_ms</code>, <code>outstanding_per_backend</code></li>
+<li><a href="../../reference/config-schema/pools/#per-pool-in-flight-limit">Reference: pools</a> — <code>max_inflight</code></li>
+<li><a href="../../observability/built-in-metrics/">Built-in metrics</a> — slot gauges, <code>forward_outstanding</code>, phase histograms</li>
+<li><a href="../operator-metrics-profiles/">Operator metrics profiles</a> — <code>minimal</code> vs <code>full</code> on the same traffic</li>
 </ul>
 
 

@@ -10,28 +10,28 @@
       
       
       
-        <link rel="canonical" href="https://egon1024.github.io/DNSConduit/0.15.0/rhai/message-api/">
+        <link rel="canonical" href="https://egon1024.github.io/DNSConduit/0.15.0/reference/config-schema/shutdown/">
       
       
-        <link rel="prev" href="../processor-chain-rhai/">
+        <link rel="prev" href="../dataplane/">
       
       
-        <link rel="next" href="../data-sources-and-lookups/">
+        <link rel="next" href="../rules/">
       
       
-      <link rel="icon" href="../../assets/images/favicon.png">
+      <link rel="icon" href="../../../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.5.49">
     
     
       
-        <title>Message API - DNS Conduit</title>
+        <title>Shutdown - DNS Conduit</title>
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.6f8fc17f.min.css">
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.6f8fc17f.min.css">
       
         
-        <link rel="stylesheet" href="../../assets/stylesheets/palette.06af60db.min.css">
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.06af60db.min.css">
       
       
 
@@ -50,15 +50,15 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/version-label.css">
+      <link rel="stylesheet" href="../../../assets/stylesheets/version-label.css">
     
-      <link rel="stylesheet" href="../../assets/stylesheets/column-no-wrap.css">
+      <link rel="stylesheet" href="../../../assets/stylesheets/column-no-wrap.css">
     
-      <link rel="stylesheet" href="../../assets/stylesheets/txn-api.css">
+      <link rel="stylesheet" href="../../../assets/stylesheets/txn-api.css">
     
-      <link rel="stylesheet" href="../../assets/stylesheets/toc-collapse.css">
+      <link rel="stylesheet" href="../../../assets/stylesheets/toc-collapse.css">
     
-    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -84,7 +84,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#message-api" class="md-skip">
+        <a href="#config-schema-shutdown" class="md-skip">
           Skip to content
         </a>
       
@@ -104,7 +104,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="../.." title="DNS Conduit" class="md-header__button md-logo" aria-label="DNS Conduit" data-md-component="logo">
+    <a href="../../.." title="DNS Conduit" class="md-header__button md-logo" aria-label="DNS Conduit" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -124,7 +124,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Message API
+              Shutdown
             
           </span>
         </div>
@@ -239,7 +239,7 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="../.." title="DNS Conduit" class="md-nav__button md-logo" aria-label="DNS Conduit" data-md-component="logo">
+    <a href="../../.." title="DNS Conduit" class="md-nav__button md-logo" aria-label="DNS Conduit" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -269,7 +269,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../.." class="md-nav__link">
+      <a href="../../.." class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -324,7 +324,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../getting-started/" class="md-nav__link">
+      <a href="../../../getting-started/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -345,7 +345,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../getting-started/what-conduit-is-for/" class="md-nav__link">
+      <a href="../../../getting-started/what-conduit-is-for/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -366,7 +366,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../getting-started/install-and-run/" class="md-nav__link">
+      <a href="../../../getting-started/install-and-run/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -387,7 +387,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../getting-started/minimal-configuration/" class="md-nav__link">
+      <a href="../../../getting-started/minimal-configuration/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -408,7 +408,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../getting-started/first-query/" class="md-nav__link">
+      <a href="../../../getting-started/first-query/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -471,7 +471,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../concepts/" class="md-nav__link">
+      <a href="../../../concepts/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -492,7 +492,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../concepts/architecture-and-packet-path/" class="md-nav__link">
+      <a href="../../../concepts/architecture-and-packet-path/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -513,11 +513,11 @@
   
   
     <li class="md-nav__item">
-      <a href="../../concepts/planned-plugin-models/" class="md-nav__link">
+      <a href="../../../concepts/runtime-and-concurrency/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
-    Planned plugin models
+    Runtime and concurrency
   </span>
   
 
@@ -576,7 +576,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../policy-routing/" class="md-nav__link">
+      <a href="../../../policy-routing/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -597,7 +597,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../policy-routing/rules-and-actions/" class="md-nav__link">
+      <a href="../../../policy-routing/rules-and-actions/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -618,7 +618,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../policy-routing/pools-and-backends/" class="md-nav__link">
+      <a href="../../../policy-routing/pools-and-backends/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -639,7 +639,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../policy-routing/retries-and-transactions/" class="md-nav__link">
+      <a href="../../../policy-routing/retries-and-transactions/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -681,7 +681,7 @@
             
   
   <span class="md-ellipsis">
-    Processor chains
+    Control plane
   </span>
   
 
@@ -691,7 +691,7 @@
         <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_5">
             <span class="md-nav__icon md-icon"></span>
-            Processor chains
+            Control plane
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
@@ -702,11 +702,95 @@
   
   
     <li class="md-nav__item">
-      <a href="../../processor-chains/" class="md-nav__link">
+      <a href="../../../control-plane/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
     Overview
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../control-plane/configuration-model/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Configuration model
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../control-plane/config-file/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Config file
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../control-plane/reload-and-export/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Reload and export
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../control-plane/grpc-and-conduitctl/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    gRPC and conduitctl
   </span>
   
 
@@ -744,7 +828,7 @@
             
   
   <span class="md-ellipsis">
-    Control plane
+    Rhai
   </span>
   
 
@@ -753,155 +837,6 @@
         
         <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_6">
-            <span class="md-nav__icon md-icon"></span>
-            Control plane
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../control-plane/" class="md-nav__link">
-        
-  
-  <span class="md-ellipsis">
-    Overview
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../control-plane/configuration-model/" class="md-nav__link">
-        
-  
-  <span class="md-ellipsis">
-    Configuration model
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../control-plane/config-file/" class="md-nav__link">
-        
-  
-  <span class="md-ellipsis">
-    Config file
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../control-plane/reload-and-export/" class="md-nav__link">
-        
-  
-  <span class="md-ellipsis">
-    Reload and export
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../control-plane/grpc-and-conduitctl/" class="md-nav__link">
-        
-  
-  <span class="md-ellipsis">
-    gRPC and conduitctl
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-    
-      
-      
-  
-  
-    
-  
-  
-  
-    
-    
-    
-    
-    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" checked>
-        
-          
-          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
-            
-  
-  <span class="md-ellipsis">
-    Rhai
-  </span>
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_7">
             <span class="md-nav__icon md-icon"></span>
             Rhai
           </label>
@@ -914,7 +849,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../" class="md-nav__link">
+      <a href="../../../rhai/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -942,10 +877,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7_2" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_2" >
         
           
-          <label class="md-nav__link" for="__nav_7_2" id="__nav_7_2_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_6_2" id="__nav_6_2_label" tabindex="0">
             
   
   <span class="md-ellipsis">
@@ -956,8 +891,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_7_2_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_7_2">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_2">
             <span class="md-nav__icon md-icon"></span>
             For rules
           </label>
@@ -970,7 +905,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../rule-rhai/" class="md-nav__link">
+      <a href="../../../rhai/rule-rhai/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -991,7 +926,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../hooks-and-phases/" class="md-nav__link">
+      <a href="../../../rhai/hooks-and-phases/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1012,7 +947,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../transaction-api/" class="md-nav__link">
+      <a href="../../../rhai/transaction-api/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1038,194 +973,10 @@
                 
   
   
-    
-  
-  
-  
-    
-    
-    
-    
-    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7_3" checked>
-        
-          
-          <label class="md-nav__link" for="__nav_7_3" id="__nav_7_3_label" tabindex="0">
-            
-  
-  <span class="md-ellipsis">
-    For processor chains
-  </span>
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_7_3_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_7_3">
-            <span class="md-nav__icon md-icon"></span>
-            For processor chains
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
   
   
     <li class="md-nav__item">
-      <a href="../processor-chain-rhai/" class="md-nav__link">
-        
-  
-  <span class="md-ellipsis">
-    Overview
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-    
-  
-  
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  <span class="md-ellipsis">
-    Message API
-  </span>
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
-        
-  
-  <span class="md-ellipsis">
-    Message API
-  </span>
-  
-
-      </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        
-
-
-
-
-<li class="md-nav__item">
-  
-  <a href="#planned-scope" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Planned scope
-      
-    </span>
-  </a>
-  
-  
-</li>
-
-      
-        
-
-
-
-
-<li class="md-nav__item">
-  
-  <a href="#until-this-ships" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Until this ships
-      
-    </span>
-  </a>
-  
-  
-</li>
-
-      
-        
-
-
-
-
-<li class="md-nav__item">
-  
-  <a href="#related" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Related
-      
-    </span>
-  </a>
-  
-  
-</li>
-
-      
-    </ul>
-  
-</nav>
-      
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../data-sources-and-lookups/" class="md-nav__link">
+      <a href="../../../rhai/data-sources-and-lookups/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1246,7 +997,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../user-metrics/" class="md-nav__link">
+      <a href="../../../rhai/user-metrics/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1267,11 +1018,179 @@
   
   
     <li class="md-nav__item">
-      <a href="../sandbox-limits/" class="md-nav__link">
+      <a href="../../../rhai/sandbox-limits/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
     Sandbox limits
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Observability
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            Observability
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../observability/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Overview
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../observability/metrics/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Metrics
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../observability/built-in-metrics/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Built-in metrics
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../observability/tracing/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Tracing
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../observability/event-export/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Event export
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../observability/logging/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Logging
   </span>
   
 
@@ -1309,7 +1228,7 @@
             
   
   <span class="md-ellipsis">
-    Observability
+    Guides
   </span>
   
 
@@ -1319,7 +1238,7 @@
         <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_8">
             <span class="md-nav__icon md-icon"></span>
-            Observability
+            Guides
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
@@ -1330,7 +1249,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../observability/" class="md-nav__link">
+      <a href="../../../guides/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1351,11 +1270,11 @@
   
   
     <li class="md-nav__item">
-      <a href="../../observability/metrics/" class="md-nav__link">
+      <a href="../../../guides/rhai-policy/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
-    Metrics
+    Rhai policy
   </span>
   
 
@@ -1372,11 +1291,11 @@
   
   
     <li class="md-nav__item">
-      <a href="../../observability/built-in-metrics/" class="md-nav__link">
+      <a href="../../../guides/dual-stack-forwarding/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
-    Built-in metrics
+    Dual-stack forwarding
   </span>
   
 
@@ -1393,11 +1312,11 @@
   
   
     <li class="md-nav__item">
-      <a href="../../observability/tracing/" class="md-nav__link">
+      <a href="../../../guides/dataplane-runtime-tuning/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
-    Tracing
+    Dataplane runtime tuning
   </span>
   
 
@@ -1414,11 +1333,11 @@
   
   
     <li class="md-nav__item">
-      <a href="../../observability/event-export/" class="md-nav__link">
+      <a href="../../../guides/control-plane-workflows/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
-    Event export
+    Control plane workflows
   </span>
   
 
@@ -1435,11 +1354,53 @@
   
   
     <li class="md-nav__item">
-      <a href="../../observability/logging/" class="md-nav__link">
+      <a href="../../../guides/metrics-and-tracing/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
-    Logging
+    Metrics and tracing
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/event-export-dnstap/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Event export and dnstap
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/operator-metrics-profiles/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Operator metrics profiles
   </span>
   
 
@@ -1477,7 +1438,7 @@
             
   
   <span class="md-ellipsis">
-    Guides
+    Security
   </span>
   
 
@@ -1486,195 +1447,6 @@
         
         <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_9">
-            <span class="md-nav__icon md-icon"></span>
-            Guides
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../guides/" class="md-nav__link">
-        
-  
-  <span class="md-ellipsis">
-    Overview
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../guides/rhai-policy/" class="md-nav__link">
-        
-  
-  <span class="md-ellipsis">
-    Rhai policy
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../guides/dual-stack-forwarding/" class="md-nav__link">
-        
-  
-  <span class="md-ellipsis">
-    Dual-stack forwarding
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../guides/control-plane-workflows/" class="md-nav__link">
-        
-  
-  <span class="md-ellipsis">
-    Control plane workflows
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../guides/metrics-and-tracing/" class="md-nav__link">
-        
-  
-  <span class="md-ellipsis">
-    Metrics and tracing
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../guides/event-export-dnstap/" class="md-nav__link">
-        
-  
-  <span class="md-ellipsis">
-    Event export and dnstap
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../guides/operator-metrics-profiles/" class="md-nav__link">
-        
-  
-  <span class="md-ellipsis">
-    Operator metrics profiles
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    
-    
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
-        
-          
-          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="0">
-            
-  
-  <span class="md-ellipsis">
-    Security
-  </span>
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_10">
             <span class="md-nav__icon md-icon"></span>
             Security
           </label>
@@ -1687,7 +1459,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../security/" class="md-nav__link">
+      <a href="../../../security/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1708,7 +1480,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../security/api-keys/" class="md-nav__link">
+      <a href="../../../security/api-keys/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1729,7 +1501,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../security/mtls/" class="md-nav__link">
+      <a href="../../../security/mtls/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1757,7 +1529,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../troubleshooting/" class="md-nav__link">
+      <a href="../../../troubleshooting/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1777,7 +1549,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../glossary/" class="md-nav__link">
+      <a href="../../../glossary/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1804,10 +1576,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_13" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_12" >
         
           
-          <label class="md-nav__link" for="__nav_13" id="__nav_13_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_12" id="__nav_12_label" tabindex="0">
             
   
   <span class="md-ellipsis">
@@ -1818,8 +1590,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_13_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_13">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_12">
             <span class="md-nav__icon md-icon"></span>
             Release notes
           </label>
@@ -1832,7 +1604,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../release-notes/" class="md-nav__link">
+      <a href="../../../release-notes/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1853,7 +1625,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../release-notes/unreleased/" class="md-nav__link">
+      <a href="../../../release-notes/unreleased/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1878,20 +1650,22 @@
       
   
   
+    
   
   
+  
     
     
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_14" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_13" checked>
         
           
-          <label class="md-nav__link" for="__nav_14" id="__nav_14_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_13" id="__nav_13_label" tabindex="0">
             
   
   <span class="md-ellipsis">
@@ -1902,8 +1676,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_14_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_14">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_13_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_13">
             <span class="md-nav__icon md-icon"></span>
             Reference
           </label>
@@ -1916,7 +1690,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/" class="md-nav__link">
+      <a href="../../" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1934,20 +1708,22 @@
                 
   
   
+    
   
   
+  
     
     
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_14_2" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_13_2" checked>
         
           
-          <label class="md-nav__link" for="__nav_14_2" id="__nav_14_2_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_13_2" id="__nav_13_2_label" tabindex="0">
             
   
   <span class="md-ellipsis">
@@ -1958,8 +1734,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_14_2_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_14_2">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_13_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_13_2">
             <span class="md-nav__icon md-icon"></span>
             Config schema
           </label>
@@ -1972,7 +1748,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/config-schema/" class="md-nav__link">
+      <a href="../" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1993,7 +1769,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/config-schema/listeners/" class="md-nav__link">
+      <a href="../listeners/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -2014,7 +1790,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/config-schema/pools/" class="md-nav__link">
+      <a href="../pools/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -2035,7 +1811,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/config-schema/forward/" class="md-nav__link">
+      <a href="../forward/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -2056,7 +1832,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/config-schema/orchestrator/" class="md-nav__link">
+      <a href="../orchestrator/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -2077,7 +1853,280 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/config-schema/rules/" class="md-nav__link">
+      <a href="../dataplane/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Dataplane
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  <span class="md-ellipsis">
+    Shutdown
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  <span class="md-ellipsis">
+    Shutdown
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        
+
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#shutdown" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        shutdown
+      
+    </span>
+  </a>
+  
+  
+</li>
+
+      
+        
+
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#block-fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Block fields
+      
+    </span>
+  </a>
+  
+  
+</li>
+
+      
+        
+
+
+  
+    
+      
+    
+  
+    
+      
+    
+  
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#how-the-drain-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How the drain works
+      
+    </span>
+  </a>
+  
+  
+    <nav class="md-nav md-toc__branch-children" aria-label="How the drain works">
+      <ul class="md-nav__list">
+        
+          
+            
+
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#second-signal-exits-immediately" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Second signal exits immediately
+      
+    </span>
+  </a>
+  
+  
+</li>
+
+          
+        
+          
+            
+
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#relationship-to-other-timeouts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Relationship to other timeouts
+      
+    </span>
+  </a>
+  
+  
+</li>
+
+          
+        
+      </ul>
+    </nav>
+  
+</li>
+
+      
+        
+
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#reload-and-overlay" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reload and overlay
+      
+    </span>
+  </a>
+  
+  
+</li>
+
+      
+        
+
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#validation-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Validation summary
+      
+    </span>
+  </a>
+  
+  
+</li>
+
+      
+        
+
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#example-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example configuration
+      
+    </span>
+  </a>
+  
+  
+</li>
+
+      
+        
+
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#related-topics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Related topics
+      
+    </span>
+  </a>
+  
+  
+</li>
+
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../rules/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -2098,7 +2147,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/config-schema/control/" class="md-nav__link">
+      <a href="../control/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -2119,7 +2168,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/config-schema/events/" class="md-nav__link">
+      <a href="../events/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -2140,7 +2189,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/config-schema/metrics-and-tracing/" class="md-nav__link">
+      <a href="../metrics-and-tracing/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -2169,7 +2218,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/grpc-and-cli/" class="md-nav__link">
+      <a href="../../grpc-and-cli/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -2197,7 +2246,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../versions/" class="md-nav__link">
+      <a href="../../../versions/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -2217,7 +2266,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../contributing/" class="md-nav__link">
+      <a href="../../../contributing/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -2237,7 +2286,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../license/" class="md-nav__link">
+      <a href="../../../license/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -2283,10 +2332,10 @@
 
 <li class="md-nav__item">
   
-  <a href="#planned-scope" class="md-nav__link">
+  <a href="#shutdown" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Planned scope
+        shutdown
       
     </span>
   </a>
@@ -2302,10 +2351,106 @@
 
 <li class="md-nav__item">
   
-  <a href="#until-this-ships" class="md-nav__link">
+  <a href="#block-fields" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Until this ships
+        Block fields
+      
+    </span>
+  </a>
+  
+  
+</li>
+
+      
+        
+
+
+  
+    
+      
+    
+  
+    
+      
+    
+  
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#how-the-drain-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How the drain works
+      
+    </span>
+  </a>
+  
+  
+    <nav class="md-nav md-toc__branch-children" aria-label="How the drain works">
+      <ul class="md-nav__list">
+        
+          
+            
+
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#second-signal-exits-immediately" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Second signal exits immediately
+      
+    </span>
+  </a>
+  
+  
+</li>
+
+          
+        
+          
+            
+
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#relationship-to-other-timeouts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Relationship to other timeouts
+      
+    </span>
+  </a>
+  
+  
+</li>
+
+          
+        
+      </ul>
+    </nav>
+  
+</li>
+
+      
+        
+
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#reload-and-overlay" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reload and overlay
       
     </span>
   </a>
@@ -2321,10 +2466,48 @@
 
 <li class="md-nav__item">
   
-  <a href="#related" class="md-nav__link">
+  <a href="#validation-summary" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Related
+        Validation summary
+      
+    </span>
+  </a>
+  
+  
+</li>
+
+      
+        
+
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#example-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example configuration
+      
+    </span>
+  </a>
+  
+  
+</li>
+
+      
+        
+
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#related-topics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Related topics
       
     </span>
   </a>
@@ -2351,26 +2534,91 @@
   
 
 
-<h1 id="message-api">Message API</h1>
-<p><strong>Not yet shipped.</strong> Planned reference for <strong>Rhai for processor chains</strong> (<a href="../../glossary/#processor-chain-rhai">Processor-chain Rhai</a>): the <strong><code>conduit-dns</code></strong> message surface for editing DNS wire bytes in <a href="../../processor-chains/">processor chains</a>.</p>
-<h2 id="planned-scope">Planned scope</h2>
-<p>Processor-chain scripts receive a message object (exact Rhai binding name TBD at ship time) for the current query or response wire — not the rule <strong><code>txn</code></strong> policy object. Capabilities are expected to include:</p>
+<h1 id="config-schema-shutdown">Config schema: shutdown</h1>
+<p>Field reference for the top-level <strong><code>shutdown:</code></strong> block — how Conduit drains in-flight <a href="../../../glossary/#transaction">transactions</a> when the process is asked to stop. For the behavior in context, see <a href="../../../concepts/runtime-and-concurrency/#graceful-drain-on-shutdown">Runtime and concurrency — Graceful drain on shutdown</a>.</p>
+<h2 id="shutdown"><code>shutdown</code></h2>
+<table>
+<thead>
+<tr>
+<th>Property</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Type</strong></td>
+<td>Mapping (object)</td>
+</tr>
+<tr>
+<td><strong>Required</strong></td>
+<td>No — defaults apply when the block is omitted</td>
+</tr>
+<tr>
+<td><strong>Location</strong></td>
+<td>Top-level key in the <a href="../../../control-plane/config-file/">config file</a></td>
+</tr>
+</tbody>
+</table>
+<p>When <strong><code>shutdown:</code></strong> is omitted, Conduit drains in-flight transactions for up to <strong>5 s</strong> on shutdown — the defaults in the table below.</p>
+<h2 id="block-fields">Block fields</h2>
+<table>
+<thead>
+<tr><th class="column-no-wrap column-no-wrap-cell">Field</th><th>Type</th><th>Required</th><th>Default</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td class="column-no-wrap-cell"><code>drain</code></td><td>boolean</td><td>no</td><td><strong>true</strong></td><td>Whether to wait for in-flight <a href="../../../glossary/#transaction">transactions</a> to finish before tearing down listeners. <code>false</code> skips the wait and stops immediately.</td></tr>
+<tr><td class="column-no-wrap-cell"><code>drain_timeout_ms</code></td><td>integer</td><td>no</td><td><strong>5000</strong></td><td>Upper bound (milliseconds) on the drain wait. When it elapses, Conduit logs how many transactions remain and stops anyway. <code>0</code> checks once and proceeds without waiting.</td></tr>
+</tbody>
+</table>
+<h2 id="how-the-drain-works">How the drain works</h2>
+<p>On <strong>SIGTERM</strong> or <strong>SIGINT</strong> (Ctrl+C) — <strong>not</strong> SIGHUP, which <a href="../../../glossary/#reload-from-disk">reloads from disk</a> — Conduit stops the <a href="../../../glossary/#control-plane">control plane</a> and metrics endpoints, then waits for every active <a href="../../../glossary/#transaction">transaction</a> slot to finish before closing listeners. This includes <a href="../../../concepts/runtime-and-concurrency/#split-io-runtime"><code>split_io</code></a> transactions parked at <a href="../../../concepts/architecture-and-packet-path/#wait-for-response">Wait for response</a>. A clean drain is logged at debug; a timeout logs the remaining count. Drain applies to all <a href="../../../concepts/runtime-and-concurrency/#runtime-models">dataplane runtime models</a>.</p>
+<h3 id="second-signal-exits-immediately">Second signal exits immediately</h3>
+<p>While the drain is in progress, a <strong>second</strong> SIGTERM/SIGINT abandons the remaining wait and proceeds straight to listener teardown. Use it to force an immediate exit instead of waiting out <code>drain_timeout_ms</code>.</p>
+<h3 id="relationship-to-other-timeouts">Relationship to other timeouts</h3>
 <ul>
-<li>Ingress query changes (for example qname rewrite)</li>
-<li>Egress response mutation</li>
-<li>EDNS / EDE helpers</li>
-<li>Conveniences such as RD-bit control</li>
+<li><strong><code>orchestrator.max_txn_duration_ms</code></strong> caps the lifetime of a <em>single</em> query; <strong><code>shutdown.drain_timeout_ms</code></strong> caps the <em>total</em> shutdown wait across all in-flight queries. They are independent — size the drain timeout from how long you are willing to delay process exit, not from per-query limits. See <a href="../orchestrator/">Orchestrator</a>.</li>
+<li><strong><code>forward.timeout_ms</code></strong> bounds each upstream wait. A transaction stuck on a slow upstream finishes (or times out) within that bound, so a drain can take up to <code>forward.timeout_ms</code> to settle even under light traffic. See <a href="../forward/">Forward</a>.</li>
 </ul>
-<p>Full method entries will follow the same card layout as <a href="../transaction-api/">Transaction API</a>.</p>
-<h2 id="until-this-ships">Until this ships</h2>
+<h2 id="reload-and-overlay">Reload and overlay</h2>
+<p>Drain settings are <strong>dynamic</strong> — no restart required. Conduit reads <code>shutdown.drain</code> and <code>shutdown.drain_timeout_ms</code> from the live <a href="../../../glossary/#runtime-snapshot">runtime snapshot</a> at the moment shutdown begins, so the most recently applied or reloaded values are the ones that take effect.</p>
+<table>
+<thead>
+<tr>
+<th>Change</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Edit <strong><code>shutdown:</code></strong> on disk + <a href="../../../glossary/#reload-from-disk">reload</a> (SIGHUP or <strong><code>conduitctl reload</code></strong>), or <strong><code>conduitctl apply</code></strong> a patch including <strong><code>shutdown:</code></strong></td>
+<td>Takes effect immediately; the next shutdown uses the new drain settings</td>
+</tr>
+<tr>
+<td><strong>Restart</strong></td>
+<td>Not required for <strong><code>shutdown:</code></strong> changes</td>
+</tr>
+</tbody>
+</table>
+<p>Because the value is read when shutdown starts, a drain already in progress keeps the timeout it began with; a change applied mid-drain affects the <em>next</em> shutdown. Unlike start-time settings such as the <strong><code>dataplane.runtime</code></strong> model, the <code>shutdown:</code> block does not require a restart — see <a href="../../../concepts/architecture-and-packet-path/#runtime-snapshot">Architecture — Runtime snapshot</a>.</p>
+<h2 id="validation-summary">Validation summary</h2>
+<p><strong><code>shutdown:</code></strong> has no rejecting validation rules: <code>drain: false</code> disables the wait and <code>drain_timeout_ms: 0</code> performs a single check without waiting. Validate config with <code>conduitctl validate --file …</code>.</p>
+<h2 id="example-configuration">Example configuration</h2>
+<p>Wait up to 2 seconds for in-flight queries before exiting:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">shutdown</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">drain</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">drain_timeout_ms</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2000</span>
+</code></pre></div>
+<p>Disable draining (close listeners as soon as the process is signalled):</p>
+<div class="highlight"><pre><span></span><code><span class="nt">shutdown</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">drain</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+</code></pre></div>
+<h2 id="related-topics">Related topics</h2>
 <ul>
-<li><a href="../processor-chain-rhai/">Rhai for processor chains</a> — Rhai backend overview</li>
-<li><a href="../../processor-chains/">Processor chains</a> — <code>processors:</code> config and pipeline placement</li>
-<li><a href="../rule-rhai/">Rhai for rules</a> — policy-only scripting with <code>txn</code> (shipped today)</li>
-</ul>
-<h2 id="related">Related</h2>
-<ul>
-<li><a href="../">Rhai overview</a></li>
+<li><a href="../../../concepts/runtime-and-concurrency/#graceful-drain-on-shutdown">Runtime and concurrency — Graceful drain on shutdown</a></li>
+<li><a href="../orchestrator/">Orchestrator</a> — <code>max_txn_duration_ms</code> (per-query lifetime)</li>
+<li><a href="../forward/">Forward</a> — <code>forward.timeout_ms</code> (per-upstream wait)</li>
+<li><a href="../../../control-plane/configuration-model/">Configuration model</a> — snapshots, reload, and what needs a restart</li>
+<li><a href="../">Config schema overview</a></li>
 </ul>
 
 
@@ -2418,16 +2666,16 @@
     </div>
     
     
-    <script id="__config" type="application/json">{"base": "../..", "features": ["navigation.instant", "navigation.tracking", "toc.follow", "search.suggest", "content.code.copy"], "search": "../../assets/javascripts/workers/search.6ce7567c.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "0.15.0"}}</script>
+    <script id="__config" type="application/json">{"base": "../../..", "features": ["navigation.instant", "navigation.tracking", "toc.follow", "search.suggest", "content.code.copy"], "search": "../../../assets/javascripts/workers/search.6ce7567c.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "0.15.0"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.88dd0f4e.min.js"></script>
+      <script src="../../../assets/javascripts/bundle.88dd0f4e.min.js"></script>
       
-        <script src="../../assets/javascripts/doc-version.js"></script>
+        <script src="../../../assets/javascripts/doc-version.js"></script>
       
-        <script src="../../assets/javascripts/toc-collapse.js"></script>
+        <script src="../../../assets/javascripts/toc-collapse.js"></script>
       
-        <script src="../../assets/javascripts/txn-api-cards.js"></script>
+        <script src="../../../assets/javascripts/txn-api-cards.js"></script>
       
     
   </body>

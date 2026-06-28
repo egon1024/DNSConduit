@@ -10,28 +10,28 @@
       
       
       
-        <link rel="canonical" href="https://egon1024.github.io/DNSConduit/0.15.0/processor-chains/">
+        <link rel="canonical" href="https://egon1024.github.io/DNSConduit/0.15.0/concepts/runtime-and-concurrency/">
       
       
-        <link rel="prev" href="../policy-routing/retries-and-transactions/">
+        <link rel="prev" href="../architecture-and-packet-path/">
       
       
-        <link rel="next" href="../control-plane/">
+        <link rel="next" href="../../policy-routing/">
       
       
-      <link rel="icon" href="../assets/images/favicon.png">
+      <link rel="icon" href="../../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.5.49">
     
     
       
-        <title>Overview - DNS Conduit</title>
+        <title>Runtime and concurrency - DNS Conduit</title>
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.6f8fc17f.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.6f8fc17f.min.css">
       
         
-        <link rel="stylesheet" href="../assets/stylesheets/palette.06af60db.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.06af60db.min.css">
       
       
 
@@ -50,15 +50,15 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/version-label.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/version-label.css">
     
-      <link rel="stylesheet" href="../assets/stylesheets/column-no-wrap.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/column-no-wrap.css">
     
-      <link rel="stylesheet" href="../assets/stylesheets/txn-api.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/txn-api.css">
     
-      <link rel="stylesheet" href="../assets/stylesheets/toc-collapse.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/toc-collapse.css">
     
-    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -84,7 +84,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#processor-chains" class="md-skip">
+        <a href="#runtime-and-concurrency" class="md-skip">
           Skip to content
         </a>
       
@@ -104,7 +104,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href=".." title="DNS Conduit" class="md-header__button md-logo" aria-label="DNS Conduit" data-md-component="logo">
+    <a href="../.." title="DNS Conduit" class="md-header__button md-logo" aria-label="DNS Conduit" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -124,7 +124,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Overview
+              Runtime and concurrency
             
           </span>
         </div>
@@ -239,7 +239,7 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href=".." title="DNS Conduit" class="md-nav__button md-logo" aria-label="DNS Conduit" data-md-component="logo">
+    <a href="../.." title="DNS Conduit" class="md-nav__button md-logo" aria-label="DNS Conduit" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -269,7 +269,7 @@
   
   
     <li class="md-nav__item">
-      <a href=".." class="md-nav__link">
+      <a href="../.." class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -324,7 +324,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../getting-started/" class="md-nav__link">
+      <a href="../../getting-started/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -345,7 +345,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../getting-started/what-conduit-is-for/" class="md-nav__link">
+      <a href="../../getting-started/what-conduit-is-for/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -366,7 +366,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../getting-started/install-and-run/" class="md-nav__link">
+      <a href="../../getting-started/install-and-run/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -387,7 +387,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../getting-started/minimal-configuration/" class="md-nav__link">
+      <a href="../../getting-started/minimal-configuration/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -408,7 +408,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../getting-started/first-query/" class="md-nav__link">
+      <a href="../../getting-started/first-query/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -433,17 +433,19 @@
       
   
   
+    
   
   
+  
     
     
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
         
           
           <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
@@ -457,7 +459,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             Concepts
@@ -471,7 +473,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../concepts/" class="md-nav__link">
+      <a href="../" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -492,7 +494,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../concepts/architecture-and-packet-path/" class="md-nav__link">
+      <a href="../architecture-and-packet-path/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -510,18 +512,210 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../concepts/planned-plugin-models/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  <span class="md-ellipsis">
+    Runtime and concurrency
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   <span class="md-ellipsis">
-    Planned plugin models
+    Runtime and concurrency
   </span>
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        
+
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#runtime-models" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Runtime models
+      
+    </span>
+  </a>
+  
+  
+</li>
+
+      
+        
+
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#sync-runtime-default" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sync runtime (default)
+      
+    </span>
+  </a>
+  
+  
+</li>
+
+      
+        
+
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#split-io-runtime" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Split I/O runtime
+      
+    </span>
+  </a>
+  
+  
+</li>
+
+      
+        
+
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#worker-counts-and-limits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Worker counts and limits
+      
+    </span>
+  </a>
+  
+  
+</li>
+
+      
+        
+
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#transaction-slot-pool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Transaction slot pool
+      
+    </span>
+  </a>
+  
+  
+</li>
+
+      
+        
+
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#query-outcomes-and-worker-occupancy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Query outcomes and worker occupancy
+      
+    </span>
+  </a>
+  
+  
+</li>
+
+      
+        
+
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#graceful-drain-on-shutdown" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Graceful drain on shutdown
+      
+    </span>
+  </a>
+  
+  
+</li>
+
+      
+        
+
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#related-topics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Related topics
+      
+    </span>
+  </a>
+  
+  
+</li>
+
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -576,7 +770,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../policy-routing/" class="md-nav__link">
+      <a href="../../policy-routing/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -597,7 +791,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../policy-routing/rules-and-actions/" class="md-nav__link">
+      <a href="../../policy-routing/rules-and-actions/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -618,7 +812,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../policy-routing/pools-and-backends/" class="md-nav__link">
+      <a href="../../policy-routing/pools-and-backends/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -639,7 +833,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../policy-routing/retries-and-transactions/" class="md-nav__link">
+      <a href="../../policy-routing/retries-and-transactions/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -664,36 +858,34 @@
       
   
   
-    
   
   
-  
     
     
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
         
           
           <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
             
   
   <span class="md-ellipsis">
-    Processor chains
+    Control plane
   </span>
   
 
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_5">
             <span class="md-nav__icon md-icon"></span>
-            Processor chains
+            Control plane
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
@@ -701,30 +893,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  <span class="md-ellipsis">
-    Overview
-  </span>
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../control-plane/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -733,140 +905,90 @@
   
 
       </a>
-      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../control-plane/configuration-model/" class="md-nav__link">
         
+  
+  <span class="md-ellipsis">
+    Configuration model
+  </span>
+  
 
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
   
   
   
-    
   
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
+    <li class="md-nav__item">
+      <a href="../../control-plane/config-file/" class="md-nav__link">
         
-
-
-
-
-<li class="md-nav__item">
   
-  <a href="#what-processor-chains-are-for" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        What processor chains are for
-      
-    </span>
-  </a>
+  <span class="md-ellipsis">
+    Config file
+  </span>
   
-  
-</li>
 
-      
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../control-plane/reload-and-export/" class="md-nav__link">
         
-
-
-
-
-<li class="md-nav__item">
   
-  <a href="#backends-planned" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Backends (planned)
-      
-    </span>
-  </a>
+  <span class="md-ellipsis">
+    Reload and export
+  </span>
   
-  
-</li>
 
-      
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../control-plane/grpc-and-conduitctl/" class="md-nav__link">
         
-
-
-
-
-<li class="md-nav__item">
   
-  <a href="#policy-refinement-planned" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Policy refinement (planned)
-      
-    </span>
-  </a>
+  <span class="md-ellipsis">
+    gRPC and conduitctl
+  </span>
   
-  
-</li>
 
-      
-        
-
-
-
-
-<li class="md-nav__item">
-  
-  <a href="#shared-host-features" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Shared host features
-      
-    </span>
-  </a>
-  
-  
-</li>
-
-      
-        
-
-
-
-
-<li class="md-nav__item">
-  
-  <a href="#until-this-ships" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Until this ships
-      
-    </span>
-  </a>
-  
-  
-</li>
-
-      
-        
-
-
-
-
-<li class="md-nav__item">
-  
-  <a href="#related" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Related
-      
-    </span>
-  </a>
-  
-  
-</li>
-
-      
-    </ul>
-  
-</nav>
-      
+      </a>
     </li>
   
 
@@ -900,7 +1022,7 @@
             
   
   <span class="md-ellipsis">
-    Control plane
+    Rhai
   </span>
   
 
@@ -910,7 +1032,7 @@
         <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_6">
             <span class="md-nav__icon md-icon"></span>
-            Control plane
+            Rhai
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
@@ -921,7 +1043,63 @@
   
   
     <li class="md-nav__item">
-      <a href="../control-plane/" class="md-nav__link">
+      <a href="../../rhai/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Overview
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_2" id="__nav_6_2_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    For rules
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_2">
+            <span class="md-nav__icon md-icon"></span>
+            For rules
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../rhai/rule-rhai/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -942,11 +1120,11 @@
   
   
     <li class="md-nav__item">
-      <a href="../control-plane/configuration-model/" class="md-nav__link">
+      <a href="../../rhai/hooks-and-phases/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
-    Configuration model
+    Hooks and phases
   </span>
   
 
@@ -963,11 +1141,40 @@
   
   
     <li class="md-nav__item">
-      <a href="../control-plane/config-file/" class="md-nav__link">
+      <a href="../../rhai/transaction-api/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
-    Config file
+    Transaction API
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../rhai/data-sources-and-lookups/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Data sources and lookups
   </span>
   
 
@@ -984,11 +1191,11 @@
   
   
     <li class="md-nav__item">
-      <a href="../control-plane/reload-and-export/" class="md-nav__link">
+      <a href="../../rhai/user-metrics/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
-    Reload and export
+    User metrics
   </span>
   
 
@@ -1005,11 +1212,11 @@
   
   
     <li class="md-nav__item">
-      <a href="../control-plane/grpc-and-conduitctl/" class="md-nav__link">
+      <a href="../../rhai/sandbox-limits/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
-    gRPC and conduitctl
+    Sandbox limits
   </span>
   
 
@@ -1047,7 +1254,7 @@
             
   
   <span class="md-ellipsis">
-    Rhai
+    Observability
   </span>
   
 
@@ -1057,7 +1264,7 @@
         <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_7">
             <span class="md-nav__icon md-icon"></span>
-            Rhai
+            Observability
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
@@ -1068,63 +1275,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../rhai/" class="md-nav__link">
-        
-  
-  <span class="md-ellipsis">
-    Overview
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    
-    
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7_2" >
-        
-          
-          <label class="md-nav__link" for="__nav_7_2" id="__nav_7_2_label" tabindex="0">
-            
-  
-  <span class="md-ellipsis">
-    For rules
-  </span>
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_7_2_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_7_2">
-            <span class="md-nav__icon md-icon"></span>
-            For rules
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../rhai/rule-rhai/" class="md-nav__link">
+      <a href="../../observability/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1145,11 +1296,11 @@
   
   
     <li class="md-nav__item">
-      <a href="../rhai/hooks-and-phases/" class="md-nav__link">
+      <a href="../../observability/metrics/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
-    Hooks and phases
+    Metrics
   </span>
   
 
@@ -1166,75 +1317,11 @@
   
   
     <li class="md-nav__item">
-      <a href="../rhai/transaction-api/" class="md-nav__link">
+      <a href="../../observability/built-in-metrics/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
-    Transaction API
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    
-    
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7_3" >
-        
-          
-          <label class="md-nav__link" for="__nav_7_3" id="__nav_7_3_label" tabindex="0">
-            
-  
-  <span class="md-ellipsis">
-    For processor chains
-  </span>
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_7_3_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_7_3">
-            <span class="md-nav__icon md-icon"></span>
-            For processor chains
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../rhai/processor-chain-rhai/" class="md-nav__link">
-        
-  
-  <span class="md-ellipsis">
-    Overview
+    Built-in metrics
   </span>
   
 
@@ -1251,40 +1338,11 @@
   
   
     <li class="md-nav__item">
-      <a href="../rhai/message-api/" class="md-nav__link">
+      <a href="../../observability/tracing/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
-    Message API
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../rhai/data-sources-and-lookups/" class="md-nav__link">
-        
-  
-  <span class="md-ellipsis">
-    Data sources and lookups
+    Tracing
   </span>
   
 
@@ -1301,11 +1359,11 @@
   
   
     <li class="md-nav__item">
-      <a href="../rhai/user-metrics/" class="md-nav__link">
+      <a href="../../observability/event-export/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
-    User metrics
+    Event export
   </span>
   
 
@@ -1322,11 +1380,11 @@
   
   
     <li class="md-nav__item">
-      <a href="../rhai/sandbox-limits/" class="md-nav__link">
+      <a href="../../observability/logging/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
-    Sandbox limits
+    Logging
   </span>
   
 
@@ -1364,7 +1422,7 @@
             
   
   <span class="md-ellipsis">
-    Observability
+    Guides
   </span>
   
 
@@ -1374,7 +1432,7 @@
         <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_8">
             <span class="md-nav__icon md-icon"></span>
-            Observability
+            Guides
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
@@ -1385,7 +1443,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../observability/" class="md-nav__link">
+      <a href="../../guides/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1406,11 +1464,11 @@
   
   
     <li class="md-nav__item">
-      <a href="../observability/metrics/" class="md-nav__link">
+      <a href="../../guides/rhai-policy/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
-    Metrics
+    Rhai policy
   </span>
   
 
@@ -1427,11 +1485,11 @@
   
   
     <li class="md-nav__item">
-      <a href="../observability/built-in-metrics/" class="md-nav__link">
+      <a href="../../guides/dual-stack-forwarding/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
-    Built-in metrics
+    Dual-stack forwarding
   </span>
   
 
@@ -1448,11 +1506,11 @@
   
   
     <li class="md-nav__item">
-      <a href="../observability/tracing/" class="md-nav__link">
+      <a href="../../guides/dataplane-runtime-tuning/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
-    Tracing
+    Dataplane runtime tuning
   </span>
   
 
@@ -1469,11 +1527,11 @@
   
   
     <li class="md-nav__item">
-      <a href="../observability/event-export/" class="md-nav__link">
+      <a href="../../guides/control-plane-workflows/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
-    Event export
+    Control plane workflows
   </span>
   
 
@@ -1490,11 +1548,53 @@
   
   
     <li class="md-nav__item">
-      <a href="../observability/logging/" class="md-nav__link">
+      <a href="../../guides/metrics-and-tracing/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
-    Logging
+    Metrics and tracing
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/event-export-dnstap/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Event export and dnstap
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/operator-metrics-profiles/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Operator metrics profiles
   </span>
   
 
@@ -1532,7 +1632,7 @@
             
   
   <span class="md-ellipsis">
-    Guides
+    Security
   </span>
   
 
@@ -1541,195 +1641,6 @@
         
         <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_9">
-            <span class="md-nav__icon md-icon"></span>
-            Guides
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../guides/" class="md-nav__link">
-        
-  
-  <span class="md-ellipsis">
-    Overview
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../guides/rhai-policy/" class="md-nav__link">
-        
-  
-  <span class="md-ellipsis">
-    Rhai policy
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../guides/dual-stack-forwarding/" class="md-nav__link">
-        
-  
-  <span class="md-ellipsis">
-    Dual-stack forwarding
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../guides/control-plane-workflows/" class="md-nav__link">
-        
-  
-  <span class="md-ellipsis">
-    Control plane workflows
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../guides/metrics-and-tracing/" class="md-nav__link">
-        
-  
-  <span class="md-ellipsis">
-    Metrics and tracing
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../guides/event-export-dnstap/" class="md-nav__link">
-        
-  
-  <span class="md-ellipsis">
-    Event export and dnstap
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../guides/operator-metrics-profiles/" class="md-nav__link">
-        
-  
-  <span class="md-ellipsis">
-    Operator metrics profiles
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    
-    
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
-        
-          
-          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="0">
-            
-  
-  <span class="md-ellipsis">
-    Security
-  </span>
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_10">
             <span class="md-nav__icon md-icon"></span>
             Security
           </label>
@@ -1742,7 +1653,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../security/" class="md-nav__link">
+      <a href="../../security/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1763,7 +1674,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../security/api-keys/" class="md-nav__link">
+      <a href="../../security/api-keys/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1784,7 +1695,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../security/mtls/" class="md-nav__link">
+      <a href="../../security/mtls/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1812,7 +1723,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../troubleshooting/" class="md-nav__link">
+      <a href="../../troubleshooting/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1832,7 +1743,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../glossary/" class="md-nav__link">
+      <a href="../../glossary/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1859,10 +1770,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_13" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_12" >
         
           
-          <label class="md-nav__link" for="__nav_13" id="__nav_13_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_12" id="__nav_12_label" tabindex="0">
             
   
   <span class="md-ellipsis">
@@ -1873,8 +1784,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_13_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_13">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_12">
             <span class="md-nav__icon md-icon"></span>
             Release notes
           </label>
@@ -1887,7 +1798,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../release-notes/" class="md-nav__link">
+      <a href="../../release-notes/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1908,7 +1819,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../release-notes/unreleased/" class="md-nav__link">
+      <a href="../../release-notes/unreleased/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1943,10 +1854,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_14" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_13" >
         
           
-          <label class="md-nav__link" for="__nav_14" id="__nav_14_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_13" id="__nav_13_label" tabindex="0">
             
   
   <span class="md-ellipsis">
@@ -1957,8 +1868,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_14_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_14">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_13_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_13">
             <span class="md-nav__icon md-icon"></span>
             Reference
           </label>
@@ -1971,7 +1882,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../reference/" class="md-nav__link">
+      <a href="../../reference/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1999,10 +1910,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_14_2" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_13_2" >
         
           
-          <label class="md-nav__link" for="__nav_14_2" id="__nav_14_2_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_13_2" id="__nav_13_2_label" tabindex="0">
             
   
   <span class="md-ellipsis">
@@ -2013,8 +1924,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_14_2_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_14_2">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_13_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_13_2">
             <span class="md-nav__icon md-icon"></span>
             Config schema
           </label>
@@ -2027,7 +1938,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../reference/config-schema/" class="md-nav__link">
+      <a href="../../reference/config-schema/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -2048,7 +1959,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../reference/config-schema/listeners/" class="md-nav__link">
+      <a href="../../reference/config-schema/listeners/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -2069,7 +1980,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../reference/config-schema/pools/" class="md-nav__link">
+      <a href="../../reference/config-schema/pools/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -2090,7 +2001,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../reference/config-schema/forward/" class="md-nav__link">
+      <a href="../../reference/config-schema/forward/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -2111,7 +2022,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../reference/config-schema/orchestrator/" class="md-nav__link">
+      <a href="../../reference/config-schema/orchestrator/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -2132,7 +2043,49 @@
   
   
     <li class="md-nav__item">
-      <a href="../reference/config-schema/rules/" class="md-nav__link">
+      <a href="../../reference/config-schema/dataplane/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Dataplane
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/config-schema/shutdown/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Shutdown
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/config-schema/rules/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -2153,7 +2106,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../reference/config-schema/control/" class="md-nav__link">
+      <a href="../../reference/config-schema/control/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -2174,7 +2127,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../reference/config-schema/events/" class="md-nav__link">
+      <a href="../../reference/config-schema/events/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -2195,7 +2148,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../reference/config-schema/metrics-and-tracing/" class="md-nav__link">
+      <a href="../../reference/config-schema/metrics-and-tracing/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -2224,7 +2177,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../reference/grpc-and-cli/" class="md-nav__link">
+      <a href="../../reference/grpc-and-cli/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -2252,7 +2205,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../versions/" class="md-nav__link">
+      <a href="../../versions/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -2272,7 +2225,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../contributing/" class="md-nav__link">
+      <a href="../../contributing/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -2292,7 +2245,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../license/" class="md-nav__link">
+      <a href="../../license/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -2338,10 +2291,10 @@
 
 <li class="md-nav__item">
   
-  <a href="#what-processor-chains-are-for" class="md-nav__link">
+  <a href="#runtime-models" class="md-nav__link">
     <span class="md-ellipsis">
       
-        What processor chains are for
+        Runtime models
       
     </span>
   </a>
@@ -2357,10 +2310,10 @@
 
 <li class="md-nav__item">
   
-  <a href="#backends-planned" class="md-nav__link">
+  <a href="#sync-runtime-default" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Backends (planned)
+        Sync runtime (default)
       
     </span>
   </a>
@@ -2376,10 +2329,10 @@
 
 <li class="md-nav__item">
   
-  <a href="#policy-refinement-planned" class="md-nav__link">
+  <a href="#split-io-runtime" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Policy refinement (planned)
+        Split I/O runtime
       
     </span>
   </a>
@@ -2395,10 +2348,10 @@
 
 <li class="md-nav__item">
   
-  <a href="#shared-host-features" class="md-nav__link">
+  <a href="#worker-counts-and-limits" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Shared host features
+        Worker counts and limits
       
     </span>
   </a>
@@ -2414,10 +2367,10 @@
 
 <li class="md-nav__item">
   
-  <a href="#until-this-ships" class="md-nav__link">
+  <a href="#transaction-slot-pool" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Until this ships
+        Transaction slot pool
       
     </span>
   </a>
@@ -2433,10 +2386,48 @@
 
 <li class="md-nav__item">
   
-  <a href="#related" class="md-nav__link">
+  <a href="#query-outcomes-and-worker-occupancy" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Related
+        Query outcomes and worker occupancy
+      
+    </span>
+  </a>
+  
+  
+</li>
+
+      
+        
+
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#graceful-drain-on-shutdown" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Graceful drain on shutdown
+      
+    </span>
+  </a>
+  
+  
+</li>
+
+      
+        
+
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#related-topics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Related topics
       
     </span>
   </a>
@@ -2463,89 +2454,107 @@
   
 
 
-<h1 id="processor-chains">Processor chains</h1>
-<p><strong>Not yet shipped.</strong> Processor chains are a planned datapath feature — separate from <code>rules:</code> — with their own <strong><code>processors:</code></strong> config and named pipeline attachment points.</p>
-<p>This section is the <strong>feature home</strong> for processor chains: where they run on the query path, how operators wire chains, and which backends are available (<a href="../rhai/processor-chain-rhai/">Rhai for processor chains</a>, <a href="../glossary/#wasm">WASM</a>, <a href="../glossary/#sidecar">sidecar</a>). <strong>Rhai script APIs</strong> live under <a href="../rhai/">Rhai</a>, not here.</p>
-<h2 id="what-processor-chains-are-for">What processor chains are for</h2>
-<p>Processor chains are the planned home for <strong>DNS wire editing</strong> and related datapath work that Rhai for rules does not cover today:</p>
-<ul>
-<li>Ingress query changes (including qname rewrite)</li>
-<li>Egress response mutation</li>
-<li>EDNS / EDE and conveniences such as RD-bit control</li>
-</ul>
-<p>They are <strong>not</strong> a replacement for <a href="../policy-routing/rules-and-actions/">rules</a>. <a href="../concepts/architecture-and-packet-path/#request-rules">Request rules</a> and <a href="../concepts/architecture-and-packet-path/#response-rules">Response rules</a> still run first on their hooks. Processor links run at fixed pipeline slots <strong>after</strong> those phases and may refine the shared <a href="../glossary/#transaction">transaction</a> before <a href="../concepts/architecture-and-packet-path/#route">Route</a> or before response policy.</p>
-<p><a href="../rhai/rule-rhai/">Rhai for rules</a> and processor chains may coexist: for example a rule tags a query on the client qname; a processor rewrites wire and sets pool from the rewritten name before Route.</p>
-<h2 id="backends-planned">Backends (planned)</h2>
+<h1 id="runtime-and-concurrency">Runtime and concurrency</h1>
+<p>This page describes how DNS Conduit spreads the per-query <a href="../architecture-and-packet-path/#pipeline-phases">pipeline</a> across OS threads: the <strong>dataplane runtime model</strong> (<code>sync</code> vs <code>split_io</code>), the worker pools and limits that bound concurrency, the shared <a href="../../glossary/#transaction">transaction</a> slot pool, and how Conduit <strong>drains</strong> in-flight work on shutdown. The <a href="../architecture-and-packet-path/#pipeline-phases">pipeline phases</a> themselves — what each query does, in order — live on <a href="../architecture-and-packet-path/">Architecture and packet path</a>.</p>
+<h2 id="runtime-models">Runtime models</h2>
+<p>Conduit chooses a <strong>dataplane runtime model</strong> once at process startup with <strong><code>dataplane.runtime</code></strong>. The runtime decides <em>how</em> the work in the <a href="../architecture-and-packet-path/#pipeline-phases">pipeline</a> is spread across OS threads — it does <strong>not</strong> change the <a href="../architecture-and-packet-path/#pipeline-phases">pipeline phases</a> themselves. Every query still walks the same phases in the same order regardless of runtime. The model is fixed for the life of the process: changing <code>dataplane.runtime</code> or its worker counts takes effect only after a <strong>restart</strong>, not on <a href="../../glossary/#reload-from-disk">reload</a>.</p>
+<p>Two runtime models ship today:</p>
 <table>
 <thead>
-<tr>
-<th>Backend</th>
-<th>Doc home</th>
-</tr>
+<tr><th class="column-no-wrap column-no-wrap-cell">Runtime</th><th>How a query is executed</th><th>When to use</th></tr>
 </thead>
 <tbody>
-<tr>
-<td>Rhai (message API)</td>
-<td><a href="../rhai/processor-chain-rhai/">Rhai for processor chains</a>, <a href="../rhai/message-api/">Message API</a></td>
-</tr>
-<tr>
-<td>WASM</td>
-<td><a href="../concepts/planned-plugin-models/#wasm-planned">Planned plugin models — WASM</a></td>
-</tr>
-<tr>
-<td>Sidecar</td>
-<td><a href="../concepts/planned-plugin-models/#sidecar-planned">Planned plugin models — Sidecar</a></td>
-</tr>
+<tr><td class="column-no-wrap-cell"><strong><code>sync</code></strong> (default)</td><td>One ingress worker runs the whole pipeline on its own thread — <strong>including the blocking upstream wait</strong> — then sends the reply before taking the next query.</td><td>Simple deployments, fast upstreams, labs and tests.</td></tr>
+<tr><td class="column-no-wrap-cell"><strong><code>split_io</code></strong></td><td>Separate <strong>ingress</strong>, <strong>policy</strong>, and <strong>I/O</strong> worker pools. Upstream waits are parked so ingress keeps accepting queries during slow upstreams.</td><td>Production with slower or variable upstreams, where ingress should not stall on upstream latency.</td></tr>
 </tbody>
 </table>
-<h2 id="policy-refinement-planned">Policy refinement (planned)</h2>
-<p>Processor links are planned to support <strong>policy effects</strong> on the shared transaction in addition to wire edits:</p>
+<p>Omitting the <code>dataplane:</code> block uses <code>sync</code>.</p>
+<h2 id="sync-runtime-default">Sync runtime (default)</h2>
+<p>In the <strong><code>sync</code></strong> model, each <strong>ingress worker</strong> accepts a client query, runs the full <a href="../architecture-and-packet-path/#pipeline-phases">pipeline</a> on that OS thread — <strong>including the blocking upstream wait</strong> at <a href="../architecture-and-packet-path/#forward">Forward</a> / <a href="../architecture-and-packet-path/#wait-for-response">Wait for response</a> — then sends the reply before taking the next query on that thread. There is no separate policy or I/O worker pool.</p>
+<pre class="mermaid"><code>flowchart LR
+  subgraph sync [sync — one thread per query]
+    W[Ingress worker]
+    W --&gt; recv[recv]
+    recv --&gt; pipe[full pipeline + upstream wait]
+    pipe --&gt; send[reply]
+  end</code></pre>
+<p>Under load or slow upstreams, a busy ingress worker cannot accept another client query until the current <a href="../../glossary/#transaction">transaction</a> finishes, including the upstream wait. Add ingress threads (see <a href="#worker-counts-and-limits">Worker counts and limits</a>) when you need more parallel capacity.</p>
+<h2 id="split-io-runtime">Split I/O runtime</h2>
+<p>Setting <strong><code>dataplane.runtime: split_io</code></strong> splits the work into three worker roles so that waiting on a slow upstream does not tie up the thread that accepts client traffic:</p>
+<ul>
+<li><strong>Ingress workers</strong> — accept the client message (UDP or TCP), do the structural <a href="../architecture-and-packet-path/#parse">Parse</a> check (valid DNS, single question), take a <a href="../../glossary/#transaction">transaction</a> slot, and hand it off. They do <strong>not</strong> block on upstream replies. Count comes from <strong><code>listeners.threads</code></strong> (per listener, with optional per-listener override).</li>
+<li><strong>Policy workers</strong> — run the orchestrator phases — <a href="../architecture-and-packet-path/#request-rules">Request rules</a>, <a href="../architecture-and-packet-path/#route">Route</a>, the <a href="../architecture-and-packet-path/#forward">Forward</a> submit — and finish the <a href="../../glossary/#transaction">transaction</a> at <a href="../architecture-and-packet-path/#response-rules">Response rules</a> / <a href="../architecture-and-packet-path/#send">Send</a> once a reply is in. Count comes from <strong><code>dataplane.policy_workers</code></strong>.</li>
+<li><strong>I/O workers</strong> — own the upstream sockets: they match incoming upstream replies to parked transactions, enforce <code>forward.timeout_ms</code>, and resume each transaction at <a href="../architecture-and-packet-path/#wait-for-response">Wait for response</a>. Count comes from <strong><code>dataplane.io_workers</code></strong>.</li>
+</ul>
+<p>The difference from <code>sync</code> is at <a href="../architecture-and-packet-path/#forward">Forward</a> → <a href="../architecture-and-packet-path/#wait-for-response">Wait for response</a>: instead of blocking, Forward <strong>submits</strong> the upstream query and <strong>parks</strong> the transaction; an I/O worker later resumes it on reply, timeout, or error. Ingress and policy workers stay free to handle other queries in the meantime.</p>
+<pre class="mermaid"><code>flowchart LR
+  C[DNS clients] --&gt; I[Ingress workers]
+  I --&gt;|slot handoff| P[Policy workers]
+  P --&gt;|Forward: submit + park| IO[I/O workers]
+  IO --&gt;|upstream query| U[Upstream backends]
+  U --&gt;|reply / timeout| IO
+  IO --&gt;|resume parked transaction| P
+  P --&gt;|response| S[Send to client]</code></pre>
+<p>A parked transaction still holds a <a href="../../glossary/#transaction">transaction</a> slot while it waits, and it continues to count toward <a href="../../observability/built-in-metrics/#conduit_forward_outstanding"><code>conduit_forward_outstanding</code></a>.</p>
+<h2 id="worker-counts-and-limits">Worker counts and limits</h2>
+<p>Concurrency is bounded by ingress thread counts, the runtime worker pools (<code>split_io</code>), the <a href="../../glossary/#transaction">transaction</a> slot pool, and per-backend caps:</p>
+<ul>
+<li><strong><code>listeners.threads</code></strong> — ingress worker threads <strong>per</strong> entry in <code>listeners.listeners</code> (use <strong><code>listeners.reuse_port: true</code></strong> on UDP when <code>threads</code> &gt; 1). Total ingress workers = <code>threads</code> × number of listener entries; a listener entry may override the global default with its own <code>threads</code>. Field reference: <a href="../../reference/config-schema/listeners/">Reference: listeners</a>.</li>
+<li><strong><code>dataplane.policy_workers</code></strong> / <strong><code>dataplane.io_workers</code></strong> — size of the policy and I/O pools under <strong><code>split_io</code></strong> (each defaults to <strong>1</strong>; ignored by <code>sync</code>). Raise <code>policy_workers</code> for more concurrent policy/<a href="../../rhai/">Rhai</a> execution; raise <code>io_workers</code> for more upstream socket fan-out.</li>
+<li><strong><code>orchestrator.txn_table_capacity</code></strong> — capacity of the in-flight <a href="../../glossary/#transaction">transaction</a> slot pool (bounds how many queries the process tracks at once, independent of per-query <a href="../../glossary/#retry">retry</a> count). Field reference: <a href="../../reference/config-schema/orchestrator/">Reference: orchestrator</a>.</li>
+<li><strong><code>forward.outstanding_per_backend</code></strong> — cap on concurrent upstream queries per backend address. Field reference: <a href="../../reference/config-schema/forward/">Reference: forward</a>.</li>
+</ul>
+<h2 id="transaction-slot-pool">Transaction slot pool</h2>
+<p>Both runtime models track in-flight queries in a <strong>transaction slot pool</strong> — a preallocated arena of <a href="../../glossary/#transaction">transaction</a> slots that grows in chunks up to <strong><code>orchestrator.txn_table_capacity</code></strong> (chunk size: optional <strong><code>dataplane.slot_chunk_size</code></strong>). A slot is held from <a href="../architecture-and-packet-path/#receive">Receive</a> until <a href="../architecture-and-packet-path/#send">Send</a> — including while a <code>split_io</code> transaction is parked at <a href="../architecture-and-packet-path/#wait-for-response">Wait for response</a>. When every slot is in use, Conduit applies backpressure instead of growing without bound. Slot-pool gauges (in use, capacity, and exhaustion) appear in <a href="../../observability/built-in-metrics/">Built-in metrics</a>.</p>
+<h2 id="query-outcomes-and-worker-occupancy">Query outcomes and worker occupancy</h2>
 <table>
 <thead>
 <tr>
-<th>Effect</th>
-<th>Ingress (<code>post_request_rules</code>)</th>
-<th>Egress (<code>post_wait</code>)</th>
+<th>Outcome</th>
+<th>Client sees</th>
 <th>Notes</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><strong><code>set_tag</code></strong></td>
-<td>Planned</td>
-<td>Planned</td>
-<td>Visible to later hooks — for example response rule <code>tag</code> selectors after <code>post_wait</code></td>
-</tr>
-<tr>
-<td><strong><code>set_pool</code></strong></td>
-<td>Planned</td>
-<td>—</td>
-<td>Before <a href="../concepts/architecture-and-packet-path/#route">Route</a>; may override pool from request rules</td>
-</tr>
-<tr>
 <td><strong>Drop</strong></td>
-<td>Planned</td>
-<td>Planned</td>
-<td>Same semantics as rule <code>drop</code></td>
+<td>No reply (silent)</td>
+<td>Malformed wire, policy <code>drop</code></td>
 </tr>
 <tr>
-<td><strong>Retry</strong></td>
-<td>—</td>
-<td>Planned</td>
-<td>Re-enters <a href="../concepts/architecture-and-packet-path/#route">Route</a> (egress only), like response-hook <code>retry</code></td>
+<td><strong>Response</strong></td>
+<td>DNS packet</td>
+<td>Upstream answer or <strong>synthesized error</strong> (e.g. SERVFAIL when routing/forward/retries fail)</td>
 </tr>
 </tbody>
 </table>
-<p>Rhai equivalents for these effects will be documented on <a href="../rhai/message-api/">Message API</a> when the feature ships.</p>
-<h2 id="shared-host-features">Shared host features</h2>
-<p>Lookup tables (<code>data_sources:</code>) and custom metrics are host-owned features shared across Rhai and planned WASM/sidecar backends. Reference: <a href="../rhai/data-sources-and-lookups/">Data sources and lookups</a>, <a href="../rhai/user-metrics/">User metrics</a>.</p>
-<h2 id="until-this-ships">Until this ships</h2>
-<p>Configuration fields, validation rules, and operator workflows will be documented here when processor chains land. Roadmap detail: <a href="../concepts/planned-plugin-models/#processor-chains-planned">Planned plugin models</a>.</p>
-<h2 id="related">Related</h2>
+<p>Under <strong><code>sync</code></strong>, one ingress worker stays busy for the entire <a href="../../glossary/#transaction">transaction</a>, including the upstream wait. Under <strong><code>split_io</code></strong>, ingress hands off after the structural parse, so the upstream wait occupies a parked slot and an I/O worker rather than the ingress thread — that is what lets ingress keep accepting queries during slow upstreams.</p>
+<p><a href="../../observability/metrics/">Metrics</a>, <a href="../../observability/event-export/">event export</a> (<a href="../../glossary/#dnstap">dnstap</a>), and similar observation are handled separately from the query path. If an export queue fills up, Conduit drops export events and increments <a href="../../observability/built-in-metrics/#conduit_events_queue_dropped_total"><code>conduit_events_queue_dropped_total</code></a> rather than delaying DNS responses.</p>
+<p>For reload, in-flight queries, and validation failures, see <a href="../architecture-and-packet-path/#runtime-snapshot">Runtime snapshot</a>.</p>
+<h2 id="graceful-drain-on-shutdown">Graceful drain on shutdown</h2>
+<p>When Conduit receives a shutdown signal (<strong>SIGTERM</strong> or <strong>SIGINT</strong> / Ctrl+C — <strong>not</strong> SIGHUP, which <a href="../../glossary/#reload-from-disk">reloads</a>), it stops the <a href="../../glossary/#control-plane">control plane</a> and metrics endpoints, then <strong>drains</strong> in-flight transactions before tearing down listeners: it waits for every active <a href="../../glossary/#transaction">transaction</a> slot — including <code>split_io</code> transactions parked at <a href="../architecture-and-packet-path/#wait-for-response">Wait for response</a> — to finish. A clean drain is logged at debug.</p>
+<p>The drain is controlled by the <strong><code>shutdown</code></strong> block:</p>
 <ul>
-<li><a href="../rhai/">Rhai overview</a> — Rhai for rules vs Rhai for processor chains</li>
-<li><a href="../policy-routing/">Policy &amp; routing</a> — rules and Rhai for rules today</li>
-<li><a href="../concepts/architecture-and-packet-path/">Architecture and packet path</a> — pipeline phases</li>
+<li><strong><code>shutdown.drain</code></strong> (default <strong><code>true</code></strong>) — when set to <code>false</code>, Conduit skips the wait and tears down listeners immediately.</li>
+<li><strong><code>shutdown.drain_timeout_ms</code></strong> (default <strong>5000</strong> ms) — upper bound on the wait. If it elapses, Conduit logs how many transactions remain and shuts down anyway. This bound is <strong>independent</strong> of <code>orchestrator.max_txn_duration_ms</code>, which caps a single query’s lifetime rather than the shutdown wait.</li>
+</ul>
+<p><strong>A second shutdown signal cuts the wait short.</strong> While Conduit is still draining, another <strong>SIGTERM</strong>/<strong>SIGINT</strong> abandons the remaining wait and proceeds straight to listener teardown — use it when you need the process to exit now instead of waiting out <code>shutdown.drain_timeout_ms</code>. (Sending the signal again is also the way to force an exit when <code>forward.timeout_ms</code> and the drain timeout are both long.)</p>
+<p>Drain applies to all runtime models. The <code>shutdown</code> block is <strong>dynamic</strong>: Conduit reads <code>drain</code> and <code>drain_timeout_ms</code> from the live snapshot when shutdown begins, so an applied or reloaded change takes effect on the next shutdown with no restart. Field reference and reload behavior: <a href="../../reference/config-schema/shutdown/">Reference: shutdown</a>.</p>
+<pre class="mermaid"><code>flowchart TB
+  sig[First SIGTERM / SIGINT] --&gt; stop[Stop control plane and metrics endpoints]
+  stop --&gt; drainq{"shutdown.drain?"}
+  drainq --&gt;|false| teardown[Tear down listeners and exit]
+  drainq --&gt;|true| wait[Wait for in-flight transactions]
+  wait --&gt;|all transactions finished| teardown
+  wait --&gt;|drain_timeout_ms elapsed| teardown
+  wait --&gt;|second SIGTERM / SIGINT| teardown</code></pre>
+<h2 id="related-topics">Related topics</h2>
+<ul>
+<li><a href="../architecture-and-packet-path/">Architecture and packet path</a> — the per-query pipeline and phases</li>
+<li><a href="../../control-plane/configuration-model/">Configuration model</a> — snapshots, reload, and what needs a restart</li>
+<li><a href="../../reference/config-schema/orchestrator/">Reference: orchestrator</a> — <code>txn_table_capacity</code>, attempt and duration caps</li>
+<li><a href="../../reference/config-schema/listeners/">Reference: listeners</a> — <code>threads</code>, <code>reuse_port</code></li>
+<li><a href="../../reference/config-schema/shutdown/">Reference: shutdown</a> — <code>drain</code>, <code>drain_timeout_ms</code></li>
 </ul>
 
 
@@ -2593,16 +2602,16 @@
     </div>
     
     
-    <script id="__config" type="application/json">{"base": "..", "features": ["navigation.instant", "navigation.tracking", "toc.follow", "search.suggest", "content.code.copy"], "search": "../assets/javascripts/workers/search.6ce7567c.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "0.15.0"}}</script>
+    <script id="__config" type="application/json">{"base": "../..", "features": ["navigation.instant", "navigation.tracking", "toc.follow", "search.suggest", "content.code.copy"], "search": "../../assets/javascripts/workers/search.6ce7567c.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "0.15.0"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.88dd0f4e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.88dd0f4e.min.js"></script>
       
-        <script src="../assets/javascripts/doc-version.js"></script>
+        <script src="../../assets/javascripts/doc-version.js"></script>
       
-        <script src="../assets/javascripts/toc-collapse.js"></script>
+        <script src="../../assets/javascripts/toc-collapse.js"></script>
       
-        <script src="../assets/javascripts/txn-api-cards.js"></script>
+        <script src="../../assets/javascripts/txn-api-cards.js"></script>
       
     
   </body>
