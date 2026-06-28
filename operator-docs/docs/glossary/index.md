@@ -1,3 +1,8 @@
+---
+toc_depth: 3
+toc_collapsible: true
+---
+
 # Glossary
 
 Brief definitions of terminology used in this documentation. Each entry links to the canonical topic page for detail.
