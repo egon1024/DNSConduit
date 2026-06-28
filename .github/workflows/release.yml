@@ -112,7 +112,11 @@ jobs:
         if: steps.exists.outputs.skip != 'true'
         run: pip install -r requirements.txt
 
-      - name: Bump Cargo.toml workspace version
+      - name: Install Rust toolchain
+        if: steps.exists.outputs.skip != 'true'
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Bump Cargo.toml workspace version and resync Cargo.lock
         if: steps.exists.outputs.skip != 'true'
         env:
           NEXT_VERSION: ${{ steps.release_version.outputs.next_version }}
@@ -147,7 +151,7 @@ jobs:
             exit 1
           fi
 
-          git add Cargo.toml operator-docs/docs/release-notes/
+          git add Cargo.toml Cargo.lock operator-docs/docs/release-notes/
           if git diff --cached --quiet; then
             echo "committed=false" >>"$GITHUB_OUTPUT"
             echo "Release preparation already on main for ${NEXT_VERSION}; skipping commit."
@@ -199,11 +203,23 @@ jobs:
             echo "::error::Cargo.toml on main is ${cargo_ver:-unknown}; expected ${NEXT_VERSION}"
             exit 1
           fi
+          lock_ver="$(git show "origin/main:Cargo.lock" | awk '
+            /^name = "conduit"$/ { want=1; next }
+            want && /^version = / {
+              gsub(/"/, "", $3)
+              print $3
+              exit
+            }
+          ')"
+          if [[ "${lock_ver}" != "${NEXT_VERSION}" ]]; then
+            echo "::error::Cargo.lock on main pins conduit ${lock_ver:-unknown}; expected ${NEXT_VERSION}"
+            exit 1
+          fi
           if git rev-parse "refs/tags/${NEXT_VERSION}" >/dev/null 2>&1; then
             echo "::error::Tag ${NEXT_VERSION} already exists locally; refusing to create release"
             exit 1
           fi
-          echo "Verified ${notes_path} and Cargo.toml ${NEXT_VERSION} on origin/main."
+          echo "Verified ${notes_path}, Cargo.toml, and Cargo.lock ${NEXT_VERSION} on origin/main."
 
       - name: Create GitHub Release
         if: steps.exists.outputs.skip != 'true'

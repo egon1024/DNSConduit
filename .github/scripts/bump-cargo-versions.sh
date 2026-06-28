@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Set workspace.package.version in the root Cargo.toml.
+# Set workspace.package.version in the root Cargo.toml and resync Cargo.lock.
 set -euo pipefail
 
 NEXT_VERSION="${NEXT_VERSION:?NEXT_VERSION is required}"
@@ -28,3 +28,16 @@ if count != 1:
 open(path, "w", encoding="utf-8").write(new_text)
 print(f"Updated workspace.package.version to {version}")
 PY
+
+# Keep Cargo.lock in sync with the bumped workspace version. Releases that ship a
+# lockfile still pinned to the previous version force every local build to rewrite
+# Cargo.lock, which then becomes a recurring rebase/merge conflict. --workspace
+# re-resolves only the workspace members, leaving third-party dependency pins
+# untouched.
+if ! command -v cargo >/dev/null 2>&1; then
+  echo "::error::cargo not found; cannot regenerate Cargo.lock for ${NEXT_VERSION}"
+  exit 1
+fi
+
+echo "Regenerating Cargo.lock workspace entries for ${NEXT_VERSION}"
+cargo update --workspace --manifest-path "$ROOT_CARGO"
