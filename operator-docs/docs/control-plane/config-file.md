@@ -43,6 +43,7 @@ Each block maps to a section in the canonical config model. Behavioral detail li
 | `rules` | Declarative policy | [Rules and actions](/policy-routing/rules-and-actions.md), [Reference: rules](/reference/config-schema/rules.md) |
 | `rhai` | Script sandbox limits (scripts come from `rules`) | [Rhai](/rhai/index.md) |
 | `data_sources` | Lookup tables for [Rhai](/rhai/index.md) | [Data sources and lookups](/rhai/data-sources-and-lookups.md) |
+| `data_source_limits` | Load-safety caps for `data_sources` tables | [Load-safety limits](/rhai/data-sources-and-lookups.md#load-safety-limits) |
 | `events` | Event export queue and sinks | [Event export](/observability/event-export.md), [Reference: events](/reference/config-schema/events.md) |
 | `metrics` | Built-in Prometheus / OTEL export | [Metrics](/observability/metrics.md), [Reference: metrics and tracing](/reference/config-schema/metrics-and-tracing.md) |
 | `tracing` | Per-query pipeline traces | [Tracing](/observability/tracing.md), [Reference: metrics and tracing](/reference/config-schema/metrics-and-tracing.md) |

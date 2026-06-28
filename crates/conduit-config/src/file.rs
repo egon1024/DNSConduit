@@ -8,11 +8,11 @@ use crate::defaults::{
 };
 use crate::error::ConfigError;
 use conduit_proto::config::{
-    Action, Backend, Config, ControlConfig, ControlTlsConfig, DataSource, DataplaneConfig,
-    EventSinkFilters, EventsConfig, ForwardConfig, Listener, ListenersConfig, LoggingConfig,
-    MetricsConfig, OrchestratorConfig, OtelMetricsConfig, Pool, PrometheusMetricsConfig,
-    RhaiConfig, Rule, RulesConfig, Selector, ShutdownConfig, TracingActivation, TracingConfig,
-    TracingOutput, UserMetricExportConfig,
+    Action, Backend, Config, ControlConfig, ControlTlsConfig, DataSource, DataSourceLimits,
+    DataplaneConfig, EventSinkFilters, EventsConfig, ForwardConfig, Listener, ListenersConfig,
+    LoggingConfig, MetricsConfig, OrchestratorConfig, OtelMetricsConfig, Pool,
+    PrometheusMetricsConfig, RhaiConfig, Rule, RulesConfig, Selector, ShutdownConfig,
+    TracingActivation, TracingConfig, TracingOutput, UserMetricExportConfig,
 };
 use serde::{Deserialize, Serialize};
 
@@ -47,6 +47,8 @@ pub(crate) struct YamlConfig {
     dataplane: Option<YamlDataplane>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     shutdown: Option<YamlShutdown>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    data_source_limits: Option<YamlDataSourceLimits>,
 }
 
 /// Sparse overlay patch: omitted top-level keys stay unset (`None` / empty) in [`Config`].
@@ -82,6 +84,8 @@ pub(crate) struct YamlOverlayPatch {
     dataplane: Option<YamlDataplane>,
     #[serde(default)]
     shutdown: Option<YamlShutdown>,
+    #[serde(default)]
+    data_source_limits: Option<YamlDataSourceLimits>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -475,6 +479,7 @@ pub(crate) struct YamlEventSink {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct YamlDataSource {
     name: String,
     #[serde(rename = "type")]
@@ -484,6 +489,54 @@ pub(crate) struct YamlDataSource {
     key_column: String,
     #[serde(default)]
     value_column: String,
+    // Optional per-entry load-safety overrides; unset = inherit data_source_limits.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    max_file_bytes: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    max_entries: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    max_key_bytes: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    max_value_bytes: Option<u32>,
+}
+
+/// Generic load-safety limits for `data_sources` (table/key-value abstraction;
+/// applies to any source type). `0` on any field means "use the built-in
+/// default" at load time.
+#[derive(Debug, Default, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct YamlDataSourceLimits {
+    #[serde(default, skip_serializing_if = "is_zero_u64")]
+    max_file_bytes: u64,
+    #[serde(default, skip_serializing_if = "is_zero_u64")]
+    max_entries: u64,
+    #[serde(default, skip_serializing_if = "is_zero_u32")]
+    max_key_bytes: u32,
+    #[serde(default, skip_serializing_if = "is_zero_u32")]
+    max_value_bytes: u32,
+    #[serde(default, skip_serializing_if = "is_zero_u32")]
+    max_tables: u32,
+    #[serde(default, skip_serializing_if = "is_zero_u64")]
+    max_total_bytes: u64,
+}
+
+impl YamlDataSourceLimits {
+    fn is_default(&self) -> bool {
+        self.max_file_bytes == 0
+            && self.max_entries == 0
+            && self.max_key_bytes == 0
+            && self.max_value_bytes == 0
+            && self.max_tables == 0
+            && self.max_total_bytes == 0
+    }
+}
+
+fn is_zero_u64(v: &u64) -> bool {
+    *v == 0
+}
+
+fn is_zero_u32(v: &u32) -> bool {
+    *v == 0
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -710,6 +763,7 @@ impl From<YamlOverlayPatch> for Config {
             tracing: y.tracing.map(Into::into),
             dataplane: y.dataplane.map(Into::into),
             shutdown: y.shutdown.map(Into::into),
+            data_source_limits: y.data_source_limits.map(Into::into),
         }
     }
 }
@@ -732,6 +786,7 @@ impl From<YamlConfig> for Config {
             tracing: y.tracing.map(Into::into),
             dataplane: y.dataplane.map(Into::into),
             shutdown: y.shutdown.map(Into::into),
+            data_source_limits: y.data_source_limits.map(Into::into),
         }
     }
 }
@@ -1000,6 +1055,36 @@ impl From<YamlDataSource> for DataSource {
             path: y.path,
             key_column: y.key_column,
             value_column: y.value_column,
+            max_file_bytes: y.max_file_bytes,
+            max_entries: y.max_entries,
+            max_key_bytes: y.max_key_bytes,
+            max_value_bytes: y.max_value_bytes,
+        }
+    }
+}
+
+impl From<YamlDataSourceLimits> for DataSourceLimits {
+    fn from(y: YamlDataSourceLimits) -> Self {
+        DataSourceLimits {
+            max_file_bytes: y.max_file_bytes,
+            max_entries: y.max_entries,
+            max_key_bytes: y.max_key_bytes,
+            max_value_bytes: y.max_value_bytes,
+            max_tables: y.max_tables,
+            max_total_bytes: y.max_total_bytes,
+        }
+    }
+}
+
+impl From<&DataSourceLimits> for YamlDataSourceLimits {
+    fn from(d: &DataSourceLimits) -> Self {
+        YamlDataSourceLimits {
+            max_file_bytes: d.max_file_bytes,
+            max_entries: d.max_entries,
+            max_key_bytes: d.max_key_bytes,
+            max_value_bytes: d.max_value_bytes,
+            max_tables: d.max_tables,
+            max_total_bytes: d.max_total_bytes,
         }
     }
 }
@@ -1119,6 +1204,14 @@ pub(crate) fn config_to_yaml(cfg: &Config) -> Result<YamlConfig, ConfigError> {
                 drain: s.drain,
                 drain_timeout_ms: s.drain_timeout_ms,
             };
+            if y.is_default() {
+                None
+            } else {
+                Some(y)
+            }
+        }),
+        data_source_limits: cfg.data_source_limits.as_ref().and_then(|l| {
+            let y = YamlDataSourceLimits::from(l);
             if y.is_default() {
                 None
             } else {
@@ -1407,6 +1500,10 @@ impl From<&DataSource> for YamlDataSource {
             path: d.path.clone(),
             key_column: d.key_column.clone(),
             value_column: d.value_column.clone(),
+            max_file_bytes: d.max_file_bytes,
+            max_entries: d.max_entries,
+            max_key_bytes: d.max_key_bytes,
+            max_value_bytes: d.max_value_bytes,
         }
     }
 }

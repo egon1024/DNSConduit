@@ -29,6 +29,10 @@ Each entry in **`data_sources:`**:
 | `path` | yes | — | CSV file path; resolved relative to the [config file directory](/control-plane/config-file.md#path-resolution-base-directory) unless absolute |
 | `key_column` | no | `key` (or first column) | Header name for the key column, or use column index 0 when no header |
 | `value_column` | no | `value` (or second column) | Header name for the value column, or use column index 1 when no header |
+| `max_file_bytes` | no | inherit `data_source_limits` | Per-entry override of the source file size cap (see [Load-safety limits](#load-safety-limits)) |
+| `max_entries` | no | inherit `data_source_limits` | Per-entry override of the key→value entry cap |
+| `max_key_bytes` | no | inherit `data_source_limits` | Per-entry override of the per-key length cap |
+| `max_value_bytes` | no | inherit `data_source_limits` | Per-entry override of the per-value length cap |
 
 Minimal example:
 
@@ -56,6 +60,39 @@ rules:
         - type: rhai
           value: scripts/blocklist.rhai
 ```
+
+## Load-safety limits { #load-safety-limits }
+
+Data-source tables load **entirely into memory** at snapshot compile (validate, reload, apply). To keep an oversized or malformed table file from driving Conduit into high memory use or OOM, the loader enforces generic load-safety limits. The limits are framed on the **table / key→value abstraction**, so they apply to any source type (CSV is the only type today).
+
+Set a global **`data_source_limits:`** block; any field left unset (or `0`) uses the built-in default. Individual entries may override the per-table caps via the fields in the table above.
+
+| Limit | Scope | Default | Bounds |
+|-------|-------|---------|--------|
+| `max_file_bytes` | per table (overridable) | 16 MiB | Source file size; read is bounded, oversize is rejected without loading the whole file |
+| `max_entries` | per table (overridable) | 1,000,000 | Number of key→value entries loaded from one table |
+| `max_key_bytes` | per table (overridable) | 1 KiB | Length of any single key |
+| `max_value_bytes` | per table (overridable) | 4 KiB | Length of any single value |
+| `max_tables` | global | 64 | Number of entries in `data_sources:` |
+| `max_total_bytes` | global | 64 MiB | Aggregate bytes read across all tables in one snapshot |
+
+Resolution precedence for the per-table caps: a non-zero **per-entry override** wins, otherwise the **`data_source_limits`** value, otherwise the **built-in default**.
+
+```yaml
+data_source_limits:
+  max_file_bytes: 33554432   # 32 MiB
+  max_entries: 2000000
+  max_tables: 16
+data_sources:
+  - name: blocklist
+    type: csv
+    path: data/blocklist.csv
+    key_column: qname
+    value_column: action
+    max_entries: 5000        # this table is small; tighten its own cap
+```
+
+In-memory tables are intended for blocklists, geo maps, and similar policy data — **not** a bulk data store. For large or streaming datasets, keep tables within these caps rather than raising them indefinitely.
 
 ## CSV format
 
@@ -127,9 +164,14 @@ If a CSV path is missing or malformed at compile time, validation/reload **fails
 | `path must not be empty` | Missing `path` |
 | `failed to read` | File not found or not readable at compile time |
 | `not enough columns` | Row has fewer columns than key/value indices require |
+| `exceeds max_file_bytes` | Source file is larger than the effective `max_file_bytes` cap |
+| `exceeds max_entries` | Table has more key→value entries than the effective `max_entries` cap |
+| `exceeds max_key_bytes` / `exceeds max_value_bytes` | A key or value cell is longer than the effective cap |
+| `exceeds max_tables` | More `data_sources:` entries than `data_source_limits.max_tables` |
+| `exceeds max_total_bytes` | Aggregate bytes across all tables exceed `data_source_limits.max_total_bytes` |
 | `unknown data source` | Rhai script calls `table_lookup("literal", …)` with a table name not listed in **`data_sources:`** |
 
-Structural YAML checks run in **`validate`**. File read and CSV parse run when the snapshot is **built** (including `conduitctl validate` with script compile).
+Structural YAML checks run in **`validate`** (including the `max_tables` count). File read and CSV parse — and the file/entry/cell/aggregate byte limits — run when the snapshot is **built** (including `conduitctl validate` with script compile).
 
 ## Patterns
 
@@ -181,6 +223,7 @@ List **`set_pool`** before **`rhai`** on the same rule when the script only refi
 ## Limitations (current release)
 
 - **`type: csv`** only — no HTTP, LMDB, or dynamic plugins yet.
+- Tables load fully into memory and are bounded by [load-safety limits](#load-safety-limits) — intended for policy data, not bulk storage.
 - Simple CSV splitting — no RFC 4180 quoting; avoid commas inside fields.
 - Read-only from scripts — no write-back or per-query cache invalidation.
 - [Rhai for rules](/rhai/rule-rhai.md) only — `table_lookup` is available to rule scripts on the request and response hooks.

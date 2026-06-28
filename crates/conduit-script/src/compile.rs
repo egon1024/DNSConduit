@@ -1,5 +1,5 @@
 use crate::capability_scan::script_needs_response_wire_meta;
-use crate::data_sources::{load_data_sources, DataSourceStore};
+use crate::data_sources::{load_data_sources, DataSourceLimits, DataSourceStore};
 use crate::error::ScriptError;
 use crate::host::ScriptPhase;
 use crate::lookup_scan::validate_table_lookup_literals;
@@ -102,7 +102,12 @@ pub fn compile_from_config(
     base_dir: Option<&Path>,
 ) -> Result<CompiledScripting, ScriptError> {
     let limits = ScriptLimits::from_config(config.rhai.as_ref());
-    let data_sources = Arc::new(load_data_sources(&config.data_sources, base_dir)?);
+    let data_source_limits = DataSourceLimits::from_config(config.data_source_limits.as_ref());
+    let data_sources = Arc::new(load_data_sources(
+        &config.data_sources,
+        base_dir,
+        &data_source_limits,
+    )?);
     let snapshot_generation = SNAPSHOT_GENERATION.fetch_add(1, Ordering::Relaxed) + 1;
 
     let mut scripting = CompiledScripting {

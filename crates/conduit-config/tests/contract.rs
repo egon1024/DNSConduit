@@ -22,6 +22,76 @@ fn wire_enum_selectors_fixture_validates() {
     );
 }
 
+/// The `data_source_limits` block and per-entry overrides load, validate, and
+/// round-trip through export without loss.
+#[test]
+fn data_source_limits_fixture_round_trips() {
+    let yaml = include_str!("../../../tests/fixtures/config/with-data-source-limits.yaml");
+    let cfg = load_yaml(yaml).expect("load data-source-limits fixture");
+    let validation = validate(&cfg);
+    assert!(validation.ok, "validation failed: {:?}", validation.errors);
+
+    let limits = cfg
+        .data_source_limits
+        .as_ref()
+        .expect("data_source_limits present");
+    assert_eq!(limits.max_file_bytes, 1_048_576);
+    assert_eq!(limits.max_entries, 50_000);
+    assert_eq!(limits.max_tables, 8);
+    assert_eq!(cfg.data_sources[0].max_file_bytes, Some(65_536));
+    assert_eq!(cfg.data_sources[0].max_entries, Some(1_000));
+
+    let out = export_yaml(&cfg).expect("export");
+    let cfg2 = load_yaml(&out).expect("reload exported yaml");
+    let validation2 = validate(&cfg2);
+    assert!(
+        validation2.ok,
+        "reload validation: {:?}",
+        validation2.errors
+    );
+    let limits2 = cfg2
+        .data_source_limits
+        .as_ref()
+        .expect("limits survive round-trip");
+    assert_eq!(limits2.max_entries, 50_000);
+    assert_eq!(cfg2.data_sources[0].max_entries, Some(1_000));
+}
+
+/// `data_source_limits.max_tables` smaller than the number of entries is rejected
+/// structurally at validation (before any file read).
+#[test]
+fn max_tables_smaller_than_entry_count_is_rejected() {
+    let yaml = r#"
+schema_version: 1
+listeners:
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+pools:
+  - name: primary
+    backends:
+      - address: "127.0.0.1:5300"
+        weight: 100
+data_source_limits:
+  max_tables: 1
+data_sources:
+  - name: a
+    type: csv
+    path: ../data/blocklist.csv
+  - name: b
+    type: csv
+    path: ../data/blocklist.csv
+"#;
+    let cfg = load_yaml(yaml).expect("load config");
+    let validation = validate(&cfg);
+    assert!(!validation.ok, "expected max_tables rejection");
+    assert!(
+        validation.errors.iter().any(|e| e.contains("max_tables")),
+        "errors: {:?}",
+        validation.errors
+    );
+}
+
 /// An unknown `qtype` selector value is rejected at config validation.
 #[test]
 fn unknown_qtype_selector_value_is_rejected() {
