@@ -21,6 +21,7 @@ Other top-level blocks — topic home (field tables and behavior):
 |---------|------------|
 | `rhai` | [Sandbox limits](/rhai/sandbox-limits.md) — `max_operations`, `max_call_depth`, `hook_timeout_ms` |
 | `data_sources` | [Data sources and lookups](/rhai/data-sources-and-lookups.md) |
+| `data_source_limits` | [Data sources — Load-safety limits](/rhai/data-sources-and-lookups.md#load-safety-limits) — `max_file_bytes`, `max_entries`, `max_key_bytes`, `max_value_bytes`, `max_tables`, `max_total_bytes` |
 | `logging` | [Logging](/observability/logging.md) — `level`, `output` |
 
 See [Config file — top-level blocks](/control-plane/config-file.md#top-level-blocks) for how blocks fit together.

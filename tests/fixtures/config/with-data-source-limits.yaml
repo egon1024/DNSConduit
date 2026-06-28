@@ -1,0 +1,30 @@
+schema_version: 1
+listeners:
+  threads: 1
+  reuse_port: false
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+forward:
+  outstanding_per_backend: 100
+  timeout_ms: 2000
+pools:
+  - name: primary
+    backends:
+      - address: "127.0.0.1:5300"
+        weight: 100
+data_source_limits:
+  max_file_bytes: 1048576
+  max_entries: 50000
+  max_key_bytes: 512
+  max_value_bytes: 1024
+  max_tables: 8
+  max_total_bytes: 8388608
+data_sources:
+  - name: blocklist
+    type: csv
+    path: ../data/blocklist.csv
+    key_column: qname
+    value_column: action
+    max_file_bytes: 65536
+    max_entries: 1000

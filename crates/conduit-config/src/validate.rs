@@ -457,6 +457,20 @@ pub fn validate(cfg: &Config) -> ValidationResult {
         }
     }
 
+    // Structurally surface a max_tables violation during `validate` (even when no
+    // Rhai scripts reference the tables, so the loader is not exercised). Other
+    // load-safety limits (file/entry/cell/aggregate bytes) require reading the
+    // files and are enforced at snapshot compile in the data-source loader.
+    if let Some(limits) = &cfg.data_source_limits {
+        if limits.max_tables > 0 && cfg.data_sources.len() as u64 > limits.max_tables as u64 {
+            errors.push(format!(
+                "data_sources has {} entries, exceeding data_source_limits.max_tables {}",
+                cfg.data_sources.len(),
+                limits.max_tables
+            ));
+        }
+    }
+
     if let Some(rhai) = &cfg.rhai {
         if rhai.max_operations == 0 {
             errors.push("rhai.max_operations must be >= 1 when set".into());

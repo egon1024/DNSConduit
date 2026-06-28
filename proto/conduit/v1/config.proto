@@ -20,6 +20,7 @@ message Config {
   optional TracingConfig tracing = 13;
   optional DataplaneConfig dataplane = 14;
   optional ShutdownConfig shutdown = 15;
+  optional DataSourceLimits data_source_limits = 16;
 }
 
 // Process shutdown behavior: graceful drain of in-flight transactions before exit.
@@ -81,6 +82,24 @@ message DataSource {
   string path = 3;
   string key_column = 4;     // default: first column
   string value_column = 5;   // default: second column
+  // Optional per-entry load-safety overrides; unset = inherit the global
+  // data_source_limits block (which itself falls back to built-in defaults).
+  optional uint64 max_file_bytes = 6;
+  optional uint64 max_entries = 7;
+  optional uint32 max_key_bytes = 8;
+  optional uint32 max_value_bytes = 9;
+}
+
+// Generic load-safety limits for data_sources, applied at snapshot compile to
+// bound memory use. Framed on the table/key->value abstraction so they apply to
+// any source type (CSV today). 0 = use the built-in default for that field.
+message DataSourceLimits {
+  uint64 max_file_bytes = 1;   // per-table source file size cap
+  uint64 max_entries = 2;      // per-table key->value entry cap
+  uint32 max_key_bytes = 3;    // per-entry key length cap
+  uint32 max_value_bytes = 4;  // per-entry value length cap
+  uint32 max_tables = 5;       // number of data_sources entries
+  uint64 max_total_bytes = 6;  // aggregate bytes across all tables in a snapshot
 }
 
 // Phase 1 dev/ops logging (not full transaction trace — see design §4.3).
