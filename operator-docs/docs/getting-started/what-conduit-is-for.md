@@ -73,6 +73,9 @@ A minimal file — `schema_version`, `listeners`, and one `pools` entry — is e
 | Authoritative DNS for your zones | Out of scope — configure upstream resolvers in `pools:` |
 | A recursive resolver on its own | Conduit forwards to the [backends](/glossary/index.md#backend) you configure |
 | Required gRPC or `conduitctl` for every change | Optional — file edit + **SIGHUP** or reload works without `control:` |
+| A response/packet cache | No built-in cache today — Conduit forwards every query to a [backend](/glossary/index.md#backend) (caching is planned for a future release) |
+| Active upstream health checking | No active backend health probing today; backend selection is weight-based and failures are handled by [retries](/policy-routing/retries-and-transactions.md) and timeouts (health probing is planned for a future release) |
+| A bundled dashboard or TUI | Operate Conduit via the [config file](/control-plane/config-file.md), **`conduitctl`**, and the [gRPC API](/reference/grpc-and-cli.md); no built-in TUI or web console today |
 
 ## Where to go next
 

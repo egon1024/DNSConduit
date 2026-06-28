@@ -16,6 +16,9 @@ Field-level reference for the **`ConduitControl`** gRPC service and how **`condu
 
 Mutating RPCs (`ApplyConfig`, `ReloadFromFile`) leave the prior [runtime snapshot](/glossary/index.md#runtime-snapshot) unchanged when `ok` is false.
 
+!!! note "`Health` is process liveness only"
+    `Health` reports that the control plane is serving; it does **not** report upstream [backend](/glossary/index.md#backend) health. Conduit does **no active backend health probing** today — backend selection is weight-based and upstream failures are handled by [retries](/policy-routing/retries-and-transactions.md) and timeouts (active health checks are planned for a future release).
+
 ## OverlayApplyMode
 
 Used by **`ApplyConfig`**. **`OVERLAY_APPLY_MODE_UNSPECIFIED` (0)** is treated as **merge**.
