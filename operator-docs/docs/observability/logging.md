@@ -79,6 +79,8 @@ At **`debug`**, each completed [transaction](/glossary/index.md#transaction) emi
 DEBUG … query complete txn_id=1 dns_id=… qname=example.com. rcode=NOERROR pool=default backend=127.0.0.1:5300 attempts=1
 ```
 
+The **`backend`** field is the backend **label** — the configured backend `name` when set, otherwise the `ip:port` address — matching the identity used in [metrics](/observability/built-in-metrics.md), [traces](/observability/tracing.md), and [event sinks](/observability/event-export.md).
+
 Policy **drops** (no reply sent) log at **`debug`** as **`query dropped`**:
 
 ```text
