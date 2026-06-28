@@ -1524,7 +1524,7 @@ On the **request hook**, only the question is meaningful — upstream has not an
 
 <p class="txn-api-index" markdown="1">
 
-**Functions:** [`question_qname(txn)`](#question_qnametxn) · **Methods:** [`txn.question()`](#txnquestion) · [`txn.response()`](#txnresponse) · [`txn.response_rcode()`](#txnresponse_rcode) · [`txn.selected_pool()`](#txnselected_pool) · [`txn.selected_backend()`](#txnselected_backend) · [`txn.response_truncated()`](#txnresponse_truncated) · [`txn.response_answer_count()`](#txnresponse_answer_count) · **Types:** [`RecordType`](#recordtype) · [`Rcode`](#rcode) · [`QueryClass`](#queryclass) · [`DnsOpcode`](#dnsopcode) · [`EdnsOptionCode`](#ednsoptioncode)
+**Functions:** [`question_qname(txn)`](#question_qnametxn) · **Methods:** [`txn.question()`](#txnquestion) · [`txn.response()`](#txnresponse) · [`txn.response_rcode()`](#txnresponse_rcode) · [`txn.selected_pool()`](#txnselected_pool) · [`txn.selected_backend()`](#txnselected_backend) · [`txn.selected_backend_name()`](#txnselected_backend_name) · [`txn.response_truncated()`](#txnresponse_truncated) · [`txn.response_answer_count()`](#txnresponse_answer_count) · **Types:** [`RecordType`](#recordtype) · [`Rcode`](#rcode) · [`QueryClass`](#queryclass) · [`DnsOpcode`](#dnsopcode) · [`EdnsOptionCode`](#ednsoptioncode)
 
 </p>
 
@@ -1893,7 +1893,8 @@ There is no YAML equivalent.
 - Reflects the outcome Conduit recorded for the **current** forward attempt — after timeout, connection failure, or an upstream DNS response. Conduit often sets **`SERVFAIL`** for timeout and pool exhaustion before your script runs; see [Retries and transactions](/policy-routing/retries-and-transactions.md).
 - Map keys (each present only when available):
   - **`rcode`** — [`Rcode`](#rcode) for this forward attempt
-  - **`pool`**, **`backend`** — selected pool name and upstream backend socket for **this** forward attempt (also available via [`txn.selected_pool()`](#txnselected_pool) / [`txn.selected_backend()`](#txnselected_backend))
+  - **`pool`**, **`backend`** — selected pool name and upstream backend **socket address** for **this** forward attempt (also available via [`txn.selected_pool()`](#txnselected_pool) / [`txn.selected_backend()`](#txnselected_backend))
+  - **`backend_name`** — backend **logical label** (configured `name` when set, else address) for this attempt; matches the name-when-set identity in metrics/logs/traces/event filters (also via [`txn.selected_backend_name()`](#txnselected_backend_name))
   - **`answer_count`**, **`authority_count`**, **`additional_count`**, **`truncated`**, **`authoritative`** — present only when a response-hook script references wire-derived fields at compile time (see below)
   - **`qname`**, **`qtype`**, **`qclass`**, **`opcode`**, **`edns_options`** — same as **`txn.question()`**
 - **Compile-time gating:** Conduit scans response-hook Rhai sources at snapshot compile. If **no** script references wire-derived fields (`truncated`, `answer_count`, etc.), the forward stage skips parsing upstream response sections — **`rcode`** is still extracted. When any script needs wire metadata, parsing is enabled for **all** queries on that snapshot.
@@ -1940,7 +1941,21 @@ Pool name selected for the current forward attempt (empty when unset).
 
 Request + response hook · no args · returns `string`
 
-Upstream backend socket for the current forward attempt (empty when unset).
+Upstream backend **socket address** for the current forward attempt (empty when unset).
+
+</div>
+
+</div>
+
+<div class="txn-api-entry" markdown="1">
+
+### `txn.selected_backend_name()` {#txnselected_backend_name}
+
+<div class="txn-api-brief" markdown="1">
+
+Request + response hook · no args · returns `string`
+
+Upstream backend **logical label** for the current forward attempt: the configured backend `name` when set, otherwise the socket address. This is the same name-when-set identity used in [metrics](/observability/built-in-metrics.md), logs, traces, and event-sink `backend` filters. Empty when no backend is selected.
 
 </div>
 

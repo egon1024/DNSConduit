@@ -64,6 +64,10 @@ pub trait HostTransaction {
     fn selected_backend(&self) -> Option<SocketAddr> {
         None
     }
+    /// Logical label for the selected backend: configured `name` when set, else address.
+    fn selected_backend_label(&self) -> Option<String> {
+        None
+    }
     fn response_rcode_number(&self) -> Option<u16> {
         None
     }

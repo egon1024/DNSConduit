@@ -83,6 +83,9 @@ pub struct Transaction {
     pub client_udp_payload_size: Option<u16>,
     pub selected_pool: Option<String>,
     pub selected_backend: Option<SocketAddr>,
+    /// Logical label for the selected backend: configured `name` when set, else address.
+    /// Resolved once at selection time so traces, events, logs, and Rhai agree.
+    pub selected_backend_label: Option<String>,
     pub attempts: Vec<AttemptRecord>,
     pub attempt_count: u32,
     pub retry_pool: Option<String>,
@@ -137,6 +140,7 @@ impl Transaction {
             client_udp_payload_size: None,
             selected_pool: None,
             selected_backend: None,
+            selected_backend_label: None,
             attempts: Vec::new(),
             attempt_count: 0,
             retry_pool: None,
@@ -275,7 +279,7 @@ impl Transaction {
         self.rcode
     }
 
-    pub fn record_attempt(&mut self, pool: String, backend: SocketAddr) {
+    pub fn record_attempt(&mut self, pool: String, backend: SocketAddr, backend_label: String) {
         self.attempt_count += 1;
         self.attempts.push(AttemptRecord {
             pool: pool.clone(),
@@ -284,6 +288,16 @@ impl Transaction {
         });
         self.selected_pool = Some(pool);
         self.selected_backend = Some(backend);
+        self.selected_backend_label = Some(backend_label);
+    }
+
+    /// Logical label for the selected backend (configured `name` when set, else
+    /// address). Falls back to the raw address for transactions that set
+    /// `selected_backend` directly without a resolved label.
+    pub fn selected_backend_display(&self) -> Option<String> {
+        self.selected_backend_label
+            .clone()
+            .or_else(|| self.selected_backend.map(|a| a.to_string()))
     }
 
     pub fn take_retry_pool(&mut self) -> Option<String> {
