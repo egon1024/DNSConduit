@@ -8,11 +8,11 @@ Use when validating release automation or recovering from a failed **Release** w
 2. **Release** workflow runs (not on `chore: release …` commits).
 3. Expected order:
    - Compute `NEXT_VERSION`
-   - Bump `Cargo.toml`
+   - Bump `Cargo.toml` and resync `Cargo.lock` (`cargo update --workspace`)
    - Finalize `operator-docs/docs/release-notes/unreleased.md` → `{NEXT_VERSION}.md`, reset unreleased
    - `make docs-build` (strict MkDocs)
-   - Commit `chore: release {NEXT_VERSION}` to `main` (Cargo + release notes)
-   - Verify notes and Cargo version on `origin/main`
+   - Commit `chore: release {NEXT_VERSION}` to `main` (`Cargo.toml` + `Cargo.lock` + release notes)
+   - Verify notes, `Cargo.toml`, and `Cargo.lock` version on `origin/main`
    - `gh release create` (tag + GitHub Release with generated PR notes)
    - Dispatch **Docs deploy** and **Build release artifacts**
 
