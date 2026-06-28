@@ -6,7 +6,7 @@ This page explains how Conduit groups upstream DNS servers into [pools](/glossar
 
 [Pools](/glossary/index.md#pool) and [backends](/glossary/index.md#backend) are the organizational pattern Conduit uses to route forwarded DNS queries.
 
-A [backend](/glossary/index.md#backend) is a configured upstream destination Conduit forwards DNS queries to. Each backend carries settings that control how Conduit reaches and uses that destination (for example, address, port, and load-balancing weight in current releases).
+A [backend](/glossary/index.md#backend) is a configured upstream destination Conduit forwards DNS queries to. Each backend carries settings that control how Conduit reaches and uses that destination (for example, address, port, an optional load-balancing weight, and an optional stable name in current releases).
 
 A [pool](/glossary/index.md#pool) is a named group of [backends](/glossary/index.md#backend). [Rules](/policy-routing/rules-and-actions.md) and scripts select a pool by name; Conduit then picks one backend inside that pool (see [Backend weights](#backend-weights)) and forwards the query.
 
@@ -32,6 +32,7 @@ pools:
 | `backends` | One or more upstream destinations in this pool. |
 | `address` | Upstream resolver as `ip:port` (IPv6 addresses use bracket notation, for example `[2001:db8::1]:53`). |
 | `weight` | Optional load-balancing weight; see [Backend weights](#backend-weights). |
+| `name` | Optional stable identity for the backend — sets the `backend` [metrics](/observability/metrics.md) label and lets [control-plane](/control-plane/configuration-model.md) patches target it by `(pool, name)`; see [Backend names](#backend-names). |
 | `sources_v4` | Optional list of local IPv4 addresses for upstream egress to this pool’s backends; see [Dual-stack forwarding](/guides/dual-stack-forwarding.md). |
 | `sources_v6` | Optional list of local IPv6 addresses for upstream egress to this pool’s backends. |
 
@@ -58,6 +59,31 @@ pools:
 Over many queries, traffic approximates the configured weight ratio. On the **first** forward attempt for a query, Conduit uses this sticky weighted pick. On [retries](/glossary/index.md#retry) within the same [pool](/glossary/index.md#pool), Conduit selects among backends not already used for that pool on that [transaction](/glossary/index.md#transaction) — see [Retries and transactions](/policy-routing/retries-and-transactions.md).
 
 Pool weights can be changed at runtime through the [control plane](/glossary/index.md#control-plane) (for example via `ApplyConfig`); see [Control plane workflows](/guides/control-plane-workflows.md).
+
+## Backend names
+
+By default a [backend](/glossary/index.md#backend) is identified by its `address` — that string is the `backend` label on [metrics](/observability/metrics.md) and the target for control-plane patches. Setting an optional **`name`** gives the backend a stable identity that does not change when you renumber the upstream.
+
+Naming is useful when you want to:
+
+- **Keep dashboards stable** — the `backend` metric label follows the `name`, so moving a resolver from `10.0.0.1:53` to `10.0.0.5:53` does not rename or split its time series.
+- **Patch by name** — [control-plane overlays](/control-plane/configuration-model.md) can target a backend by `(pool, name)` instead of repeating the full `address`.
+
+```yaml
+pools:
+  - name: default
+    backends:
+      - address: "10.0.0.1:53"
+        name: resolver-a
+        weight: 70
+      - address: "10.0.0.2:53"
+        name: resolver-b
+        weight: 30
+```
+
+With names set, metrics for these upstreams carry `backend="resolver-a"` and `backend="resolver-b"` instead of the raw addresses. Backend names must be **unique within their pool**; the same name may be reused in a different pool. A backend without a `name` keeps using its `address` as the label.
+
+For field types, defaults, and validation messages, see [Reference: pools — Backend object](/reference/config-schema/pools.md#backend-object).
 
 ## Multiple pools
 

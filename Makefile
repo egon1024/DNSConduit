@@ -27,7 +27,7 @@ help:
 	@echo "  make clippy       Run clippy (-D warnings)"
 	@echo "  make unit         Run cargo test --workspace"
 	@echo "  make build        Build all workspace crates"
-	@echo "  make docs-serve   Serve operator-docs/ at http://127.0.0.1:$(DOCS_PORT) (live reload)"
+	@echo "  make docs-serve   Serve operator-docs/ at http://0.0.0.0:$(DOCS_PORT) (live reload)"
 	@echo "  make docs-build   Build operator-docs/ (mkdocs --strict)"
 
 docs-gen:
@@ -40,7 +40,7 @@ docs-build: docs-gen
 	cd $(DOCS_DIR) && $(PYTHON) -m mkdocs build --strict
 
 docs-serve: docs-gen
-	cd $(DOCS_DIR) && $(PYTHON) -m mkdocs serve -a 127.0.0.1:$(DOCS_PORT)
+	cd $(DOCS_DIR) && $(PYTHON) -m mkdocs serve -a 0.0.0.0:$(DOCS_PORT)
 
 test: fmt-check clippy unit
 
