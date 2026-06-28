@@ -58,6 +58,9 @@ pools:
 
 Over many queries, traffic approximates the configured weight ratio. On the **first** forward attempt for a query, Conduit uses this sticky weighted pick. On [retries](/glossary/index.md#retry) within the same [pool](/glossary/index.md#pool), Conduit selects among backends not already used for that pool on that [transaction](/glossary/index.md#transaction) — see [Retries and transactions](/policy-routing/retries-and-transactions.md).
 
+!!! note "No active health checking today"
+    Backend selection is purely weight-based. Conduit does **no active health probing** of backends, so a backend stays eligible even while an upstream is down; an unhealthy upstream is handled reactively through [retries](/policy-routing/retries-and-transactions.md) and forward timeouts, not by removing it from selection. Active health checks (and health-based eligibility) are planned for a future release.
+
 Pool weights can be changed at runtime through the [control plane](/glossary/index.md#control-plane) (for example via `ApplyConfig`); see [Control plane workflows](/guides/control-plane-workflows.md).
 
 ## Backend names
