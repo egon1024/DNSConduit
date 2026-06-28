@@ -232,3 +232,32 @@ fn peer_certs_present_extensions(extensions: &http::Extensions) -> bool {
         .and_then(|info| info.peer_certs())
         .is_some()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // tonic 0.12 encodes a unary handler's `Err(Status)` as a trailers-only response:
+    // `Status::into_http()` writes `grpc-status` into the response **headers**. The access
+    // log reads the code when the response future resolves, so it must observe it there.
+    #[test]
+    fn error_status_code_is_read_from_response_headers() {
+        let res = Status::invalid_argument("missing config").into_http();
+        assert_eq!(grpc_code_from_response(&res), Code::InvalidArgument);
+    }
+
+    // The auth interceptor's denial follows the same `into_http()` path.
+    #[test]
+    fn auth_denial_status_code_is_read_from_response_headers() {
+        let res = Status::permission_denied("api key required").into_http();
+        assert_eq!(grpc_code_from_response(&res), Code::PermissionDenied);
+    }
+
+    // A successful unary reply carries `grpc-status: 0` in the HTTP/2 trailers, not the
+    // headers, so a header-less response must fall back to `Ok`.
+    #[test]
+    fn unary_ok_response_without_status_header_defaults_to_ok() {
+        let res: Response<BoxBody> = Response::new(tonic::body::empty_body());
+        assert_eq!(grpc_code_from_response(&res), Code::Ok);
+    }
+}
