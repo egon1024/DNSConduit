@@ -7,8 +7,9 @@ End-to-end walkthroughs for common operator tasks. Each guide is self-contained:
 | Guide | What you practice |
 |-------|-------------------|
 | [Rhai policy](/guides/rhai-policy.md) | CSV blocklist drop with custom user metric; CSV-driven pool routing |
-| [Control plane workflows](/guides/control-plane-workflows.md) | Reload from disk, temporary `conduitctl apply` overlays, export, and when to restart |
 | [Dual-stack forwarding](/guides/dual-stack-forwarding.md) | Global and per-pool egress sources, rules, and Rhai overrides |
+| [Dataplane runtime tuning](/guides/dataplane-runtime-tuning.md) | Choosing `sync` vs `split_io`, sizing ingress/policy/I/O workers, the slot pool, and `reuse_port` |
+| [Control plane workflows](/guides/control-plane-workflows.md) | Reload from disk, temporary `conduitctl apply` overlays, export, and when to restart |
 | [Metrics and tracing](/guides/metrics-and-tracing.md) | Prometheus scrape, counters after traffic, `conduitctl trace` |
 | [Event export and dnstap](/guides/event-export-dnstap.md) | dnstap sinks with `conduit-dnstap-tracer` |
 | [Operator metrics profiles](/guides/operator-metrics-profiles.md) | **`minimal`** vs **`full`** built-in metrics on the same traffic |

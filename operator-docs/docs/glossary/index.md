@@ -64,6 +64,36 @@ Snapshot updated after a reload or apply, but `listeners` or `forward` socket st
 
 → [Configuration model](/control-plane/configuration-model.md)
 
+### Runtime model
+
+The [dataplane](/glossary/index.md#dataplane) execution model chosen **once at process startup** with **`dataplane.runtime`** — **`sync`** (default) or **`split_io`** — deciding *how* the per-query [pipeline](/concepts/architecture-and-packet-path.md#pipeline-phases) is spread across OS threads. It does not change the pipeline phases; changing it (or its worker counts) requires a **restart**.
+
+→ [Runtime and concurrency](/concepts/runtime-and-concurrency.md#runtime-models)
+
+### Ingress worker
+
+OS thread that accepts a client DNS message on a [listener](/glossary/index.md#listener) (count from **`listeners.threads`**). Under **`sync`** it runs the whole pipeline including the upstream wait; under **`split_io`** it does the structural parse, takes a [transaction slot](/glossary/index.md#transaction-slot-pool), and hands off without blocking on upstream.
+
+→ [Runtime and concurrency](/concepts/runtime-and-concurrency.md#split-io-runtime)
+
+### Policy worker
+
+Under **`split_io`**, a thread (count from **`dataplane.policy_workers`**) that runs the orchestrator phases — [Request rules](/concepts/architecture-and-packet-path.md#request-rules), [Route](/concepts/architecture-and-packet-path.md#route), the [Forward](/concepts/architecture-and-packet-path.md#forward) submit — and finishes each [transaction](/glossary/index.md#transaction) at [Response rules](/concepts/architecture-and-packet-path.md#response-rules) / [Send](/concepts/architecture-and-packet-path.md#send) once a reply is in.
+
+→ [Runtime and concurrency](/concepts/runtime-and-concurrency.md#split-io-runtime)
+
+### I/O worker
+
+Under **`split_io`**, a thread (count from **`dataplane.io_workers`**) that owns the upstream sockets: it matches incoming replies to **parked** transactions, enforces `forward.timeout_ms`, and resumes each transaction at [Wait for response](/concepts/architecture-and-packet-path.md#wait-for-response). One I/O worker handles many concurrent parked waits.
+
+→ [Runtime and concurrency](/concepts/runtime-and-concurrency.md#split-io-runtime)
+
+### Transaction slot pool
+
+Preallocated arena of [transaction](/glossary/index.md#transaction) slots, shared by both [runtime models](/glossary/index.md#runtime-model), that grows in chunks (**`dataplane.slot_chunk_size`**) up to **`orchestrator.txn_table_capacity`**. A query holds one slot from [Receive](/concepts/architecture-and-packet-path.md#receive) to [Send](/concepts/architecture-and-packet-path.md#send) — including while a `split_io` query is parked waiting upstream. When all slots are in use Conduit applies backpressure and increments [`conduit_slot_pool_exhausted_total`](/observability/built-in-metrics.md#conduit_slot_pool_exhausted_total).
+
+→ [Runtime and concurrency](/concepts/runtime-and-concurrency.md#transaction-slot-pool)
+
 ## Datapath
 
 ### Dataplane

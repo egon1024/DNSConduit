@@ -113,6 +113,7 @@ nav:
       - Overview: guides/index.md
       - Rhai policy: guides/rhai-policy.md
       - Dual-stack forwarding: guides/dual-stack-forwarding.md
+      - Dataplane runtime tuning: guides/dataplane-runtime-tuning.md
       - Control plane workflows: guides/control-plane-workflows.md
       - Metrics and tracing: guides/metrics-and-tracing.md
       - Event export and dnstap: guides/event-export-dnstap.md
