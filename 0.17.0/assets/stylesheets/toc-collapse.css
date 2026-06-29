@@ -1,0 +1,167 @@
+/* Right-hand collapsible TOC — opt-in via `toc_collapsible: true` page front matter. */
+
+:root {
+  --md-toc-chevron-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='currentColor' d='M8.59 16.59 13.17 12 8.59 7.41 10 6l6 6-6 6z'/%3E%3C/svg%3E");
+  --md-toc-expand-duration: 0.24s;
+  --md-toc-expand-ease: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.md-nav--secondary.md-nav--collapsible {
+  align-self: flex-start;
+}
+
+.md-nav--secondary.md-nav--collapsible > .md-nav__list {
+  max-height: none;
+  overflow: visible;
+}
+
+.md-sidebar--secondary:has(.md-nav--collapsible) .md-sidebar__scrollwrap {
+  height: auto;
+  max-height: none;
+  overflow: visible;
+}
+
+.md-sidebar--secondary:has(.md-nav--collapsible) .md-sidebar__inner {
+  height: auto;
+}
+
+.md-nav--secondary.md-nav--collapsible > .md-nav__list > .md-nav__item {
+  margin: 0;
+  padding: 0;
+}
+
+.md-nav--secondary.md-nav--collapsible .md-nav__item {
+  margin: 0;
+  padding: 0;
+}
+
+.md-nav--secondary.md-nav--collapsible .md-nav__item--nested > .md-toggle {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.md-nav--secondary.md-nav--collapsible .md-nav__item--nested {
+  position: relative;
+  padding: 0;
+}
+
+.md-nav--secondary.md-nav--collapsible .md-toc__branch-row {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  min-height: 0;
+}
+
+.md-nav--secondary.md-nav--collapsible .md-toc__branch-link {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding-top: 0.2rem;
+  padding-bottom: 0.2rem;
+}
+
+.md-nav--secondary.md-nav--collapsible
+  > .md-nav__list
+  > .md-nav__item:not(.md-nav__item--nested)
+  > .md-nav__link {
+  margin: 0;
+  padding-top: 0.2rem;
+  padding-bottom: 0.2rem;
+}
+
+.md-nav--secondary.md-nav--collapsible .md-toc__branch-toggle {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 1.2rem;
+  height: 1.2rem;
+  margin: 0;
+  padding: 0;
+  cursor: pointer;
+  color: var(--md-default-fg-color--light);
+}
+
+.md-nav--secondary.md-nav--collapsible .md-toc__branch-toggle .md-nav__icon {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  background-color: currentcolor;
+  mask-image: var(--md-toc-chevron-icon);
+  -webkit-mask-image: var(--md-toc-chevron-icon);
+  mask-repeat: no-repeat;
+  mask-position: center;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  -webkit-mask-size: contain;
+  transition: transform var(--md-toc-expand-duration) var(--md-toc-expand-ease);
+}
+
+.md-nav--secondary.md-nav--collapsible .md-toc__branch-toggle:hover {
+  color: var(--md-accent-fg-color);
+}
+
+.md-nav--secondary.md-nav--collapsible
+  .md-nav__item--nested
+  > .md-toggle:checked
+  ~ .md-toc__branch-row
+  .md-toc__branch-toggle
+  .md-nav__icon {
+  transform: rotate(90deg);
+}
+
+.md-nav--secondary.md-nav--collapsible .md-nav__item--nested > .md-toc__branch-children {
+  display: grid;
+  grid-template-rows: 0fr;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  transition: grid-template-rows var(--md-toc-expand-duration) var(--md-toc-expand-ease);
+}
+
+.md-nav--secondary.md-nav--collapsible
+  .md-nav__item--nested
+  > .md-toggle:checked
+  ~ .md-toc__branch-children {
+  grid-template-rows: 1fr;
+}
+
+.md-nav--secondary.md-nav--collapsible .md-toc__branch-children > .md-nav__list {
+  overflow: hidden;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.md-nav--secondary.md-nav--collapsible .md-toc__branch-children .md-nav__link {
+  padding-left: 1.2rem;
+  padding-top: 0.15rem;
+  padding-bottom: 0.15rem;
+}
+
+.md-nav--secondary.md-nav--collapsible a.md-nav__link--active,
+.md-nav--secondary.md-nav--collapsible a.md-nav__link--active .md-typeset {
+  color: var(--md-primary-fg-color);
+  font-weight: 700;
+}
+
+.md-nav--secondary.md-nav--collapsible .md-toc__branch-link.md-nav__link--active {
+  border-left: 2px solid var(--md-primary-fg-color);
+  padding-left: calc(0.6rem - 2px);
+}
+
+.md-nav--secondary.md-nav--collapsible .md-nav__item--active > .md-nav__link,
+.md-nav--secondary.md-nav--collapsible .md-nav__item--active > .md-toc__branch-row .md-nav__link {
+  color: var(--md-primary-fg-color);
+  font-weight: 700;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .md-nav--secondary.md-nav--collapsible .md-nav__item--nested > .md-toc__branch-children,
+  .md-nav--secondary.md-nav--collapsible .md-toc__branch-toggle .md-nav__icon {
+    transition: none !important;
+  }
+}
