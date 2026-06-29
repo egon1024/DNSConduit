@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<!--
+  Global Versions page for the operator documentation site.
+
+  Published once to the hosting-branch root at /versions/ (outside the per-version
+  directories). It renders the version and alias list LIVE in the browser from the
+  canonical root versions.json that the docs-deploy tooling maintains on every
+  deploy, so the list stays current for every published version without rebuilding
+  or redeploying older versions.
+
+  This file is intentionally standalone (self-contained CSS/JS) so it does not
+  depend on the per-version theme assets and never goes stale.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Documentation versions — DNS Conduit</title>
+    <style>
+      :root {
+        --accent: #3f51b5;
+        --fg: #1a1a1a;
+        --muted: #5b5b5b;
+        --border: #e0e0e0;
+        --bg: #ffffff;
+        --code-bg: #f3f3f7;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --accent: #9fa8da;
+          --fg: #e6e6e6;
+          --muted: #a8a8a8;
+          --border: #3a3a3a;
+          --bg: #121212;
+          --code-bg: #1e1e24;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 2rem 1rem 4rem;
+        background: var(--bg);
+        color: var(--fg);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          Helvetica, Arial, sans-serif;
+        line-height: 1.6;
+      }
+      main {
+        max-width: 56rem;
+        margin: 0 auto;
+      }
+      h1 {
+        font-size: 1.9rem;
+        margin: 0 0 0.5rem;
+      }
+      h2 {
+        font-size: 1.3rem;
+        margin: 2rem 0 0.75rem;
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 0.3rem;
+      }
+      p.lead {
+        color: var(--muted);
+        margin-top: 0;
+      }
+      a {
+        color: var(--accent);
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 0.5rem 0 1rem;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 0.5rem 0.75rem;
+        border-bottom: 1px solid var(--border);
+        vertical-align: top;
+      }
+      th {
+        font-weight: 600;
+        white-space: nowrap;
+      }
+      td.nowrap {
+        white-space: nowrap;
+      }
+      code {
+        background: var(--code-bg);
+        padding: 0.1rem 0.35rem;
+        border-radius: 0.25rem;
+        font-size: 0.9em;
+      }
+      ul.legend {
+        color: var(--muted);
+        padding-left: 1.2rem;
+      }
+      .status {
+        margin: 1.5rem 0;
+        padding: 1rem 1.25rem;
+        border: 1px solid var(--border);
+        border-left: 4px solid var(--accent);
+        border-radius: 0.25rem;
+        background: var(--code-bg);
+      }
+      .muted {
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Documentation versions</h1>
+      <p class="lead">
+        Published snapshots of this manual, keyed to product release tags. This
+        list is read live from the site, so it always reflects the newest
+        release — no matter which version you came from.
+      </p>
+
+      <div id="status" class="status">Loading published versions…</div>
+
+      <section id="releases" hidden>
+        <h2>Releases</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Version</th>
+              <th>Aliases</th>
+              <th>Open</th>
+            </tr>
+          </thead>
+          <tbody id="releases-body"></tbody>
+        </table>
+      </section>
+
+      <section id="aliases" hidden>
+        <h2>Aliases</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Alias</th>
+              <th>Points to</th>
+              <th>Open</th>
+            </tr>
+          </thead>
+          <tbody id="aliases-body"></tbody>
+        </table>
+        <ul class="legend">
+          <li>
+            <strong><code>latest</code></strong> — newest stable release
+            (<code>MAJOR.MINOR.PATCH</code> with no pre-release suffix).
+          </li>
+          <li>
+            <strong><code>dev</code></strong> — newest
+            <code>2.0.0-dev.N</code> development checkpoint (when published).
+          </li>
+          <li>
+            <strong><code>stable-1</code></strong> — newest <code>1.x</code>
+            stable release after 2.0.0 exists (when published).
+          </li>
+        </ul>
+      </section>
+    </main>
+
+    <script>
+      (function () {
+        // Project base path used as a fallback when the page is not served under
+        // a recognisable "/versions/" path (e.g. opened directly during testing).
+        var FALLBACK_BASE = "/DNSConduit/";
+
+        // Resolve the site base path (with trailing slash) from the page location,
+        // then the canonical root versions.json that mike maintains on each deploy.
+        function siteBase() {
+          var path = window.location.pathname;
+          var marker = "/versions/";
+          var idx = path.lastIndexOf(marker);
+          if (idx >= 0) {
+            return path.slice(0, idx + 1);
+          }
+          // Tolerate "/versions" without trailing slash.
+          if (path.endsWith("/versions")) {
+            return path.slice(0, path.length - "versions".length);
+          }
+          return FALLBACK_BASE;
+        }
+
+        function versionsJsonUrl(base) {
+          return base + "versions.json";
+        }
+
+        function el(tag, attrs, children) {
+          var node = document.createElement(tag);
+          if (attrs) {
+            Object.keys(attrs).forEach(function (k) {
+              if (k === "class") node.className = attrs[k];
+              else if (k === "text") node.textContent = attrs[k];
+              else node.setAttribute(k, attrs[k]);
+            });
+          }
+          (children || []).forEach(function (c) {
+            node.appendChild(c);
+          });
+          return node;
+        }
+
+        function codeCell(value) {
+          var td = el("td", { class: "nowrap" });
+          td.appendChild(el("code", { text: value }));
+          return td;
+        }
+
+        function openLink(base, version) {
+          var td = el("td", { class: "nowrap" });
+          var a = el("a", { href: base + version + "/", text: "Open" });
+          td.appendChild(a);
+          return td;
+        }
+
+        // Compare two semver-ish version strings (descending: newest first).
+        function compareVersionsDesc(a, b) {
+          function parts(v) {
+            var m = String(v).split("-");
+            var nums = m[0].split(".").map(function (n) {
+              return parseInt(n, 10) || 0;
+            });
+            return { nums: nums, pre: m[1] || "" };
+          }
+          var pa = parts(a);
+          var pb = parts(b);
+          for (var i = 0; i < 3; i++) {
+            var d = (pb.nums[i] || 0) - (pa.nums[i] || 0);
+            if (d !== 0) return d;
+          }
+          // A release with no pre-release suffix sorts ahead of its pre-releases.
+          if (pa.pre === "" && pb.pre !== "") return -1;
+          if (pa.pre !== "" && pb.pre === "") return 1;
+          return pb.pre.localeCompare(pa.pre);
+        }
+
+        function entryVersion(entry) {
+          return entry.version || entry.title || "";
+        }
+
+        function render(entries, base) {
+          var statusEl = document.getElementById("status");
+
+          var versions = entries
+            .map(function (e) {
+              return {
+                version: entryVersion(e),
+                aliases: (e.aliases || []).slice().sort(),
+              };
+            })
+            .filter(function (e) {
+              return e.version;
+            })
+            .sort(function (a, b) {
+              return compareVersionsDesc(a.version, b.version);
+            });
+
+          if (versions.length === 0) {
+            statusEl.textContent =
+              "No published versions yet. After the first release tag is deployed, this page lists every available version and alias.";
+            return;
+          }
+
+          // Releases table.
+          var relBody = document.getElementById("releases-body");
+          versions.forEach(function (v) {
+            var aliasesCell = el("td");
+            if (v.aliases.length === 0) {
+              aliasesCell.textContent = "—";
+            } else {
+              v.aliases.forEach(function (alias, i) {
+                if (i > 0) aliasesCell.appendChild(document.createTextNode(", "));
+                aliasesCell.appendChild(el("code", { text: alias }));
+              });
+            }
+            relBody.appendChild(
+              el("tr", null, [
+                codeCell(v.version),
+                aliasesCell,
+                openLink(base, v.version),
+              ])
+            );
+          });
+          document.getElementById("releases").hidden = false;
+
+          // Aliases table.
+          var aliasRows = [];
+          versions.forEach(function (v) {
+            v.aliases.forEach(function (alias) {
+              aliasRows.push({ alias: alias, version: v.version });
+            });
+          });
+          aliasRows.sort(function (a, b) {
+            return a.alias.localeCompare(b.alias);
+          });
+          if (aliasRows.length > 0) {
+            var aliasBody = document.getElementById("aliases-body");
+            aliasRows.forEach(function (row) {
+              aliasBody.appendChild(
+                el("tr", null, [
+                  codeCell(row.alias),
+                  codeCell(row.version),
+                  openLink(base, row.version),
+                ])
+              );
+            });
+            document.getElementById("aliases").hidden = false;
+          }
+
+          statusEl.hidden = true;
+        }
+
+        function degrade(base, message) {
+          var statusEl = document.getElementById("status");
+          statusEl.innerHTML = "";
+          statusEl.appendChild(
+            el("p", {
+              text:
+                message ||
+                "Could not load the live version list. Try one of these instead:",
+            })
+          );
+          var list = el("ul");
+          list.appendChild(
+            el("li", null, [el("a", { href: base, text: "Documentation home" })])
+          );
+          list.appendChild(
+            el("li", null, [
+              el("a", { href: base + "latest/", text: "Latest release (" }),
+            ])
+          );
+          var liLatest = list.lastChild;
+          liLatest.appendChild(el("code", { text: "latest" }));
+          liLatest.appendChild(document.createTextNode(")"));
+          statusEl.appendChild(list);
+        }
+
+        function load() {
+          var base = siteBase();
+          var url = versionsJsonUrl(base);
+          var done = false;
+
+          fetch(url, { cache: "no-cache" })
+            .then(function (resp) {
+              if (!resp.ok) {
+                throw new Error("HTTP " + resp.status);
+              }
+              return resp.json();
+            })
+            .then(function (data) {
+              done = true;
+              var entries = Array.isArray(data)
+                ? data
+                : data && Array.isArray(data.versions)
+                ? data.versions
+                : [];
+              render(entries, base);
+            })
+            .catch(function () {
+              done = true;
+              degrade(base);
+            });
+
+          // If JavaScript runs but the fetch silently hangs, still show a way out.
+          window.setTimeout(function () {
+            if (!done) {
+              degrade(base, "The version list is taking too long to load.");
+            }
+          }, 10000);
+        }
+
+        if (document.readyState === "loading") {
+          document.addEventListener("DOMContentLoaded", load);
+        } else {
+          load();
+        }
+      })();
+    </script>
+
+    <noscript>
+      <div
+        style="
+          max-width: 56rem;
+          margin: 1rem auto;
+          padding: 1rem 1.25rem;
+          border: 1px solid #e0e0e0;
+          border-left: 4px solid #3f51b5;
+        "
+      >
+        This page needs JavaScript to list documentation versions. Visit the
+        <a href="/DNSConduit/">documentation home</a> or the
+        <a href="/DNSConduit/latest/">latest release</a>.
+      </div>
+    </noscript>
+  </body>
+</html>
