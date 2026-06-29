@@ -16,7 +16,7 @@ PYTHON ?= python3
 DOCS_DIR := operator-docs
 DOCS_PORT ?= 8000
 
-.PHONY: help test performance fmt fmt-check clippy unit build docs-serve docs-build docs-gen
+.PHONY: help test performance fmt fmt-check clippy unit build docs-serve docs-build docs-version
 
 help:
 	@echo "DNSConduit Makefile targets:"
@@ -30,16 +30,16 @@ help:
 	@echo "  make docs-serve   Serve operator-docs/ at http://0.0.0.0:$(DOCS_PORT) (live reload)"
 	@echo "  make docs-build   Build operator-docs/ (mkdocs --strict)"
 
-docs-gen:
+# Write the header version label only. The Versions list now lives on a single global
+# page published to the site root; it is no longer generated per build.
+docs-version:
 	@ver=$$(awk -F'"' '/^version = / {print $$2; exit}' Cargo.toml); \
 		echo "$${ver:-development}" > $(DOCS_DIR)/.doc-version
-	$(PYTHON) $(DOCS_DIR)/scripts/gen_versions_index.py --stub \
-		--output $(DOCS_DIR)/docs/versions.md
 
-docs-build: docs-gen
+docs-build: docs-version
 	cd $(DOCS_DIR) && $(PYTHON) -m mkdocs build --strict
 
-docs-serve: docs-gen
+docs-serve: docs-version
 	cd $(DOCS_DIR) && $(PYTHON) -m mkdocs serve -a 0.0.0.0:$(DOCS_PORT)
 
 test: fmt-check clippy unit

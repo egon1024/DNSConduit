@@ -82,13 +82,13 @@ The workflow skips finalize when the version page already exists, skips commit w
 gh workflow run docs-deploy.yml --ref 0.14.0 -f version=0.14.0
 ```
 
-Use after merging a fix to the docs deploy workflow or `gen_versions_index.py` (for example stale **`latest`** alias on the Versions page). Move the tag to the fixed commit first — see **Clean up a partial release (same version)** below.
+Use after merging a fix to the docs deploy workflow or the global Versions page asset (for example a mike alias did not move, or the root `/versions/` page failed to publish). The Versions list itself is rendered live from the root `versions.json`, so a redeploy only re-asserts mike's version/aliases and the root page. Move the tag to the fixed commit first — see **Clean up a partial release (same version)** below.
 
 ### Clean up a partial release (same version)
 
 Use when the GitHub Release and tag exist but docs or artifacts need pipeline fixes (no new semver).
 
-1. Merge fixes to **`main`** (docs Versions page, `cargo-cyclonedx`, etc.).
+1. Merge fixes to **`main`** (docs deploy workflow, global Versions page asset, `cargo-cyclonedx`, etc.).
 2. Move the tag to the fixed commit on **`main`**:
 
    ```bash
@@ -98,7 +98,7 @@ Use when the GitHub Release and tag exist but docs or artifacts need pipeline fi
    git push origin 0.14.0 --force
    ```
 
-3. Redeploy docs (refreshes Versions page and `/latest/`):
+3. Redeploy docs (refreshes the version directory, aliases, and the root `/versions/` page):
 
    ```bash
    gh workflow run docs-deploy.yml --ref 0.14.0 -f version=0.14.0
@@ -114,7 +114,7 @@ Use when the GitHub Release and tag exist but docs or artifacts need pipeline fi
 
 5. Verify:
    - [GitHub Release](https://github.com/egon1024/DNSConduit/releases/tag/0.14.0) lists tarballs, debs, `SHA256SUMS`, SBOM
-   - [Versions page](https://egon1024.github.io/DNSConduit/latest/versions/) shows **`latest`** → `0.14.0`
+   - [Versions page](https://egon1024.github.io/DNSConduit/versions/) (global, at the site root) lists `0.14.0` and shows **`latest`** → `0.14.0`
 
 Do **not** re-run the full **Release** workflow unless the tag or GitHub Release object is missing.
 
