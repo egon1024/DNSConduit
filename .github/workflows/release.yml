@@ -190,14 +190,19 @@ jobs:
             echo "::error::Release notes missing on main: ${notes_path}"
             exit 1
           fi
+          # Note: awk must not `exit` early here. Exiting closes the pipe while
+          # `git show` is still writing, which raises SIGPIPE; under `pipefail`
+          # that fails the step with exit code 141. Read all input and emit the
+          # first match at END instead.
           cargo_ver="$(git show "origin/main:Cargo.toml" | awk '
             /^\[workspace\.package\]/ { in_pkg=1; next }
-            /^\[/ { if (in_pkg) exit }
-            in_pkg && /^version = / {
-              gsub(/"/, "", $3)
-              print $3
-              exit
+            /^\[/ { in_pkg=0 }
+            in_pkg && /^version = / && ver == "" {
+              val=$3
+              gsub(/"/, "", val)
+              ver=val
             }
+            END { print ver }
           ')"
           if [[ "${cargo_ver}" != "${NEXT_VERSION}" ]]; then
             echo "::error::Cargo.toml on main is ${cargo_ver:-unknown}; expected ${NEXT_VERSION}"
@@ -205,11 +210,12 @@ jobs:
           fi
           lock_ver="$(git show "origin/main:Cargo.lock" | awk '
             /^name = "conduit"$/ { want=1; next }
-            want && /^version = / {
-              gsub(/"/, "", $3)
-              print $3
-              exit
+            want && /^version = / && ver == "" {
+              val=$3
+              gsub(/"/, "", val)
+              ver=val
             }
+            END { print ver }
           ')"
           if [[ "${lock_ver}" != "${NEXT_VERSION}" ]]; then
             echo "::error::Cargo.lock on main pins conduit ${lock_ver:-unknown}; expected ${NEXT_VERSION}"
