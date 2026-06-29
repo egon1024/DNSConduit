@@ -142,6 +142,6 @@ nav:
           - Events: reference/config-schema/events.md
           - Metrics and tracing: reference/config-schema/metrics-and-tracing.md
       - gRPC and CLI: reference/grpc-and-cli.md
-  - Versions: versions.md
+  - Versions: https://egon1024.github.io/DNSConduit/versions/
   - Contributing: contributing.md
   - License: license.md

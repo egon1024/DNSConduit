@@ -53,7 +53,7 @@ jobs:
       - name: Install documentation dependencies
         run: pip install -r requirements.txt
 
-      - name: Fetch gh-pages for versions.json
+      - name: Fetch gh-pages branch
         run: |
           set -euo pipefail
           git fetch origin gh-pages:gh-pages 2>/dev/null || echo "No gh-pages branch yet (first deploy)."
@@ -70,40 +70,6 @@ jobs:
         run: |
           set -euo pipefail
           bash .github/scripts/docs-deploy-aliases.sh "${TAG}" >> "$GITHUB_ENV"
-          current_aliases=""
-          expect_alias=false
-          for flag in ${MIKE_ALIAS_ARGS:-} ${MIKE_STABLE_1_ARGS:-}; do
-            if [[ "$flag" == --update-alias ]]; then
-              expect_alias=true
-              continue
-            fi
-            if [[ "$expect_alias" == true ]]; then
-              current_aliases+="${flag},"
-              expect_alias=false
-            fi
-          done
-          current_aliases="${current_aliases%,}"
-          echo "CURRENT_ALIASES=${current_aliases}" >> "$GITHUB_ENV"
-
-      - name: Generate versions index
-        env:
-          TAG: ${{ env.DEPLOY_VERSION }}
-          CURRENT_ALIASES: ${{ env.CURRENT_ALIASES }}
-        run: |
-          set -euo pipefail
-          VERSIONS_ARG=(--stub)
-          if git show gh-pages:versions.json > /tmp/versions.json 2>/dev/null; then
-            VERSIONS_ARG=(--versions-json /tmp/versions.json)
-          fi
-          GEN_ARGS=(
-            "${VERSIONS_ARG[@]}"
-            --output operator-docs/docs/versions.md
-            --current-version "${TAG}"
-          )
-          if [[ -n "${CURRENT_ALIASES:-}" ]]; then
-            GEN_ARGS+=(--current-aliases "${CURRENT_ALIASES}")
-          fi
-          python operator-docs/scripts/gen_versions_index.py "${GEN_ARGS[@]}"
 
       - name: Deploy with mike
         env:
@@ -129,25 +95,40 @@ jobs:
             echo "::warning::No latest or dev alias; skipping root redirect."
           fi
 
-      - name: Refresh versions index from deployed gh-pages metadata
+      - name: Publish global versions page to gh-pages root
         env:
           TAG: ${{ env.DEPLOY_VERSION }}
         run: |
           set -euo pipefail
-          git fetch origin gh-pages:gh-pages
-          git show gh-pages:versions.json > /tmp/versions-after-deploy.json
-          python operator-docs/scripts/gen_versions_index.py \
-            --versions-json /tmp/versions-after-deploy.json \
-            --output operator-docs/docs/versions.md \
-            --current-version "${TAG}"
+          PAGE_SRC="operator-docs/site-root/versions/index.html"
+          # The page is identical across versions (it reads live data). When deploying a
+          # tag from before the global page existed, take it from the default branch so
+          # the root page always reflects the current template.
+          if [[ -f "${PAGE_SRC}" ]]; then
+            SRC_FILE="${PAGE_SRC}"
+          else
+            git fetch origin main --depth=1
+            mkdir -p /tmp/global-versions
+            git show origin/main:"${PAGE_SRC}" > /tmp/global-versions/index.html
+            SRC_FILE="/tmp/global-versions/index.html"
+          fi
 
-      - name: Redeploy docs with updated versions page
-        env:
-          TAG: ${{ env.DEPLOY_VERSION }}
-          DOCS_PRODUCT_VERSION: ${{ env.DEPLOY_VERSION }}
-        run: |
-          set -euo pipefail
-          cd operator-docs
-          export DOCS_PRODUCT_VERSION="${TAG}"
-          # shellcheck disable=SC2086
-          mike deploy --push "${TAG}" ${MIKE_ALIAS_ARGS:-} ${MIKE_STABLE_1_ARGS:-}
+          # Run after mike's pushes; rebase on the freshest gh-pages so we never race.
+          git fetch origin gh-pages:gh-pages
+          WORK="$(mktemp -d)"
+          git worktree add "${WORK}" gh-pages
+          mkdir -p "${WORK}/versions"
+          cp "${SRC_FILE}" "${WORK}/versions/index.html"
+          (
+            cd "${WORK}"
+            if [[ -z "$(git status --porcelain versions/index.html)" ]]; then
+              echo "Global versions page already current; nothing to push."
+              exit 0
+            fi
+            git add versions/index.html
+            git commit -m "docs: refresh global versions page (deploy ${TAG})"
+            git fetch origin gh-pages
+            git rebase origin/gh-pages
+            git push origin HEAD:gh-pages
+          )
+          git worktree remove "${WORK}" --force
