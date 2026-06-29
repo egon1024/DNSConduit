@@ -24,11 +24,17 @@ fn sample_query(id: u16) -> Vec<u8> {
     buf
 }
 
-fn mock_upstream(port: u16, delay: Duration) -> thread::JoinHandle<()> {
-    thread::spawn(move || {
-        let sock = UdpSocket::bind(format!("127.0.0.1:{port}")).unwrap();
-        sock.set_read_timeout(Some(Duration::from_secs(30)))
-            .unwrap();
+/// Binds the upstream socket synchronously and returns its port plus the
+/// responder thread handle. Binding before the caller starts the dataplane
+/// guarantees the kernel buffers the forwarded query even if the responder
+/// thread has not reached `recv_from` yet; otherwise the first query can be
+/// dropped and the forward parks for the full timeout.
+fn mock_upstream(delay: Duration) -> (u16, thread::JoinHandle<()>) {
+    let sock = UdpSocket::bind("127.0.0.1:0").unwrap();
+    sock.set_read_timeout(Some(Duration::from_secs(30)))
+        .unwrap();
+    let port = sock.local_addr().unwrap().port();
+    let handle = thread::spawn(move || {
         let mut buf = [0u8; 512];
         loop {
             let Ok((len, peer)) = sock.recv_from(&mut buf) else {
@@ -44,20 +50,24 @@ fn mock_upstream(port: u16, delay: Duration) -> thread::JoinHandle<()> {
             }
             let _ = sock.send_to(&resp, peer);
         }
-    })
+    });
+    (port, handle)
 }
 
-/// Upstream that accepts queries but never replies, so forwards park and time out.
-fn mock_blackhole(port: u16) -> thread::JoinHandle<()> {
-    thread::spawn(move || {
-        let sock = UdpSocket::bind(format!("127.0.0.1:{port}")).unwrap();
-        sock.set_read_timeout(Some(Duration::from_secs(30)))
-            .unwrap();
+/// Upstream that accepts queries but never replies, so forwards park and time
+/// out. Bound synchronously (see `mock_upstream`) and returns its port.
+fn mock_blackhole() -> (u16, thread::JoinHandle<()>) {
+    let sock = UdpSocket::bind("127.0.0.1:0").unwrap();
+    sock.set_read_timeout(Some(Duration::from_secs(30)))
+        .unwrap();
+    let port = sock.local_addr().unwrap().port();
+    let handle = thread::spawn(move || {
         let mut buf = [0u8; 512];
         loop {
             let _ = sock.recv_from(&mut buf);
         }
-    })
+    });
+    (port, handle)
 }
 
 /// split_io config with metrics enabled (full) and a named backend, used to
@@ -149,9 +159,8 @@ fn bind_ephemeral() -> u16 {
 
 #[test]
 fn split_io_concurrent_queries_with_slow_upstream() {
-    let backend_port = bind_ephemeral();
     let listen_port = bind_ephemeral();
-    let _upstream = mock_upstream(backend_port, Duration::from_millis(200));
+    let (backend_port, _upstream) = mock_upstream(Duration::from_millis(200));
 
     let yaml = split_io_config(listen_port, backend_port, 64);
     let cfg = load_yaml(&yaml).unwrap();
@@ -189,9 +198,8 @@ fn split_io_concurrent_queries_with_slow_upstream() {
 
 #[test]
 fn split_io_slot_exhaustion_increments_counter() {
-    let backend_port = bind_ephemeral();
     let listen_port = bind_ephemeral();
-    let _upstream = mock_upstream(backend_port, Duration::from_millis(500));
+    let (backend_port, _upstream) = mock_upstream(Duration::from_millis(500));
 
     let yaml = split_io_config(listen_port, backend_port, 2);
     let cfg = load_yaml(&yaml).unwrap();
@@ -217,9 +225,8 @@ fn split_io_slot_exhaustion_increments_counter() {
 
 #[test]
 fn split_io_garbage_query_does_not_consume_slot() {
-    let backend_port = bind_ephemeral();
     let listen_port = bind_ephemeral();
-    let _upstream = mock_upstream(backend_port, Duration::ZERO);
+    let (backend_port, _upstream) = mock_upstream(Duration::ZERO);
 
     let yaml = split_io_config(listen_port, backend_port, 4);
     let cfg = load_yaml(&yaml).unwrap();
@@ -242,9 +249,8 @@ fn split_io_garbage_query_does_not_consume_slot() {
 
 #[test]
 fn split_io_survives_idle_then_second_query() {
-    let backend_port = bind_ephemeral();
     let listen_port = bind_ephemeral();
-    let _upstream = mock_upstream(backend_port, Duration::ZERO);
+    let (backend_port, _upstream) = mock_upstream(Duration::ZERO);
 
     let yaml = split_io_config(listen_port, backend_port, 4);
     let cfg = load_yaml(&yaml).unwrap();
@@ -277,9 +283,8 @@ fn split_io_survives_idle_then_second_query() {
 
 #[test]
 fn split_io_records_forward_success_metric_with_backend_name() {
-    let backend_port = bind_ephemeral();
     let listen_port = bind_ephemeral();
-    let _upstream = mock_upstream(backend_port, Duration::ZERO);
+    let (backend_port, _upstream) = mock_upstream(Duration::ZERO);
 
     let yaml = split_io_named_metrics_config(listen_port, backend_port, 5000);
     let cfg = load_yaml(&yaml).unwrap();
@@ -326,9 +331,8 @@ fn split_io_records_forward_success_metric_with_backend_name() {
 
 #[test]
 fn split_io_records_forward_timeout_metric_with_pool_and_name() {
-    let dead_port = bind_ephemeral();
     let listen_port = bind_ephemeral();
-    let _blackhole = mock_blackhole(dead_port);
+    let (dead_port, _blackhole) = mock_blackhole();
 
     let yaml = split_io_named_metrics_config(listen_port, dead_port, 300);
     let cfg = load_yaml(&yaml).unwrap();
@@ -371,9 +375,8 @@ fn split_io_records_forward_timeout_metric_with_pool_and_name() {
 
 #[test]
 fn split_io_valid_query_reaches_upstream() {
-    let backend_port = bind_ephemeral();
     let listen_port = bind_ephemeral();
-    let _upstream = mock_upstream(backend_port, Duration::ZERO);
+    let (backend_port, _upstream) = mock_upstream(Duration::ZERO);
 
     let yaml = split_io_config(listen_port, backend_port, 4);
     let cfg = load_yaml(&yaml).unwrap();
