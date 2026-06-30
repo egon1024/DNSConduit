@@ -37,14 +37,16 @@ pub fn build_orchestrator(
         forward_mode,
         io_backend,
         pool_inflight,
+        Some(health.clone()),
     )?);
     let parse_wire_meta = snap.scripting.needs_response_wire_meta;
     let mut orchestrator = Orchestrator::with_default_stages();
     orchestrator.metrics = Some(metrics.clone());
     orchestrator.tracing = Some(tracing);
-    orchestrator
-        .registry
-        .register(Phase::Route, Arc::new(RouteStage::with_health(health)));
+    orchestrator.registry.register(
+        Phase::Route,
+        Arc::new(RouteStage::with_health(health.clone())),
+    );
     orchestrator.registry.register(
         Phase::RequestRules,
         Arc::new(conduit_core::stages::RequestRulesStage {
@@ -63,6 +65,7 @@ pub fn build_orchestrator(
         Arc::new(WaitResponseStage::new(
             parse_wire_meta,
             Some(metrics.clone()),
+            Some(health),
         )),
     );
     Ok(Arc::new(orchestrator))

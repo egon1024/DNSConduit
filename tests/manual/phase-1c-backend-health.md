@@ -356,9 +356,87 @@ Fill in the Pass / fail lines above and the Gate B sign-off below.
 
 ---
 
+# Gate C — passive fast-trip (§7)
+
+> **Gate C scope:** Phase C wires live forward timeouts and hard errors into the
+> passive fast-trip. Confirm a blackholed backend is pulled from rotation **well
+> under** `fall × interval` when passive is on, that recovery needs **probe rise**
+> (not resumed live traffic alone), and that `passive_fast_trip: false` defers
+> detection to probe fall. Operator controls (§8) and metrics (§10) are **later
+> phases**.
+
+## Config
+
+Reuse [`config/phase-1c-health.yaml`](config/phase-1c-health.yaml) with passive
+defaults (`passive_fast_trip: true`, `passive_fall: 2`). For §7.1 vs §7.3,
+adjust `fall` and `passive_fast_trip` as noted in each task.
+
+Generate steady load (`dnsperf` or a `dig` loop) while blackholing one backend
+with `iptables`.
+
+---
+
+## 7.1 Passive speed — faster than probe-only (task 7.1)
+
+Set `interval_ms: 1000`, `fall: 5` (probe-only ≈ 5s), passive on. Under load,
+blackhole one backend:
+
+```bash
+sudo iptables -A OUTPUT -d 127.0.0.1 -p udp --dport 15399 -j DROP
+```
+
+**Expect:** backend logs `observed=Down applied=Down` and its traffic share
+drops to ~0 in **well under 5s** (≈2 forward failures at `passive_fall: 2`).
+
+**Pass / fail:** ___________
+
+---
+
+## 7.2 Recovery needs probes (task 7.2)
+
+Remove the iptables rule; keep load running.
+
+```bash
+sudo iptables -D OUTPUT -d 127.0.0.1 -p udp --dport 15399 -j DROP
+```
+
+**Expect:** backend returns to rotation only after **probe rise** (`rise`
+successes), **not** instantly from resumed live traffic.
+
+**Pass / fail:** ___________
+
+---
+
+## 7.3 Passive disabled — probe-only detection (task 7.3)
+
+Set `passive_fast_trip: false`; repeat §7.1 blackhole test.
+
+**Expect:** detection now waits for probe fall (~`fall × interval`, e.g. ~5s
+with `fall: 5`).
+
+**Pass / fail:** ___________
+
+---
+
+## 7.4 Record results (task 7.4)
+
+Fill in the Pass / fail lines above and the Gate C sign-off below.
+
+---
+
+## Gate C sign-off
+
+| Reviewer | Date | Notes |
+|----------|------|-------|
+|  |  |  |
+
+**Approved to start Phase D (operator controls, §8):** **___**
+
+---
+
 ## Changelog
 
 | Date | Change |
 |------|--------|
 | 2026-06-29 | Initial scaffold for phase 1c Gate A (probing + state, no routing impact) |
-| 2026-06-30 | Gate B scaffold (routing follows health: eligibility, effective weight, fail-open); metrics caveat noted |
+| 2026-06-30 | Gate C scaffold (passive fast-trip: speed, probe-only recovery, passive toggle) |

@@ -84,6 +84,7 @@ pub struct BackendHealthState {
     frozen: AtomicBool,
     consecutive_successes: AtomicU32,
     consecutive_failures: AtomicU32,
+    passive_consecutive_failures: AtomicU32,
     latency_ewma_ms_bits: AtomicU64,
     /// Damped latency effective-weight factor in `[floor, 1.0]` (design §D3).
     /// Maintained by the probe loop and read lock-free at Route; `1.0` means no
@@ -108,6 +109,7 @@ impl BackendHealthState {
             frozen: AtomicBool::new(false),
             consecutive_successes: AtomicU32::new(0),
             consecutive_failures: AtomicU32::new(0),
+            passive_consecutive_failures: AtomicU32::new(0),
             latency_ewma_ms_bits: AtomicU64::new(EWMA_UNSET),
             weight_factor_bits: AtomicU64::new(WEIGHT_FACTOR_NEUTRAL.to_bits()),
         }
@@ -131,6 +133,10 @@ impl BackendHealthState {
 
     pub fn consecutive_failures(&self) -> u32 {
         self.consecutive_failures.load(Ordering::Relaxed)
+    }
+
+    pub fn passive_consecutive_failures(&self) -> u32 {
+        self.passive_consecutive_failures.load(Ordering::Relaxed)
     }
 
     /// Current latency EWMA in milliseconds, or `None` before the first
@@ -220,6 +226,30 @@ impl BackendHealthState {
             }
         }
         self.applied()
+    }
+
+    /// Record a live forward failure (timeout / hard error). Passive may open
+    /// the circuit at `passive_fall`; only probe rise may close (design §D1).
+    pub fn record_passive_failure(&self, passive_fall: u32) -> Health {
+        let failures = self
+            .passive_consecutive_failures
+            .load(Ordering::Relaxed)
+            .saturating_add(1);
+        self.passive_consecutive_failures
+            .store(failures, Ordering::Relaxed);
+        if failures >= passive_fall.max(1) {
+            self.observed.store(Health::Down.to_u8(), Ordering::Relaxed);
+            if !self.is_frozen() {
+                self.set_applied(Health::Down);
+            }
+        }
+        self.applied()
+    }
+
+    /// Reset the passive failure run on a successful forward. Does not mark up.
+    pub fn record_passive_success(&self) {
+        self.passive_consecutive_failures
+            .store(0, Ordering::Relaxed);
     }
 
     /// Freeze probe-driven transitions: `applied` holds while `observed` keeps
@@ -354,6 +384,45 @@ impl HealthRegistry {
     pub fn len(&self) -> usize {
         self.table.load().len()
     }
+
+    /// Fold a live forward outcome into passive health (design §D1/D11).
+    ///
+    /// No-op when health is not enabled for the pool, `passive_fast_trip` is
+    /// off, or the backend is absent from the side-table.
+    pub fn record_passive_forward_outcome(
+        &self,
+        compiled: &CompiledHealth,
+        pool: &str,
+        backend: SocketAddr,
+        is_failure: bool,
+    ) {
+        let Some(pool_cfg) = compiled.pool(pool) else {
+            return;
+        };
+        if !pool_cfg.passive_fast_trip {
+            return;
+        };
+        let Some(state) = self.get(pool, backend) else {
+            return;
+        };
+        let key = BackendKey::new(pool, backend);
+        let before = (state.observed(), state.applied());
+        if is_failure {
+            state.record_passive_failure(pool_cfg.passive_fall);
+        } else {
+            state.record_passive_success();
+        }
+        let after = (state.observed(), state.applied());
+        if before != after {
+            tracing::info!(
+                pool = %key.pool,
+                backend = %key.address,
+                observed = ?after.0,
+                applied = ?after.1,
+                "backend health transition"
+            );
+        }
+    }
 }
 
 #[cfg(test)]
@@ -446,6 +515,41 @@ mod tests {
         // Resume automatic snaps to observed.
         assert_eq!(s.unfreeze(), Health::Up);
         assert_eq!(s.applied(), Health::Up);
+    }
+
+    #[test]
+    fn passive_fall_threshold_marks_down() {
+        let s = optimistic();
+        assert_eq!(s.record_passive_failure(2), Health::Up);
+        assert_eq!(s.record_passive_failure(2), Health::Down);
+        assert_eq!(s.observed(), Health::Down);
+        assert_eq!(s.applied(), Health::Down);
+    }
+
+    #[test]
+    fn passive_success_does_not_close_circuit() {
+        let s = optimistic();
+        s.record_passive_failure(1);
+        assert_eq!(s.applied(), Health::Down);
+        s.record_passive_success();
+        assert_eq!(s.passive_consecutive_failures(), 0);
+        assert_eq!(
+            s.applied(),
+            Health::Down,
+            "forward success must not mark up"
+        );
+        assert_eq!(s.record_success(3, ALPHA, 5.0), Health::Down);
+        assert_eq!(s.record_success(3, ALPHA, 5.0), Health::Down);
+        assert_eq!(s.record_success(3, ALPHA, 5.0), Health::Up);
+    }
+
+    #[test]
+    fn frozen_backend_ignores_passive_on_applied() {
+        let s = optimistic();
+        s.freeze();
+        s.record_passive_failure(1);
+        assert_eq!(s.observed(), Health::Down);
+        assert_eq!(s.applied(), Health::Up, "frozen applied must not move");
     }
 
     #[test]
@@ -593,5 +697,23 @@ mod tests {
         assert!(reg
             .get("default", "127.0.0.1:9999".parse().unwrap())
             .is_none());
+    }
+
+    #[test]
+    fn registry_passive_disabled_has_no_effect() {
+        let mut pool = compiled_pool(vec![compiled_backend("127.0.0.1:5300", "health.", 1)]);
+        pool.pools.get_mut("default").unwrap().passive_fast_trip = false;
+        let reg = HealthRegistry::from_compiled(&pool);
+        let state = reg
+            .get("default", "127.0.0.1:5300".parse().unwrap())
+            .unwrap();
+        reg.record_passive_forward_outcome(
+            &pool,
+            "default",
+            "127.0.0.1:5300".parse().unwrap(),
+            true,
+        );
+        assert_eq!(state.applied(), Health::Up);
+        assert_eq!(state.passive_consecutive_failures(), 0);
     }
 }

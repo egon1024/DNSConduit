@@ -7,6 +7,7 @@ use crate::forward::pool_inflight::PoolInflight;
 use crate::forward::tcp::forward_tcp;
 use crate::forward::{ForwardKey, TxnTable};
 use conduit_config::forward::UpstreamTransport;
+use conduit_core::health::HealthRegistry;
 use conduit_core::phase::Phase;
 use conduit_core::pipeline::{PipelineStage, StageOutcome};
 use conduit_core::record_upstream_response;
@@ -29,6 +30,7 @@ pub struct ForwardTransport {
     mode: ForwardMode,
     io_backend: Option<Arc<IoBackend>>,
     pool_inflight: Option<Arc<PoolInflight>>,
+    health: Option<Arc<HealthRegistry>>,
 }
 
 impl ForwardTransport {
@@ -66,7 +68,7 @@ impl ForwardTransport {
         let egress =
             WorkerForwardEgress::new(compiled, bind_addresses_v4, bind_addresses_v6, timeout_ms)?;
         Self::new_with_mode_and_egress(
-            egress, table, compiled, timeout_ms, metrics, mode, io_backend, None,
+            egress, table, compiled, timeout_ms, metrics, mode, io_backend, None, None,
         )
     }
 
@@ -80,6 +82,7 @@ impl ForwardTransport {
         mode: ForwardMode,
         io_backend: Option<Arc<IoBackend>>,
         pool_inflight: Option<Arc<PoolInflight>>,
+        health: Option<Arc<HealthRegistry>>,
     ) -> std::io::Result<Self> {
         Ok(Self {
             egress,
@@ -91,7 +94,26 @@ impl ForwardTransport {
             mode,
             io_backend,
             pool_inflight,
+            health,
         })
+    }
+
+    fn report_passive_outcome(
+        &self,
+        txn: &Transaction,
+        snapshot: &RuntimeSnapshot,
+        backend: std::net::SocketAddr,
+        is_failure: bool,
+    ) {
+        let Some(registry) = self.health.as_ref() else {
+            return;
+        };
+        let pool = txn.selected_pool.as_deref().unwrap_or("default");
+        registry.record_passive_forward_outcome(&snapshot.health, pool, backend, is_failure);
+    }
+
+    fn passive_failure_reason(reason: &str) -> bool {
+        matches!(reason, "send_error" | "timeout" | "tcp_error")
     }
 
     fn release_pool_inflight(&self, txn: &Transaction) {
@@ -155,6 +177,7 @@ impl ForwardTransport {
         parse_wire_meta: bool,
     ) -> StageOutcome {
         self.record_forward(txn, snapshot, Some(key.backend), "success", None, started);
+        self.report_passive_outcome(txn, snapshot, key.backend, false);
         self.table.remove(key);
         record_upstream_response(txn, &wire, parse_wire_meta);
         txn.response_wire = Some(wire);
@@ -171,6 +194,11 @@ impl ForwardTransport {
     ) -> StageOutcome {
         let backend = key.map(|k| k.backend);
         self.record_forward(txn, snapshot, backend, "error", Some(reason), started);
+        if let Some(b) = backend {
+            if Self::passive_failure_reason(reason) {
+                self.report_passive_outcome(txn, snapshot, b, true);
+            }
+        }
         if let Some(k) = key {
             self.table.remove(k);
             if let Some(io) = self.io_backend.as_ref() {
@@ -409,6 +437,7 @@ impl ForwardTransport {
                     Some("timeout"),
                     started,
                 );
+                self.report_passive_outcome(txn, snapshot, backend, true);
                 self.table.remove(key);
                 txn.set_rcode_name("SERVFAIL");
                 StageOutcome::Continue(Phase::ResponseRules)

@@ -1,7 +1,9 @@
 //! Start listener worker threads for the active snapshot.
 
 use crate::drain::{drain_slots, DrainFilter, DrainOutcome};
-use crate::forward::{ForwardTransport, TxnTable, WaitResponseStage};
+use crate::forward::{
+    ForwardMode, ForwardTransport, TxnTable, WaitResponseStage, WorkerForwardEgress,
+};
 use crate::listener::{shutdown::DataplaneShutdown, startup_log, tcp, udp};
 use conduit_config::resolve_listener_ingress;
 use conduit_core::health::HealthRegistry;
@@ -198,15 +200,29 @@ pub fn start(
             listener_closers.push(closer);
 
             thread_handles.push(thread::spawn(move || {
-                let forward = match ForwardTransport::new(
-                    table.clone(),
+                let forward = match WorkerForwardEgress::new(
                     &forward_compiled,
                     &bind_addresses_v4,
                     &bind_addresses_v6,
                     timeout_ms,
-                    Some(metrics.clone()),
                 ) {
-                    Ok(f) => Arc::new(f),
+                    Ok(egress) => match ForwardTransport::new_with_mode_and_egress(
+                        egress,
+                        table.clone(),
+                        &forward_compiled,
+                        timeout_ms,
+                        Some(metrics.clone()),
+                        ForwardMode::Sync,
+                        None,
+                        None,
+                        Some(health_registry.clone()),
+                    ) {
+                        Ok(f) => Arc::new(f),
+                        Err(e) => {
+                            tracing::error!(error = %e, "failed to build forward transport");
+                            return;
+                        }
+                    },
                     Err(e) => {
                         tracing::error!(error = %e, "failed to build forward egress");
                         return;
@@ -218,7 +234,7 @@ pub fn start(
                 orchestrator.registry.register(
                     Phase::Route,
                     Arc::new(conduit_core::stages::RouteStage::with_health(
-                        health_registry,
+                        health_registry.clone(),
                     )),
                 );
                 orchestrator.registry.register(
@@ -239,6 +255,7 @@ pub fn start(
                     Arc::new(WaitResponseStage::new(
                         parse_wire_meta,
                         Some(metrics.clone()),
+                        Some(health_registry),
                     )),
                 );
                 let orchestrator = Arc::new(orchestrator);

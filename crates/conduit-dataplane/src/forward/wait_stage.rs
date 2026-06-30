@@ -1,5 +1,6 @@
 //! WaitResponse checkpoint after upstream I/O completes.
 
+use conduit_core::health::HealthRegistry;
 use conduit_core::phase::Phase;
 use conduit_core::pipeline::{PipelineStage, StageOutcome};
 use conduit_core::record_upstream_response;
@@ -18,13 +19,19 @@ use std::sync::Arc;
 pub struct WaitResponseStage {
     parse_wire_meta: bool,
     metrics: Option<Arc<MetricsHub>>,
+    health: Option<Arc<HealthRegistry>>,
 }
 
 impl WaitResponseStage {
-    pub fn new(parse_wire_meta: bool, metrics: Option<Arc<MetricsHub>>) -> Self {
+    pub fn new(
+        parse_wire_meta: bool,
+        metrics: Option<Arc<MetricsHub>>,
+        health: Option<Arc<HealthRegistry>>,
+    ) -> Self {
         Self {
             parse_wire_meta,
             metrics,
+            health,
         }
     }
 
@@ -58,6 +65,9 @@ impl WaitResponseStage {
             &backend_label,
             txn.last_forward_ms() as f64 / 1000.0,
         );
+        if let (Some(registry), Some(backend)) = (self.health.as_ref(), txn.selected_backend) {
+            registry.record_passive_forward_outcome(&snapshot.health, pool, backend, !success);
+        }
     }
 }
 
