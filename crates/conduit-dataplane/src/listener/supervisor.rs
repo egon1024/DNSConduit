@@ -4,6 +4,7 @@ use crate::drain::{drain_slots, DrainFilter, DrainOutcome};
 use crate::forward::{ForwardTransport, TxnTable, WaitResponseStage};
 use crate::listener::{shutdown::DataplaneShutdown, startup_log, tcp, udp};
 use conduit_config::resolve_listener_ingress;
+use conduit_core::health::HealthRegistry;
 use conduit_core::orchestrator::Orchestrator;
 use conduit_core::phase::Phase;
 use conduit_core::snapshot::SnapshotStore;
@@ -41,9 +42,13 @@ pub struct DataplaneHandle {
     pub events: Arc<EventHub>,
     pub txn_table: Arc<TxnTable>,
     pub txn_store: SharedTxnStore,
+    /// Per-backend health state written by the probe loop. Phase A exposes it
+    /// for observation/tests only; routing does not read it yet.
+    pub health: Arc<HealthRegistry>,
 }
 
 impl DataplaneHandle {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         shutdown: DataplaneShutdown,
         listener_closers: Vec<ListenerCloser>,
@@ -51,6 +56,7 @@ impl DataplaneHandle {
         events: Arc<EventHub>,
         txn_table: Arc<TxnTable>,
         txn_store: SharedTxnStore,
+        health: Arc<HealthRegistry>,
     ) -> Self {
         Self {
             shutdown,
@@ -59,6 +65,7 @@ impl DataplaneHandle {
             events,
             txn_table,
             txn_store,
+            health,
         }
     }
 
@@ -127,14 +134,22 @@ pub fn start(
 
     let shutdown = DataplaneShutdown::new();
 
+    // Runtime backend-health side-table (phase 1c). Owned by the snapshot store
+    // so it survives reloads (reconciled, not rebuilt); the probe loop writes it
+    // and Route reads it lock-free.
+    let health_registry = store.health();
+    let probe_handle =
+        crate::probe::spawn_probe_loop(&snap, health_registry.clone(), shutdown.clone());
+
     let Some(listeners) = listeners else {
         return Ok(DataplaneHandle::new(
             shutdown,
             Vec::new(),
-            Vec::new(),
+            probe_handle.into_iter().collect(),
             events_hub,
             table,
             txn_store,
+            health_registry,
         ));
     };
 
@@ -142,6 +157,9 @@ pub fn start(
     let global_query_counter = Arc::new(AtomicU64::new(0));
 
     let mut thread_handles = Vec::new();
+    if let Some(h) = probe_handle {
+        thread_handles.push(h);
+    }
     let mut listener_closers = Vec::new();
     for ln in &listeners.listeners {
         let ingress = resolve_listener_ingress(listeners, ln);
@@ -162,6 +180,7 @@ pub fn start(
             let worker_shutdown = shutdown.clone();
             let global_query_counter = global_query_counter.clone();
             let txn_store = txn_store.clone();
+            let health_registry = health_registry.clone();
 
             let (closer, worker) = if proto == "tcp" {
                 let (socket, addr) = tcp::bind_socket(&ln)?;
@@ -196,6 +215,12 @@ pub fn start(
                 let mut orchestrator = Orchestrator::with_default_stages();
                 orchestrator.metrics = Some(metrics.clone());
                 orchestrator.tracing = Some(tracing.clone());
+                orchestrator.registry.register(
+                    Phase::Route,
+                    Arc::new(conduit_core::stages::RouteStage::with_health(
+                        health_registry,
+                    )),
+                );
                 orchestrator.registry.register(
                     Phase::RequestRules,
                     Arc::new(conduit_core::stages::RequestRulesStage {
@@ -254,6 +279,7 @@ pub fn start(
         events_hub,
         table,
         txn_store,
+        health_registry,
     ))
 }
 

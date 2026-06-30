@@ -1,15 +1,37 @@
 //! Route phase — select pool and weighted backend.
 
+use crate::health::HealthRegistry;
 use crate::phase::Phase;
 use crate::pipeline::{PipelineStage, StageOutcome};
 use crate::routing::{
     backend_metric_label_for_addr, default_pool_name, select_backend, tried_backends_in_pool,
+    PoolHealthView,
 };
 use crate::snapshot::RuntimeSnapshot;
 use crate::transaction::Transaction;
 use std::sync::Arc;
 
-pub struct RouteStage;
+/// Route phase. When `health` is set (the dataplane runtimes), selection is
+/// health-aware (eligibility + effective weight + fail-open, design §D7); when
+/// it is `None` (default, tests), selection is the pre-health weighted pick.
+#[derive(Default)]
+pub struct RouteStage {
+    health: Option<Arc<HealthRegistry>>,
+}
+
+impl RouteStage {
+    /// Health-unaware Route (today's behavior — all backends eligible).
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Health-aware Route reading the runtime side-table lock-free at selection.
+    pub fn with_health(health: Arc<HealthRegistry>) -> Self {
+        Self {
+            health: Some(health),
+        }
+    }
+}
 
 impl PipelineStage for RouteStage {
     fn name(&self) -> &'static str {
@@ -29,6 +51,18 @@ impl PipelineStage for RouteStage {
             return StageOutcome::Continue(Phase::Send);
         };
 
+        // Read the lock-free health side-table for this pool, if health is wired
+        // and enabled for the pool. The `Arc<HealthTable>` guard is held for the
+        // duration of the selection call so the borrow stays valid.
+        let table_guard = self.health.as_ref().map(|reg| reg.load());
+        let health_view = match (&table_guard, snapshot.health.pool(&pool_name)) {
+            (Some(table), Some(config)) => Some(PoolHealthView {
+                config,
+                table: table.as_ref(),
+            }),
+            _ => None,
+        };
+
         let tried = tried_backends_in_pool(&txn.attempts, &pool_name);
         let Some((pool, backend)) = select_backend(
             &snapshot.config.pools,
@@ -37,6 +71,7 @@ impl PipelineStage for RouteStage {
             snapshot.generation,
             txn.attempt_count,
             &tried,
+            health_view,
         ) else {
             txn.set_rcode_name("SERVFAIL");
             return StageOutcome::Continue(Phase::Send);
@@ -84,7 +119,7 @@ mod tests {
         );
         txn.selected_pool = Some("primary".into());
         txn.retry_pool = Some("secondary".into());
-        RouteStage.handle(&mut txn, &snap);
+        RouteStage::new().handle(&mut txn, &snap);
         assert_eq!(txn.selected_pool.as_deref(), Some("primary"));
     }
 
@@ -111,7 +146,7 @@ pools:
             ClientProtocol::Udp,
         );
         txn.selected_pool = Some("primary".into());
-        RouteStage.handle(&mut txn, &snap);
+        RouteStage::new().handle(&mut txn, &snap);
         assert_eq!(
             txn.selected_backend,
             Some("127.0.0.1:5300".parse::<SocketAddr>().unwrap())
@@ -144,7 +179,7 @@ pools:
             ClientProtocol::Udp,
         );
         txn.selected_pool = Some("primary".into());
-        RouteStage.handle(&mut txn, &snap);
+        RouteStage::new().handle(&mut txn, &snap);
         assert_eq!(
             txn.selected_backend_display().as_deref(),
             Some("127.0.0.1:5300")
@@ -162,7 +197,7 @@ pools:
         txn.selected_pool = Some("primary".into());
         txn.retry_pool = Some("secondary".into());
         txn.attempt_count = 1;
-        RouteStage.handle(&mut txn, &snap);
+        RouteStage::new().handle(&mut txn, &snap);
         assert_eq!(txn.selected_pool.as_deref(), Some("secondary"));
         assert!(txn.retry_pool.is_none());
     }

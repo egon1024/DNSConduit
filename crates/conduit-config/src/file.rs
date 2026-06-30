@@ -9,8 +9,8 @@ use crate::defaults::{
 use crate::error::ConfigError;
 use conduit_proto::config::{
     Action, Backend, Config, ControlConfig, ControlTlsConfig, DataSource, DataSourceLimits,
-    DataplaneConfig, EventSinkFilters, EventsConfig, ForwardConfig, Listener, ListenersConfig,
-    LoggingConfig, MetricsConfig, OrchestratorConfig, OtelMetricsConfig, Pool,
+    DataplaneConfig, EventSinkFilters, EventsConfig, ForwardConfig, HealthCheck, Listener,
+    ListenersConfig, LoggingConfig, MetricsConfig, OrchestratorConfig, OtelMetricsConfig, Pool,
     PrometheusMetricsConfig, RhaiConfig, Rule, RulesConfig, Selector, ShutdownConfig,
     TracingActivation, TracingConfig, TracingOutput, UserMetricExportConfig,
 };
@@ -591,6 +591,39 @@ pub(crate) struct YamlPool {
     sources_v6: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     max_inflight: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    health: Option<YamlHealthCheck>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Default)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct YamlHealthCheck {
+    #[serde(default)]
+    enabled: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    interval_ms: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    timeout_ms: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    rise: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    fall: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    probe_qname: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    probe_qtype: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    acceptable_rcodes: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    initial_state: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    latency_weighting: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    min_eligible: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    passive_fast_trip: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    passive_fall: Option<u32>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -602,6 +635,14 @@ pub(crate) struct YamlBackend {
     /// Omitted in YAML means default weight (100).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     weight: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    probe_qname: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    probe_qtype: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    probe_source: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    transport: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -1097,6 +1138,47 @@ impl From<YamlPool> for Pool {
             sources_v4: y.sources_v4,
             sources_v6: y.sources_v6,
             max_inflight: y.max_inflight,
+            health: y.health.map(Into::into),
+        }
+    }
+}
+
+impl From<YamlHealthCheck> for HealthCheck {
+    fn from(y: YamlHealthCheck) -> Self {
+        HealthCheck {
+            enabled: y.enabled,
+            interval_ms: y.interval_ms,
+            timeout_ms: y.timeout_ms,
+            rise: y.rise,
+            fall: y.fall,
+            probe_qname: y.probe_qname,
+            probe_qtype: y.probe_qtype,
+            acceptable_rcodes: y.acceptable_rcodes,
+            initial_state: y.initial_state,
+            latency_weighting: y.latency_weighting,
+            min_eligible: y.min_eligible,
+            passive_fast_trip: y.passive_fast_trip,
+            passive_fall: y.passive_fall,
+        }
+    }
+}
+
+impl From<&HealthCheck> for YamlHealthCheck {
+    fn from(h: &HealthCheck) -> Self {
+        YamlHealthCheck {
+            enabled: h.enabled,
+            interval_ms: h.interval_ms,
+            timeout_ms: h.timeout_ms,
+            rise: h.rise,
+            fall: h.fall,
+            probe_qname: h.probe_qname.clone(),
+            probe_qtype: h.probe_qtype.clone(),
+            acceptable_rcodes: h.acceptable_rcodes.clone(),
+            initial_state: h.initial_state.clone(),
+            latency_weighting: h.latency_weighting,
+            min_eligible: h.min_eligible,
+            passive_fast_trip: h.passive_fast_trip,
+            passive_fall: h.passive_fall,
         }
     }
 }
@@ -1107,6 +1189,10 @@ impl From<YamlBackend> for Backend {
             address: y.address,
             weight: y.weight,
             name: y.name,
+            probe_qname: y.probe_qname,
+            probe_qtype: y.probe_qtype,
+            probe_source: y.probe_source,
+            transport: y.transport,
         }
     }
 }
@@ -1518,6 +1604,7 @@ impl TryFrom<&Pool> for YamlPool {
             sources_v4: p.sources_v4.clone(),
             sources_v6: p.sources_v6.clone(),
             max_inflight: p.max_inflight,
+            health: p.health.as_ref().map(YamlHealthCheck::from),
         })
     }
 }
@@ -1531,6 +1618,10 @@ impl From<&Backend> for YamlBackend {
                 None | Some(DEFAULT_BACKEND_WEIGHT) => None,
                 Some(w) => Some(w),
             },
+            probe_qname: b.probe_qname.clone(),
+            probe_qtype: b.probe_qtype.clone(),
+            probe_source: b.probe_source.clone(),
+            transport: b.transport.clone(),
         }
     }
 }

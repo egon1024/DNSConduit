@@ -71,6 +71,11 @@ pub fn start_split_io(
     let io_shutdown = Arc::new(AtomicBool::new(false));
     let io_backend_for_orchestrator = Arc::new(io_backend.clone());
 
+    // Runtime backend-health side-table (phase 1c). Owned by the snapshot store
+    // so it survives reloads (reconciled, not rebuilt); the probe loop writes it
+    // and Route reads it lock-free.
+    let health_registry = store.health();
+
     let orchestrator = build_orchestrator(
         &snap,
         table.clone(),
@@ -82,10 +87,17 @@ pub fn start_split_io(
         ForwardMode::Submit,
         Some(io_backend_for_orchestrator),
         Some(inflight.clone()),
+        health_registry.clone(),
     )?;
 
     let mut thread_handles = Vec::new();
     let mut listener_closers = Vec::new();
+
+    if let Some(h) =
+        crate::probe::spawn_probe_loop(&snap, health_registry.clone(), shutdown.clone())
+    {
+        thread_handles.push(h);
+    }
 
     let policy_workers = effective_policy_workers(cfg);
     for _ in 0..policy_workers {
@@ -143,6 +155,7 @@ pub fn start_split_io(
             events_hub,
             table,
             txn_store,
+            health_registry,
         ));
     };
 
@@ -212,6 +225,7 @@ pub fn start_split_io(
         events_hub,
         table,
         txn_store,
+        health_registry,
     ))
 }
 

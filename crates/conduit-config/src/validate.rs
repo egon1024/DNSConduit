@@ -88,6 +88,7 @@ pub fn validate(cfg: &Config) -> ValidationResult {
     }
 
     errors.extend(validate_upstream_backend_addresses(cfg));
+    errors.extend(crate::health::validate_health(cfg));
 
     let mut pool_names = std::collections::HashSet::new();
     for p in &cfg.pools {

@@ -1,0 +1,39 @@
+schema_version: 1
+listeners:
+  threads: 1
+  reuse_port: false
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+forward:
+  outstanding_per_backend: 100
+  timeout_ms: 2000
+orchestrator:
+  max_attempts: 3
+  max_txn_duration_ms: 5000
+  txn_table_capacity: 1024
+pools:
+  - name: default
+    health:
+      enabled: true
+      interval_ms: 1000
+      timeout_ms: 500
+      rise: 3
+      fall: 2
+      probe_qname: "health.example."
+      probe_qtype: A
+      acceptable_rcodes:
+        - NOERROR
+        - NXDOMAIN
+      initial_state: optimistic
+      latency_weighting: true
+      min_eligible: 1
+      passive_fast_trip: true
+      passive_fall: 2
+    backends:
+      - address: "127.0.0.1:5300"
+        weight: 100
+      - address: "127.0.0.1:5301"
+        weight: 100
+control:
+  listen_address: "127.0.0.1:5199"

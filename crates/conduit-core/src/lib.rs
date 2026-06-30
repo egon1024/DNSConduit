@@ -3,6 +3,7 @@
 pub mod clock;
 pub mod configurator;
 pub mod event_emit;
+pub mod health;
 pub mod orchestrator;
 pub mod parse_reject;
 pub mod phase;
@@ -25,12 +26,16 @@ pub use configurator::{
     spawn as spawn_configurator, ApplyResult, ConfiguratorHandle, ConfiguratorSpawn,
     ConfiguratorState, OverlayApplyMode, PolicyProposal, ProposalSource,
 };
+pub use health::{
+    BackendHealthState, BackendKey, Health, HealthRegistry, HealthTable, ProbeOutcome, ProbeSpec,
+};
 pub use orchestrator::{Orchestrator, OrchestratorRun, RunOutcome, StageRegistry};
 pub use parse_reject::ParseRejectReason;
 pub use phase::Phase;
 pub use pipeline::{PipelineStage, StageOutcome};
 pub use routing::{
     backend_metric_label, backend_metric_label_for_addr, select_backend, AttemptRecord,
+    PoolHealthView,
 };
 pub use rules::CompiledRules;
 pub use snapshot::{RuntimeSnapshot, SnapshotStore};
