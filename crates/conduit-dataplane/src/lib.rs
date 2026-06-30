@@ -4,6 +4,7 @@ pub mod drain;
 pub mod forward;
 pub mod listener;
 pub mod metrics_scrape;
+pub mod probe;
 pub mod query_slot;
 pub mod runtime;
 pub mod stages;

@@ -342,6 +342,7 @@ dependencies = [
 name = "conduit-config"
 version = "0.17.0"
 dependencies = [
+ "conduit-dns-wire",
  "conduit-events",
  "conduit-metrics",
  "conduit-proto",

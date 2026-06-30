@@ -1,8 +1,10 @@
 //! Immutable runtime configuration snapshot and atomic swap (spec §4.4).
 
+use crate::health::HealthRegistry;
 use crate::rules::CompiledRules;
 use arc_swap::ArcSwap;
 use conduit_config::forward::{CompiledForward, CompiledPoolForward};
+use conduit_config::health::{compile_health_from_config, CompiledHealth};
 use conduit_config::validate;
 use conduit_events::{compile_from_config as compile_events, CompiledEvents};
 use conduit_metrics::{compile_from_config as compile_metrics, CompiledMetrics, CompiledTracing};
@@ -21,6 +23,10 @@ pub struct RuntimeSnapshot {
     pub scripting: Arc<CompiledScripting>,
     pub forward: CompiledForward,
     pub pool_forward: HashMap<String, CompiledPoolForward>,
+    /// Probe *configuration* (design §D9). Runtime probe state lives outside the
+    /// snapshot in a side-table reconciled across swaps — never store mutable
+    /// health state here.
+    pub health: CompiledHealth,
     pub metrics: CompiledMetrics,
     pub tracing: CompiledTracing,
     pub generation: u64,
@@ -141,12 +147,16 @@ impl RuntimeSnapshot {
             CompiledForward::compile_from_config(&config).unwrap_or_else(|e| {
                 panic!("forward compile failed at snapshot build: {e}");
             });
+        let health = compile_health_from_config(&config).unwrap_or_else(|e| {
+            panic!("health compile failed at snapshot build: {e}");
+        });
         Self {
             rules: CompiledRules::compile(config.rules.as_ref(), &scripting),
             events,
             scripting: Arc::new(scripting),
             forward,
             pool_forward,
+            health,
             metrics,
             tracing,
             config,
@@ -167,12 +177,17 @@ impl RuntimeSnapshot {
                 rule_name: "forward".into(),
                 message: e,
             })?;
+        let health = compile_health_from_config(&config).map_err(|e| ScriptError::Rule {
+            rule_name: "health".into(),
+            message: e,
+        })?;
         Ok(Self {
             rules: CompiledRules::compile(config.rules.as_ref(), &scripting),
             events,
             scripting: Arc::new(scripting),
             forward,
             pool_forward,
+            health,
             metrics,
             tracing,
             config,
@@ -200,13 +215,21 @@ impl RuntimeSnapshot {
 pub struct SnapshotStore {
     current: ArcSwap<RuntimeSnapshot>,
     generation: AtomicU64,
+    /// Runtime backend-health side-table (design §D9). It lives here, beside the
+    /// config snapshot, because it must **outlive** snapshot swaps: a reload
+    /// rebuilds the config wholesale but health is reconciled (preserve/reset by
+    /// identity), never blanket-reset. The dataplane reads this same registry for
+    /// the probe loop and at Route.
+    health: Arc<HealthRegistry>,
 }
 
 impl SnapshotStore {
     pub fn new(snapshot: RuntimeSnapshot) -> Self {
+        let health = Arc::new(HealthRegistry::from_compiled(&snapshot.health));
         Self {
             current: ArcSwap::from_pointee(snapshot),
             generation: AtomicU64::new(0),
+            health,
         }
     }
 
@@ -214,13 +237,23 @@ impl SnapshotStore {
         self.current.load_full()
     }
 
+    /// Shared handle to the runtime health side-table (probe loop + Route).
+    pub fn health(&self) -> Arc<HealthRegistry> {
+        self.health.clone()
+    }
+
     pub fn generation(&self) -> u64 {
         self.generation.load(Ordering::Relaxed)
     }
 
-    /// Replace the current snapshot and bump generation. Returns the previous snapshot.
+    /// Replace the current snapshot and bump generation. Returns the previous
+    /// snapshot. The health side-table is reconciled against the new compiled
+    /// health (preserve unchanged backends, reset new/changed ones — design §D9)
+    /// so a reload never wipes hard-won health state.
     pub fn swap(&self, snapshot: RuntimeSnapshot) -> Arc<RuntimeSnapshot> {
-        let prev = self.current.swap(Arc::new(snapshot));
+        let new = Arc::new(snapshot);
+        let prev = self.current.swap(new.clone());
+        self.health.reconcile(&prev.health, &new.health);
         self.generation.fetch_add(1, Ordering::Relaxed);
         prev
     }

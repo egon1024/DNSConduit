@@ -4,9 +4,11 @@ use crate::forward::pool_inflight::PoolInflight;
 use crate::forward::{ForwardMode, ForwardTransport, IoBackend, WaitResponseStage};
 use crate::forward::{TxnTable, WorkerForwardEgress};
 use conduit_config::forward::CompiledForward;
+use conduit_core::health::HealthRegistry;
 use conduit_core::orchestrator::Orchestrator;
 use conduit_core::phase::Phase;
 use conduit_core::snapshot::RuntimeSnapshot;
+use conduit_core::stages::RouteStage;
 use conduit_metrics::{MetricsHub, TracingHub};
 use std::io;
 use std::net::{Ipv4Addr, Ipv6Addr};
@@ -24,6 +26,7 @@ pub fn build_orchestrator(
     forward_mode: ForwardMode,
     io_backend: Option<Arc<IoBackend>>,
     pool_inflight: Option<Arc<PoolInflight>>,
+    health: Arc<HealthRegistry>,
 ) -> io::Result<Arc<Orchestrator>> {
     let forward = Arc::new(ForwardTransport::new_with_mode_and_egress(
         egress,
@@ -39,6 +42,9 @@ pub fn build_orchestrator(
     let mut orchestrator = Orchestrator::with_default_stages();
     orchestrator.metrics = Some(metrics.clone());
     orchestrator.tracing = Some(tracing);
+    orchestrator
+        .registry
+        .register(Phase::Route, Arc::new(RouteStage::with_health(health)));
     orchestrator.registry.register(
         Phase::RequestRules,
         Arc::new(conduit_core::stages::RequestRulesStage {

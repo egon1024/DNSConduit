@@ -1,0 +1,27 @@
+schema_version: 1
+listeners:
+  threads: 1
+  reuse_port: false
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+forward:
+  outstanding_per_backend: 100
+  timeout_ms: 2000
+orchestrator:
+  max_attempts: 3
+  max_txn_duration_ms: 5000
+  txn_table_capacity: 1024
+pools:
+  - name: default
+    health:
+      enabled: true
+      interval_ms: 50
+      acceptable_rcodes:
+        - NOERROR
+        - BOGUSRCODE
+    backends:
+      - address: "127.0.0.1:5300"
+        weight: 100
+control:
+  listen_address: "127.0.0.1:5199"

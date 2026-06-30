@@ -443,7 +443,7 @@ impl Orchestrator {
         let mut registry = StageRegistry::new();
         registry.register(Phase::Parse, Arc::new(ParseStage));
         registry.register(Phase::RequestRules, Arc::new(RequestRulesStage::default()));
-        registry.register(Phase::Route, Arc::new(RouteStage));
+        registry.register(Phase::Route, Arc::new(RouteStage::new()));
         registry.register(
             Phase::ResponseRules,
             Arc::new(ResponseRulesStage::default()),

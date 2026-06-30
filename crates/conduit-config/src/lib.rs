@@ -7,6 +7,7 @@ pub mod error;
 pub mod export;
 pub mod file;
 pub mod forward;
+pub mod health;
 pub mod listeners;
 pub mod logging;
 pub mod merge;
@@ -38,6 +39,12 @@ pub use forward::{
     compile_forward_from_config, parse_sources_v4, parse_sources_v6, parse_upstream_transport,
     validate_upstream_backend_addresses, CompiledForward, CompiledPoolForward, UpstreamTransport,
     DEFAULT_SOURCE_SELECTION, DEFAULT_UPSTREAM_TRANSPORT, MAX_SOURCES_V4, MAX_SOURCES_V6,
+};
+pub use health::{
+    compile_health_from_config, validate_health, CompiledBackendHealth, CompiledHealth,
+    CompiledPoolHealth, InitialHealthState, DEFAULT_HEALTH_FALL, DEFAULT_HEALTH_INTERVAL_MS,
+    DEFAULT_HEALTH_PASSIVE_FALL, DEFAULT_HEALTH_RISE, DEFAULT_LATENCY_EWMA_ALPHA,
+    DEFAULT_LATENCY_FLOOR, DEFAULT_PROBE_QNAME, DEFAULT_PROBE_QTYPE, HEALTH_INTERVAL_FLOOR_MS,
 };
 pub use listeners::{resolve_listener_ingress, ResolvedListenerIngress};
 pub use logging::{init_from_config, validate_logging, DEFAULT_LOG_LEVEL, DEFAULT_LOG_OUTPUT};

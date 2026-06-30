@@ -1,0 +1,12 @@
+//! Backend health runtime: per-backend state side-table and probe
+//! construction/validation (phase 1c, design §D2/§D4/§D9).
+//!
+//! Probe *configuration* is compiled in `conduit-config` and stored in the
+//! immutable snapshot; the mutable *state* defined here lives outside the
+//! snapshot and is read lock-free by workers.
+
+pub mod probe;
+pub mod state;
+
+pub use probe::{ProbeOutcome, ProbeSpec};
+pub use state::{BackendHealthState, BackendKey, Health, HealthRegistry, HealthTable};

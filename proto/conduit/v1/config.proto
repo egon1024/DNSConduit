@@ -221,12 +221,38 @@ message Pool {
   repeated string sources_v4 = 3;
   repeated string sources_v6 = 4;
   optional uint32 max_inflight = 5;
+  optional HealthCheck health = 6;  // active backend health probing; absent = disabled (today's behavior)
+}
+
+// Pool-level active health-probe configuration (phase 1c). Absent or
+// enabled=false means no probes and every backend stays eligible.
+message HealthCheck {
+  bool enabled = 1;
+  optional uint32 interval_ms = 2;       // probe period; default 1000, floor 100
+  optional uint32 timeout_ms = 3;        // per-probe timeout; default = interval
+  optional uint32 rise = 4;              // consecutive successes to mark up; default 3, min 1
+  optional uint32 fall = 5;              // consecutive failures to mark down; default 2, min 1
+  optional string probe_qname = 6;       // pool-level probe query name template
+  optional string probe_qtype = 7;       // pool-level probe query type (IANA name or TYPEn)
+  repeated string acceptable_rcodes = 8; // empty = accept any well-formed response as alive
+  optional string initial_state = 9;     // "optimistic" (default) | "require_1_good" | "require_full_rise"
+  optional bool latency_weighting = 10;  // scale effective weight by latency EWMA (routing, later phase)
+  optional uint32 min_eligible = 11;     // fail-open floor; min eligible before Route fails open (later phase)
+  optional bool passive_fast_trip = 12;  // count live forward failures toward health; default true (later phase)
+  optional uint32 passive_fall = 13;     // consecutive passive failures to open; default 2, min 1 (later phase)
 }
 
 message Backend {
   string address = 1;           // "ip:port"
   optional uint32 weight = 2;   // load-balancing weight; default 100 when unset
   optional string name = 3;     // unique per pool when set
+  optional string probe_qname = 4;   // per-backend probe qname override (else pool template)
+  optional string probe_qtype = 5;   // per-backend probe qtype override (else pool template)
+  optional string probe_source = 6;  // per-backend probe egress source IP
+  // Reserved/forward-compatible only (design §D6): a per-backend transport that
+  // diverges from forward.upstream_transport is NOT honored — probes always use
+  // the forward upstream transport. Defined now so later divergence is additive.
+  optional string transport = 7;
 }
 
 message ControlTlsConfig {

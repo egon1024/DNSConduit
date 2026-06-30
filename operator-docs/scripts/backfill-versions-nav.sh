@@ -102,12 +102,20 @@ for tag in "${TAGS[@]}"; do
     cd "${work}/operator-docs"
     export DOCS_PRODUCT_VERSION="${tag}"
     if [[ ${PUSH} -eq 1 ]]; then
-      git fetch origin gh-pages:gh-pages 2>/dev/null || true
-      # No alias flags and no set-default: this only refreshes the version directory.
+      # Keep the local gh-pages branch in sync with origin before mike commits, so a
+      # prior run cannot leave it diverged. No alias flags and no set-default: this
+      # only refreshes the version directory.
+      git fetch origin gh-pages 2>/dev/null || true
+      git branch -f gh-pages origin/gh-pages 2>/dev/null || true
       mike deploy --push "${tag}"
     else
-      mike deploy "${tag}"
-      echo "    (dry run) rebuilt ${tag} locally; re-run with --push to publish"
+      # Dry run: build with strict mkdocs only. Do NOT call `mike deploy` here — even
+      # without --push it commits to the local gh-pages branch and diverges it from
+      # origin, which then makes the real --push a no-op ("nothing changed in commit").
+      site_tmp="$(mktemp -d)/site"
+      mkdocs build --strict --site-dir "${site_tmp}"
+      rm -rf "$(dirname "${site_tmp}")"
+      echo "    (dry run) overlay built ${tag} with strict mkdocs; re-run with --push to publish"
     fi
   )
 

@@ -1,0 +1,33 @@
+schema_version: 1
+listeners:
+  threads: 1
+  reuse_port: false
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+forward:
+  outstanding_per_backend: 100
+  timeout_ms: 2000
+orchestrator:
+  max_attempts: 3
+  max_txn_duration_ms: 5000
+  txn_table_capacity: 1024
+pools:
+  - name: default
+    health:
+      enabled: true
+      interval_ms: 1000
+      probe_qname: "pool-default.example."
+      probe_qtype: A
+    backends:
+      - address: "127.0.0.1:5300"
+        name: primary
+        weight: 100
+      - address: "127.0.0.1:5301"
+        name: secondary
+        weight: 100
+        probe_qname: "secondary.example."
+        probe_qtype: SOA
+        probe_source: "127.0.0.1"
+control:
+  listen_address: "127.0.0.1:5199"
