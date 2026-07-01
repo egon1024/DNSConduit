@@ -22,7 +22,7 @@ use conduit_config::health::{CompiledBackendHealth, CompiledHealth, InitialHealt
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicU8, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 /// Liveness of a backend.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -82,6 +82,7 @@ pub struct BackendHealthState {
     observed: AtomicU8,
     applied: AtomicU8,
     frozen: AtomicBool,
+    last_transition_unix_ms: AtomicU64,
     consecutive_successes: AtomicU32,
     consecutive_failures: AtomicU32,
     passive_consecutive_failures: AtomicU32,
@@ -107,6 +108,7 @@ impl BackendHealthState {
             observed: AtomicU8::new(Health::Unknown.to_u8()),
             applied: AtomicU8::new(applied.to_u8()),
             frozen: AtomicBool::new(false),
+            last_transition_unix_ms: AtomicU64::new(0),
             consecutive_successes: AtomicU32::new(0),
             consecutive_failures: AtomicU32::new(0),
             passive_consecutive_failures: AtomicU32::new(0),
@@ -125,6 +127,29 @@ impl BackendHealthState {
 
     pub fn is_frozen(&self) -> bool {
         self.frozen.load(Ordering::Relaxed)
+    }
+
+    /// Update the frozen flag from resolved scope (control plane / registry).
+    pub(crate) fn set_frozen_flag(&self, frozen: bool) {
+        self.frozen.store(frozen, Ordering::Relaxed);
+    }
+
+    /// Unix epoch milliseconds of the last observed/applied transition, if any.
+    pub fn last_transition_unix_ms(&self) -> Option<u64> {
+        let ms = self.last_transition_unix_ms.load(Ordering::Relaxed);
+        if ms == 0 {
+            None
+        } else {
+            Some(ms)
+        }
+    }
+
+    fn note_transition(&self) {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0);
+        self.last_transition_unix_ms.store(now, Ordering::Relaxed);
     }
 
     pub fn consecutive_successes(&self) -> u32 {
@@ -170,7 +195,21 @@ impl BackendHealthState {
     }
 
     fn set_applied(&self, value: Health) {
+        let prev = self.applied();
         self.applied.store(value.to_u8(), Ordering::Relaxed);
+        if prev != value {
+            self.note_transition();
+        }
+    }
+
+    /// Set `applied` without changing the frozen flag (pool/global manual set).
+    pub(crate) fn set_applied_only(&self, value: Health) {
+        self.set_applied(value);
+    }
+
+    /// Resume automatic: snap `applied := observed` (design §D2).
+    pub(crate) fn snap_applied_to_observed(&self) {
+        self.set_applied(self.observed());
     }
 
     fn update_ewma(&self, rtt_ms: f64, alpha: f64) {
@@ -198,7 +237,11 @@ impl BackendHealthState {
         self.consecutive_successes
             .store(successes, Ordering::Relaxed);
         if successes >= rise.max(1) {
+            let prev = self.observed();
             self.observed.store(Health::Up.to_u8(), Ordering::Relaxed);
+            if prev != Health::Up {
+                self.note_transition();
+            }
             if !self.is_frozen() {
                 self.set_applied(Health::Up);
             }
@@ -220,7 +263,11 @@ impl BackendHealthState {
             .saturating_add(1);
         self.consecutive_failures.store(failures, Ordering::Relaxed);
         if failures >= fall.max(1) {
+            let prev = self.observed();
             self.observed.store(Health::Down.to_u8(), Ordering::Relaxed);
+            if prev != Health::Down {
+                self.note_transition();
+            }
             if !self.is_frozen() {
                 self.set_applied(Health::Down);
             }
@@ -238,7 +285,11 @@ impl BackendHealthState {
         self.passive_consecutive_failures
             .store(failures, Ordering::Relaxed);
         if failures >= passive_fall.max(1) {
+            let prev = self.observed();
             self.observed.store(Health::Down.to_u8(), Ordering::Relaxed);
+            if prev != Health::Down {
+                self.note_transition();
+            }
             if !self.is_frozen() {
                 self.set_applied(Health::Down);
             }
@@ -294,11 +345,32 @@ fn probe_semantics_eq(a: &CompiledBackendHealth, b: &CompiledBackendHealth) -> b
 /// swapped atomically on reload.
 pub type HealthTable = HashMap<BackendKey, Arc<BackendHealthState>>;
 
+const SCOPE_AUTOMATIC: u8 = 0;
+
+/// Tri-state scope overrides for operator controls (design §D8).
+#[derive(Debug)]
+pub(crate) struct HealthControlScopes {
+    pub(crate) global: AtomicU8,
+    pub(crate) pools: RwLock<HashMap<String, u8>>,
+    pub(crate) backends: RwLock<HashMap<BackendKey, u8>>,
+}
+
+impl Default for HealthControlScopes {
+    fn default() -> Self {
+        Self {
+            global: AtomicU8::new(SCOPE_AUTOMATIC),
+            pools: RwLock::new(HashMap::new()),
+            backends: RwLock::new(HashMap::new()),
+        }
+    }
+}
+
 /// Lock-free read handle to per-backend health state for workers and the probe
 /// loop. Mirrors the `arc-swap` mechanism used for the config snapshot.
 #[derive(Debug)]
 pub struct HealthRegistry {
-    table: arc_swap::ArcSwap<HealthTable>,
+    pub(crate) table: arc_swap::ArcSwap<HealthTable>,
+    pub(crate) scopes: HealthControlScopes,
 }
 
 impl HealthRegistry {
@@ -317,6 +389,7 @@ impl HealthRegistry {
         }
         Self {
             table: arc_swap::ArcSwap::from_pointee(table),
+            scopes: HealthControlScopes::default(),
         }
     }
 
@@ -324,6 +397,7 @@ impl HealthRegistry {
     pub fn empty() -> Self {
         Self {
             table: arc_swap::ArcSwap::from_pointee(HealthTable::new()),
+            scopes: HealthControlScopes::default(),
         }
     }
 
@@ -571,6 +645,7 @@ mod tests {
     fn compiled_backend(addr: &str, qname: &str, qtype: u16) -> CompiledBackendHealth {
         CompiledBackendHealth {
             address: addr.parse().unwrap(),
+            name: None,
             label: addr.to_string(),
             probe_qname: qname.to_string(),
             probe_qtype: qtype,

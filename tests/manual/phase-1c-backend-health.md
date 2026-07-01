@@ -434,9 +434,100 @@ Fill in the Pass / fail lines above and the Gate C sign-off below.
 
 ---
 
+# Gate D — operator controls (§9)
+
+> **Gate D scope:** Phase D adds `GetBackendHealth` / `SetHealthControl` RPCs and
+> `conduitctl health` commands. Confirm drain (set down) stops traffic while
+> observed stays up, resume-automatic snaps to observed, scope precedence
+> (global freeze + per-backend carve-out), and the clear-while-frozen footgun is
+> avoided via the atomic resume-automatic path. Metrics (§10) are a **later phase**.
+
+## Config
+
+Reuse [`config/phase-1c-health.yaml`](config/phase-1c-health.yaml) with health
+enabled and at least two backends. Generate steady load (`dnsperf` or a `dig`
+loop) for drain tests.
+
+Control plane must be enabled (`control.listen_address` in config).
+
+---
+
+## 9.1 Drain — set down stops traffic, observed stays up (task 9.1)
+
+With load running, drain one healthy backend:
+
+```bash
+conduitctl health set down --pool default --backend 127.0.0.1:15399
+conduitctl health show --pool default --backend 127.0.0.1:15399
+```
+
+**Expect:** traffic to that backend drops to ~0; `observed=up` (probes still
+succeed) and `applied=down`; `scope=frozen`.
+
+**Pass / fail:** ___________
+
+---
+
+## 9.2 Resume automatic — immediate return to rotation (task 9.2)
+
+```bash
+conduitctl health resume --pool default --backend 127.0.0.1:15399
+conduitctl health show --pool default --backend 127.0.0.1:15399
+```
+
+**Expect:** backend returns to rotation **immediately** (snap to observed, no
+probe wait); `applied=up`, `scope=automatic`.
+
+**Pass / fail:** ___________
+
+---
+
+## 9.3 Scope precedence — global freeze + carve-out (task 9.3)
+
+```bash
+conduitctl health freeze --global
+conduitctl health resume --pool default --backend 127.0.0.1:15399
+# induce probe down on a non-carve-out backend; confirm only carve-out follows probes
+conduitctl health resume --global
+# confirm a previously drained backend stays drained until individually resumed
+```
+
+**Expect:** carve-out backend follows probes under global freeze; global resume
+does not un-drain backends with per-backend frozen scope.
+
+**Pass / fail:** ___________
+
+---
+
+## 9.4 Clear-while-frozen footgun (task 9.4)
+
+Reproduce stale `applied` after unfreezing without snap; confirm
+`conduitctl health resume` (resume automatic) is the blessed atomic fix.
+
+**Pass / fail:** ___________
+
+---
+
+## 9.5 Record results (task 9.5)
+
+Fill in the Pass / fail lines above and the Gate D sign-off below.
+
+---
+
+## Gate D sign-off
+
+| Reviewer | Date | Notes |
+|----------|------|-------|
+|  |  |  |
+
+**Approved to start Phase E (metrics, §10):** **___**
+
+---
+
 ## Changelog
 
 | Date | Change |
 |------|--------|
 | 2026-06-29 | Initial scaffold for phase 1c Gate A (probing + state, no routing impact) |
 | 2026-06-30 | Gate C scaffold (passive fast-trip: speed, probe-only recovery, passive toggle) |
+| 2026-06-30 | Gate D scaffold (operator controls: drain, resume, scope precedence) |

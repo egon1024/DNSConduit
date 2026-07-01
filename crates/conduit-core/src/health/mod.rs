@@ -5,8 +5,13 @@
 //! immutable snapshot; the mutable *state* defined here lives outside the
 //! snapshot and is read lock-free by workers.
 
+pub mod control;
 pub mod probe;
 pub mod state;
 
+pub use control::{
+    BackendHealthFilter, BackendHealthView, EffectiveScope, HealthControlAction,
+    HealthControlOutcome, HealthControlScope, ScopeMode,
+};
 pub use probe::{ProbeOutcome, ProbeSpec};
 pub use state::{BackendHealthState, BackendKey, Health, HealthRegistry, HealthTable};

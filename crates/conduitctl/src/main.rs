@@ -5,11 +5,13 @@ use clap::{Parser, Subcommand};
 use conduit_config::{load_overlay_patch, load_yaml, validate};
 use conduit_core::RuntimeSnapshot;
 use conduit_proto::config::Config as RuntimeConfig;
+use conduit_proto::control::backend_health_client::BackendHealthClient;
 use conduit_proto::control::conduit_control_client::ConduitControlClient;
 use conduit_proto::control::Config as ControlConfig;
 use conduit_proto::control::{
-    ApplyConfigRequest, ExportConfigRequest, GetTraceRequest, OverlayApplyMode,
-    ReloadFromFileRequest,
+    ApplyConfigRequest, BackendHealthFilter, ExportConfigRequest, GetBackendHealthRequest,
+    GetTraceRequest, HealthControlAction, HealthScope, HealthScopeLevel, OverlayApplyMode,
+    ReloadFromFileRequest, SetHealthControlRequest,
 };
 use prost::Message;
 use std::path::PathBuf;
@@ -63,6 +65,51 @@ enum Commands {
     Reload,
     /// Fetch trace events for a transaction id
     Trace { txn_id: String },
+    /// Backend health operator controls (phase 1c)
+    Health {
+        #[command(subcommand)]
+        command: HealthCommands,
+    },
+}
+
+#[derive(Subcommand)]
+enum HealthCommands {
+    /// Show per-backend health state
+    Show {
+        #[arg(long)]
+        pool: Option<String>,
+        #[arg(long, value_name = "HOST:PORT|NAME")]
+        backend: Option<String>,
+    },
+    /// Freeze probe-driven transitions at a scope
+    Freeze {
+        #[arg(long)]
+        global: bool,
+        #[arg(long, conflicts_with = "global")]
+        pool: Option<String>,
+        #[arg(long, conflicts_with = "global", value_name = "HOST:PORT|NAME")]
+        backend: Option<String>,
+    },
+    /// Manually set applied health (implies freeze / drain)
+    Set {
+        /// Target health: up or down
+        state: String,
+        #[arg(long)]
+        global: bool,
+        #[arg(long, conflicts_with = "global")]
+        pool: Option<String>,
+        #[arg(long, conflicts_with = "global", value_name = "HOST:PORT|NAME")]
+        backend: Option<String>,
+    },
+    /// Resume automatic operation and snap applied := observed
+    Resume {
+        #[arg(long)]
+        global: bool,
+        #[arg(long, conflicts_with = "global")]
+        pool: Option<String>,
+        #[arg(long, conflicts_with = "global", value_name = "HOST:PORT|NAME")]
+        backend: Option<String>,
+    },
 }
 
 fn runtime_to_control(cfg: RuntimeConfig) -> ControlConfig {
@@ -70,12 +117,70 @@ fn runtime_to_control(cfg: RuntimeConfig) -> ControlConfig {
     ControlConfig::decode(bytes.as_slice()).expect("config and control Config are compatible")
 }
 
-async fn client(cli: &Cli) -> anyhow::Result<ConduitControlClient<tonic::transport::Channel>> {
+async fn connect(cli: &Cli) -> anyhow::Result<tonic::transport::Channel> {
     tonic::transport::Endpoint::new(cli.endpoint.clone())?
         .connect()
         .await
-        .map(ConduitControlClient::new)
         .context("connect to control plane")
+}
+
+async fn client(cli: &Cli) -> anyhow::Result<ConduitControlClient<tonic::transport::Channel>> {
+    Ok(ConduitControlClient::new(connect(cli).await?))
+}
+
+async fn health_client(
+    cli: &Cli,
+) -> anyhow::Result<BackendHealthClient<tonic::transport::Channel>> {
+    Ok(BackendHealthClient::new(connect(cli).await?))
+}
+
+fn health_scope(
+    global: bool,
+    pool: Option<String>,
+    backend: Option<String>,
+) -> anyhow::Result<HealthScope> {
+    if global {
+        return Ok(HealthScope {
+            level: HealthScopeLevel::Global.into(),
+            pool: None,
+            backend: None,
+        });
+    }
+    if let Some(pool) = pool {
+        if let Some(backend) = backend {
+            return Ok(HealthScope {
+                level: HealthScopeLevel::Backend.into(),
+                pool: Some(pool),
+                backend: Some(backend),
+            });
+        }
+        return Ok(HealthScope {
+            level: HealthScopeLevel::Pool.into(),
+            pool: Some(pool),
+            backend: None,
+        });
+    }
+    anyhow::bail!("scope required: use --global, --pool NAME, or --pool NAME --backend ADDR")
+}
+
+fn liveness_name(v: i32) -> &'static str {
+    use conduit_proto::control::HealthLiveness;
+    match HealthLiveness::try_from(v).unwrap_or(HealthLiveness::Unspecified) {
+        HealthLiveness::Up => "up",
+        HealthLiveness::Down => "down",
+        HealthLiveness::Unknown => "unknown",
+        HealthLiveness::Unspecified => "?",
+    }
+}
+
+fn scope_name(v: i32) -> &'static str {
+    use conduit_proto::control::HealthScopeState;
+    match HealthScopeState::try_from(v).unwrap_or(HealthScopeState::Unspecified) {
+        HealthScopeState::Automatic => "automatic",
+        HealthScopeState::Frozen => "frozen",
+        HealthScopeState::Inherit => "inherit",
+        HealthScopeState::Unspecified => "?",
+    }
 }
 
 fn auth_metadata(
@@ -215,6 +320,134 @@ async fn main() -> anyhow::Result<()> {
                 );
             }
         }
+        Commands::Health { ref command } => match command {
+            HealthCommands::Show { pool, backend } => {
+                let mut client = health_client(&cli).await?;
+                let filter = if pool.is_some() || backend.is_some() {
+                    Some(BackendHealthFilter {
+                        pool: pool.clone(),
+                        backend: backend.clone(),
+                    })
+                } else {
+                    None
+                };
+                let resp = client
+                    .get_backend_health(with_auth(
+                        &cli,
+                        tonic::Request::new(GetBackendHealthRequest { filter }),
+                    )?)
+                    .await?
+                    .into_inner();
+                for e in resp.entries {
+                    let ewma = e
+                        .latency_ewma_ms
+                        .map(|v| format!("{v:.1}"))
+                        .unwrap_or_else(|| "-".into());
+                    let last = e
+                        .last_transition_unix_ms
+                        .map(|v| v.to_string())
+                        .unwrap_or_else(|| "-".into());
+                    println!(
+                        "{} {} observed={} applied={} scope={} eligible={} ewma_ms={} last_transition_ms={}",
+                        e.pool,
+                        e.backend,
+                        liveness_name(e.observed),
+                        liveness_name(e.applied),
+                        scope_name(e.scope_state),
+                        e.eligible,
+                        ewma,
+                        last,
+                    );
+                }
+            }
+            HealthCommands::Freeze {
+                global,
+                pool,
+                backend,
+            } => {
+                let mut client = health_client(&cli).await?;
+                let scope = health_scope(*global, pool.clone(), backend.clone())?;
+                let resp = client
+                    .set_health_control(with_auth(
+                        &cli,
+                        tonic::Request::new(SetHealthControlRequest {
+                            scope: Some(scope),
+                            action: HealthControlAction::Freeze.into(),
+                        }),
+                    )?)
+                    .await?
+                    .into_inner();
+                for r in resp.results {
+                    println!(
+                        "{} {} applied={} scope={}",
+                        r.pool.unwrap_or_default(),
+                        r.backend.unwrap_or_default(),
+                        liveness_name(r.applied),
+                        scope_name(r.scope_state),
+                    );
+                }
+            }
+            HealthCommands::Set {
+                state,
+                global,
+                pool,
+                backend,
+            } => {
+                let action = match state.to_ascii_lowercase().as_str() {
+                    "up" => HealthControlAction::SetUp,
+                    "down" => HealthControlAction::SetDown,
+                    other => anyhow::bail!("state must be up or down, got {other:?}"),
+                };
+                let mut client = health_client(&cli).await?;
+                let scope = health_scope(*global, pool.clone(), backend.clone())?;
+                let resp = client
+                    .set_health_control(with_auth(
+                        &cli,
+                        tonic::Request::new(SetHealthControlRequest {
+                            scope: Some(scope),
+                            action: action.into(),
+                        }),
+                    )?)
+                    .await?
+                    .into_inner();
+                for r in resp.results {
+                    println!(
+                        "{} {} applied={} scope={}",
+                        r.pool.unwrap_or_default(),
+                        r.backend.unwrap_or_default(),
+                        liveness_name(r.applied),
+                        scope_name(r.scope_state),
+                    );
+                }
+            }
+            HealthCommands::Resume {
+                global,
+                pool,
+                backend,
+            } => {
+                let mut client = health_client(&cli).await?;
+                let scope = health_scope(*global, pool.clone(), backend.clone())?;
+                let resp = client
+                    .set_health_control(with_auth(
+                        &cli,
+                        tonic::Request::new(SetHealthControlRequest {
+                            scope: Some(scope),
+                            action: HealthControlAction::ResumeAutomatic.into(),
+                        }),
+                    )?)
+                    .await?
+                    .into_inner();
+                for r in resp.results {
+                    println!(
+                        "{} {} applied={} scope={}",
+                        r.pool.unwrap_or_default(),
+                        r.backend.unwrap_or_default(),
+                        liveness_name(r.applied),
+                        scope_name(r.scope_state),
+                    );
+                }
+            }
+        },
     }
     Ok(())
 }
