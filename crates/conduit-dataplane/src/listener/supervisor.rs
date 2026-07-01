@@ -13,33 +13,13 @@ use conduit_core::snapshot::SnapshotStore;
 use conduit_core::txn_store::{SharedTxnStore, DEFAULT_SLOT_CHUNK_SIZE};
 use conduit_events::EventHub;
 use conduit_metrics::{MetricsHub, TracingHub};
-use socket2::Socket;
-use std::net::Shutdown;
 use std::sync::atomic::{AtomicBool, AtomicU64};
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
-/// Holds a duplicate of a bound listener socket so `shutdown()` can unblock workers.
-pub(crate) struct ListenerCloser {
-    socket: Socket,
-}
-
-impl ListenerCloser {
-    pub(crate) fn new(socket: Socket) -> std::io::Result<Self> {
-        Ok(Self {
-            socket: socket.try_clone()?,
-        })
-    }
-
-    fn shutdown(&self) {
-        let _ = self.socket.shutdown(Shutdown::Both);
-    }
-}
-
 pub struct DataplaneHandle {
     shutdown: DataplaneShutdown,
-    listener_closers: Vec<ListenerCloser>,
     threads: Vec<thread::JoinHandle<()>>,
     pub events: Arc<EventHub>,
     pub txn_table: Arc<TxnTable>,
@@ -53,7 +33,6 @@ impl DataplaneHandle {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         shutdown: DataplaneShutdown,
-        listener_closers: Vec<ListenerCloser>,
         threads: Vec<thread::JoinHandle<()>>,
         events: Arc<EventHub>,
         txn_table: Arc<TxnTable>,
@@ -62,7 +41,6 @@ impl DataplaneHandle {
     ) -> Self {
         Self {
             shutdown,
-            listener_closers,
             threads,
             events,
             txn_table,
@@ -88,12 +66,14 @@ impl DataplaneHandle {
         drain_slots(&self.txn_store, timeout, filter, cancel)
     }
 
-    /// Signal workers to stop, shut down listener sockets, and join worker threads.
+    /// Signal workers to stop and join worker threads.
+    ///
+    /// Listener workers poll the cooperative [`DataplaneShutdown`] flag and use
+    /// socket read timeouts (UDP) or non-blocking accept (TCP) so they exit
+    /// without calling `shutdown()` on UDP sockets — that races with an in-flight
+    /// `recv_from` and can panic in `std::net::UdpSocket` on Linux.
     pub fn shutdown(self) {
         self.shutdown.signal();
-        for closer in &self.listener_closers {
-            closer.shutdown();
-        }
         for handle in self.threads {
             let _ = handle.join();
         }
@@ -146,7 +126,6 @@ pub fn start(
     let Some(listeners) = listeners else {
         return Ok(DataplaneHandle::new(
             shutdown,
-            Vec::new(),
             probe_handle.into_iter().collect(),
             events_hub,
             table,
@@ -162,7 +141,6 @@ pub fn start(
     if let Some(h) = probe_handle {
         thread_handles.push(h);
     }
-    let mut listener_closers = Vec::new();
     for ln in &listeners.listeners {
         let ingress = resolve_listener_ingress(listeners, ln);
         let proto = ln.protocol.to_lowercase();
@@ -184,20 +162,15 @@ pub fn start(
             let txn_store = txn_store.clone();
             let health_registry = health_registry.clone();
 
-            let (closer, worker) = if proto == "tcp" {
+            let worker = if proto == "tcp" {
                 let (socket, addr) = tcp::bind_socket(&ln)?;
                 startup_log::log_listener_bound(addr, &ln.protocol);
-                let closer = ListenerCloser::new(socket.try_clone()?)?;
-                let listener: std::net::TcpListener = socket.into();
-                (closer, WorkerKind::Tcp(listener))
+                WorkerKind::Tcp(socket.into())
             } else {
                 let (socket, addr) = udp::bind_socket(&ln, reuse, rcvbuf)?;
                 startup_log::log_listener_bound(addr, &ln.protocol);
-                let closer = ListenerCloser::new(socket.try_clone()?)?;
-                let udp: std::net::UdpSocket = socket.into();
-                (closer, WorkerKind::Udp(udp))
+                WorkerKind::Udp(socket.into())
             };
-            listener_closers.push(closer);
 
             thread_handles.push(thread::spawn(move || {
                 let forward = match WorkerForwardEgress::new(
@@ -291,7 +264,6 @@ pub fn start(
 
     Ok(DataplaneHandle::new(
         shutdown,
-        listener_closers,
         thread_handles,
         events_hub,
         table,
@@ -310,6 +282,7 @@ mod tests {
     use super::*;
     use conduit_config::{load_yaml, validate};
     use conduit_core::RuntimeSnapshot;
+    use std::sync::atomic::Ordering;
 
     #[test]
     fn shutdown_joins_listener_workers() {
@@ -353,5 +326,66 @@ control:
 
         let handle = start(store, metrics, tracing).unwrap();
         handle.shutdown();
+    }
+
+    /// Regression: shutting down while a UDP worker is blocked in `recv_from` must
+    /// not call `socket.shutdown()` on the listener — that races and panics in
+    /// `std::net::UdpSocket::recv_from` on Linux.
+    #[test]
+    fn shutdown_under_udp_recv_does_not_panic() {
+        let yaml = r#"
+schema_version: 1
+listeners:
+  threads: 1
+  reuse_port: false
+  listeners:
+    - address: "127.0.0.1:25353"
+      protocol: udp
+forward:
+  outstanding_per_backend: 10
+  timeout_ms: 1000
+orchestrator:
+  max_attempts: 1
+  max_txn_duration_ms: 1000
+  txn_table_capacity: 64
+events:
+  queue_depth: 64
+  drop_policy: drop_oldest
+  sinks: []
+rhai:
+  max_operations: 1000
+  max_call_depth: 8
+pools:
+  - name: default
+    backends:
+      - address: "127.0.0.1:5300"
+        weight: 100
+control:
+  listen_address: "127.0.0.1:0"
+"#;
+        let cfg = load_yaml(yaml).unwrap();
+        assert!(validate(&cfg).ok);
+        let store = Arc::new(SnapshotStore::new(RuntimeSnapshot::from_config(
+            cfg.clone(),
+        )));
+        let metrics = Arc::new(MetricsHub::from_config(&cfg));
+        let tracing = Arc::new(TracingHub::from_config(&cfg));
+
+        let handle = start(store, metrics, tracing).unwrap();
+        let stop = Arc::new(AtomicBool::new(false));
+        let client_stop = stop.clone();
+        let client = thread::spawn(move || {
+            let sock = std::net::UdpSocket::bind("127.0.0.1:0").unwrap();
+            let target: std::net::SocketAddr = "127.0.0.1:25353".parse().unwrap();
+            let payload = [0u8; 32];
+            while !client_stop.load(Ordering::Relaxed) {
+                let _ = sock.send_to(&payload, target);
+            }
+        });
+
+        thread::sleep(Duration::from_millis(50));
+        handle.shutdown();
+        stop.store(true, Ordering::Relaxed);
+        client.join().unwrap();
     }
 }

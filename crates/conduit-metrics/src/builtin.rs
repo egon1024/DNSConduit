@@ -36,6 +36,24 @@ pub struct ScrapeGaugeSnapshot {
     /// Backend identity rows: `(pool, label, address, name)`. `label` is the value
     /// used on forward metrics (`backend` label = name-when-set, else address).
     pub backends: Vec<BackendIdentity>,
+    /// Per-backend health scrape rows (empty when health is disabled).
+    pub health_backends: Vec<HealthScrapeBackend>,
+    /// Active (eligible) backend count per health-enabled pool.
+    pub pool_backends_active: Vec<(String, u32)>,
+}
+
+/// One backend row for health Prometheus series (phase 1c §10).
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct HealthScrapeBackend {
+    pub pool: String,
+    pub backend: String,
+    pub observed: f64,
+    pub applied: f64,
+    /// `1.0` when probe-driven transitions apply; `0.0` when frozen.
+    pub probe_automatic: f64,
+    pub effective_weight: f64,
+    pub latency_ewma_ms: Option<f64>,
+    pub transitions_total: u64,
 }
 
 /// One listener's identity + resolved ingress settings.
@@ -112,6 +130,14 @@ pub struct BuiltinRegistry {
     listener_rcvbuf_bytes: GaugeVec,
     backend_info: GaugeVec,
     backend_weight: GaugeVec,
+    backend_health_observed: Option<GaugeVec>,
+    backend_health_applied: Option<GaugeVec>,
+    backend_health_probe_automatic: Option<GaugeVec>,
+    backend_health_effective_weight: Option<GaugeVec>,
+    backend_health_latency_ewma_ms: Option<GaugeVec>,
+    backend_health_transitions_total: Option<IntCounterVec>,
+    pool_backends_active: Option<GaugeVec>,
+    last_health_transitions_synced: RwLock<std::collections::HashMap<(String, String), u64>>,
     slots_in_use: Option<Gauge>,
     slots_capacity: Option<Gauge>,
     slot_pool_exhausted_total: Option<IntCounter>,
@@ -417,6 +443,97 @@ impl BuiltinRegistry {
             (None, None)
         };
 
+        let (
+            backend_health_observed,
+            backend_health_applied,
+            backend_health_probe_automatic,
+            backend_health_effective_weight,
+            backend_health_latency_ewma_ms,
+            backend_health_transitions_total,
+            pool_backends_active,
+        ) = if is_full {
+            let observed = GaugeVec::new(
+                Opts::new(
+                    "conduit_backend_health_observed",
+                    "Probe-derived health per backend (0=unknown, 1=up, 2=down)",
+                ),
+                &["pool", "backend"],
+            )
+            .expect("metric");
+            let applied = GaugeVec::new(
+                Opts::new(
+                    "conduit_backend_health_applied",
+                    "Health applied to routing per backend (0=unknown, 1=up, 2=down)",
+                ),
+                &["pool", "backend"],
+            )
+            .expect("metric");
+            let probe_automatic = GaugeVec::new(
+                Opts::new(
+                    "conduit_backend_health_probe_automatic",
+                    "Whether probe-driven transitions apply (1=automatic, 0=frozen)",
+                ),
+                &["pool", "backend"],
+            )
+            .expect("metric");
+            let effective_weight = GaugeVec::new(
+                Opts::new(
+                    "conduit_backend_health_effective_weight",
+                    "Effective load-balancing weight Route uses for this backend",
+                ),
+                &["pool", "backend"],
+            )
+            .expect("metric");
+            let latency_ewma = GaugeVec::new(
+                Opts::new(
+                    "conduit_backend_health_latency_ewma_ms",
+                    "Probe latency EWMA in milliseconds",
+                ),
+                &["pool", "backend"],
+            )
+            .expect("metric");
+            let transitions = IntCounterVec::new(
+                Opts::new(
+                    "conduit_backend_health_transitions_total",
+                    "Cumulative observed or applied health transitions per backend",
+                ),
+                &["pool", "backend"],
+            )
+            .expect("metric");
+            let active = GaugeVec::new(
+                Opts::new(
+                    "conduit_pool_backends_active",
+                    "Eligible backends per pool (applied health up)",
+                ),
+                &["pool"],
+            )
+            .expect("metric");
+            for m in [
+                &observed,
+                &applied,
+                &probe_automatic,
+                &effective_weight,
+                &latency_ewma,
+                &active,
+            ] {
+                registry.register(Box::new(m.clone())).expect("register");
+            }
+            registry
+                .register(Box::new(transitions.clone()))
+                .expect("register");
+            (
+                Some(observed),
+                Some(applied),
+                Some(probe_automatic),
+                Some(effective_weight),
+                Some(latency_ewma),
+                Some(transitions),
+                Some(active),
+            )
+        } else {
+            (None, None, None, None, None, None, None)
+        };
+
         let (process_resident_bytes, process_open_fds) = if effective && is_full {
             let rss = Gauge::with_opts(Opts::new(
                 "conduit_process_resident_bytes",
@@ -456,6 +573,14 @@ impl BuiltinRegistry {
             listener_rcvbuf_bytes,
             backend_info,
             backend_weight,
+            backend_health_observed,
+            backend_health_applied,
+            backend_health_probe_automatic,
+            backend_health_effective_weight,
+            backend_health_latency_ewma_ms,
+            backend_health_transitions_total,
+            pool_backends_active,
+            last_health_transitions_synced: RwLock::new(std::collections::HashMap::new()),
             slots_in_use,
             slots_capacity,
             slot_pool_exhausted_total,
@@ -609,6 +734,85 @@ impl BuiltinRegistry {
         }
     }
 
+    fn sync_health_transition_counters(&self, rows: &[HealthScrapeBackend]) {
+        let Some(counter) = self.backend_health_transitions_total.as_ref() else {
+            return;
+        };
+        let mut last = self.last_health_transitions_synced.write();
+        let mut seen = std::collections::HashSet::new();
+        for row in rows {
+            let key = (row.pool.clone(), row.backend.clone());
+            seen.insert(key.clone());
+            let prev = last.get(&key).copied().unwrap_or(0);
+            if row.transitions_total > prev {
+                counter
+                    .with_label_values(&[row.pool.as_str(), row.backend.as_str()])
+                    .inc_by(row.transitions_total - prev);
+                last.insert(key, row.transitions_total);
+            }
+        }
+        last.retain(|k, _| seen.contains(k));
+    }
+
+    fn refresh_health_scrape_gauges(&self, snapshot: &ScrapeGaugeSnapshot) {
+        let Some(observed) = self.backend_health_observed.as_ref() else {
+            return;
+        };
+        observed.reset();
+        self.backend_health_applied
+            .as_ref()
+            .expect("health pair")
+            .reset();
+        self.backend_health_probe_automatic
+            .as_ref()
+            .expect("health pair")
+            .reset();
+        self.backend_health_effective_weight
+            .as_ref()
+            .expect("health pair")
+            .reset();
+        self.backend_health_latency_ewma_ms
+            .as_ref()
+            .expect("health pair")
+            .reset();
+        for row in &snapshot.health_backends {
+            let labels = [row.pool.as_str(), row.backend.as_str()];
+            observed.with_label_values(&labels).set(row.observed);
+            self.backend_health_applied
+                .as_ref()
+                .expect("health pair")
+                .with_label_values(&labels)
+                .set(row.applied);
+            self.backend_health_probe_automatic
+                .as_ref()
+                .expect("health pair")
+                .with_label_values(&labels)
+                .set(row.probe_automatic);
+            self.backend_health_effective_weight
+                .as_ref()
+                .expect("health pair")
+                .with_label_values(&labels)
+                .set(row.effective_weight);
+            if let Some(ms) = row.latency_ewma_ms {
+                self.backend_health_latency_ewma_ms
+                    .as_ref()
+                    .expect("health pair")
+                    .with_label_values(&labels)
+                    .set(ms);
+            }
+        }
+        self.sync_health_transition_counters(&snapshot.health_backends);
+
+        if let Some(active) = self.pool_backends_active.as_ref() {
+            active.reset();
+            for (pool, count) in &snapshot.pool_backends_active {
+                active
+                    .with_label_values(&[pool.as_str()])
+                    .set(*count as f64);
+            }
+        }
+    }
+
     fn refresh_scrape_gauges(&self) {
         let snapshot = self
             .scrape_fn
@@ -680,6 +884,8 @@ impl BuiltinRegistry {
             g.set(snapshot.slots_capacity as f64);
         }
         self.sync_exhaustion_counter(snapshot.slot_pool_exhausted_total);
+
+        self.refresh_health_scrape_gauges(&snapshot);
 
         if self.profile == BuiltinProfile::Full {
             if let Some(ref rss) = self.process_resident_bytes {
@@ -899,6 +1105,8 @@ mod tests {
                     weight: 50,
                 },
             ],
+            health_backends: Vec::new(),
+            pool_backends_active: Vec::new(),
         }));
         let body = encode_builtin(reg.gather());
         assert!(body.contains("conduit_config_generation 7"));
@@ -1026,5 +1234,127 @@ mod tests {
                 "missing label {name}={value} in:\n{body}"
             );
         }
+    }
+
+    #[test]
+    fn health_metrics_exported_only_on_full_profile() {
+        let minimal = BuiltinRegistry::new(true, BuiltinProfile::Minimal);
+        minimal.set_scrape_snapshot_fn(Arc::new(|| ScrapeGaugeSnapshot {
+            health_backends: vec![HealthScrapeBackend {
+                pool: "default".into(),
+                backend: "127.0.0.1:5300".into(),
+                observed: 1.0,
+                applied: 2.0,
+                probe_automatic: 0.0,
+                effective_weight: 0.0,
+                latency_ewma_ms: Some(12.5),
+                transitions_total: 1,
+            }],
+            pool_backends_active: vec![("default".into(), 1)],
+            ..Default::default()
+        }));
+        let body_min = encode_builtin(minimal.gather());
+        assert!(
+            !body_min.contains("conduit_backend_health_observed"),
+            "minimal must omit health metrics, body:\n{body_min}"
+        );
+
+        let full = BuiltinRegistry::new(true, BuiltinProfile::Full);
+        full.set_scrape_snapshot_fn(Arc::new(|| ScrapeGaugeSnapshot {
+            health_backends: vec![HealthScrapeBackend {
+                pool: "default".into(),
+                backend: "127.0.0.1:5300".into(),
+                observed: 1.0,
+                applied: 2.0,
+                probe_automatic: 0.0,
+                effective_weight: 0.0,
+                latency_ewma_ms: Some(12.5),
+                transitions_total: 2,
+            }],
+            pool_backends_active: vec![("default".into(), 1)],
+            pool_backend_counts: vec![("default".into(), 2)],
+            ..Default::default()
+        }));
+        let body_full = encode_builtin(full.gather());
+        assert!(
+            body_full.contains(
+                r#"conduit_backend_health_observed{backend="127.0.0.1:5300",pool="default"} 1"#
+            ),
+            "body:\n{body_full}"
+        );
+        assert!(
+            body_full.contains(
+                r#"conduit_backend_health_applied{backend="127.0.0.1:5300",pool="default"} 2"#
+            ),
+            "body:\n{body_full}"
+        );
+        assert!(
+            body_full.contains(
+                r#"conduit_backend_health_probe_automatic{backend="127.0.0.1:5300",pool="default"} 0"#
+            ),
+            "body:\n{body_full}"
+        );
+        assert!(
+            body_full.contains(
+                r#"conduit_backend_health_effective_weight{backend="127.0.0.1:5300",pool="default"} 0"#
+            ),
+            "body:\n{body_full}"
+        );
+        assert!(
+            body_full.contains(
+                r#"conduit_backend_health_latency_ewma_ms{backend="127.0.0.1:5300",pool="default"} 12.5"#
+            ),
+            "body:\n{body_full}"
+        );
+        assert!(
+            body_full.contains("conduit_backend_health_transitions_total"),
+            "body:\n{body_full}"
+        );
+        assert!(
+            body_full.contains(r#"conduit_pool_backends_active{pool="default"} 1"#),
+            "body:\n{body_full}"
+        );
+        assert!(
+            body_full.contains(r#"conduit_pool_backends_configured{pool="default"} 2"#),
+            "body:\n{body_full}"
+        );
+    }
+
+    #[test]
+    fn health_fail_open_effective_weight_on_scrape() {
+        let full = BuiltinRegistry::new(true, BuiltinProfile::Full);
+        full.set_scrape_snapshot_fn(Arc::new(|| ScrapeGaugeSnapshot {
+            health_backends: vec![
+                HealthScrapeBackend {
+                    pool: "default".into(),
+                    backend: "127.0.0.1:5300".into(),
+                    observed: 2.0,
+                    applied: 2.0,
+                    probe_automatic: 1.0,
+                    effective_weight: 100.0,
+                    latency_ewma_ms: None,
+                    transitions_total: 0,
+                },
+                HealthScrapeBackend {
+                    pool: "default".into(),
+                    backend: "127.0.0.1:5301".into(),
+                    observed: 2.0,
+                    applied: 2.0,
+                    probe_automatic: 1.0,
+                    effective_weight: 100.0,
+                    latency_ewma_ms: None,
+                    transitions_total: 0,
+                },
+            ],
+            pool_backends_active: vec![("default".into(), 0)],
+            ..Default::default()
+        }));
+        let body = encode_builtin(full.gather());
+        assert!(
+            body.contains(
+                r#"conduit_backend_health_effective_weight{backend="127.0.0.1:5300",pool="default"} 100"#
+            ),
+            "panic fail-open should show configured weight, body:\n{body}"
+        );
     }
 }

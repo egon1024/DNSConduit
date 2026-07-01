@@ -2,10 +2,13 @@
 
 use crate::forward::TxnTable;
 use conduit_config::resolve_listener_ingress;
+use conduit_core::health::build_health_scrape;
 use conduit_core::routing::{backend_metric_label, listener_metric_label, resolve_backend_weight};
 use conduit_core::txn_store::SharedTxnStore;
 use conduit_core::SnapshotStore;
-use conduit_metrics::{ip_family_label, BackendIdentity, ListenerIdentity, ScrapeGaugeSnapshot};
+use conduit_metrics::{
+    ip_family_label, BackendIdentity, HealthScrapeBackend, ListenerIdentity, ScrapeGaugeSnapshot,
+};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -16,6 +19,22 @@ pub fn build_scrape_snapshot(
     txn_store: &SharedTxnStore,
 ) -> ScrapeGaugeSnapshot {
     let snap = store.load();
+    let registry = store.health();
+    let (health_rows, pool_active) =
+        build_health_scrape(&snap.config, &snap.health, registry.as_ref());
+    let health_backends = health_rows
+        .into_iter()
+        .map(|row| HealthScrapeBackend {
+            pool: row.pool,
+            backend: row.backend,
+            observed: row.observed,
+            applied: row.applied,
+            probe_automatic: row.probe_automatic,
+            effective_weight: row.effective_weight,
+            latency_ewma_ms: row.latency_ewma_ms,
+            transitions_total: row.transitions_total,
+        })
+        .collect();
     let outstanding: HashMap<SocketAddr, u32> =
         table.outstanding_per_backend().into_iter().collect();
     let slot_stats = {
@@ -85,6 +104,8 @@ pub fn build_scrape_snapshot(
         slot_pool_exhausted_total: slot_stats.2,
         listeners,
         backends,
+        health_backends,
+        pool_backends_active: pool_active,
     }
 }
 
@@ -183,5 +204,106 @@ mod tests {
         assert!(table.register(key, 1));
         let shot = build_scrape_snapshot(&store, &table, &txn_store);
         assert_eq!(shot.forward_outstanding[0].2, 1);
+    }
+
+    #[test]
+    fn health_scrape_includes_series_for_enabled_pool() {
+        let yaml = include_str!("../../../tests/fixtures/config/with-health.yaml");
+        let cfg = load_yaml(yaml).unwrap();
+        let snap = RuntimeSnapshot::from_config(cfg);
+        let store = SnapshotStore::new(snap);
+        let table = TxnTable::new(64, 50);
+        let txn_store = conduit_core::txn_store::SharedTxnStore::new(64, 256);
+        let shot = build_scrape_snapshot(&store, &table, &txn_store);
+        assert_eq!(shot.health_backends.len(), 2);
+        assert_eq!(shot.pool_backends_active, vec![("default".to_string(), 2)]);
+    }
+
+    #[test]
+    fn health_scrape_reflects_down_and_resume_cycle() {
+        use conduit_core::health::{HealthControlAction, HealthControlScope};
+        use conduit_metrics::{encode_builtin, BuiltinProfile, BuiltinRegistry};
+        use std::sync::Arc;
+
+        let yaml = include_str!("../../../tests/fixtures/config/with-health.yaml");
+        let cfg = load_yaml(yaml).unwrap();
+        let snap = RuntimeSnapshot::from_config(cfg);
+        let store = SnapshotStore::new(snap);
+        let table = TxnTable::new(64, 50);
+        let txn_store = conduit_core::txn_store::SharedTxnStore::new(64, 256);
+        let store = Arc::new(store);
+        let table = Arc::new(table);
+        let txn_store = txn_store.clone();
+
+        let reg = BuiltinRegistry::new(true, BuiltinProfile::Full);
+        reg.set_scrape_snapshot_fn(crate::metrics_scrape::scrape_snapshot_fn(
+            store.clone(),
+            table.clone(),
+            txn_store,
+        ));
+
+        let addr: std::net::SocketAddr = "127.0.0.1:5300".parse().unwrap();
+        let registry = store.health();
+        let compiled = store.load().health.clone();
+
+        let body_up = encode_builtin(reg.gather());
+        assert!(
+            body_up.contains(
+                r#"conduit_backend_health_applied{backend="127.0.0.1:5300",pool="default"} 1"#
+            ),
+            "optimistic initial applied=up, body:\n{body_up}"
+        );
+
+        registry.get("default", addr).unwrap().set_down();
+        registry
+            .get("default", addr)
+            .unwrap()
+            .record_success(1, 0.2, 1.0);
+        let body_down = encode_builtin(reg.gather());
+        assert!(
+            body_down.contains(
+                r#"conduit_backend_health_observed{backend="127.0.0.1:5300",pool="default"} 1"#
+            ),
+            "frozen drain: observed stays up, body:\n{body_down}"
+        );
+        assert!(
+            body_down.contains(
+                r#"conduit_backend_health_applied{backend="127.0.0.1:5300",pool="default"} 2"#
+            ),
+            "body:\n{body_down}"
+        );
+        assert!(
+            body_down.contains(
+                r#"conduit_backend_health_effective_weight{backend="127.0.0.1:5300",pool="default"} 0"#
+            ),
+            "body:\n{body_down}"
+        );
+        assert!(
+            body_down.contains(r#"conduit_pool_backends_active{pool="default"} 1"#),
+            "body:\n{body_down}"
+        );
+
+        registry
+            .set_health_control(
+                &compiled,
+                HealthControlScope::Backend {
+                    pool: "default".into(),
+                    address: addr,
+                },
+                HealthControlAction::ResumeAutomatic,
+            )
+            .unwrap();
+
+        let body_resume = encode_builtin(reg.gather());
+        assert!(
+            body_resume.contains(
+                r#"conduit_backend_health_applied{backend="127.0.0.1:5300",pool="default"} 1"#
+            ),
+            "resume snaps to observed up, body:\n{body_resume}"
+        );
+        assert!(
+            body_resume.contains(r#"conduit_pool_backends_active{pool="default"} 2"#),
+            "body:\n{body_resume}"
+        );
     }
 }

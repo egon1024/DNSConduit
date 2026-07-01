@@ -604,6 +604,9 @@ mod tests {
             HealthControlAction::SetDown,
         )
         .unwrap();
-        assert_eq!(reg.get("default", resolved).unwrap().applied(), Health::Down);
+        assert_eq!(
+            reg.get("default", resolved).unwrap().applied(),
+            Health::Down
+        );
     }
 }

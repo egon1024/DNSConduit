@@ -158,6 +158,56 @@ pub fn select_backend(
         .map(|(_, addr)| (pool_name.to_string(), *addr))
 }
 
+/// Per-backend effective weights Route would use on a first attempt when health
+/// is enabled for the pool. Ineligible backends read zero unless the pool is
+/// failing open, in which case configured weights are returned for all backends.
+pub fn effective_weights_for_scrape(
+    pool: &Pool,
+    pool_health: &CompiledPoolHealth,
+    table: &HealthTable,
+) -> std::collections::HashMap<SocketAddr, u64> {
+    use std::collections::HashMap;
+    let mut out = HashMap::new();
+    let candidates: Vec<(&Backend, SocketAddr)> = pool
+        .backends
+        .iter()
+        .filter_map(|backend| {
+            let addr = backend.address.parse::<SocketAddr>().ok()?;
+            Some((backend, addr))
+        })
+        .collect();
+    if candidates.is_empty() {
+        return out;
+    }
+
+    let eligible: Vec<(&Backend, SocketAddr)> = candidates
+        .iter()
+        .copied()
+        .filter(|(_, addr)| backend_eligible(table, &pool.name, *addr))
+        .collect();
+    let floor = (pool_health.min_eligible.max(1)) as usize;
+    let fail_open = pool.backends.len() <= 1 || eligible.len() < floor;
+    let use_latency = !fail_open && pool_health.latency_weighting;
+
+    for (backend, addr) in &candidates {
+        let configured = resolve_backend_weight(backend);
+        let weight = if fail_open {
+            configured as u64
+        } else if !backend_eligible(table, &pool.name, *addr) {
+            0
+        } else if use_latency {
+            table
+                .get(&BackendKey::new(pool.name.clone(), *addr))
+                .map(|state| effective_weight(configured, state.weight_factor()))
+                .unwrap_or(configured as u64)
+        } else {
+            configured as u64
+        };
+        out.insert(*addr, weight);
+    }
+    out
+}
+
 pub fn default_pool_name(cfg: &Config) -> Option<String> {
     if let Some(pool) = cfg.pools.iter().find(|p| p.name == "default") {
         return Some(pool.name.clone());
