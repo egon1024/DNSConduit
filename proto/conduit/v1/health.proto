@@ -1,0 +1,86 @@
+syntax = "proto3";
+
+package conduit.v1;
+
+// Backend health operator controls (phase 1c §D8). Separate from the process
+// liveness `ConduitControl.Health` RPC (phase 0).
+service BackendHealth {
+  rpc GetBackendHealth(GetBackendHealthRequest) returns (GetBackendHealthResponse);
+  rpc SetHealthControl(SetHealthControlRequest) returns (SetHealthControlResponse);
+}
+
+enum HealthScopeLevel {
+  HEALTH_SCOPE_LEVEL_UNSPECIFIED = 0;
+  HEALTH_SCOPE_LEVEL_BACKEND = 1;
+  HEALTH_SCOPE_LEVEL_POOL = 2;
+  HEALTH_SCOPE_LEVEL_GLOBAL = 3;
+}
+
+enum HealthScopeState {
+  HEALTH_SCOPE_STATE_UNSPECIFIED = 0;
+  HEALTH_SCOPE_STATE_INHERIT = 1;
+  HEALTH_SCOPE_STATE_FROZEN = 2;
+  HEALTH_SCOPE_STATE_AUTOMATIC = 3;
+}
+
+enum HealthLiveness {
+  HEALTH_LIVENESS_UNSPECIFIED = 0;
+  HEALTH_LIVENESS_UNKNOWN = 1;
+  HEALTH_LIVENESS_UP = 2;
+  HEALTH_LIVENESS_DOWN = 3;
+}
+
+enum HealthControlAction {
+  HEALTH_CONTROL_ACTION_UNSPECIFIED = 0;
+  HEALTH_CONTROL_ACTION_FREEZE = 1;
+  HEALTH_CONTROL_ACTION_SET_UP = 2;
+  HEALTH_CONTROL_ACTION_SET_DOWN = 3;
+  HEALTH_CONTROL_ACTION_RESUME_AUTOMATIC = 4;
+}
+
+message HealthScope {
+  HealthScopeLevel level = 1;
+  optional string pool = 2;
+  optional string backend = 3; // backend address (host:port) or configured backend name
+}
+
+message BackendHealthFilter {
+  optional string pool = 1;
+  optional string backend = 2; // backend address (host:port) or configured backend name
+}
+
+message BackendHealthEntry {
+  string pool = 1;
+  string backend = 2; // backend address (host:port)
+  HealthLiveness observed = 3;
+  HealthLiveness applied = 4;
+  HealthScopeState scope_state = 5;
+  bool eligible = 6;
+  optional double latency_ewma_ms = 7;
+  optional uint64 last_transition_unix_ms = 8;
+}
+
+message GetBackendHealthRequest {
+  optional BackendHealthFilter filter = 1;
+}
+
+message GetBackendHealthResponse {
+  repeated BackendHealthEntry entries = 1;
+}
+
+message SetHealthControlRequest {
+  HealthScope scope = 1;
+  HealthControlAction action = 2;
+}
+
+message SetHealthControlResult {
+  HealthScope scope = 1;
+  HealthScopeState scope_state = 2;
+  optional string pool = 3;
+  optional string backend = 4;
+  HealthLiveness applied = 5;
+}
+
+message SetHealthControlResponse {
+  repeated SetHealthControlResult results = 1;
+}

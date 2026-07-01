@@ -27,7 +27,8 @@ pub use configurator::{
     ConfiguratorState, OverlayApplyMode, PolicyProposal, ProposalSource,
 };
 pub use health::{
-    BackendHealthState, BackendKey, Health, HealthRegistry, HealthTable, ProbeOutcome, ProbeSpec,
+    BackendHealthState, BackendKey, Health, HealthControlAction, HealthControlScope,
+    HealthRegistry, HealthTable, ProbeOutcome, ProbeSpec,
 };
 pub use orchestrator::{Orchestrator, OrchestratorRun, RunOutcome, StageRegistry};
 pub use parse_reject::ParseRejectReason;

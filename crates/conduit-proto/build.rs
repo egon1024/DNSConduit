@@ -7,7 +7,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build_client(true)
         .file_descriptor_set_path(out_dir.join("conduit_descriptor.bin"))
         .compile_protos(
-            &["conduit/v1/config.proto", "conduit/v1/control.proto"],
+            &[
+                "conduit/v1/config.proto",
+                "conduit/v1/control.proto",
+                "conduit/v1/health.proto",
+            ],
             &[proto_root],
         )?;
     Ok(())

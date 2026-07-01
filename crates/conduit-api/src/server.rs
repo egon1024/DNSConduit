@@ -2,12 +2,14 @@
 
 use crate::access_log::{log_control_outcome, AccessLogLayer, AccessLogService};
 use crate::auth::ControlInterceptor;
+use crate::health::BackendHealthService;
 use crate::tls::server_tls_config;
 use conduit_config::{export_yaml, validate, EffectiveConfig};
 use conduit_core::configurator::{ConfiguratorHandle, OverlayApplyMode, ProposalSource};
 use conduit_core::snapshot::SnapshotStore;
 use conduit_metrics::TracingHub;
 use conduit_proto::config::Config as RuntimeConfig;
+use conduit_proto::control::backend_health_server::BackendHealthServer;
 use conduit_proto::control::conduit_control_server::{ConduitControl, ConduitControlServer};
 use conduit_proto::control::Config as ControlConfig;
 use conduit_proto::control::OverlayApplyMode as ProtoOverlayApplyMode;
@@ -176,22 +178,45 @@ type InterceptedControlService = AccessLogService<
     >,
 >;
 
-fn build_server(
+type InterceptedBackendHealthService = AccessLogService<
+    tonic::service::interceptor::InterceptedService<
+        BackendHealthServer<BackendHealthService>,
+        ControlInterceptor,
+    >,
+>;
+
+struct ControlPlaneServices {
+    control: InterceptedControlService,
+    health: InterceptedBackendHealthService,
+}
+
+fn build_servers(
     snapshots: Arc<SnapshotStore>,
     effective: Arc<Mutex<EffectiveConfig>>,
     configurator: ConfiguratorHandle,
     tracing: Arc<TracingHub>,
-) -> InterceptedControlService {
-    let inner = ConduitControlServer::with_interceptor(
+) -> ControlPlaneServices {
+    let interceptor = ControlInterceptor::new(snapshots.clone());
+    let control_inner = ConduitControlServer::with_interceptor(
         ControlService {
             snapshots: snapshots.clone(),
             effective,
             configurator,
             tracing,
         },
-        ControlInterceptor::new(snapshots.clone()),
+        interceptor.clone(),
     );
-    AccessLogLayer::new(snapshots).layer(inner)
+    let health_inner = BackendHealthServer::with_interceptor(
+        BackendHealthService {
+            snapshots: snapshots.clone(),
+        },
+        interceptor,
+    );
+    let layer = AccessLogLayer::new(snapshots);
+    ControlPlaneServices {
+        control: layer.layer(control_inner),
+        health: layer.layer(health_inner),
+    }
 }
 
 fn apply_tls(
@@ -248,7 +273,7 @@ where
         .control
         .as_ref()
         .is_some_and(|c| c.reflection_enabled);
-    let service = build_server(snapshots.clone(), effective, configurator, tracing);
+    let services = build_servers(snapshots.clone(), effective, configurator, tracing);
     let listener = tokio::net::TcpListener::bind(addr).await?;
     let incoming = tokio_stream::wrappers::TcpListenerStream::new(listener);
     let base_dir = config_base_dir.as_deref();
@@ -259,12 +284,14 @@ where
             .build_v1alpha()?;
         builder
             .add_service(reflection)
-            .add_service(service)
+            .add_service(services.control)
+            .add_service(services.health)
             .serve_with_incoming_shutdown(incoming, shutdown)
             .await?;
     } else {
         builder
-            .add_service(service)
+            .add_service(services.control)
+            .add_service(services.health)
             .serve_with_incoming_shutdown(incoming, shutdown)
             .await?;
     }
@@ -334,7 +361,7 @@ pub async fn serve_on_listener(
         .unwrap_or(false);
     let listener = tokio::net::TcpListener::bind(addr).await?;
     let local_addr = listener.local_addr()?;
-    let service = build_server(snapshots.clone(), effective, configurator, tracing);
+    let services = build_servers(snapshots.clone(), effective, configurator, tracing);
     let incoming = tokio_stream::wrappers::TcpListenerStream::new(listener);
     tokio::spawn(async move {
         let base_dir = config_base_dir.as_deref();
@@ -347,7 +374,8 @@ pub async fn serve_on_listener(
                     Ok(mut builder) => {
                         builder
                             .add_service(reflection)
-                            .add_service(service)
+                            .add_service(services.control)
+                            .add_service(services.health)
                             .serve_with_incoming(incoming)
                             .await
                     }
@@ -365,7 +393,8 @@ pub async fn serve_on_listener(
             match apply_tls(Server::builder(), &snapshots, base_dir) {
                 Ok(mut builder) => {
                     builder
-                        .add_service(service)
+                        .add_service(services.control)
+                        .add_service(services.health)
                         .serve_with_incoming(incoming)
                         .await
                 }

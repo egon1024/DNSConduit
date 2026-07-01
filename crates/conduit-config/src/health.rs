@@ -68,6 +68,8 @@ impl InitialHealthState {
 #[derive(Debug, Clone, PartialEq)]
 pub struct CompiledBackendHealth {
     pub address: SocketAddr,
+    /// Configured backend `name` when set (operator selectors and metric labels).
+    pub name: Option<String>,
     /// Metric/log label: backend `name` when set, else the address string.
     pub label: String,
     pub probe_qname: String,
@@ -114,6 +116,32 @@ impl CompiledHealth {
 
     pub fn pool(&self, pool: &str) -> Option<&CompiledPoolHealth> {
         self.pools.get(pool)
+    }
+
+    /// Resolve a backend selector within a pool: `host:port` or configured `name`.
+    pub fn resolve_backend(&self, pool: &str, identifier: &str) -> Result<SocketAddr, String> {
+        let Some(pool_cfg) = self.pool(pool) else {
+            return Err(format!("unknown pool '{pool}'"));
+        };
+        pool_cfg.resolve_backend(identifier)
+    }
+}
+
+impl CompiledPoolHealth {
+    /// Resolve `host:port` or a configured backend `name` to a socket address.
+    pub fn resolve_backend(&self, identifier: &str) -> Result<SocketAddr, String> {
+        if let Ok(addr) = identifier.parse::<SocketAddr>() {
+            if self.backends.iter().any(|b| b.address == addr) {
+                return Ok(addr);
+            }
+            return Err(format!("backend '{addr}' not in pool"));
+        }
+        for backend in &self.backends {
+            if backend.name.as_deref() == Some(identifier) {
+                return Ok(backend.address);
+            }
+        }
+        Err(format!("unknown backend name '{identifier}'"))
     }
 }
 
@@ -221,6 +249,7 @@ fn compile_pool_health(pool: &Pool, hc: &HealthCheck) -> Result<CompiledPoolHeal
         };
         backends.push(CompiledBackendHealth {
             address,
+            name: backend.name.as_ref().filter(|n| !n.is_empty()).cloned(),
             label: backend_label(backend),
             probe_qname,
             probe_qtype,
@@ -526,5 +555,22 @@ mod tests {
         let result = validate(&cfg);
         assert!(!result.ok);
         assert!(result.errors.iter().any(|e| e.contains("transport")));
+    }
+
+    #[test]
+    fn resolve_backend_by_address_or_name() {
+        let health = compile(include_str!(
+            "../../../tests/fixtures/config/with-health-backend-override.yaml"
+        ));
+        let addr = "127.0.0.1:5300".parse().unwrap();
+        assert_eq!(
+            health.resolve_backend("default", "127.0.0.1:5300").unwrap(),
+            addr
+        );
+        assert_eq!(
+            health.resolve_backend("default", "primary").unwrap(),
+            addr
+        );
+        assert!(health.resolve_backend("default", "missing").is_err());
     }
 }
