@@ -71,6 +71,9 @@ pub fn run_udp_ingress(
                 if e.kind() == std::io::ErrorKind::WouldBlock
                     || e.kind() == std::io::ErrorKind::TimedOut =>
             {
+                if shutdown.is_shutdown() {
+                    break;
+                }
                 continue;
             }
             Err(_) if shutdown.is_shutdown() => break,

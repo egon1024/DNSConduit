@@ -7,7 +7,7 @@ mod queue;
 use super::orchestrator::{build_forward_egress, build_orchestrator};
 use crate::forward::{ForwardMode, IoBackend, PoolInflight, TxnTable};
 use crate::listener::supervisor::DataplaneHandle;
-use crate::listener::{shutdown::DataplaneShutdown, startup_log, supervisor::ListenerCloser};
+use crate::listener::{shutdown::DataplaneShutdown, startup_log};
 use conduit_config::{effective_io_workers, effective_policy_workers, resolve_listener_ingress};
 use conduit_core::snapshot::SnapshotStore;
 use conduit_core::txn_store::{SharedTxnStore, DEFAULT_SLOT_CHUNK_SIZE};
@@ -91,7 +91,6 @@ pub fn start_split_io(
     )?;
 
     let mut thread_handles = Vec::new();
-    let mut listener_closers = Vec::new();
 
     if let Some(h) =
         crate::probe::spawn_probe_loop(&snap, health_registry.clone(), shutdown.clone())
@@ -150,7 +149,6 @@ pub fn start_split_io(
     let Some(listeners) = listeners else {
         return Ok(DataplaneHandle::new(
             shutdown,
-            listener_closers,
             thread_handles,
             events_hub,
             table,
@@ -173,20 +171,15 @@ pub fn start_split_io(
             let reuse = ingress.reuse_port;
             let rcvbuf = ingress.rcvbuf;
 
-            let (closer, worker) = if proto == "tcp" {
+            let worker = if proto == "tcp" {
                 let (socket, addr) = bind_tcp(&ln)?;
                 startup_log::log_listener_bound(addr, &ln.protocol);
-                let closer = ListenerCloser::new(socket.try_clone()?)?;
-                let tcp: std::net::TcpListener = socket.into();
-                (closer, IngressKind::Tcp(tcp))
+                IngressKind::Tcp(socket.into())
             } else {
                 let (socket, addr) = bind_udp(&ln, reuse, rcvbuf)?;
                 startup_log::log_listener_bound(addr, &ln.protocol);
-                let closer = ListenerCloser::new(socket.try_clone()?)?;
-                let udp: std::net::UdpSocket = socket.into();
-                (closer, IngressKind::Udp(Arc::new(udp)))
+                IngressKind::Udp(Arc::new(socket.into()))
             };
-            listener_closers.push(closer);
 
             thread_handles.push(thread::spawn(move || {
                 let result = match worker {
@@ -220,7 +213,6 @@ pub fn start_split_io(
 
     Ok(DataplaneHandle::new(
         shutdown,
-        listener_closers,
         thread_handles,
         events_hub,
         table,

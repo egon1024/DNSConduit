@@ -1,10 +1,10 @@
 //! Backend health operator RPCs (phase 1c §D8).
 
+use conduit_config::health::CompiledHealth;
 use conduit_core::health::{
     BackendHealthFilter, EffectiveScope, Health, HealthControlAction, HealthControlScope,
 };
 use conduit_core::SnapshotStore;
-use conduit_config::health::CompiledHealth;
 use conduit_proto::control::backend_health_server::BackendHealth;
 use conduit_proto::control::{
     BackendHealthEntry, BackendHealthFilter as ProtoFilter, GetBackendHealthRequest,

@@ -51,6 +51,11 @@ impl Health {
             _ => Health::Unknown,
         }
     }
+
+    /// Prometheus gauge encoding: 0 = unknown, 1 = up, 2 = down.
+    pub fn as_metric_value(self) -> f64 {
+        self.to_u8() as f64
+    }
 }
 
 /// Identity of a backend within the running config. Includes the pool so the
@@ -91,6 +96,8 @@ pub struct BackendHealthState {
     /// Maintained by the probe loop and read lock-free at Route; `1.0` means no
     /// latency reduction.
     weight_factor_bits: AtomicU64,
+    /// Cumulative observed/applied transitions (for Prometheus export).
+    transitions_total: AtomicU64,
 }
 
 impl BackendHealthState {
@@ -114,6 +121,7 @@ impl BackendHealthState {
             passive_consecutive_failures: AtomicU32::new(0),
             latency_ewma_ms_bits: AtomicU64::new(EWMA_UNSET),
             weight_factor_bits: AtomicU64::new(WEIGHT_FACTOR_NEUTRAL.to_bits()),
+            transitions_total: AtomicU64::new(0),
         }
     }
 
@@ -150,6 +158,12 @@ impl BackendHealthState {
             .map(|d| d.as_millis() as u64)
             .unwrap_or(0);
         self.last_transition_unix_ms.store(now, Ordering::Relaxed);
+        self.transitions_total.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Cumulative health transitions (observed or applied changes).
+    pub fn transitions_total(&self) -> u64 {
+        self.transitions_total.load(Ordering::Relaxed)
     }
 
     pub fn consecutive_successes(&self) -> u32 {

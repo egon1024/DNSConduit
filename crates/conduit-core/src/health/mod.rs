@@ -7,6 +7,7 @@
 
 pub mod control;
 pub mod probe;
+pub mod scrape;
 pub mod state;
 
 pub use control::{
@@ -14,4 +15,5 @@ pub use control::{
     HealthControlOutcome, HealthControlScope, ScopeMode,
 };
 pub use probe::{ProbeOutcome, ProbeSpec};
+pub use scrape::{build_health_scrape, BackendHealthScrapeRow};
 pub use state::{BackendHealthState, BackendKey, Health, HealthRegistry, HealthTable};

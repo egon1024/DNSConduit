@@ -567,10 +567,7 @@ mod tests {
             health.resolve_backend("default", "127.0.0.1:5300").unwrap(),
             addr
         );
-        assert_eq!(
-            health.resolve_backend("default", "primary").unwrap(),
-            addr
-        );
+        assert_eq!(health.resolve_backend("default", "primary").unwrap(), addr);
         assert!(health.resolve_backend("default", "missing").is_err());
     }
 }
