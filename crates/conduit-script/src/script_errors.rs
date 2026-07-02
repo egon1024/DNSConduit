@@ -265,7 +265,7 @@ pub fn report_lookup_unknown_table(
             total = entry.total,
             since_last_log = entry.since_last_log,
             periodic,
-            "unknown data source in table_lookup; returning empty string"
+            "unknown data source in lookup; returning empty string"
         );
         entry.since_last_log = 0;
         entry.last_log_at = Some(Instant::now());

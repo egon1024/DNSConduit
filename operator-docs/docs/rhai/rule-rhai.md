@@ -8,11 +8,12 @@ Rhai for rules acts on a policy **`txn`** object; it does **not** edit DNS wire 
 
 Built-in [selectors](/glossary/index.md#selector) and [actions](/glossary/index.md#action) cover most routing — pool choice, [tags](/glossary/index.md#tags), egress overrides, **drop**, and [retry](/glossary/index.md#retry). Reach for Rhai for rules when you need logic on top of that, for example:
 
-- Branch on a [lookup table](/rhai/data-sources-and-lookups.md) (`table_lookup`) on the **request** hook — for example map qname to a pool before [Route](/concepts/architecture-and-packet-path.md#route), instead of a long static rule list
+- Branch on a [lookup table](/rhai/data-sources-and-lookups.md) (`lookup`) on the **request** hook — for example map qname to a pool before [Route](/concepts/architecture-and-packet-path.md#route), instead of a long static rule list
 - Combine several checks in one script — for example upstream [rcode](/glossary/index.md#rcode) **and** a [tag](/glossary/index.md#tags) set on the request hook → `set_retry_pool("backup")` and `request_retry()` on the **response** hook
+- Branch on backend health with **`runtime.routing()`** — pool failover when eligible count drops, retry when the attempt backend is applied down, or inspect [latency EWMA](/glossary/index.md#ewma) / **`weight_factor`** for canary logging
 - Set [tags](/glossary/index.md#tags) that drive [event export](/observability/event-export.md) filters or [tracing](/observability/tracing.md) activation
-- Apply deterministic per-transaction sampling in scripts — [`txn.sample_percent`](/rhai/transaction-api.md#txnsample_percent), [`sample_percent_for_qname`](/rhai/transaction-api.md#txnsample_percent_for_qnamepercent), [`sample_percent_for_rule`](/rhai/transaction-api.md#txnsample_percent_for_rulepercent), or cadence gates [`every_nth_worker`](/rhai/transaction-api.md#txnevery_nth_workern) / [`every_nth_global`](/rhai/transaction-api.md#txnevery_nth_globaln) (YAML parity table on [Transaction API — Sampling](/rhai/transaction-api.md#sampling))
-- Publish custom counters (`conduit_user_*`) from policy — [User metrics](/rhai/user-metrics.md)
+- Apply deterministic per-transaction sampling in scripts — [`txn.sample_percent`](/rhai/txn-api.md#txnsample_percent), [`sample_percent_for_qname`](/rhai/txn-api.md#txnsample_percent_for_qnamepercent), [`sample_percent_for_rule`](/rhai/txn-api.md#txnsample_percent_for_rulepercent), or cadence gates [`every_nth_worker`](/rhai/txn-api.md#txnevery_nth_workern) / [`every_nth_global`](/rhai/txn-api.md#txnevery_nth_globaln) (YAML parity table on [Transaction API — Sampling](/rhai/txn-api.md#sampling))
+- Publish custom counters (`conduit_user_*`) via **`metrics.inc`** — [User metrics](/rhai/user-metrics.md)
 
 If declarative YAML is enough, prefer [Rules and actions](/policy-routing/rules-and-actions.md). Rhai for rules adds flexibility and operational surface (script files, [sandbox limits](/rhai/sandbox-limits.md), compile-time checks on reload), but runs an interpreted script on the query path for each matching rule — **higher per-query cost** than built-in actions alone. Prefer built-in selectors and actions when they express the same policy.
 
@@ -38,7 +39,7 @@ sequenceDiagram
   Rule-->>Hook: resolve drop / retry / continue
 ```
 
-Hook timing, first-match rules, and YAML wiring: [Rules and actions](/policy-routing/rules-and-actions.md). Phase guards and pairing request/response scripts: [Hooks and phases](/rhai/hooks-and-phases.md). Method-level detail: [Transaction API](/rhai/transaction-api.md).
+Hook timing, first-match rules, and YAML wiring: [Rules and actions](/policy-routing/rules-and-actions.md). Phase guards and pairing request/response scripts: [Hooks and phases](/rhai/hooks-and-phases.md). Host API map: [Host API overview](/rhai/host-api.md). **`txn`** methods: [Transaction API (`txn`)](/rhai/txn-api.md).
 
 ## Minimal example
 
@@ -112,11 +113,13 @@ Built-in actions on the same rule still ran before the script. Use [Logging](/ob
 
 ## Read in order
 
-1. [Hooks and phases](/rhai/hooks-and-phases.md) — request vs response from a script author’s view, phase guards, pairing scripts
-2. [Transaction API](/rhai/transaction-api.md) — `txn` methods, phase guards, YAML equivalents
-3. [Sandbox limits](/rhai/sandbox-limits.md) — `rhai:` fields, defaults, tuning and failure behavior
-4. [Data sources and lookups](/rhai/data-sources-and-lookups.md) — `data_sources:` and `table_lookup`
-5. [User metrics](/rhai/user-metrics.md) — `metric_inc`, `conduit_user_*` export
+1. [Host API overview](/rhai/host-api.md) — five scope objects
+2. [Hooks and phases](/rhai/hooks-and-phases.md) — request vs response from a script author’s view, phase guards, pairing scripts
+3. [Transaction API (`txn`)](/rhai/txn-api.md) — per-query policy methods and YAML equivalents
+4. [Runtime API](/rhai/runtime-api.md) — `runtime.routing()` health reads
+5. [Sandbox limits](/rhai/sandbox-limits.md) — `rhai:` fields, defaults, tuning and failure behavior
+6. [Data sources and lookups](/rhai/data-sources-and-lookups.md) — `data_sources:` and `lookup()`
+7. [User metrics](/rhai/user-metrics.md) — `metrics.inc`, `conduit_user_*` export
 
 ## Prerequisites
 

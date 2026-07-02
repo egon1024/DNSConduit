@@ -33,6 +33,7 @@ fn main() {
             None,
             None,
             None,
+            None,
         );
         host.pool = None;
     }

@@ -1,0 +1,63 @@
+schema_version: 1
+listeners:
+  threads: 1
+  reuse_port: false
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+forward:
+  outstanding_per_backend: 100
+  timeout_ms: 2000
+orchestrator:
+  max_attempts: 3
+  max_txn_duration_ms: 5000
+  txn_table_capacity: 1024
+rhai:
+  max_operations: 10000
+  max_call_depth: 32
+  hook_timeout_ms: 50
+pools:
+  - name: primary
+    health:
+      enabled: true
+      interval_ms: 1000
+      timeout_ms: 500
+      rise: 3
+      fall: 2
+      probe_qname: "health.example."
+      probe_qtype: A
+      acceptable_rcodes:
+        - NOERROR
+        - NXDOMAIN
+      initial_state: optimistic
+      min_eligible: 1
+    backends:
+      - address: "127.0.0.1:15300"
+        weight: 100
+      - address: "127.0.0.1:15399"
+        weight: 100
+  - name: secondary
+    backends:
+      - address: "127.0.0.1:15399"
+        weight: 100
+control:
+  listen_address: "127.0.0.1:5199"
+rules:
+  match_mode: first_match
+  rules:
+    - name: route-primary
+      hook: request
+      selectors: []
+      actions:
+        - type: set_pool
+          value: primary
+        - type: set_retry_pool
+          value: secondary
+    - name: routing-backend-attempt
+      hook: response
+      selectors:
+        - type: rcode
+          value: SERVFAIL
+      actions:
+        - type: rhai
+          value: ../rhai/routing-backend-attempt.rhai

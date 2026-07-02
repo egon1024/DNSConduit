@@ -4,16 +4,16 @@ toc_depth: 3
 
 # Data sources and lookups
 
-Lookup tables declared under **`data_sources:`** in config supply read-only data for **`table_lookup(table, key)`** in [Rhai for rules](/rhai/rule-rhai.md) scripts. Conduit loads tables into the [runtime snapshot](/glossary/index.md#runtime-snapshot) at compile/reload time; scripts cannot open arbitrary files.
+Lookup tables declared under **`data_sources:`** in config supply read-only data for **`lookup(table, key)`** in [Rhai for rules](/rhai/rule-rhai.md) scripts. Conduit loads tables into the [runtime snapshot](/glossary/index.md#runtime-snapshot) at compile/reload time; scripts cannot open arbitrary files.
 
-API reference card: [Transaction API — Lookups](/rhai/transaction-api.md#lookups). Hook availability: [Hooks and phases — phase guards](/rhai/hooks-and-phases.md#phase-guards).
+**`lookup`** is a global function — not a method on **`txn`**. See [Host API overview](/rhai/host-api.md). Hook availability: [Hooks and phases — phase guards](/rhai/hooks-and-phases.md#phase-guards).
 
 ## Overview
 
 | Piece | Role |
 |-------|------|
 | **`data_sources:`** | Top-level config list — each entry names one table and points at a CSV file |
-| **`table_lookup(table, key)`** | Rhai function — returns the value string, or **`""`** on miss |
+| **`lookup(table, key)`** | Rhai function — returns the value string, or **`""`** on miss |
 | **Snapshot compile** | CSV read and parsed when config validates/builds; failures block reload |
 
 **Grant model:** only **`name`** values you list under **`data_sources:`** are visible to scripts. There is no path-based or implicit discovery.
@@ -24,7 +24,7 @@ Each entry in **`data_sources:`**:
 
 | Field {: .column-no-wrap } | Required | Default | Meaning |
 |-------|----------|---------|---------|
-| `name` | yes | — | Table name passed to **`table_lookup`** (must be unique in the list) |
+| `name` | yes | — | Table name passed to **`lookup`** (must be unique in the list) |
 | `type` | yes | — | **`csv`** only in current releases |
 | `path` | yes | — | CSV file path; resolved relative to the [config file directory](/control-plane/config-file.md#path-resolution-base-directory) unless absolute |
 | `key_column` | no | `key` (or first column) | Header name for the key column, or use column index 0 when no header |
@@ -124,10 +124,10 @@ us.example.,us
 
 **Key matching:** lookups are exact string equality. For DNS names, match how clients send the qname (often FQDN with trailing dot: `bad.example.`).
 
-## `table_lookup` behavior
+## `lookup` behavior { #lookup-behavior }
 
 ```rhai
-let action = table_lookup("blocklist", question_qname(txn));
+let action = lookup("blocklist", txn.question().qname);
 ```
 
 | Situation | Return value | Observability |
@@ -137,9 +137,9 @@ let action = table_lookup("blocklist", question_qname(txn));
 | Unknown `table` name (not in `data_sources:`) | `""` | Warn log (milestone + periodic) and [`conduit_script_errors_total`](/observability/built-in-metrics.md#conduit_script_errors_total) (`reason="lookup_unknown_table"`) |
 | Empty value cell | `""` (still a “hit” if key exists — rare in practice) | — |
 
-**Compile-time check:** when the table argument is a **string literal** in Rhai source (for example `table_lookup("blocklist", …)`), Conduit validates the name against **`data_sources:`** at snapshot build. A typo fails **`conduitctl validate`** and reload. Dynamic table names (variable or expression) are not checked at compile time — they surface at runtime with the observability row above.
+**Compile-time check:** when the table argument is a **string literal** in Rhai source (for example `lookup("blocklist", …)`), Conduit validates the name against **`data_sources:`** at snapshot build. A typo fails **`conduitctl validate`** and reload. Dynamic table names (variable or expression) are not checked at compile time — they surface at runtime with the observability row above.
 
-Use **`question_qname(txn)`** or **`txn.question().qname`** for qname-keyed tables. On the [response hook](/rhai/hooks-and-phases.md#response-hook), the question is unchanged from the client query.
+Use **`txn.question().qname`** or **`txn.question().qname`** for qname-keyed tables. On the [response hook](/rhai/hooks-and-phases.md#response-hook), the question is unchanged from the client query.
 
 Counts toward [sandbox limits](/rhai/sandbox-limits.md) (`rhai.max_operations`, `rhai.hook_timeout_ms`) like other host calls.
 
@@ -148,7 +148,7 @@ Counts toward [sandbox limits](/rhai/sandbox-limits.md) (`rhai.max_operations`, 
 | Event | Effect on lookups |
 |-------|-------------------|
 | **`conduitctl validate --file`** | Reads CSVs and compiles scripts — same load path as runtime |
-| **Config reload** (new snapshot generation) | CSV files re-read; **`table_lookup`** uses new in-memory tables for **new** queries |
+| **Config reload** (new snapshot generation) | CSV files re-read; **`lookup`** uses new in-memory tables for **new** queries |
 | **In-flight transaction** | Keeps the snapshot generation it started with until the transaction completes |
 | **API overlay** | Non-empty overlay **`data_sources`** list **replaces** the file-layer list — see [Configuration model](/control-plane/configuration-model.md) |
 
@@ -169,7 +169,7 @@ If a CSV path is missing or malformed at compile time, validation/reload **fails
 | `exceeds max_key_bytes` / `exceeds max_value_bytes` | A key or value cell is longer than the effective cap |
 | `exceeds max_tables` | More `data_sources:` entries than `data_source_limits.max_tables` |
 | `exceeds max_total_bytes` | Aggregate bytes across all tables exceed `data_source_limits.max_total_bytes` |
-| `unknown data source` | Rhai script calls `table_lookup("literal", …)` with a table name not listed in **`data_sources:`** |
+| `unknown data source` | Rhai script calls `lookup("literal", …)` with a table name not listed in **`data_sources:`** |
 
 Structural YAML checks run in **`validate`** (including the `max_tables` count). File read and CSV parse — and the file/entry/cell/aggregate byte limits — run when the snapshot is **built** (including `conduitctl validate` with script compile).
 
@@ -180,7 +180,7 @@ Structural YAML checks run in **`validate`** (including the `max_tables` count).
 Script `blocklist.rhai`:
 
 ```rhai
-if table_lookup("blocklist", question_qname(txn)) == "block" {
+if lookup("blocklist", txn.question().qname) == "block" {
     txn.drop_query_now();
 }
 ```
@@ -192,7 +192,7 @@ Config: inline **`conduit.yaml`** beside the CSV — see [Rhai policy — Blockl
 Script `lookup-demo.rhai`:
 
 ```rhai
-let region = table_lookup("geo", question_qname(txn));
+let region = lookup("geo", txn.question().qname);
 if region != "" {
     txn.set_tag("region", region);
 }
@@ -203,9 +203,11 @@ Downstream sinks can filter on **`tag_required`** or rules can branch on **`txn.
 ### Pool or egress map
 
 ```rhai
-let pool = table_lookup("routing", question_qname(txn));
+let pool = lookup("routing", txn.question().qname);
 if pool != "" {
     txn.set_pool(pool);
+} else {
+    txn.clear_pool();
 }
 ```
 
@@ -220,17 +222,18 @@ List **`set_pool`** before **`rhai`** on the same rule when the script only refi
 | `lookup-demo.rhai` | Yes | Grant model — only configured tables | [Data sources — Tag for observability](#tag-for-observability) |
 | `block-hits.rhai` | Yes | Lookup + user metrics | [User metrics](/rhai/user-metrics.md) |
 
+
 ## Limitations (current release)
 
 - **`type: csv`** only — no HTTP, LMDB, or dynamic plugins yet.
 - Tables load fully into memory and are bounded by [load-safety limits](#load-safety-limits) — intended for policy data, not bulk storage.
 - Simple CSV splitting — no RFC 4180 quoting; avoid commas inside fields.
 - Read-only from scripts — no write-back or per-query cache invalidation.
-- [Rhai for rules](/rhai/rule-rhai.md) only — `table_lookup` is available to rule scripts on the request and response hooks.
+- [Rhai for rules](/rhai/rule-rhai.md) only — `lookup` is available to rule scripts on the request and response hooks.
 
 ## Related topics
 
-- [Transaction API — Lookups](/rhai/transaction-api.md#lookups) — `table_lookup` card
+- [Host API overview](/rhai/host-api.md) — lookups live on the **`lookup`** scope — `lookup` card
 - [Rhai for rules](/rhai/rule-rhai.md) — when to use scripts vs built-in selectors
 - [Config file](/control-plane/config-file.md) — top-level blocks and path resolution
 - [Reload and export](/control-plane/reload-and-export.md) — what reload updates

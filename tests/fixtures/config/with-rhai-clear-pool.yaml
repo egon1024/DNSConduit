@@ -1,0 +1,41 @@
+schema_version: 1
+listeners:
+  threads: 2
+  reuse_port: true
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+forward:
+  outstanding_per_backend: 100
+  timeout_ms: 2000
+orchestrator:
+  max_attempts: 3
+  max_txn_duration_ms: 5000
+  txn_table_capacity: 1024
+events:
+  queue_depth: 4096
+  drop_policy: drop_oldest
+rhai:
+  max_operations: 10000
+  max_call_depth: 32
+  hook_timeout_ms: 50
+pools:
+  - name: default
+    backends:
+      - address: "127.0.0.1:5300"
+        weight: 100
+  - name: vip
+    backends:
+      - address: "127.0.0.1:5301"
+        weight: 100
+rules:
+  match_mode: first_match
+  rules:
+    - name: clear-pool-demo
+      hook: request
+      selectors:
+        - type: qname_suffix
+          value: ".example."
+      actions:
+        - type: rhai
+          value: ../rhai/clear-pool.rhai

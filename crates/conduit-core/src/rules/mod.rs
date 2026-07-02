@@ -4,7 +4,9 @@ use crate::transaction::Transaction;
 use conduit_events::{compile_rule_selectors, CompiledSelector, SelectorMatchCtx};
 use conduit_metrics::{BuiltinProfile, BuiltinRegistry, MetricsHub, UserRegistry};
 use conduit_proto::config::{Action, Rule, RulesConfig};
-use conduit_script::{run_scripts, CompiledScripting, ScriptPhase, ScriptRunOutcome};
+use conduit_script::{
+    run_scripts, CompiledScripting, RoutingRuntimeSnapshot, ScriptPhase, ScriptRunOutcome,
+};
 use std::sync::Arc;
 
 #[derive(Debug, Clone)]
@@ -55,6 +57,8 @@ pub enum CompiledAction {
     ClearRetry,
     /// Clear `retry_pool` on the transaction.
     ClearRetryPool,
+    /// Clear `selected_pool` so [Route] uses the configured default pool.
+    ClearPool,
     /// Remove a tag key from the transaction (bool and string).
     ClearTag(String),
     SetRcode(u16),
@@ -97,6 +101,7 @@ impl CompiledRules {
         txn: &mut Transaction,
         scripting: &CompiledScripting,
         metrics: Option<&MetricsHub>,
+        routing_runtime: Option<Arc<RoutingRuntimeSnapshot>>,
     ) -> RuleEvalResult {
         let user_export = metrics.map(|m| m.user.as_ref());
         let builtin_profile = metrics.map(|m| m.compiled.profile);
@@ -109,6 +114,7 @@ impl CompiledRules {
                     user_export,
                     builtin_profile,
                     builtin.clone(),
+                    routing_runtime.clone(),
                 );
                 if self.match_mode == MatchMode::FirstMatch {
                     return RuleEvalResult {
@@ -203,6 +209,7 @@ impl CompiledRule {
         user_export: Option<&UserRegistry>,
         builtin_profile: Option<BuiltinProfile>,
         builtin: Option<Arc<BuiltinRegistry>>,
+        routing_runtime: Option<Arc<RoutingRuntimeSnapshot>>,
     ) -> RuleOutcome {
         let script_phase = match self.hook {
             RuleHook::Request => ScriptPhase::Request,
@@ -221,6 +228,7 @@ impl CompiledRule {
                         user_export,
                         builtin_profile,
                         builtin.clone(),
+                        routing_runtime.clone(),
                     );
                     match script_outcome {
                         ScriptRunOutcome::DropNow => return RuleOutcome::Drop,
@@ -275,6 +283,7 @@ impl CompiledRule {
             CompiledAction::ClearDrop => txn.clear_soft_drop(),
             CompiledAction::ClearRetry => *retry = false,
             CompiledAction::ClearRetryPool => txn.clear_retry_pool(),
+            CompiledAction::ClearPool => txn.clear_pool(),
             CompiledAction::ClearTag(key) => txn.tags.clear(key),
             CompiledAction::SetRcode(rc) => txn.set_rcode(*rc),
             CompiledAction::SetSourceV4(addr) => txn.set_source_override_v4(*addr),
@@ -319,6 +328,7 @@ impl CompiledAction {
             "clear_drop" => CompiledAction::ClearDrop,
             "clear_retry" => CompiledAction::ClearRetry,
             "clear_retry_pool" => CompiledAction::ClearRetryPool,
+            "clear_pool" => CompiledAction::ClearPool,
             "clear_tag" => CompiledAction::ClearTag(act.value.clone()),
             "set_rcode" => CompiledAction::SetRcode(
                 conduit_dns_wire::Rcode::parse_name_or_err(&act.value)
@@ -416,12 +426,12 @@ pools:
 
     fn eval_request(rules: &CompiledRules, txn: &mut Transaction) -> RuleEvalResult {
         let scripting = empty_scripting();
-        rules.eval(RuleHook::Request, txn, &scripting, None)
+        rules.eval(RuleHook::Request, txn, &scripting, None, None)
     }
 
     fn eval_response(rules: &CompiledRules, txn: &mut Transaction) -> RuleEvalResult {
         let scripting = empty_scripting();
-        rules.eval(RuleHook::Response, txn, &scripting, None)
+        rules.eval(RuleHook::Response, txn, &scripting, None, None)
     }
 
     #[test]
@@ -683,6 +693,59 @@ pools:
     }
 
     #[test]
+    fn clear_pool_clears_selected_pool() {
+        for hook in ["request", "response"] {
+            let rules = compile_hook_rule(
+                hook,
+                vec![
+                    Action {
+                        r#type: "set_pool".into(),
+                        value: "vip".into(),
+                    },
+                    Action {
+                        r#type: "clear_pool".into(),
+                        value: "".into(),
+                    },
+                ],
+            );
+            let mut txn = Transaction::new(
+                1,
+                "127.0.0.1:53".parse::<SocketAddr>().unwrap(),
+                ClientProtocol::Udp,
+            );
+            txn.selected_pool = Some("primary".into());
+            let result = if hook == "request" {
+                eval_request(&rules, &mut txn)
+            } else {
+                eval_response(&rules, &mut txn)
+            };
+            assert_eq!(result.outcome, RuleOutcome::Continue, "hook={hook}");
+            assert!(txn.selected_pool.is_none(), "hook={hook}");
+        }
+    }
+
+    #[test]
+    fn clear_pool_then_set_pool_wins() {
+        let rules = compile_request_rule(vec![
+            Action {
+                r#type: "clear_pool".into(),
+                value: "".into(),
+            },
+            Action {
+                r#type: "set_pool".into(),
+                value: "vip".into(),
+            },
+        ]);
+        let mut txn = Transaction::new(
+            1,
+            "127.0.0.1:53".parse::<SocketAddr>().unwrap(),
+            ClientProtocol::Udp,
+        );
+        eval_request(&rules, &mut txn);
+        assert_eq!(txn.selected_pool.as_deref(), Some("vip"));
+    }
+
+    #[test]
     fn set_retry_source_v4_stashes_without_consuming() {
         for hook in ["request", "response"] {
             let rules = compile_hook_rule(
@@ -843,7 +906,7 @@ pools:
             ClientProtocol::Udp,
         );
         hit.qtype = Some(1);
-        rules.eval(RuleHook::Request, &mut hit, &scripting, None);
+        rules.eval(RuleHook::Request, &mut hit, &scripting, None, None);
         assert!(hit.tags.has("hit"));
 
         let mut miss = Transaction::new(
@@ -852,7 +915,7 @@ pools:
             ClientProtocol::Udp,
         );
         miss.qtype = Some(28);
-        rules.eval(RuleHook::Request, &mut miss, &scripting, None);
+        rules.eval(RuleHook::Request, &mut miss, &scripting, None, None);
         assert!(!miss.tags.has("hit"));
     }
 
@@ -886,10 +949,10 @@ pools:
             ClientProtocol::Udp,
         )
         .with_global_query_index(8);
-        rules.eval(RuleHook::Request, &mut txn, &scripting, None);
+        rules.eval(RuleHook::Request, &mut txn, &scripting, None, None);
         assert!(txn.tags.has("global"));
 
-        rules.eval(RuleHook::Request, &mut txn, &scripting, None);
+        rules.eval(RuleHook::Request, &mut txn, &scripting, None, None);
         assert!(txn.tags.has("global"));
         assert_eq!(txn.global_query_index, 8);
     }
@@ -975,17 +1038,17 @@ pools:
             "127.0.0.1:53".parse::<SocketAddr>().unwrap(),
             ClientProtocol::Udp,
         );
-        set_rules.eval(RuleHook::Request, &mut txn, &scripting, None);
+        set_rules.eval(RuleHook::Request, &mut txn, &scripting, None, None);
         assert!(txn.tags.has("vip"));
 
-        match_rules.eval(RuleHook::Request, &mut txn, &scripting, None);
+        match_rules.eval(RuleHook::Request, &mut txn, &scripting, None, None);
         assert!(txn.tags.has("matched"));
 
-        clear_rules.eval(RuleHook::Request, &mut txn, &scripting, None);
+        clear_rules.eval(RuleHook::Request, &mut txn, &scripting, None, None);
         assert!(!txn.tags.has("vip"));
 
         txn.tags.clear("matched");
-        match_rules.eval(RuleHook::Request, &mut txn, &scripting, None);
+        match_rules.eval(RuleHook::Request, &mut txn, &scripting, None, None);
         assert!(!txn.tags.has("matched"));
     }
 
@@ -1043,7 +1106,7 @@ pools:
             "127.0.0.1:53".parse::<SocketAddr>().unwrap(),
             ClientProtocol::Udp,
         );
-        rules.eval(RuleHook::Request, &mut txn, &scripting, None);
+        rules.eval(RuleHook::Request, &mut txn, &scripting, None, None);
         assert!(txn.tags.has("b"));
         assert!(!txn.tags.has("a"));
     }

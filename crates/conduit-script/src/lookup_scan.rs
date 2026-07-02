@@ -1,47 +1,47 @@
-//! Static analysis of `table_lookup("literal", …)` in Rhai sources.
+//! Static analysis of `lookup("literal", …)` in Rhai sources.
 
 use crate::data_sources::DataSourceStore;
 use crate::error::ScriptError;
-use std::collections::HashSet;
+use std::collections::BTreeSet;
 
-/// Extract distinct string-literal table names from `table_lookup("name", …)` calls.
-pub fn scan_table_lookup_literals(source: &str) -> Vec<String> {
-    let mut found = HashSet::new();
+/// Extract distinct string-literal table names from `lookup("name", …)` calls.
+pub fn scan_lookup_literals(source: &str) -> Vec<String> {
+    let mut names = BTreeSet::new();
     for line in source.lines() {
-        if let Some(name) = extract_table_lookup_literal(line) {
-            found.insert(name);
+        if let Some(name) = extract_lookup_literal(line) {
+            names.insert(name);
         }
     }
-    found.into_iter().collect()
+    names.into_iter().collect()
 }
 
-pub fn validate_table_lookup_literals(
+pub fn validate_lookup_literals(
     source: &str,
     path: &str,
     store: &DataSourceStore,
 ) -> Result<(), ScriptError> {
-    for name in scan_table_lookup_literals(source) {
+    for name in scan_lookup_literals(source) {
         if !store.has_table(&name) {
-            return Err(ScriptError::Script {
-                path: path.to_string(),
-                message: format!("unknown data source '{name}' in table_lookup"),
+            return Err(ScriptError::Rule {
+                rule_name: path.into(),
+                message: format!("unknown data source '{name}' in lookup"),
             });
         }
     }
     Ok(())
 }
 
-fn extract_table_lookup_literal(line: &str) -> Option<String> {
-    let idx = line.find("table_lookup")?;
-    let rest = &line[idx..];
-    let open = rest.find('(')?;
-    let after = rest[open + 1..].trim_start();
-    if !after.starts_with('"') {
+fn extract_lookup_literal(line: &str) -> Option<String> {
+    let idx = line.find("lookup")?;
+    let rest = &line[idx + "lookup".len()..];
+    let open = rest.find('(')? + 1;
+    let after_paren = rest[open..].trim_start();
+    let quote = after_paren.chars().next()?;
+    if quote != '"' && quote != '\'' {
         return None;
     }
-    let after_quote = &after[1..];
-    let end = after_quote.find('"')?;
-    Some(after_quote[..end].to_string())
+    let content = after_paren[1..].split(quote).next()?;
+    Some(content.to_string())
 }
 
 #[cfg(test)]
@@ -53,34 +53,33 @@ mod tests {
     #[test]
     fn scan_finds_literal_table_names() {
         let src = r#"
-if table_lookup("blocklist", question_qname(txn)) == "block" { }
-let x = table_lookup("geo", "key");
+if lookup("blocklist", txn.question().qname) == "block" { }
+let x = lookup("geo", "key");
 "#;
-        let mut names = scan_table_lookup_literals(src);
+        let mut names = scan_lookup_literals(src);
         names.sort();
         assert_eq!(names, vec!["blocklist".to_string(), "geo".to_string()]);
     }
 
     #[test]
-    fn scan_ignores_dynamic_table_argument() {
-        let src = r#"table_lookup(t, "key");"#;
-        assert!(scan_table_lookup_literals(src).is_empty());
+    fn scan_ignores_non_literal_first_arg() {
+        let src = r#"lookup(t, "key");"#;
+        assert!(scan_lookup_literals(src).is_empty());
     }
 
     #[test]
-    fn validate_rejects_unknown_literal() {
-        let mut store = DataSourceStore::default();
-        store.insert_table("blocklist", HashMap::from([("k".into(), "v".into())]));
-        let src = r#"table_lookup("typo", question_qname(txn));"#;
-        let err = validate_table_lookup_literals(src, "test.rhai", &store).unwrap_err();
-        assert!(err.to_string().contains("unknown data source 'typo'"));
+    fn validate_rejects_unknown_table() {
+        let store = DataSourceStore::default();
+        let src = r#"lookup("typo", txn.question().qname);"#;
+        let err = validate_lookup_literals(src, "test.rhai", &store).unwrap_err();
+        assert!(err.to_string().contains("typo"));
     }
 
     #[test]
-    fn validate_accepts_configured_literal() {
+    fn validate_accepts_known_table() {
         let mut store = DataSourceStore::default();
-        store.insert_table("blocklist", HashMap::from([("k".into(), "v".into())]));
-        let src = r#"table_lookup("blocklist", question_qname(txn));"#;
-        validate_table_lookup_literals(src, "test.rhai", &store).unwrap();
+        store.insert_table("blocklist", HashMap::new());
+        let src = r#"lookup("blocklist", txn.question().qname);"#;
+        validate_lookup_literals(src, "test.rhai", &store).unwrap();
     }
 }

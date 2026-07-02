@@ -95,12 +95,16 @@ nav:
       - gRPC and conduitctl: control-plane/grpc-and-conduitctl.md
   - Rhai:
       - Overview: rhai/index.md
+      - Host API:
+          - Overview: rhai/host-api.md
+          - Transaction (txn): rhai/txn-api.md
+          - Runtime: rhai/runtime-api.md
+          - Lookups: rhai/data-sources-and-lookups.md
+          - Metrics: rhai/user-metrics.md
+          - Script logging: rhai/script-logging.md
       - For rules:
           - Overview: rhai/rule-rhai.md
           - Hooks and phases: rhai/hooks-and-phases.md
-          - Transaction API: rhai/transaction-api.md
-      - Data sources and lookups: rhai/data-sources-and-lookups.md
-      - User metrics: rhai/user-metrics.md
       - Sandbox limits: rhai/sandbox-limits.md
   - Observability:
       - Overview: observability/index.md

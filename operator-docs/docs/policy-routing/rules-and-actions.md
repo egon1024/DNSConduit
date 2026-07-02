@@ -154,7 +154,7 @@ Limit **which queries** the rule applies to. Decisions are **deterministic** per
 
 Use **`key`** for a shared slice across a zone (for example `key: "internal.example"` with `qname_suffix`). Use **`key_from: qname`** when each qname should get its own ~N% slice. Different keys at the same percentage are **independent** — a transaction can pass one rule’s sample and fail another’s.
 
-Rhai: `txn.sample_percent(percent)` uses the global bucket; `txn.sample_percent(percent, key)` uses static **`key:`**; `txn.sample_percent_for_qname(percent)` and `txn.sample_percent_for_rule(percent)` match **`key_from: qname`** and **`key_from: rule_name`**; `txn.every_nth_worker(n)` and `txn.every_nth_global(n)` match the cadence selectors. See [Transaction API — Sampling](/rhai/transaction-api.md#sampling).
+Rhai: `txn.sample_percent(percent)` uses the global bucket; `txn.sample_percent(percent, key)` uses static **`key:`**; `txn.sample_percent_for_qname(percent)` and `txn.sample_percent_for_rule(percent)` match **`key_from: qname`** and **`key_from: rule_name`**; `txn.every_nth_worker(n)` and `txn.every_nth_global(n)` match the cadence selectors. See [Transaction API — Sampling](/rhai/txn-api.md#sampling).
 
 `every_nth_worker` uses the per-worker transaction counter that starts at **1**, so `N=4` matches ids **4, 8, 12, …** on each worker thread.
 
@@ -265,6 +265,7 @@ If both soft drop and soft retry are set, **drop takes precedence** over retry.
 |--------|--------|
 | `clear_retry` | Clears soft-retry intent from an earlier `retry` or Rhai `txn.request_retry()` on this rule (response hook only) |
 | `clear_retry_pool` | Clears `retry_pool` on the [transaction](/glossary/index.md#transaction) |
+| `clear_pool` | Clears `selected_pool` so [Route](/concepts/architecture-and-packet-path.md#route) uses the configured default pool |
 | `retry` | **Soft** retry (response hook only) — later actions on this rule still run; if retry is still requested at the end of the rule, re-enter [Route](/concepts/architecture-and-packet-path.md#route) |
 | `retry_now` | **Hard** retry (response hook only) — stop immediately and re-enter [Route](/concepts/architecture-and-packet-path.md#route); blocked by soft drop unless **`clear_drop`** ran earlier on this rule |
 | `set_retry_pool` | Pool used on retry [Route](/concepts/architecture-and-packet-path.md#route) if retry occurs — first [Route](/concepts/architecture-and-packet-path.md#route) ignores it |
@@ -273,7 +274,7 @@ If both soft drop and soft retry are set, **drop takes precedence** over retry.
 | `clear_retry_source_v4` | Clears `retry_source_override_v4` |
 | `clear_retry_source_v6` | Clears `retry_source_override_v6` |
 
-[Rhai](/rhai/index.md) equivalents: `txn.set_retry_pool(name)` (same as **`set_retry_pool`** above), `txn.set_retry_source_v4(addr)` / `txn.set_retry_source_v6(addr)`, `txn.clear_retry_source_v4()` / `txn.clear_retry_source_v6()`, `txn.request_retry()` (soft), `txn.request_retry_now()` (hard), `txn.clear_retry()` (soft retry only), `txn.clear_retry_pool()`. See [Outcome at end of rule](#outcome-at-end-of-rule). To fail over to another pool on the response hook, use **`set_retry_pool`** then **`retry`** or **`retry_now`**. To change egress bind on retry only, use **`set_retry_source_*`** then **`retry`** or **`retry_now`**.
+[Rhai](/rhai/index.md) equivalents: `txn.set_pool(name)`, `txn.clear_pool()`, `txn.set_retry_pool(name)` (same as **`set_retry_pool`** above), `txn.set_retry_source_v4(addr)` / `txn.set_retry_source_v6(addr)`, `txn.clear_retry_source_v4()` / `txn.clear_retry_source_v6()`, `txn.request_retry()` (soft), `txn.request_retry_now()` (hard), `txn.clear_retry()` (soft retry only), `txn.clear_retry_pool()`. See [Outcome at end of rule](#outcome-at-end-of-rule).
 
 The selected [pool](/glossary/index.md#pool) can also come from an **earlier** matching rule or from the default pool when no rule sets one. At [Forward](/concepts/architecture-and-packet-path.md#forward), Conduit still requires the override to be in the **allowed set for that pool** (global `forward.sources_*` ∪ that pool’s `sources_*`). If the override is not allowed, Conduit **falls back to round-robin** among configured sources — same behavior as [Rhai](/rhai/index.md) `set_source_v4` / `set_source_v6`. See [Dual-stack forwarding](/guides/dual-stack-forwarding.md#choosing-an-egress-source).
 
@@ -284,6 +285,7 @@ Use on `hook: request` — after [Parse](/concepts/architecture-and-packet-path.
 | Action {: .column-no-wrap } | `value` | Effect |
 |--------|---------|--------|
 | `clear_drop` | — | Clear soft-drop intent on this rule |
+| `clear_pool` | — | Clears `selected_pool` — [Route](/concepts/architecture-and-packet-path.md#route) uses the configured default pool |
 | `clear_tag` | Tag key (non-empty) | Removes a [tag](/glossary/index.md#tags) key from the [transaction](/glossary/index.md#transaction) |
 | `clear_retry_pool` | — | Clears `retry_pool` — see [Retry actions](#retry-actions) |
 | `drop` | — | Soft drop — see [Drop actions](#action-order-on-one-rule) |
@@ -305,7 +307,7 @@ Use on `hook: request` — after [Parse](/concepts/architecture-and-packet-path.
 
 **`clear_retry_source_v4` / `clear_retry_source_v6`** — request or response hook; clears the retry-source stash only (not standing **`set_source_*`** overrides).
 
-**`set_retry_pool`** / **`clear_retry_pool`** — writes or clears the shared `retry_pool` field on the [transaction](/glossary/index.md#transaction). `retry_pool` is one-shot at Route; see [Retries and transactions — Pool selection lifecycle](/policy-routing/retries-and-transactions.md#pool-selection-lifecycle).
+**`set_pool`** / **`clear_pool`** — set or clear **`selected_pool`** for [Route](/concepts/architecture-and-packet-path.md#route). When unset, Route uses the pool named **`default`**, or the first pool in config. **`set_retry_pool`** / **`clear_retry_pool`** — write or clear the one-shot **`retry_pool`** stash; see [Retries and transactions — Pool selection lifecycle](/policy-routing/retries-and-transactions.md#pool-selection-lifecycle).
 
 ## Response-hook actions
 
@@ -314,6 +316,7 @@ Use on `hook: response` — after an upstream answer or forward timeout, before 
 | Action {: .column-no-wrap } | `value` | Effect |
 |--------|---------|--------|
 | `clear_drop` | — | Clear soft-drop intent on this rule |
+| `clear_pool` | — | Clears `selected_pool` — next [Route](/concepts/architecture-and-packet-path.md#route) uses the configured default pool |
 | `clear_tag` | Tag key (non-empty) | Removes a [tag](/glossary/index.md#tags) key from the [transaction](/glossary/index.md#transaction) |
 | `clear_retry` | — | Clear soft-retry intent on this rule — see [Retry actions](#retry-actions) |
 | `clear_retry_pool` | — | Clears `retry_pool` — see [Retry actions](#retry-actions) |
@@ -332,7 +335,7 @@ Use on `hook: response` — after an upstream answer or forward timeout, before 
 
 **`retry`**, **`retry_now`**, **`clear_retry`**, **`clear_retry_pool`**, and **`set_retry_pool`** — see [Retry actions](#retry-actions) and [Retries and transactions](/policy-routing/retries-and-transactions.md). Use **`retry`** to stay in the current [pool](/glossary/index.md#pool); pair **`set_retry_pool`** with **`retry`** or **`retry_now`** to target a different pool on the next attempt. Use **`clear_retry_pool`** when a pool set for retry Route should not apply (for example same-pool **`retry`** after request policy set **`set_retry_pool`** for another pool).
 
-**`set_source_v4` / `set_source_v6`** are not supported on the response hook (standing egress is request-only; use **`set_retry_source_*`** on the response hook for outcome-driven retry egress). See [Transaction API — Egress](/rhai/transaction-api.md#egress).
+**`set_source_v4` / `set_source_v6`** are not supported on the response hook (standing egress is request-only; use **`set_retry_source_*`** on the response hook for outcome-driven retry egress). See [Transaction API — Egress](/rhai/txn-api.md#egress).
 
 ## Scripted policy (Rhai for rules) { #scripted-policy-rule-rhai }
 
@@ -380,7 +383,7 @@ Request- and response-hook script examples (request hook — see [Rhai policy](/
 
 Simple **SERVFAIL** failover to a backup pool does not need Rhai — use **`set_retry_pool`** + **`retry`** on the response hook ([Retries and transactions — Declarative examples](/policy-routing/retries-and-transactions.md#declarative-examples)). Reach for Rhai when policy depends on lookup tables, custom metrics, upstream latency, or other logic beyond built-in selectors.
 
-The script receives a sandboxed **`txn`** object — policy fields only ([pool](/glossary/index.md#pool), [tags](/glossary/index.md#tags), egress, drop, retry). It does **not** edit DNS wire bytes. Phase-specific behavior, guards, and pairing request/response scripts: [Hooks and phases](/rhai/hooks-and-phases.md). Method reference: [Transaction API](/rhai/transaction-api.md).
+The script receives a sandboxed **`txn`** object — policy fields only ([pool](/glossary/index.md#pool), [tags](/glossary/index.md#tags), egress, drop, retry). It does **not** edit DNS wire bytes. Phase-specific behavior, guards, and pairing request/response scripts: [Hooks and phases](/rhai/hooks-and-phases.md). Method reference: [Transaction API](/rhai/txn-api.md).
 
 Overview and when to use scripts: [Rhai for rules](/rhai/rule-rhai.md) ([Rhai](/rhai/index.md)).
 

@@ -83,6 +83,7 @@ pub trait HostTransaction {
     fn set_soft_drop(&mut self);
     fn clear_soft_drop(&mut self);
     fn clear_retry_pool(&mut self);
+    fn clear_pool(&mut self);
     fn drop_query(&mut self);
     fn set_rcode_name(&mut self, name: &str);
     fn set_rcode_number(&mut self, code: u16) {

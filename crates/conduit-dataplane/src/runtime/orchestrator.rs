@@ -28,6 +28,10 @@ pub fn build_orchestrator(
     pool_inflight: Option<Arc<PoolInflight>>,
     health: Arc<HealthRegistry>,
 ) -> io::Result<Arc<Orchestrator>> {
+    let outstanding: conduit_core::stages::OutstandingPerBackendFn = {
+        let table = table.clone();
+        Arc::new(move || table.outstanding_per_backend().into_iter().collect())
+    };
     let forward = Arc::new(ForwardTransport::new_with_mode_and_egress(
         egress,
         table,
@@ -51,12 +55,16 @@ pub fn build_orchestrator(
         Phase::RequestRules,
         Arc::new(conduit_core::stages::RequestRulesStage {
             metrics: Some(metrics.clone()),
+            health: Some(health.clone()),
+            outstanding: Some(outstanding.clone()),
         }),
     );
     orchestrator.registry.register(
         Phase::ResponseRules,
         Arc::new(conduit_core::stages::ResponseRulesStage {
             metrics: Some(metrics.clone()),
+            health: Some(health.clone()),
+            outstanding: Some(outstanding),
         }),
     );
     orchestrator.registry.register(Phase::Forward, forward);

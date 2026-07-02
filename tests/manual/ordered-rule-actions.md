@@ -103,6 +103,19 @@ To see **vip** routing instead, swap the two actions in the YAML (or remove the 
 
 ---
 
+## 5b. `clear_pool` — Rhai undoes an earlier `set_pool`
+
+Rule in [`with-rhai-clear-pool.yaml`](../fixtures/config/with-rhai-clear-pool.yaml) runs [`clear-pool.rhai`](../fixtures/rhai/clear-pool.rhai) (`txn.set_pool("vip")` then `txn.clear_pool()`). For built-in + Rhai ordering, add **`set_pool: vip`** before the `rhai` step in your config.
+
+```bash
+cargo run -p conduit -- tests/fixtures/config/with-rhai-clear-pool.yaml
+dig @127.0.0.1 -p 15353 +time=2 +tries=1 foo.example A +short
+```
+
+**Expect:** answer from **default** backend `127.0.0.1:15300`, not vip `15301` — Route uses the configured default pool because **`selected_pool`** was cleared.
+
+---
+
 ## 6. Request `set_retry_source_v4` — stash for retry forward; first forward ignores
 
 ```bash

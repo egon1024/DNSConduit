@@ -197,6 +197,11 @@ impl HostTransaction for MockHost {
         self.retry = None;
     }
 
+    fn clear_pool(&mut self) {
+        self.pool = None;
+        self.selected_pool = None;
+    }
+
     fn drop_query(&mut self) {
         self.set_soft_drop();
     }

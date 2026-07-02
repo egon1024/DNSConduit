@@ -138,6 +138,10 @@ impl HostTransaction for Transaction {
         self.retry_pool = None;
     }
 
+    fn clear_pool(&mut self) {
+        self.selected_pool = None;
+    }
+
     fn drop_query(&mut self) {
         self.set_soft_drop();
     }

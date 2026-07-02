@@ -4,17 +4,19 @@ toc_depth: 3
 
 # User metrics
 
-Rhai scripts publish custom counters via **`metric_inc`** and **`metric_inc_labels`**. Exported series use the prefix **`conduit_user_<name>`** (for example `conduit_user_block_hits`).
+Rhai scripts publish custom counters through the **`metrics`** scope object: **`metrics.inc`** and **`metrics.inc_labels`**. Exported series use the prefix **`conduit_user_<name>`** (for example `conduit_user_block_hits`).
+
+**`metrics`** is separate from **`txn`** — counters are not per-query policy state. See [Host API overview](/rhai/host-api.md) for how the scopes fit together.
 
 Built-in [metrics profiles](/observability/metrics.md#profiles) (`minimal` / `full`) also control **whether** each user metric is recorded on the hot path. See [Export tier](#export-tier) below.
 
 ## Declaring metrics in scripts
 
-Metrics are discovered at **snapshot compile** by scanning Rhai source for **`metric_inc("name", …)`** calls. The metric name and label keys must be consistent across all scripts in the snapshot.
+Metrics are discovered at **snapshot compile** by scanning Rhai source for **`metrics.inc("name", …)`** and **`metrics.inc_labels("name", …)`** calls. The metric name and label keys must be consistent across all scripts in the snapshot.
 
 ```rhai
-txn.metric_inc("block_hits", 1);
-txn.metric_inc_labels("block_hits", 1, #{ category: "eu" });
+metrics.inc("block_hits", 1);
+metrics.inc_labels("block_hits", 1, #{ category: "eu" });
 ```
 
 | Rule | Behavior |
@@ -24,7 +26,7 @@ txn.metric_inc_labels("block_hits", 1, #{ category: "eu" });
 | Disallowed label keys | `qname`, `client`, `client_ip`, `txn_id`, and other high-cardinality keys — see compile errors |
 | Unregistered name at runtime | Script error (`metric not registered at script load`) |
 
-Scripts always **write** metrics; they cannot read counter values back. Use [tags](/rhai/transaction-api.md), [lookups](/rhai/data-sources-and-lookups.md), or txn state for per-query policy.
+Scripts always **write** metrics; they cannot read counter values back. Use [tags](/rhai/txn-api.md#tags), [lookups](/rhai/data-sources-and-lookups.md), or **`txn`** state for per-query policy.
 
 ## Export tier { #export-tier }
 
@@ -37,7 +39,7 @@ Each user metric has an **export tier** that decides when increments reach the P
 
 Unlisted script-discovered metrics default to **`full`**. On a **`minimal`** deployment, they are **not** recorded unless you opt them in under **`metrics.user_metrics`**.
 
-`metric_inc` still succeeds when a metric is filtered out — increments are dropped silently at export (no script error).
+`metrics.inc` still succeeds when a metric is filtered out — increments are dropped silently at export (no script error).
 
 ### Config overrides
 
@@ -52,7 +54,7 @@ metrics:
 
 | Field | Meaning |
 |-------|---------|
-| `name` | Metric name from `metric_inc` (without `conduit_user_` prefix) |
+| `name` | Metric name from `metrics.inc` (without `conduit_user_` prefix) |
 | `export` | **`minimal`** or **`full`** (empty = **`full`**) |
 
 Validation:
@@ -80,6 +82,6 @@ Recording does not require an export listener — counters accumulate in memory.
 ## Related topics
 
 - [Built-in metrics — User metrics](/observability/built-in-metrics.md#user-metrics-rhai)
-- [Transaction API](/rhai/transaction-api.md) — `metric_inc` / `metric_inc_labels`
+- [Host API overview](/rhai/host-api.md) — **`metrics`** vs **`txn`**
 - [Config schema: metrics](/reference/config-schema/metrics-and-tracing.md)
 - [Rhai for rules](/rhai/rule-rhai.md)

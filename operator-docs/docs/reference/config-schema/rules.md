@@ -57,6 +57,7 @@ Full operator-oriented grouping: [Rules and actions — Selectors](/policy-routi
 | `clear_drop` | request, response | Clear soft-drop intent (`value` —) |
 | `clear_tag` | request, response | Tag key to remove (non-empty) |
 | `clear_retry` | response | Clear soft-retry intent (`value` —) |
+| `clear_pool` | request, response | Clears `selected_pool` — next [Route](/concepts/architecture-and-packet-path.md#route) uses the configured default pool (`value` —) |
 | `clear_retry_pool` | request, response | Clears `retry_pool` (`value` —) |
 | `drop` | request, response | Soft drop (`value` —) |
 | `drop_now` | request, response | Hard drop — stop further actions on this rule (`value` —) |

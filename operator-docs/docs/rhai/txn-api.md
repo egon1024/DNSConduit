@@ -3,24 +3,13 @@ toc_depth: 3
 toc_collapsible: true
 ---
 
-# Transaction API
+# Transaction API (`txn`)
 
-**Rhai for rules** ([Rule Rhai](/rhai/rule-rhai.md)) scripts receive a sandboxed **`txn`** object. Methods on **`txn`** set policy on the current [transaction](/glossary/index.md#transaction) — pools, [tags](/glossary/index.md#tags), drop/retry intent, egress overrides, and observability side effects. They do **not** edit DNS wire bytes.
+**Rhai for rules** ([Rule Rhai](/rhai/rule-rhai.md)) scripts receive a sandboxed **`txn`** object — the **per-query policy** surface on the current [transaction](/glossary/index.md#transaction). Methods set pools, [tags](/glossary/index.md#tags), drop/retry intent, egress overrides, and read question/response metadata. They do **not** edit DNS wire bytes.
 
-For which hook each API allows, see [Hooks and phases](/rhai/hooks-and-phases.md#phase-guards) (summary table) and [Request vs response](/rhai/hooks-and-phases.md#request-vs-response-script-perspective) (when each hook runs).
+This page covers **`txn` only**. Lookups, metrics, logging, and runtime reads are separate host surfaces — see [Host API overview](/rhai/host-api.md).
 
-## How to read this page
-
-Each entry uses the same layout:
-
-| Section | Meaning |
-|---------|---------|
-| **Brief** | Hooks, signature, return, and a one-line summary — visible when the reference block is collapsed (method titles in the TOC omit the argument list) |
-| **Reference** | Chevron toggle opens full **Hooks**, **Arguments / return**, **Summary**, **Behavior**, **YAML/config**, and **Example** |
-
-**Hook names** — Rhai for rules runs at two pipeline points. The [request hook](/rhai/hooks-and-phases.md#request-hook) runs once per transaction before upstream [Route](/concepts/architecture-and-packet-path.md#route); the [response hook](/rhai/hooks-and-phases.md#response-hook) runs after each forward attempt. For script-author detail (retry behavior, phase guards, pairing request/response scripts), see [Hooks and phases](/rhai/hooks-and-phases.md#request-vs-response-script-perspective). For YAML `hook: request` / `hook: response` wiring and outcomes after each hook, see [Rules and actions — Request and response hooks](/policy-routing/rules-and-actions.md#request-and-response-hooks).
-
-Methods are grouped by purpose inside bordered cards. 
+For which hook each API allows, see [Hooks and phases](/rhai/hooks-and-phases.md#phase-guards) and [Host API overview — How to read method reference pages](/rhai/host-api.md#how-to-read-method-reference-pages).
 
 ---
 
@@ -122,13 +111,40 @@ Configured listener bind address label (empty when unset).
 
 ## Egress
 
-At [Forward](/concepts/architecture-and-packet-path.md#forward), Conduit resolves the local bind address per address family:
+When Conduit sends a query to an upstream [backend](/glossary/index.md#backend), it binds a **local address** on your host — that is **egress**. You declare allowed addresses in **`forward.sources_v4`** / **`forward.sources_v6`** and, optionally, per-pool **`sources_v4`** / **`sources_v6`**.
 
-1. **Retry forward** (`attempt_count > 1` at Forward) — if **`retry_source_override_v4`** / **`retry_source_override_v6`** is set, use it **once** (then clear the stash).
-2. Otherwise — standing **`source_override_v4`** / **`source_override_v6`** from **`set_source_*`** on the request hook.
-3. Otherwise — round-robin among configured pool/global sources.
+Use Rhai when egress should depend on the query or on what happened upstream:
 
-Pool choice and egress source are **decoupled** — per-pool `sources_v4` / `sources_v6` is the main pool→egress mapping; **`set_retry_source_*`** is for per-query, outcome-driven overrides on retry forwards only. See [Source selection lifecycle](/policy-routing/retries-and-transactions.md#source-selection-lifecycle).
+| Goal | Request hook | Response hook |
+|------|--------------|---------------|
+| Same local IP for **every** forward on this query | **`txn.set_source_v4(addr)`** or **`txn.set_source_v6(addr)`** | Not allowed — egress for the current attempt is already fixed |
+| A **different** local IP only on the **next retry** | **`txn.set_retry_source_v4(addr)`** (stash for later) | **`txn.set_retry_source_v4(addr)`** + **`txn.request_retry()`** when upstream failed or timed out |
+
+If the script does not set a source, Conduit **round-robin**s among the sources configured for the selected pool.
+
+**Allowed addresses:** the IP you pass must be listed in **`forward.sources_*`** or the pool’s **`sources_*`** for that address family. If it is not, Conduit **still answers the client** — it ignores the override and picks another configured source (same as built-in **`set_source_v4`** in YAML). See [Dual-stack forwarding — Choosing an egress source](/guides/dual-stack-forwarding.md#choosing-an-egress-source).
+
+**Pool and egress are separate:** **`txn.set_pool("premium")`** does not change egress by itself. Set both when you need a specific pool **and** a specific bind address. On one rule, list built-in **`set_pool`** before **`set_source_*`** so Forward checks the address against the pool you intended.
+
+**Example — egress from a lookup table** (request hook):
+
+```rhai
+let egress = lookup("egress_map", txn.question().qname);
+if egress != "" {
+    txn.set_source_v4(egress);
+}
+```
+
+**Example — different egress only on retry** (response hook after a slow upstream):
+
+```rhai
+if txn.last_forward_ms() > 800 {
+    txn.set_retry_source_v4("10.0.0.9");
+    txn.request_retry();
+}
+```
+
+Retry-specific sources apply to **one** retry forward, then Conduit returns to the standing source from the request hook (if any). Full lifecycle: [Source selection](/policy-routing/retries-and-transactions.md#source-selection-lifecycle).
 
 <p class="txn-api-index" markdown="1">
 
@@ -191,7 +207,7 @@ Returns a **script error** (phase guard or parse failure) when called on the wro
 Pin egress from a lookup table on the request hook:
 
 ```rhai
-let egress = table_lookup("egress_map", question_qname(txn));
+let egress = lookup("egress_map", txn.question().qname);
 if egress != "" {
     txn.set_source_v4(egress);
 }
@@ -264,7 +280,7 @@ Returns a **script error** (phase guard or parse failure) when called on the wro
 Request hook — pin IPv6 egress for queries routed to an IPv6 backend pool:
 
 ```rhai
-if question_qname(txn).ends_with(".v6.example.") {
+if txn.question().qname.ends_with(".v6.example.") {
     txn.set_pool("v6-upstream");
     txn.set_source_v6("::1");
 }
@@ -509,117 +525,13 @@ txn.clear_retry_source_v6();
 
 ---
 
-## Lookups
+## Timing and clocks
 
-Host-owned lookup tables from **`data_sources:`** in config. **`table_lookup`** is a **top-level** Rhai function — not a method on **`txn`**. Scripts can only read tables you declare in config; arbitrary file access is not available. Config, CSV format, reload, and validation: [Data sources and lookups](/rhai/data-sources-and-lookups.md).
-
-<p class="txn-api-index" markdown="1">
-
-**Functions:** [`table_lookup(table, key)`](#table_lookuptable-key)
-
-</p>
-
-<div class="txn-api-entry" markdown="1">
-
-### `table_lookup` {#table_lookuptable-key}
-
-<div class="txn-api-brief" markdown="1">
-
-Request + response hook · `table`: string, `key`: string · returns string (`""` on miss)
-
-Looks up a string value from a configured data source table by key.
-
-</div>
-
-<div class="txn-api-reference-panel" markdown="1" hidden>
-
-#### Hooks
-
-[Request hook](/rhai/hooks-and-phases.md#request-hook) and [response hook](/rhai/hooks-and-phases.md#response-hook)
-
-#### Arguments / return
-
-| Parameter | Type | Notes |
-|-----------|------|-------|
-| `table` | string | **`name`** of a `data_sources:` entry (for example `"blocklist"`, `"geo"`) |
-| `key` | string | Lookup key — typically `question_qname(txn)` for qname-keyed CSVs |
-| *return* | string | Value from the table, or **`""`** (empty string) on miss |
-
-There is no YAML equivalent — declare the table under **`data_sources:`** and call **`table_lookup`** from a **`rhai`** action.
-
-<p class="txn-api-summary" markdown="1">
-
-**Summary:** Reads a compile-time `data_sources` CSV table by name and key. Returns the value cell or `""` on miss; unknown table names also return `""` with throttled logging.
-
-</p>
-
-#### Behavior
-
-- Reads from an in-memory map built when the [runtime snapshot](/glossary/index.md#runtime-snapshot) is compiled — not from disk on each query.
-- **Grant model:** only tables listed under top-level **`data_sources:`** are visible.
-- **Miss vs unknown table:** a missing **key** returns **`""`** silently. An unknown **table** name also returns **`""`** so scripts keep running, but Conduit logs (milestone counts 1, 10, 100, … plus at most once per 60s while hits continue) and increments [`conduit_script_errors_total`](/observability/built-in-metrics.md#conduit_script_errors_total) with `reason="lookup_unknown_table"`. Literal table names in source are rejected at compile time — see [Data sources and lookups](/rhai/data-sources-and-lookups.md#table_lookup-behavior).
-- **Miss semantics:** missing key or empty value cell return **`""`**. Scripts should treat empty string as “no mapping” (see examples).
-- **Reload:** when config reload builds a new snapshot, CSV files are re-read and tables replace the prior generation. In-flight transactions keep the snapshot they started with; new queries see the updated tables. See [Data sources and lookups — Reload](/rhai/data-sources-and-lookups.md#reload-and-snapshot).
-- **Case and matching:** lookup is **exact** string match on the key column value — include the trailing dot on FQDN-style qnames if your CSV keys use it (`bad.example.` not `bad.example`).
-- Counts toward [sandbox limits](/rhai/sandbox-limits.md) like any other host call (`max_operations`, `hook_timeout_ms`).
-- Typical uses: block/allow lists, qname→pool or qname→egress maps, region tags for metrics or event export. Pair with **`question_qname(txn)`** on the request hook before [Route](/concepts/architecture-and-packet-path.md#route); use response hook when branching on upstream outcome **and** a table (less common).
-
-#### Config (not YAML action)
-
-```yaml
-data_sources:
-  - name: blocklist
-    type: csv
-    path: data/blocklist.csv
-    key_column: qname
-    value_column: action
-```
-
-Paths are relative to the config file directory unless absolute. Full field reference: [Data sources and lookups](/rhai/data-sources-and-lookups.md).
-
-#### Example
-
-Block when CSV maps qname to `block` (repository fixture):
-
-```rhai
-if table_lookup("blocklist", question_qname(txn)) == "block" {
-    txn.drop_query_now();
-}
-```
-
-Tag from geo table when region is present:
-
-```rhai
-let region = table_lookup("geo", question_qname(txn));
-if region != "" {
-    txn.set_tag("region", region);
-}
-```
-
-Pin egress from a qname-keyed map on the request hook:
-
-```rhai
-let egress = table_lookup("egress_map", question_qname(txn));
-if egress != "" {
-    txn.set_source_v4(egress);
-}
-```
-
-Runnable configs in the repository: `tests/fixtures/config/with-rhai-blocklist.yaml`, `with-rhai-lookup-demo.yaml` — see `tests/fixtures/rhai/README.md` for runnable Rhai fixture examples.
-
-</div>
-
-</div>
-
----
-
-## Metrics and timing
-
-Wall-clock time and forward [attempt](/glossary/index.md#retry) count on the current [transaction](/glossary/index.md#transaction); custom policy counters (`conduit_user_*`). For registration, export tiers, and Prometheus naming, see [User metrics](/rhai/user-metrics.md).
+Wall-clock time and forward [attempt](/glossary/index.md#retry) count on the current [transaction](/glossary/index.md#transaction). Custom policy counters live on the separate **`metrics`** scope object — see [User metrics](/rhai/user-metrics.md).
 
 <p class="txn-api-index" markdown="1">
 
-**Methods:** [`txn.elapsed_ms()`](#txnelapsed_ms) · [`txn.get_attempt_count()`](#txnget_attempt_count) · [`txn.last_forward_ms()`](#txnlast_forward_ms) · [`txn.metric_inc(name, delta)`](#txnmetric_incname-delta) · [`txn.metric_inc_labels(name, delta, labels)`](#txnmetric_inc_labelsname-delta-labels) · [`txn.now_unix()`](#txnnow_unix) · [`txn.utc_hour()`](#txnutc_hour) · [`txn.utc_weekday()`](#txnutc_weekday)
+**Methods:** [`txn.elapsed_ms()`](#txnelapsed_ms) · [`txn.get_attempt_count()`](#txnget_attempt_count) · [`txn.last_forward_ms()`](#txnlast_forward_ms) · [`txn.now_unix()`](#txnnow_unix) · [`txn.utc_hour()`](#txnutc_hour) · [`txn.utc_weekday()`](#txnutc_weekday)
 
 </p>
 
@@ -671,7 +583,7 @@ Response script — increment a user metric when a tagged query had a slow **ups
 
 ```rhai
 if txn.has_tag("suspicious") && txn.last_forward_ms() > 500 {
-    txn.metric_inc("slow_login", 1);
+    metrics.inc("slow_login", 1);
 }
 ```
 
@@ -775,7 +687,7 @@ No arguments. Returns **`i64`** — the transaction’s forward **attempt count*
 - **Request hook:** always **`0`** — no Route has run yet.
 - **First response hook** (after one upstream round trip): **`1`**.
 - **Second response hook** (after one retry): **`2`**, and so on.
-- Use on the response hook to branch on first vs subsequent upstream outcomes (for example only retry once, or different metrics per attempt). Pair with [Retries and transactions](/policy-routing/retries-and-transactions.md) and [`txn.request_retry`](/rhai/transaction-api.md#txnrequest_retry).
+- Use on the response hook to branch on first vs subsequent upstream outcomes (for example only retry once, or different metrics per attempt). Pair with [Retries and transactions](/policy-routing/retries-and-transactions.md) and [`txn.request_retry`](/rhai/txn-api.md#txnrequest_retry).
 - Read-only — does not change the transaction.
 - The value matches **`attempt_count`** on [event export](/observability/event-export.md) extra fields when that field is enabled.
 
@@ -798,128 +710,6 @@ if txn.get_attempt_count() == 1 && txn.response_rcode() == Rcode::SERVFAIL {
 </div>
 
 ---
-
-<div class="txn-api-entry" markdown="1">
-
-### `txn.metric_inc` {#txnmetric_incname-delta}
-
-<div class="txn-api-brief" markdown="1">
-
-Request + response hook · `name`: string, `delta`: integer (≥ 0) · no return
-
-Increments a user-defined counter metric by a non-negative delta.
-
-</div>
-
-<div class="txn-api-reference-panel" markdown="1" hidden>
-
-#### Hooks
-
-[Request hook](/rhai/hooks-and-phases.md#request-hook) and [response hook](/rhai/hooks-and-phases.md#response-hook)
-
-#### Arguments / return
-
-| Parameter | Type | Notes |
-|-----------|------|-------|
-| `name` | string | Metric name (ASCII letters, digits, `_`); exported as `conduit_user_<name>` |
-| `delta` | integer | Non-negative increment; values **&lt; 0** are treated as **0** |
-| *return* | — | No return value on success |
-
-<p class="txn-api-summary" markdown="1">
-
-**Summary:** Increments a compile-registered user counter (`conduit_user_<name>`) with no labels. Buffered until successful script completion; export obeys metrics profile and tier.
-
-</p>
-
-#### Behavior
-
-- Increments a **user-defined counter** discovered at snapshot compile from `metric_inc("name", …)` in Rhai source. Full registration rules: [User metrics — Declaring metrics](/rhai/user-metrics.md#declaring-metrics-in-scripts).
-- Equivalent to **`txn.metric_inc_labels(name, delta, #{})`** — use when the metric has **no** label keys.
-- Increments are **buffered** for the current hook run and flushed after a **successful** script completion when `metrics.enabled` is true and the metric’s [export tier](/rhai/user-metrics.md#export-tier) matches `metrics.profile`. Filtered metrics are dropped silently at export — the call still succeeds.
-- Scripts **cannot read** counter values back; use [tags](/rhai/transaction-api.md#tags) or txn state for per-query policy.
-- **Errors** (failed script evaluation — see [Script errors on a hook](/rhai/hooks-and-phases.md#script-errors-on-a-hook)):
-- Unknown `name` (not registered at compile)
-- Disallowed or unexpected label keys (unlabeled form only passes when the metric has no registered label keys)
-- Counts toward [sandbox limits](/rhai/sandbox-limits.md) like any host call.
-
-#### YAML equivalent
-
-None.
-
-#### Example
-
-```rhai
-txn.metric_inc("slow_login", 1);
-```
-
-</div>
-
-</div>
-
----
-
-<div class="txn-api-entry" markdown="1">
-
-### `txn.metric_inc_labels` {#txnmetric_inc_labelsname-delta-labels}
-
-<div class="txn-api-brief" markdown="1">
-
-Request + response hook · `name`: string, `delta`: integer, `labels`: map · no return
-
-Increments a labeled user-defined counter metric by a non-negative delta.
-
-</div>
-
-<div class="txn-api-reference-panel" markdown="1" hidden>
-
-#### Hooks
-
-[Request hook](/rhai/hooks-and-phases.md#request-hook) and [response hook](/rhai/hooks-and-phases.md#response-hook)
-
-#### Arguments / return
-
-| Parameter | Type | Notes |
-|-----------|------|-------|
-| `name` | string | Metric name; exported as `conduit_user_<name>` |
-| `delta` | integer | Non-negative increment; values **&lt; 0** are treated as **0** |
-| `labels` | map | Rhai map literal `#{ key: value, … }` — label keys must match compile-time registration |
-| *return* | — | No return value on success |
-
-<p class="txn-api-summary" markdown="1">
-
-**Summary:** Same as `metric_inc`, but attaches a label map whose keys must match compile-time registration for that metric name.
-
-</p>
-
-#### Behavior
-
-- Same flush and export behavior as **`txn.metric_inc`**, but attaches **labels** to the increment.
-- Label **keys** are discovered at compile from the `#{ … }` map on `metric_inc` / `metric_inc_labels` calls across all scripts. Keys must be **consistent** for a given metric name; conflicting sets fail snapshot build.
-- **Disallowed label keys** (high cardinality): `qname`, `client`, `client_ip`, `client_addr`, `backend`, `txn_id`, `dns_id`, `address`, `ip`, `host`, `query`, `zone`, `fqdn` — rejected at compile and runtime.
-- **Runtime errors:** unknown metric name; label key not registered for that metric; disallowed label key.
-- Label values are converted with `to_string()` for export.
-- Opt in metrics on **`minimal`** deployments with `metrics.user_metrics` — see [User metrics — Export tier](/rhai/user-metrics.md#export-tier).
-
-#### YAML equivalent
-
-None.
-
-#### Example
-
-Geo-tagged block counter (repository fixture `block-hits.rhai` / `with-rhai-block-hits.yaml`):
-
-```rhai
-let cat = table_lookup("geo", question_qname(txn));
-if cat == "eu" {
-    txn.metric_inc_labels("block_hits", 1, #{ category: "eu" });
-} else if cat == "us" {
-    txn.metric_inc_labels("block_hits", 1, #{ category: "us" });
-}
-```
-
-</div>
-
-</div>
 
 <div class="txn-api-entry" markdown="1">
 
@@ -1003,7 +793,7 @@ Internal transaction id (same value as **`txn_id`** in debug logs and **`conduit
 
 - Per-worker sequence — not globally unique across the cluster.
 - Read-only. Do **not** use as a [user metric](/rhai/user-metrics.md) label (disallowed key **`txn_id`**).
-- Pair with **`log_info`** / **`log_warn`** when debugging policy on a single query — see [Script logging](#script-logging).
+- Pair with **`log.info`** / **`log.warn`** when debugging policy on a single query — see [Script logging](/rhai/script-logging.md).
 
 </div>
 
@@ -1031,27 +821,6 @@ Config [snapshot generation](/control-plane/configuration-model.md) active when 
 </div>
 
 </div>
-
----
-
-## Script logging
-
-Host-mediated **`log_info(message)`** and **`log_warn(message)`** write to Conduit’s tracing log with **`script`**, **`rule`**, and **`txn_id`** fields. Not file I/O — messages go through the same logging pipeline as other Conduit **`tracing`** events.
-
-| Function | Level | Rate limit |
-|----------|-------|------------|
-| **`log_info(msg)`** | info | First call per script/rule per snapshot, then every **100** calls |
-| **`log_warn(msg)`** | warn | Same |
-
-Messages longer than **512** characters are truncated. Use for debug/canary branches — not per-query logging at high QPS.
-
-#### Example
-
-```rhai
-if txn.has_tag("debug") {
-    log_info(`policy matched txn=${txn.txn_id()} pool=${txn.selected_pool()}`);
-}
-```
 
 ---
 
@@ -1117,13 +886,13 @@ Sets soft-drop intent — resolved at end of rule; later script lines still run.
 Request hook — custom metric and soft-drop a blocked name (walkthrough: [Rhai policy — Blocklist drop](/guides/rhai-policy.md#example-1-blocklist-drop-request-hook); repository fixture `blocklist.rhai` / `with-rhai-blocklist.yaml`):
 
 ```rhai
-if table_lookup("blocklist", question_qname(txn)) == "block" {
-    txn.metric_inc("block_hits", 1);
+if lookup("blocklist", txn.question().qname) == "block" {
+    metrics.inc("block_hits", 1);
     txn.drop_query();
 }
 ```
 
-On a silent request drop, **`metric_inc`** is the usual choice for block counters; **`set_tag`** can still gate [event export](/observability/event-export.md) **`query`** frames when sinks use **`tag_required`**. See [User metrics](/rhai/user-metrics.md).
+On a silent request drop, **`metrics.inc`** is the usual choice for block counters; **`set_tag`** can still gate [event export](/observability/event-export.md) **`query`** frames when sinks use **`tag_required`**. See [User metrics](/rhai/user-metrics.md).
 
 </div>
 
@@ -1180,7 +949,7 @@ Hard drop — stops the script immediately; query drops with no DNS reply.
 Request hook — immediate drop when lookup marks the qname as blocked:
 
 ```rhai
-if table_lookup("blocklist", question_qname(txn)) == "block" {
+if lookup("blocklist", txn.question().qname) == "block" {
     txn.drop_query_now();
 }
 ```
@@ -1424,7 +1193,7 @@ On the [request hook](/rhai/hooks-and-phases.md#request-hook), calls are ignored
 #### Behavior
 
 - Clears **soft-retry** intent for this rule evaluation (same as built-in **`clear_retry`**).
-- Does **not** clear **`retry_pool`** or standing pool choice — use **`txn.clear_retry_pool()`** for the pool stash ([Routing](/rhai/transaction-api.md#routing)).
+- Does **not** clear **`retry_pool`** or standing pool choice — use **`txn.clear_retry_pool()`** for the pool stash ([Routing](/rhai/txn-api.md#routing)).
 - Does **not** undo a retry already committed by **`request_retry_now()`** on an earlier line in the same script (hard retry already stopped the script).
 - Typical use: conditional retry — an earlier branch called **`txn.request_retry()`**, but later logic decides to accept the answer instead.
 
@@ -1524,7 +1293,7 @@ On the **request hook**, only the question is meaningful — upstream has not an
 
 <p class="txn-api-index" markdown="1">
 
-**Functions:** [`question_qname(txn)`](#question_qnametxn) · **Methods:** [`txn.question()`](#txnquestion) · [`txn.response()`](#txnresponse) · [`txn.response_rcode()`](#txnresponse_rcode) · [`txn.selected_pool()`](#txnselected_pool) · [`txn.selected_backend()`](#txnselected_backend) · [`txn.selected_backend_name()`](#txnselected_backend_name) · [`txn.response_truncated()`](#txnresponse_truncated) · [`txn.response_answer_count()`](#txnresponse_answer_count) · **Types:** [`RecordType`](#recordtype) · [`Rcode`](#rcode) · [`QueryClass`](#queryclass) · [`DnsOpcode`](#dnsopcode) · [`EdnsOptionCode`](#ednsoptioncode)
+**Methods:** [`txn.question()`](#txnquestion) · [`txn.response()`](#txnresponse) · [`txn.response_rcode()`](#txnresponse_rcode) · [`txn.selected_pool()`](#txnselected_pool) · [`txn.selected_backend()`](#txnselected_backend) · [`txn.selected_backend_name()`](#txnselected_backend_name) · [`txn.response_truncated()`](#txnresponse_truncated) · [`txn.response_answer_count()`](#txnresponse_answer_count) · **Types:** [`RecordType`](#recordtype) · [`Rcode`](#rcode) · [`QueryClass`](#queryclass) · [`DnsOpcode`](#dnsopcode) · [`EdnsOptionCode`](#ednsoptioncode)
 
 </p>
 
@@ -1727,68 +1496,6 @@ Same **`number()`**, **`name()`**, **`==`**, and **`from_number(n)`** pattern as
 
 <div class="txn-api-entry" markdown="1">
 
-### `question_qname(txn)` {#question_qnametxn}
-
-<div class="txn-api-brief" markdown="1">
-
-Request + response hook · `txn`: Transaction · returns string (qname)
-
-Shorthand for the client query name — same value as `txn.question().qname`.
-
-</div>
-
-<div class="txn-api-reference-panel" markdown="1" hidden>
-
-#### Hooks
-
-[Request hook](/rhai/hooks-and-phases.md#request-hook) and [response hook](/rhai/hooks-and-phases.md#response-hook)
-
-#### Arguments / return
-
-| Parameter | Type | Notes |
-|-----------|------|-------|
-| `txn` | Transaction | Current **`txn`** object passed into the script |
-| *return* | string | Query name (FQDN-style, usually with trailing dot), or **`""`** if unavailable |
-
-There is no YAML equivalent — call from a **`rhai`** action.
-
-<p class="txn-api-summary" markdown="1">
-
-**Summary:** Returns the client question name as a string. Preferred when you only need the qname for lookups or pattern matching.
-
-</p>
-
-#### Behavior
-
-- Top-level Rhai function (not a method on **`txn`**) — same **`txn`** handle your script already receives.
-- Equivalent to **`txn.question().qname`** when the question is present. Use **`txn.question()`** when you also need **`qtype`** or **`id`** in one call.
-- The string is the **exact** name Conduit parsed from the client query — typically a fully qualified domain name **with a trailing dot** (for example `"www.example."`). Match CSV keys and literal comparisons accordingly; see [Data sources and lookups — Key matching](/rhai/data-sources-and-lookups.md#table_lookup-behavior).
-- On the **response hook**, the qname is still the **client** question — it does not change when upstream returns a different outcome.
-- Returns **`""`** when the question name is not on the transaction (unexpected after successful [Parse](/concepts/architecture-and-packet-path.md#parse); treat as “no qname”).
-- Common uses: **`table_lookup`** keys, suffix/prefix checks before **`txn.set_pool`**, block/allow lists. Pair with the request hook before [Route](/concepts/architecture-and-packet-path.md#route).
-
-#### Example
-
-Request hook — blocklist and VIP routing (repository fixtures `blocklist.rhai`, `set-vip-pool.rhai`):
-
-```rhai
-if table_lookup("blocklist", question_qname(txn)) == "block" {
-    txn.drop_query();
-}
-
-if question_qname(txn).ends_with(".vip.example.") {
-    txn.set_pool("vip");
-}
-```
-
-</div>
-
-</div>
-
----
-
-<div class="txn-api-entry" markdown="1">
-
 ### `txn.question()` {#txnquestion}
 
 <div class="txn-api-brief" markdown="1">
@@ -1824,16 +1531,16 @@ There is no YAML equivalent.
 
 - Always available on both hooks. On the **response hook**, values describe the **original client question**, not upstream answer data.
 - Map keys (each present only when Conduit has a value):
-  - **`qname`** — string, same as **`question_qname(txn)`**
+  - **`qname`** — string, same as **`txn.question().qname`**
   - **`qtype`** — [`RecordType`](#recordtype)
   - **`qclass`** — [`QueryClass`](#queryclass)
   - **`opcode`** — [`DnsOpcode`](#dnsopcode)
   - **`edns_options`** — array of [`EdnsOptionCode`](#ednsoptioncode) (omitted when empty — no EDNS on the query)
   - **`id`** — integer DNS message ID from the client query (16-bit; exposed as Rhai **`i64`**)
 - Each wire enum uses its static module for constants (name + numeric alias, e.g. **`RecordType::A`** / **`RecordType::TYPE1`**, **`QueryClass::IN`** / **`QueryClass::CLASS1`**). Compare with **`==`**, or use **`from_number(n)`** for arbitrary wire values; **`.name()`** returns the selector-friendly string.
-- Missing fields are **omitted** from the map rather than set to empty values — use **`question_qname(txn)`** or check map membership when you need a default.
+- Missing fields are **omitted** from the map rather than set to empty values — use **`txn.question().qname`** or check map membership when you need a default.
 - Does **not** include client address, EDNS options, or answer records — only parsed question metadata from [Parse](/concepts/architecture-and-packet-path.md#parse).
-- Prefer **`question_qname(txn)`** when the script only branches on name; use **`txn.question()`** when **`qtype`** or **`id`** matter (for example metrics labels or TYPE-specific policy).
+- Use **`txn.question().qname`** when you only need the name; use **`txn.question()`** when **`qtype`** or **`id`** matter (for example metrics labels or TYPE-specific policy).
 
 #### Example
 
@@ -2031,7 +1738,7 @@ There is no YAML equivalent.
 - Returns **`()`** when:
   - Called on the **request hook** (upstream outcome not available yet) — **does not** raise a phase error (unlike **`txn.response()`**)
   - No **RCODE** is set on the transaction yet for this attempt
-- Typical uses: retry/failover on **`SERVFAIL`**, accept or rewrite on **`NOERROR`**, client-facing **`txn.set_rcode`** after inspection. Often paired with **`txn.request_retry()`**, **`txn.set_retry_pool`**, or **`txn.set_rcode`**. See [Outcomes](/rhai/transaction-api.md#outcomes) and [Routing](/rhai/transaction-api.md#routing).
+- Typical uses: retry/failover on **`SERVFAIL`**, accept or rewrite on **`NOERROR`**, client-facing **`txn.set_rcode`** after inspection. Often paired with **`txn.request_retry()`**, **`txn.set_retry_pool`**, or **`txn.set_rcode`**. See [Outcomes](/rhai/txn-api.md#outcomes) and [Routing](/rhai/txn-api.md#routing).
 - Runs **once per response-hook invocation** — on retries, each forward attempt gets a fresh evaluation with the rcode for that attempt.
 
 #### Example
@@ -2061,13 +1768,78 @@ if txn.response_rcode() == Rcode::NOERROR {
 
 ## Routing { #routing }
 
-**`set_pool`** and **`set_retry_pool`** interact over multiple [Route](/concepts/architecture-and-packet-path.md#route) attempts — first forward vs retry, one-shot **`retry_pool`**, and how **`selected_pool`** updates after each Route. See [Pool selection lifecycle](/policy-routing/retries-and-transactions.md#pool-selection-lifecycle).
+**`set_pool`** and **`set_retry_pool`** choose which [pool](/glossary/index.md#pool) [Route](/concepts/architecture-and-packet-path.md#route) uses. **`clear_pool`** removes a standing pool choice so Route picks the configured **default** pool (the pool named `default`, or the first pool in your config). See [Pool selection lifecycle](/policy-routing/retries-and-transactions.md#pool-selection-lifecycle).
 
 <p class="txn-api-index" markdown="1">
 
-**Methods:** [`txn.clear_retry_pool`](#txnclear_retry_pool) · [`txn.set_pool`](#txnset_poolname) · [`txn.set_retry_pool`](#txnset_retry_poolname)
+**Methods:** [`txn.clear_pool`](#txnclear_pool) · [`txn.clear_retry_pool`](#txnclear_retry_pool) · [`txn.set_pool`](#txnset_poolname) · [`txn.set_retry_pool`](#txnset_retry_poolname)
 
 </p>
+
+<div class="txn-api-entry" markdown="1">
+
+### `txn.clear_pool` {#txnclear_pool}
+
+<div class="txn-api-brief" markdown="1">
+
+Request + response hook · no args · no return
+
+Clears standing pool choice — next Route uses the configured default pool.
+
+</div>
+
+<div class="txn-api-reference-panel" markdown="1" hidden>
+
+#### Hooks
+
+[Request hook](/rhai/hooks-and-phases.md#request-hook) and [response hook](/rhai/hooks-and-phases.md#response-hook)
+
+#### Arguments / return
+
+No arguments. No return value.
+
+<p class="txn-api-summary" markdown="1">
+
+**Summary:** Clears **`selected_pool`** so [Route](/concepts/architecture-and-packet-path.md#route) falls back to the configured default pool (`default` name, or first pool in config).
+
+</p>
+
+#### Behavior
+
+- Sets **`selected_pool`** to unset — same as built-in **`clear_pool`**.
+- On the **first** Route (`attempt_count == 0`), Route uses the default pool when **`selected_pool`** is unset.
+- On a **retry** Route, Route uses the default pool when **`selected_pool`** is unset and **`retry_pool`** is not set.
+- Does **not** clear **`retry_pool`** — use **`txn.clear_retry_pool()`** for that.
+- Typical uses: undo an earlier **`set_pool`** on the same rule; CSV lookup miss → default pool without hardcoding the default name; response hook → retry on the default pool instead of the pool that just failed.
+
+#### YAML equivalent
+
+```yaml
+- type: clear_pool
+```
+
+#### Example
+
+Lookup miss leaves pool at default (request hook):
+
+```rhai
+let pool = lookup("routing", txn.question().qname);
+if pool != "" {
+    txn.set_pool(pool);
+} else {
+    txn.clear_pool();
+}
+```
+
+Undo built-in **`set_pool`** when Rhai runs later on the same rule:
+
+```rhai
+txn.clear_pool();
+```
+
+</div>
+
+</div>
 
 <div class="txn-api-entry" markdown="1">
 
@@ -2183,7 +1955,7 @@ See [Pools and backends](/policy-routing/pools-and-backends.md) for pool definit
 #### Example
 
 ```rhai
-let qname = question_qname(txn);
+let qname = txn.question().qname;
 if qname.ends_with(".vip.example.") {
     txn.set_pool("vip");
 } else if qname.ends_with(".slow.example.") {
@@ -2280,7 +2052,7 @@ Deterministic sampling and cadence gates for scripts — mirror YAML [selectors]
 |-----------------------|----------------------|
 | **`sample_percent`** (no salt) | **`txn.sample_percent(percent)`** |
 | **`sample_percent`** + **`key`** | **`txn.sample_percent(percent, key)`** |
-| **`sample_percent`** + **`key_from: qname`** | **`txn.sample_percent_for_qname(percent)`** or **`txn.sample_percent(percent, question_qname(txn))`** |
+| **`sample_percent`** + **`key_from: qname`** | **`txn.sample_percent_for_qname(percent)`** or **`txn.sample_percent(percent, txn.question().qname)`** |
 | **`sample_percent`** + **`key_from: rule_name`** | **`txn.sample_percent_for_rule(percent)`** or **`txn.sample_percent(percent, txn.rule_name())`** |
 | **`every_nth_worker`** | **`txn.every_nth_worker(n)`** |
 | **`every_nth_global`** | **`txn.every_nth_global(n)`** |
@@ -2386,7 +2158,7 @@ Request + response hook · `percent`: float · returns `bool`
 | Parameter | Type | Notes |
 |-----------|------|-------|
 | `percent` | float | **`0..100`** (clamped) |
-| *return* | `bool` | **`false`** when the question has no qname; otherwise same as **`txn.sample_percent(percent, question_qname(txn))`** |
+| *return* | `bool` | **`false`** when the question has no qname; otherwise same as **`txn.sample_percent(percent, txn.question().qname)`** |
 
 <p class="txn-api-summary" markdown="1">
 
@@ -2627,7 +2399,7 @@ None — use rule **`name:`** in config. Matches the value baked into **`key_fro
 
 ```rhai
 if txn.sample_percent(5.0, txn.rule_name()) {
-    txn.metric_inc("rule_sample_hits", 1);
+    metrics.inc("rule_sample_hits", 1);
 }
 ```
 
@@ -2637,7 +2409,34 @@ if txn.sample_percent(5.0, txn.rule_name()) {
 
 ---
 
-## Tags
+## Tags { #tags }
+
+[Tags](/glossary/index.md#tags) are small key/value labels you attach to a [transaction](/glossary/index.md#transaction) for the rest of its life — including across [retries](/glossary/index.md#retry) and on the [response hook](/rhai/hooks-and-phases.md#response-hook). They do not change routing by themselves; they let later policy, [event export](/observability/event-export.md), and other scripts branch on how the query was classified.
+
+| Goal | Typical hook | API |
+|------|--------------|-----|
+| Classify the query before upstream | Request | **`txn.set_tag("tier", "vip")`** or **`txn.set_tag("audit", true)`** |
+| Act on classification + upstream outcome | Response | **`txn.has_tag("suspicious")`** then metrics, retry, or drop |
+| Gate dnstap / event sinks | Request (set tag) | Sink **`tag_required`** in config — see [Event export — Filters](/observability/event-export.md#filters) |
+| Remove a label | Either | **`txn.clear_tag("temporary")`** |
+
+Tags set on the **request hook** stay on the transaction when the **response hook** runs (the request hook does not run again on retry). Pair request **`set_tag`** with response **`has_tag`** — see [Hooks and phases — Pairing scripts](/rhai/hooks-and-phases.md#pairing-request-and-response-scripts).
+
+**Example — request classify, response act:**
+
+```rhai
+// request hook
+if txn.question().qname == "login.suspicious.example." {
+    txn.set_tag("suspicious", true);
+}
+
+// response hook
+if txn.has_tag("suspicious") && txn.last_forward_ms() > 500 {
+    metrics.inc("slow_login", 1);
+}
+```
+
+Boolean tags use **`true`** / **`false`**. String tags store text (`txn.set_tag("tier", "vip")`). YAML built-in **`set_tag`** on the same rule runs before Rhai when listed above the script — the script can read those tags with **`has_tag`** and add more.
 
 <p class="txn-api-index" markdown="1">
 
@@ -2763,7 +2562,7 @@ Response script — act only when the [request hook](/rhai/hooks-and-phases.md#r
 ```rhai
 if txn.has_tag("suspicious") {
     if txn.last_forward_ms() > 500 {
-        txn.metric_inc("slow_login", 1);
+        metrics.inc("slow_login", 1);
     }
 }
 ```
@@ -2827,7 +2626,7 @@ Request- and response-hook rules both support **`set_tag`**. See [Request-hook a
 #### Example
 
 ```rhai
-if question_qname(txn).ends_with(".corp.example.") {
+if txn.question().qname.ends_with(".corp.example.") {
     txn.set_tag("corp", true);
     txn.set_tag("tier", "internal");
 }
@@ -2841,12 +2640,10 @@ if question_qname(txn).ends_with(".corp.example.") {
 
 ## Related topics
 
-- [Hooks and phases](/rhai/hooks-and-phases.md) — [request hook](/rhai/hooks-and-phases.md#request-hook) vs [response hook](/rhai/hooks-and-phases.md#response-hook), pairing scripts, phase-guard table
-- [Rules and actions — Request and response hooks](/policy-routing/rules-and-actions.md#request-and-response-hooks) — `hook: request` / `hook: response`, pipeline placement
-- [Rules and actions](/policy-routing/rules-and-actions.md) — selectors, action order, scripted policy
-- [Outcome at end of rule](/policy-routing/rules-and-actions.md#outcome-at-end-of-rule) — soft vs hard drop and retry
-- [Pool selection lifecycle](/policy-routing/retries-and-transactions.md#pool-selection-lifecycle) — `set_pool`, `set_retry_pool`, and multi-attempt routing
-- [Sampling and cadence](/policy-routing/rules-and-actions.md#sampling-and-cadence) — keyed `sample_percent` and selectors
-- [User metrics](/rhai/user-metrics.md) — `metric_inc` registration, export tiers, and `conduit_user_*` naming
-- [Data sources and lookups](/rhai/data-sources-and-lookups.md) — `data_sources:` and `table_lookup`
-- [Dual-stack forwarding](/guides/dual-stack-forwarding.md) — `forward.sources_*`, pool `sources_*`, allowed-set fallback at Forward
+- [Host API overview](/rhai/host-api.md) — five scope objects in every hook
+- [Runtime API](/rhai/runtime-api.md) — read-only `runtime.routing` health and routing views
+- [Data sources and lookups](/rhai/data-sources-and-lookups.md) — `lookup()` and `data_sources:`
+- [User metrics](/rhai/user-metrics.md) — `metrics.inc` / `metrics.inc_labels`
+- [Script logging](/rhai/script-logging.md) — `log.info` / `log.warn`
+- [Hooks and phases](/rhai/hooks-and-phases.md) — request vs response hook
+- [Rules and actions](/policy-routing/rules-and-actions.md) — YAML equivalents for many `txn` methods

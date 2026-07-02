@@ -1,6 +1,6 @@
-let cat = table_lookup("geo", question_qname(txn));
+let cat = lookup("geo", txn.question().qname);
 if cat == "eu" {
-    txn.metric_inc_labels("block_hits", 1, #{ category: "eu" });
+    metrics.inc_labels("block_hits", 1, #{ category: "eu" });
 } else if cat == "us" {
-    txn.metric_inc_labels("block_hits", 1, #{ category: "us" });
+    metrics.inc_labels("block_hits", 1, #{ category: "us" });
 }
