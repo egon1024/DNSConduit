@@ -1,4 +1,4 @@
-if table_lookup("blocklist", question_qname(txn)) == "block" {
-    txn.metric_inc("block_hits", 1);
+if lookup("blocklist", txn.question().qname) == "block" {
+    metrics.inc("block_hits", 1);
     txn.drop_query();
 }

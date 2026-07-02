@@ -316,6 +316,7 @@ pub fn validate(cfg: &Config) -> ValidationResult {
                         | "clear_drop"
                         | "clear_retry"
                         | "clear_retry_pool"
+                        | "clear_pool"
                         | "clear_tag"
                         | "set_rcode"
                         | "rhai"

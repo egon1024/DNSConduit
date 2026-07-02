@@ -971,6 +971,7 @@ mod tests {
             None,
             None,
             None,
+            None,
         );
         assert_eq!(host.tags.has("sampled"), expected);
     }

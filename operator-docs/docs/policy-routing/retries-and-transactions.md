@@ -110,7 +110,7 @@ On the response hook:
 - **`txn.request_retry_now()`** — hard retry in the current pool (same as **`retry_now`** in YAML).
 - **`txn.set_retry_pool("pool-name")`** — pool for retry Route if retry occurs; first Route ignores. Add **`txn.request_retry()`** or **`txn.request_retry_now()`** to trigger failover.
 
-See [Transaction API — Outcomes](/rhai/transaction-api.md#outcomes) (`request_retry`, `request_retry_now`) and [Routing](/rhai/transaction-api.md#routing) (`set_retry_pool`).
+See [Transaction API — Outcomes](/rhai/txn-api.md#outcomes) (`request_retry`, `request_retry_now`) and [Routing](/rhai/txn-api.md#routing) (`set_retry_pool`).
 
 ## What happens on each attempt
 
@@ -165,7 +165,7 @@ So **`retry_pool` is not a standing “retry target” for every subsequent atte
 
 Further retries in **secondary** use another backend there when available; they do **not** snap back to **primary** unless policy changes **`selected_pool`** or stashes a new **`retry_pool`**.
 
-Rhai reference: [Transaction API — Routing](/rhai/transaction-api.md#routing). Pipeline detail: [Architecture — Route](/concepts/architecture-and-packet-path.md#route).
+Rhai reference: [Transaction API — Routing](/rhai/txn-api.md#routing). Pipeline detail: [Architecture — Route](/concepts/architecture-and-packet-path.md#route).
 
 ### Source selection lifecycle { #source-selection-lifecycle }
 
@@ -200,7 +200,7 @@ At each [Forward](/concepts/architecture-and-packet-path.md#forward), after `att
 | Second forward | 2 | consumed → cleared | **10.0.0.5** (one-shot retry source) |
 | Third forward (if any) | 3 | — | **127.0.0.1** (standing again) |
 
-Allowed-set enforcement at Forward is unchanged. See [Dual-stack forwarding](/guides/dual-stack-forwarding.md#choosing-an-egress-source) and [Transaction API — Egress](/rhai/transaction-api.md#egress).
+Allowed-set enforcement at Forward is unchanged. See [Dual-stack forwarding](/guides/dual-stack-forwarding.md#choosing-an-egress-source) and [Transaction API — Egress](/rhai/txn-api.md#egress).
 
 ### Backend selection on retries
 
@@ -255,6 +255,6 @@ You can adjust response metadata before [Send](/concepts/architecture-and-packet
 - [Rules and actions](/policy-routing/rules-and-actions.md) — `retry`, `retry_now`, `set_retry_pool`, `set_rcode`, response [selectors](/glossary/index.md#selector)
 - [Pools and backends](/policy-routing/pools-and-backends.md) — pool names, weights, default pool
 - [Architecture and packet path](/concepts/architecture-and-packet-path.md) — [Response rules](/concepts/architecture-and-packet-path.md#response-rules), [Send](/concepts/architecture-and-packet-path.md#send), timeouts
-- [Rhai — Transaction API (Routing)](/rhai/transaction-api.md#routing) — `txn.set_pool`, `txn.set_retry_pool`, `txn.clear_retry_pool`
-- [Rhai — Transaction API (Egress)](/rhai/transaction-api.md#egress) — `txn.set_source_*`, `txn.set_retry_source_*`, `txn.clear_retry_source_*`
+- [Rhai — Transaction API (Routing)](/rhai/txn-api.md#routing) — `txn.set_pool`, `txn.clear_pool`, `txn.set_retry_pool`, `txn.clear_retry_pool`
+- [Rhai — Transaction API (Egress)](/rhai/txn-api.md#egress) — `txn.set_source_*`, `txn.set_retry_source_*`, `txn.clear_retry_source_*`
 - [Built-in metrics](/observability/built-in-metrics.md) — counters, profiles, and pipeline mapping

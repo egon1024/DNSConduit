@@ -1,6 +1,6 @@
 # Rhai policy
 
-End-to-end lab for **Rhai for rules** — two request-hook patterns where scripts add value over built-in actions alone. Each example uses self-contained YAML, a `.rhai` script, and `dig` checks. API detail lives on [Rhai for rules](/rhai/rule-rhai.md), [Hooks and phases](/rhai/hooks-and-phases.md), and [Transaction API](/rhai/transaction-api.md).
+End-to-end lab for **Rhai for rules** — two request-hook patterns where scripts add value over built-in actions alone. Each example uses self-contained YAML, a `.rhai` script, and `dig` checks. API detail lives on [Host API overview](/rhai/host-api.md), [Rhai for rules](/rhai/rule-rhai.md), and [Hooks and phases](/rhai/hooks-and-phases.md).
 
 **Prerequisites:** Conduit on your `PATH` ([Install and run](/getting-started/install-and-run.md)); **`dig`**; optional **`dnsmasq`** as a loopback upstream mock ([First query](/getting-started/first-query.md)). Read [Rules and actions](/policy-routing/rules-and-actions.md) for selectors and built-in actions first.
 
@@ -34,7 +34,7 @@ Create three files beside each other:
 |------|------|
 | `conduit.yaml` | Listeners, pool, `data_sources`, `metrics`, `rules`, `rhai:` |
 | `data/blocklist.csv` | qname → action |
-| `scripts/blocklist.rhai` | `table_lookup`, custom metric, drop |
+| `scripts/blocklist.rhai` | `lookup`, `metrics.inc`, drop |
 
 **`data/blocklist.csv`:**
 
@@ -47,15 +47,15 @@ good.bad.example.,allow
 **`scripts/blocklist.rhai`:**
 
 ```rhai
-if table_lookup("blocklist", question_qname(txn)) == "block" {
-    txn.metric_inc("block_hits", 1);
+if lookup("blocklist", txn.question().qname) == "block" {
+    metrics.inc("block_hits", 1);
     txn.drop_query();
 }
 ```
 
-**Custom user metric:** **`txn.metric_inc("block_hits", 1)`** registers a script-defined counter at snapshot compile and exports it as **`conduit_user_block_hits`** when [metrics](/observability/metrics.md) are enabled. Increments flush **before** drop intent is resolved, so blocked queries still count even though the client gets **no** DNS reply. See [User metrics](/rhai/user-metrics.md) and [Transaction API — `metric_inc`](/rhai/transaction-api.md#txnmetric_incname-delta).
+**Custom user metric:** **`metrics.inc("block_hits", 1)`** registers a script-defined counter at snapshot compile and exports it as **`conduit_user_block_hits`** when [metrics](/observability/metrics.md) are enabled. Increments flush **before** drop intent is resolved, so blocked queries still count even though the client gets **no** DNS reply. See [User metrics](/rhai/user-metrics.md).
 
-Soft **`drop_query()`** sets drop intent at the end of the rule pass. See [Transaction API — Outcomes](/rhai/transaction-api.md#outcomes).
+Soft **`drop_query()`** sets drop intent at the end of the rule pass. See [Transaction API — Outcomes](/rhai/txn-api.md#outcomes).
 
 ### 2. Config
 
@@ -162,7 +162,7 @@ dig @127.0.0.1 -p 15353 +time=3 +tries=1 example.com A
 
 ## Example 2 — CSV pool routing (request hook)
 
-A routing table maps many qnames to [pool](/glossary/index.md#pool) names. **`table_lookup`** + **`txn.set_pool`** scales better than one declarative rule per name — the pool for each qname lives in the CSV, not in repeated YAML selectors.
+A routing table maps many qnames to [pool](/glossary/index.md#pool) names. **`lookup`** + **`txn.set_pool`** scales better than one declarative rule per name — the pool for each qname lives in the CSV, not in repeated YAML selectors.
 
 Built-in **`set_pool`** on a rule is enough when pool choice is fixed (one suffix → one pool). Rhai earns its place when the mapping is **data-driven** and changes often (reload the CSV, not a wall of rules).
 
@@ -181,7 +181,7 @@ flowchart LR
 |------|------|
 | `conduit.yaml` | Two pools, `data_sources`, request rule |
 | `data/routing.csv` | qname → pool name |
-| `scripts/route-by-table.rhai` | `table_lookup` + `set_pool` |
+| `scripts/route-by-table.rhai` | `lookup` + `set_pool` |
 
 **`data/routing.csv`:**
 
@@ -194,7 +194,7 @@ app-b.customer.example.,standard
 **`scripts/route-by-table.rhai`:**
 
 ```rhai
-let pool = table_lookup("routing", question_qname(txn));
+let pool = lookup("routing", txn.question().qname);
 if pool != "" {
     txn.set_pool(pool);
 }
@@ -298,7 +298,7 @@ Name under the suffix but **missing** from the CSV — expect the **default** po
 
 Name **outside** **`customer.example.`** — the script never runs; routing follows default pool behavior only.
 
-**What you verified:** data-driven pool choice on the request hook — the pattern in [Data sources — Pool or egress map](/rhai/data-sources-and-lookups.md#pool-or-egress-map). For fixed **SERVFAIL** failover to one backup pool, use declarative **`set_retry_pool`** + **`retry`** instead — [Retries and transactions — Declarative examples](/policy-routing/retries-and-transactions.md#declarative-examples). Method reference: [Transaction API — Routing](/rhai/transaction-api.md#routing).
+**What you verified:** data-driven pool choice on the request hook — the pattern in [Data sources — Pool or egress map](/rhai/data-sources-and-lookups.md#pool-or-egress-map). For fixed **SERVFAIL** failover to one backup pool, use declarative **`set_retry_pool`** + **`retry`** instead — [Retries and transactions — Declarative examples](/policy-routing/retries-and-transactions.md#declarative-examples). Method reference: [Transaction API — Routing](/rhai/txn-api.md#routing).
 
 ---
 
@@ -316,7 +316,7 @@ conduitctl reload
 
 Without **`control:`** at process start, use **SIGHUP** instead — see [Control plane workflows](/guides/control-plane-workflows.md).
 
-Compile-time checks (unknown **`table_lookup`** table name, Rhai syntax, **`data_sources`** read errors) fail **`validate`** and block reload. [Sandbox limits](/rhai/sandbox-limits.md) cap script cost per hook.
+Compile-time checks (unknown **`lookup`** table name, Rhai syntax, **`data_sources`** read errors) fail **`validate`** and block reload. [Sandbox limits](/rhai/sandbox-limits.md) cap script cost per hook.
 
 ## Related topics
 

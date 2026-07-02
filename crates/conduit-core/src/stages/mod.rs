@@ -7,7 +7,7 @@ pub mod route;
 pub mod send;
 
 pub use parse::ParseStage;
-pub use request_rules::RequestRulesStage;
+pub use request_rules::{OutstandingPerBackendFn, RequestRulesStage};
 pub use response_rules::ResponseRulesStage;
 pub use route::RouteStage;
 pub use send::SendStage;

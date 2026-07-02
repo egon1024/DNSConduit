@@ -172,7 +172,7 @@ When **no** rule matches, Conduit continues to [Route](/concepts/architecture-an
 
 After each Route, Conduit updates **`selected_pool`** to the pool that attempt used. Multi-attempt behavior and when to re-stash **`retry_pool`**: [Retries and transactions — Pool selection lifecycle](/policy-routing/retries-and-transactions.md#pool-selection-lifecycle).
 
-On the **first** attempt, Conduit selects a [backend](/glossary/index.md#backend) using sticky weighted choice among all members of the pool (see [Pools and backends](/policy-routing/pools-and-backends.md)). On **retries**, Conduit picks among backends in the target pool that were **not** already used for that pool on this [transaction](/glossary/index.md#transaction) — cross-pool retries only exclude backends tried in the **target** pool.
+On the **first** attempt, Conduit selects a [backend](/glossary/index.md#backend) using sticky weighted choice among eligible members of the pool (see [Pools and backends](/policy-routing/pools-and-backends.md)). When pool health is enabled, configured weights are scaled by each backend's latency [EWMA](/glossary/index.md#ewma)-driven **`weight_factor`** — slower healthy backends receive a smaller share, not zero traffic. On **retries**, Conduit picks among backends in the target pool that were **not** already used for that pool on this [transaction](/glossary/index.md#transaction) — cross-pool retries only exclude backends tried in the **target** pool.
 
 Each forward attempt increments the transaction’s attempt counter. When the pipeline continues to [Forward](/concepts/architecture-and-packet-path.md#forward), [`conduit_queries_by_pool_total`](/observability/built-in-metrics.md#conduit_queries_by_pool_total) records the selected pool.
 

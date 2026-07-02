@@ -4,11 +4,10 @@ use crate::dns_wire::{self, DnsOpcode, EdnsOptionCode, QueryClass, Rcode, Record
 use crate::host::{
     unix_secs, utc_hour_and_weekday, ClientProtocol, HostTransaction, ResponseWireMeta, ScriptPhase,
 };
+use crate::host_api::{register_host_surfaces, LogView, LookupView, MetricsView, RuntimeView};
 use crate::metrics::MetricRegistry;
-use crate::script_errors::{
-    report_lookup_unknown_table, report_script_eval_error, report_script_log_info,
-    report_script_log_warn,
-};
+use crate::routing_view::RoutingRuntimeSnapshot;
+use crate::script_errors::{report_lookup_unknown_table, report_script_eval_error};
 use conduit_events::{hash_sample_keyed, matches_every_nth_global, matches_every_nth_worker};
 use conduit_metrics::BuiltinRegistry;
 use rhai::{Dynamic, Engine, EvalAltResult, Scope};
@@ -26,22 +25,23 @@ thread_local! {
 }
 
 thread_local! {
+    pub(crate) static SCRIPT_RUN_CTX: RefCell<Option<ScriptRunContext>> = const { RefCell::new(None) };
     static LOOKUP_DATA: RefCell<Option<Arc<DataSourceStore>>> = const { RefCell::new(None) };
-    static SCRIPT_RUN_CTX: RefCell<Option<ScriptRunContext>> = const { RefCell::new(None) };
     static SCRIPT_RUNTIME: RefCell<Option<ScriptRuntime>> = const { RefCell::new(None) };
 }
 
-struct ScriptRunContext {
-    script_path: String,
-    rule_name: String,
-    snapshot_generation: u64,
-    txn_id: u64,
-    builtin: Option<Arc<BuiltinRegistry>>,
+pub(crate) struct ScriptRunContext {
+    pub(crate) script_path: String,
+    pub(crate) rule_name: String,
+    pub(crate) snapshot_generation: u64,
+    pub(crate) txn_id: u64,
+    pub(crate) builtin: Option<Arc<BuiltinRegistry>>,
 }
 
 struct RunOneResources {
     data: Arc<DataSourceStore>,
     metrics: Arc<MetricRegistry>,
+    routing: Arc<RoutingRuntimeSnapshot>,
     snapshot_generation: u64,
     builtin: Option<Arc<BuiltinRegistry>>,
 }
@@ -67,58 +67,31 @@ impl ScriptRuntime {
 }
 
 fn register_host_api(engine: &mut Engine) {
-    engine.register_fn("log_info", |message: &str| {
-        SCRIPT_RUN_CTX.with(|cell| {
-            if let Some(ctx) = cell.borrow().as_ref() {
-                report_script_log_info(
-                    ctx.snapshot_generation,
-                    &ctx.script_path,
-                    &ctx.rule_name,
-                    ctx.txn_id,
-                    message,
-                );
+    engine.register_fn("lookup", |table: &str, key: &str| -> String {
+        LOOKUP_DATA.with(|cell| {
+            let store = cell.borrow().clone();
+            let Some(store) = store else {
+                return String::new();
+            };
+            if !store.has_table(table) {
+                SCRIPT_RUN_CTX.with(|ctx_cell| {
+                    if let Some(ctx) = ctx_cell.borrow().as_ref() {
+                        report_lookup_unknown_table(
+                            ctx.builtin.as_deref(),
+                            ctx.snapshot_generation,
+                            &ctx.script_path,
+                            &ctx.rule_name,
+                            table,
+                        );
+                    }
+                });
+                return String::new();
             }
-        });
-    });
-    engine.register_fn("log_warn", |message: &str| {
-        SCRIPT_RUN_CTX.with(|cell| {
-            if let Some(ctx) = cell.borrow().as_ref() {
-                report_script_log_warn(
-                    ctx.snapshot_generation,
-                    &ctx.script_path,
-                    &ctx.rule_name,
-                    ctx.txn_id,
-                    message,
-                );
-            }
-        });
+            store.lookup(table, key)
+        })
     });
 
-    engine.register_fn("table_lookup", |table: &str, key: &str| -> String {
-        let store = LOOKUP_DATA.with(|cell| cell.borrow().clone());
-        let Some(store) = store else {
-            return String::new();
-        };
-        if !store.has_table(table) {
-            SCRIPT_RUN_CTX.with(|cell| {
-                if let Some(ctx) = cell.borrow().as_ref() {
-                    report_lookup_unknown_table(
-                        ctx.builtin.as_deref(),
-                        ctx.snapshot_generation,
-                        &ctx.script_path,
-                        &ctx.rule_name,
-                        table,
-                    );
-                }
-            });
-            return String::new();
-        }
-        store.lookup(table, key)
-    });
-
-    engine.register_fn("question_qname", |txn: &mut RhaiTxn| -> String {
-        txn.question_qname()
-    });
+    register_host_surfaces(engine);
 
     engine
         .register_type_with_name::<RhaiTxn>("Transaction")
@@ -137,6 +110,7 @@ fn register_host_api(engine: &mut Engine) {
         .register_fn("clear_drop", RhaiTxn::clear_drop)
         .register_fn("clear_retry", RhaiTxn::clear_retry)
         .register_fn("clear_retry_pool", RhaiTxn::clear_retry_pool)
+        .register_fn("clear_pool", RhaiTxn::clear_pool)
         .register_fn("set_rcode", RhaiTxn::set_rcode_enum)
         .register_fn("set_rcode", RhaiTxn::set_rcode_name)
         .register_fn("set_source_v4", RhaiTxn::set_source_v4)
@@ -179,8 +153,6 @@ fn register_host_api(engine: &mut Engine) {
             RhaiTxn::response_additional_count,
         )
         .register_fn("response_authoritative", RhaiTxn::response_authoritative)
-        .register_fn("metric_inc", RhaiTxn::metric_inc)
-        .register_fn("metric_inc_labels", RhaiTxn::metric_inc_labels)
         .register_fn("elapsed_ms", RhaiTxn::elapsed_ms)
         .register_fn("get_attempt_count", RhaiTxn::attempt_count)
         .register_fn("last_forward_ms", RhaiTxn::last_forward_ms);
@@ -248,13 +220,14 @@ pub enum ScriptRunOutcome {
 }
 
 #[derive(Debug, Default, Clone)]
-struct ScriptEffects {
+pub(crate) struct ScriptEffects {
     pool: Option<String>,
     retry_pool: Option<String>,
     retry_requested: bool,
     hard_retry: bool,
     clear_soft_retry: bool,
     clear_retry_pool: bool,
+    clear_pool: bool,
     tag_ops: HashMap<String, TagOp>,
     rcode: Option<u16>,
     soft_drop: bool,
@@ -278,7 +251,7 @@ enum TagOp {
 }
 
 #[derive(Clone)]
-struct RhaiTxn {
+pub(crate) struct RhaiTxn {
     phase: ScriptPhase,
     txn_id: u64,
     global_query_index: u64,
@@ -304,7 +277,6 @@ struct RhaiTxn {
     last_forward_ms: u64,
     tags_snapshot_bools: HashMap<String, bool>,
     tags_snapshot_strings: HashMap<String, String>,
-    metrics: Arc<MetricRegistry>,
     effects: Arc<Mutex<ScriptEffects>>,
 }
 
@@ -340,10 +312,6 @@ impl RhaiTxn {
         let mut map = rhai::Map::new();
         self.insert_question_fields(&mut map);
         Dynamic::from(map)
-    }
-
-    fn question_qname(&self) -> String {
-        self.qname.clone().unwrap_or_default()
     }
 
     fn response(&mut self) -> Result<Dynamic, Box<EvalAltResult>> {
@@ -439,6 +407,7 @@ impl RhaiTxn {
     fn set_pool(&mut self, name: &str) {
         if let Ok(mut fx) = self.effects.lock() {
             fx.pool = Some(name.to_string());
+            fx.clear_pool = false;
         }
     }
 
@@ -496,6 +465,13 @@ impl RhaiTxn {
     fn clear_retry_pool(&mut self) {
         if let Ok(mut fx) = self.effects.lock() {
             fx.clear_retry_pool = true;
+        }
+    }
+
+    fn clear_pool(&mut self) {
+        if let Ok(mut fx) = self.effects.lock() {
+            fx.pool = None;
+            fx.clear_pool = true;
         }
     }
 
@@ -659,7 +635,7 @@ impl RhaiTxn {
         weekday as i64
     }
 
-    fn selected_pool(&mut self) -> String {
+    pub(crate) fn selected_pool(&mut self) -> String {
         self.selected_pool.clone().unwrap_or_default()
     }
 
@@ -669,7 +645,7 @@ impl RhaiTxn {
             .unwrap_or_default()
     }
 
-    fn selected_backend_name(&mut self) -> String {
+    pub(crate) fn selected_backend_name(&mut self) -> String {
         self.selected_backend_label
             .clone()
             .or_else(|| self.selected_backend.map(|a| a.to_string()))
@@ -702,32 +678,6 @@ impl RhaiTxn {
         self.response_meta.map(|m| m.authoritative).unwrap_or(false)
     }
 
-    fn metric_inc(&mut self, name: &str, delta: i64) -> Result<(), Box<EvalAltResult>> {
-        self.metric_inc_labels(name, delta, rhai::Map::new())
-    }
-
-    fn metric_inc_labels(
-        &mut self,
-        name: &str,
-        delta: i64,
-        labels: rhai::Map,
-    ) -> Result<(), Box<EvalAltResult>> {
-        let label_map: HashMap<String, String> = labels
-            .iter()
-            .map(|(k, v)| (k.to_string(), v.to_string()))
-            .collect();
-        self.metrics
-            .validate_runtime_labels(name, &label_map)
-            .map_err(|e| e.to_string())?;
-        let mut fx = self.effects.lock().map_err(|e| e.to_string())?;
-        fx.user_metric_flushes.push(UserMetricFlush {
-            name: name.to_string(),
-            labels: label_map,
-            delta: delta.max(0) as u64,
-        });
-        Ok(())
-    }
-
     fn elapsed_ms(&mut self) -> i64 {
         self.started_at.elapsed().as_millis() as i64
     }
@@ -741,6 +691,26 @@ impl RhaiTxn {
     }
 }
 
+pub(crate) fn queue_user_metric(
+    registry: &MetricRegistry,
+    effects: &Arc<Mutex<ScriptEffects>>,
+    name: &str,
+    delta: i64,
+    label_pairs: &[(String, String)],
+) -> Result<(), Box<EvalAltResult>> {
+    let label_map: HashMap<String, String> = label_pairs.iter().cloned().collect();
+    registry
+        .validate_runtime_labels(name, &label_map)
+        .map_err(|e| e.to_string())?;
+    let mut fx = effects.lock().map_err(|e| e.to_string())?;
+    fx.user_metric_flushes.push(UserMetricFlush {
+        name: name.to_string(),
+        labels: label_map,
+        delta: delta.max(0) as u64,
+    });
+    Ok(())
+}
+
 fn parse_every_nth_arg(nth: i64) -> Result<u64, Box<EvalAltResult>> {
     if nth < 1 {
         return Err("every_nth value must be >= 1".into());
@@ -748,6 +718,7 @@ fn parse_every_nth_arg(nth: i64) -> Result<u64, Box<EvalAltResult>> {
     u64::try_from(nth).map_err(|_| "every_nth value out of range".into())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn run_scripts(
     scripting: &CompiledScripting,
     script_ids: &[usize],
@@ -756,6 +727,7 @@ pub fn run_scripts(
     user_export: Option<&conduit_metrics::UserRegistry>,
     builtin_profile: Option<conduit_metrics::BuiltinProfile>,
     builtin: Option<Arc<BuiltinRegistry>>,
+    routing_runtime: Option<Arc<RoutingRuntimeSnapshot>>,
 ) -> (ScriptRunOutcome, ScriptRunStats) {
     if script_ids.is_empty() {
         return (ScriptRunOutcome::Ok, ScriptRunStats::default());
@@ -764,6 +736,7 @@ pub fn run_scripts(
     let mut stats = ScriptRunStats::default();
     let data = Arc::clone(&scripting.data_sources);
     let metrics = Arc::new(scripting.metrics.clone());
+    let routing = routing_runtime.unwrap_or_else(|| Arc::new(RoutingRuntimeSnapshot::default()));
 
     for &id in script_ids {
         let Some(script) = scripting.scripts.get(id) else {
@@ -782,6 +755,7 @@ pub fn run_scripts(
                 RunOneResources {
                     data: data.clone(),
                     metrics: metrics.clone(),
+                    routing: routing.clone(),
                     snapshot_generation: scripting.snapshot_generation,
                     builtin: builtin.clone(),
                 },
@@ -830,7 +804,9 @@ pub fn run_scripts(
 }
 
 fn apply_effects(host: &mut dyn HostTransaction, fx: &ScriptEffects) {
-    if let Some(ref pool) = fx.pool {
+    if fx.clear_pool {
+        host.clear_pool();
+    } else if let Some(ref pool) = fx.pool {
         host.set_pool(pool);
     }
     if let Some(ref pool) = fx.retry_pool {
@@ -891,6 +867,7 @@ fn run_one(
     let RunOneResources {
         data,
         metrics,
+        routing,
         snapshot_generation,
         builtin,
     } = resources;
@@ -921,11 +898,10 @@ fn run_one(
         last_forward_ms: host.last_forward_ms(),
         tags_snapshot_bools: host.script_tag_bools(),
         tags_snapshot_strings: host.script_tag_strings(),
-        metrics,
         effects: effects.clone(),
     };
 
-    LOOKUP_DATA.with(|cell| *cell.borrow_mut() = Some(data));
+    LOOKUP_DATA.with(|cell| *cell.borrow_mut() = Some(data.clone()));
     SCRIPT_RUN_CTX.with(|cell| {
         *cell.borrow_mut() = Some(ScriptRunContext {
             script_path: script.path.clone(),
@@ -952,6 +928,13 @@ fn run_one(
 
     let mut scope = Scope::new();
     scope.push("txn", txn);
+    scope.push("runtime", RuntimeView::new(routing));
+    scope.push("lookup", LookupView::new(data.clone()));
+    scope.push(
+        "metrics",
+        MetricsView::new(metrics.clone(), effects.clone()),
+    );
+    scope.push("log", LogView);
 
     let result = engine
         .run_ast_with_scope(&mut scope, &script.ast)
@@ -970,6 +953,7 @@ fn run_one(
         hard_retry: fx.hard_retry,
         clear_soft_retry: fx.clear_soft_retry,
         clear_retry_pool: fx.clear_retry_pool,
+        clear_pool: fx.clear_pool,
         tag_ops: fx.tag_ops.clone(),
         rcode: fx.rcode,
         soft_drop: fx.soft_drop,
@@ -1084,6 +1068,7 @@ rules:
             None,
             None,
             None,
+            None,
         );
         assert_eq!(stats.errors, 0);
         assert_eq!(host.source_override_v4, Some(std::net::Ipv4Addr::LOCALHOST));
@@ -1170,6 +1155,7 @@ rules:
             &[0],
             &mut host,
             ScriptPhase::Request,
+            None,
             None,
             None,
             None,
@@ -1262,6 +1248,7 @@ rules:
             None,
             None,
             None,
+            None,
         );
         assert_eq!(stats.errors, 0);
         assert_eq!(
@@ -1302,7 +1289,6 @@ rules:
             last_forward_ms: 0,
             tags_snapshot_bools: HashMap::new(),
             tags_snapshot_strings: HashMap::new(),
-            metrics: Arc::new(MetricRegistry::default()),
             effects: effects.clone(),
         };
         let before = rhai_script_errors_total();
@@ -1350,6 +1336,7 @@ rules:
             &[script_id],
             &mut host,
             ScriptPhase::Request,
+            None,
             None,
             None,
             None,
@@ -1402,6 +1389,7 @@ rules:
             &[script_id],
             &mut host,
             ScriptPhase::Response,
+            None,
             None,
             None,
             None,
@@ -1500,6 +1488,7 @@ rules:
             None,
             None,
             None,
+            None,
         );
         assert_eq!(stats.errors, 0);
         assert_eq!(outcome, ScriptRunOutcome::Retry);
@@ -1547,9 +1536,59 @@ rules:
             None,
             None,
             None,
+            None,
         );
         assert_eq!(outcome, ScriptRunOutcome::Ok);
         assert_eq!(host.pool.as_deref(), Some("vip"));
+    }
+
+    #[test]
+    fn clear_pool_via_script() {
+        let yaml = include_str!("../../../tests/fixtures/config/with-rhai-clear-pool.yaml");
+        let cfg = load_yaml(yaml).unwrap();
+        let base = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/config");
+        let scripting = compile_from_config(&cfg, Some(&base)).unwrap();
+        let mut host = MockHost {
+            id: 1,
+            global_query_index: 0,
+            qname: "foo.example.".into(),
+            qtype: 1,
+            qclass: 1,
+            opcode: 0,
+            edns_option_codes: vec![],
+            dns_id: 42,
+            rcode: None,
+            pool: Some("primary".into()),
+            selected_pool: Some("primary".into()),
+            retry: None,
+            dropped: false,
+            soft_drop: false,
+            source_override_v4: None,
+            source_override_v6: None,
+            retry_source_override_v4: None,
+            retry_source_override_v6: None,
+            tags: HashMap::new(),
+            tag_strings: HashMap::new(),
+            attempts: 0,
+            started: Instant::now(),
+            last_forward_ms: 0,
+            phase: ScriptPhase::Request,
+            ..Default::default()
+        };
+        let ids = vec![0];
+        let (outcome, _) = run_scripts(
+            &scripting,
+            &ids,
+            &mut host,
+            ScriptPhase::Request,
+            None,
+            None,
+            None,
+            None,
+        );
+        assert_eq!(outcome, ScriptRunOutcome::Ok);
+        assert!(host.pool.is_none());
+        assert!(host.selected_pool.is_none());
     }
 
     #[test]
@@ -1590,6 +1629,7 @@ rules:
             &[0],
             &mut host,
             ScriptPhase::Request,
+            None,
             None,
             None,
             None,
@@ -1640,6 +1680,7 @@ rules:
             None,
             None,
             None,
+            None,
         );
         assert_eq!(stats.errors, 1);
         assert_eq!(outcome, ScriptRunOutcome::Ok);
@@ -1683,6 +1724,7 @@ rules:
             &[0],
             &mut host,
             ScriptPhase::Request,
+            None,
             None,
             None,
             None,
@@ -1743,6 +1785,7 @@ rules:
             None,
             None,
             None,
+            None,
         );
         assert_eq!(
             thread_runtime_engine_builds(),
@@ -1758,6 +1801,7 @@ rules:
             None,
             None,
             None,
+            None,
         );
 
         assert_eq!(
@@ -1768,7 +1812,7 @@ rules:
     }
 
     #[test]
-    fn table_lookup_reflects_snapshot_reload_on_same_thread() {
+    fn lookup_reflects_snapshot_reload_on_same_thread() {
         reset_thread_runtime_for_tests();
 
         let dir =
@@ -1869,6 +1913,7 @@ rules:
             None,
             None,
             None,
+            None,
         );
         assert_eq!(
             stats1
@@ -1889,6 +1934,7 @@ rules:
             &[0],
             &mut host,
             ScriptPhase::Request,
+            None,
             None,
             None,
             None,
@@ -1959,6 +2005,7 @@ rules:
             None,
             None,
             None,
+            None,
         );
         assert!(host.tags.get("suspicious").copied().unwrap_or(false));
 
@@ -1968,6 +2015,7 @@ rules:
             &[response_id],
             &mut host,
             ScriptPhase::Response,
+            None,
             None,
             None,
             None,
@@ -2013,7 +2061,7 @@ rules:
             ..Default::default()
         };
         let (outcome, stats) = run_inline_script(
-            r#"if txn.last_forward_ms() == 42 { txn.metric_inc("rtt_ok", 1); }"#,
+            r#"if txn.last_forward_ms() == 42 { metrics.inc("rtt_ok", 1); }"#,
             &mut host,
         );
         assert_eq!(outcome, ScriptRunOutcome::Ok);
@@ -2087,6 +2135,7 @@ rules:
             &[0],
             host,
             ScriptPhase::Request,
+            None,
             None,
             None,
             None,
@@ -2201,10 +2250,10 @@ rules:
     }
 
     #[test]
-    fn table_lookup_unknown_table_increments_script_error_counter() {
+    fn lookup_unknown_table_increments_script_error_counter() {
         reset_thread_runtime_for_tests();
 
-        let script = r#"let t = "not_in_config"; table_lookup(t, "key");"#;
+        let script = r#"let t = "not_in_config"; lookup(t, "key");"#;
         let dir = std::env::temp_dir().join(format!(
             "conduit-script-unknown-table-{}",
             std::process::id()
@@ -2296,6 +2345,7 @@ rules:
             None,
             Some(BuiltinProfile::Full),
             Some(builtin.clone()),
+            None,
         );
         assert_eq!(stats.errors, 0);
         let after_body = encode(builtin.as_ref());
@@ -2350,7 +2400,6 @@ rules:
             last_forward_ms: 0,
             tags_snapshot_bools: HashMap::new(),
             tags_snapshot_strings: HashMap::new(),
-            metrics: Arc::new(MetricRegistry::default()),
             effects: effects.clone(),
         };
         let mut scope = Scope::new();
@@ -2419,7 +2468,6 @@ rules:
             last_forward_ms: 0,
             tags_snapshot_bools: HashMap::new(),
             tags_snapshot_strings: HashMap::new(),
-            metrics: Arc::new(MetricRegistry::default()),
             effects: effects.clone(),
         };
         let mut scope = Scope::new();
@@ -2512,7 +2560,6 @@ rules:
             last_forward_ms: 12,
             tags_snapshot_bools: HashMap::new(),
             tags_snapshot_strings: HashMap::new(),
-            metrics: Arc::new(MetricRegistry::default()),
             effects: effects.clone(),
         };
         let mut scope = Scope::new();

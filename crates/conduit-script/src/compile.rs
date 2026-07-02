@@ -2,7 +2,7 @@ use crate::capability_scan::script_needs_response_wire_meta;
 use crate::data_sources::{load_data_sources, DataSourceLimits, DataSourceStore};
 use crate::error::ScriptError;
 use crate::host::ScriptPhase;
-use crate::lookup_scan::validate_table_lookup_literals;
+use crate::lookup_scan::validate_lookup_literals;
 use crate::metrics::{scan_metrics_from_source, MetricRegistry};
 use conduit_proto::config::{Config, RhaiConfig, Rule};
 use conduit_proto::paths::resolve_config_path;
@@ -169,7 +169,7 @@ fn compile_rule_scripts(
                 path: path_key.clone(),
                 message: format!("failed to read script: {e}"),
             })?;
-            validate_table_lookup_literals(&source, &path_key, &scripting.data_sources)?;
+            validate_lookup_literals(&source, &path_key, &scripting.data_sources)?;
             if hook == ScriptPhase::Response && script_needs_response_wire_meta(&source) {
                 scripting.needs_response_wire_meta = true;
             }
@@ -307,12 +307,12 @@ rules:
     }
 
     #[test]
-    fn reject_unknown_table_lookup_literal_at_compile() {
+    fn reject_unknown_lookup_literal_at_compile() {
         let base = fixtures_config_dir();
         let script_path = base.join("../rhai/bad-table-lookup.rhai");
         std::fs::write(
             &script_path,
-            r#"table_lookup("not_a_table", question_qname(txn));"#,
+            r#"lookup("not_a_table", txn.question().qname);"#,
         )
         .unwrap();
         let yaml = r#"schema_version: 1

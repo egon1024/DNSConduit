@@ -200,7 +200,7 @@ Both profiles use the label name **`rcode`**, but bucketing differs:
 
 | `reason` | Meaning |
 |----------|---------|
-| `lookup_unknown_table` | `table_lookup` used a table name not in **`data_sources:`** (`table` label is the sanitized name; dynamic unsafe names → `other`) |
+| `lookup_unknown_table` | `lookup` used a table name not in **`data_sources:`** (`table` label is the sanitized name; dynamic unsafe names → `other`) |
 | `phase_guard` | API called on the wrong hook (for example `set_source_v4` on response) |
 | `timeout` | Hook exceeded `rhai.hook_timeout_ms` |
 | `operation_limit` | Rhai operations budget exhausted |
@@ -215,7 +215,7 @@ sum(rate(conduit_script_errors_total[5m])) by (reason)
 sum(rate(conduit_script_errors_total{reason="lookup_unknown_table"}[5m])) by (script, table)
 ```
 
-See [Data sources and lookups](/rhai/data-sources-and-lookups.md#table_lookup-behavior) for compile-time literal checks vs runtime unknown-table behavior.
+See [Data sources and lookups — lookup behavior](/rhai/data-sources-and-lookups.md#lookup-behavior) for compile-time literal checks vs runtime unknown-table behavior.
 
 ---
 

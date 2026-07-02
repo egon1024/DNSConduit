@@ -94,6 +94,7 @@ fn orchestrator_with_mock_forward(hub: Arc<MetricsHub>) -> Orchestrator {
         Phase::RequestRules,
         Arc::new(conduit_core::stages::RequestRulesStage {
             metrics: Some(hub.clone()),
+            ..Default::default()
         }),
     );
     orch.registry.register(

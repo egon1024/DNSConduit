@@ -7,6 +7,7 @@ Rhai scripting for Conduit rule hooks.
 | Method | Request hook | Response hook |
 |--------|--------------|---------------|
 | `set_pool(name)` | Yes | Yes |
+| `clear_pool()` | Yes | Yes |
 | `set_retry_pool(name)` | Pool for retry Route if retry occurs; first Route ignores | Pool for retry Route if retry occurs; first Route ignores |
 | `request_retry()` | No effect | Soft retry |
 | `request_retry_now()` | No effect | Hard retry (stop rule) |

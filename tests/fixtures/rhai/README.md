@@ -56,7 +56,12 @@ Example 5: `sample_percent(percent)` uses the same deterministic hash as observa
 | 6 | `tag-suspicious.rhai` + `slow-login-alert.rhai` | `with-rhai-slow-login.yaml` | Request tag + response metric on slow path |
 | 7 | `block-hits.rhai` | `with-rhai-block-hits.yaml` | User metrics with bounded `category` label |
 | 8 | `bad-phase.rhai` | `with-rhai-bad-phase.yaml` | Phase guard: `response()` in request hook (fail-open) |
-| 9 | `lookup-demo.rhai` | `with-rhai-lookup-demo.yaml` | Only configured `data_sources` visible to `table_lookup` |
+| 9 | `lookup-demo.rhai` | `with-rhai-lookup-demo.yaml` | Only configured `data_sources` visible to `lookup()` |
+| 10 | `routing-pool-failover.rhai` | `with-rhai-routing-pool.yaml` | `runtime.routing().pool()` + health drain → `set_pool` |
+| 11 | `routing-backend-attempt.rhai` | `with-rhai-routing-backend.yaml` | `runtime.routing().backend_for_attempt()` on SERVFAIL |
+| 12 | `clear-pool.rhai` | `with-rhai-clear-pool.yaml` | `set_pool` then `clear_pool` — Route uses default pool |
+
+**Manual lab** for this Rhai runtime host API change: [`tests/manual/phase-rhai-runtime-host-api.md`](../../manual/phase-rhai-runtime-host-api.md). Backends use **`127.0.0.1:15300`** (live) and **`127.0.0.1:15399`** (second / failover), matching the phase **1c** health lab port map.
 
 **Manual lab** for ordered actions (`drop`, `drop_now`, `clear_drop`, `set_retry_pool`, rhai interleaving): [`tests/manual/ordered-rule-actions.md`](../../manual/ordered-rule-actions.md) and [`tests/manual/config/09-ordered-actions.yaml`](../../manual/config/09-ordered-actions.yaml).
 

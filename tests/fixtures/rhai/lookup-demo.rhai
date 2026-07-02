@@ -1,4 +1,4 @@
-let region = table_lookup("geo", question_qname(txn));
-if region != "" {
-    txn.set_tag("region", region);
+let region = lookup("geo", txn.question().qname);
+if region == "eu" {
+    txn.set_tag("region", "eu");
 }

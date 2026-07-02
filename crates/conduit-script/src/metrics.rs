@@ -164,7 +164,7 @@ pub fn validate_label_key(key: &str) -> Result<(), ScriptError> {
     Ok(())
 }
 
-/// Scan script source for `metric_inc("name"` and optional label map keys.
+/// Scan script source for `metrics.inc("name"` / `metric_inc("name"` and optional label map keys.
 pub fn scan_metrics_from_source(
     source: &str,
 ) -> Result<Vec<(String, HashSet<String>)>, ScriptError> {
@@ -182,7 +182,14 @@ pub fn scan_metrics_from_source(
 }
 
 fn extract_metric_name(line: &str) -> Option<String> {
-    let idx = line.find("metric_inc")?;
+    let needle = if line.contains("metrics.inc") {
+        "metrics.inc"
+    } else if line.contains("metric_inc") {
+        "metric_inc"
+    } else {
+        return None;
+    };
+    let idx = line.find(needle)?;
     let rest = &line[idx..];
     let open = rest.find('(')?;
     let after = &rest[open + 1..];

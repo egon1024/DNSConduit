@@ -316,6 +316,10 @@ impl Transaction {
     pub fn clear_retry_pool(&mut self) {
         self.retry_pool = None;
     }
+
+    pub fn clear_pool(&mut self) {
+        self.selected_pool = None;
+    }
 }
 
 fn forward_elapsed_ms(started: Instant) -> u64 {

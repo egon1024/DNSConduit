@@ -55,7 +55,7 @@ Repository reference: `tests/fixtures/config/with-rhai-infinite-loop.yaml`.
 | `max_operations` ≥ **1** when present | `rhai.max_operations must be >= 1 when set` |
 | `max_call_depth` ≥ **1** when present | `rhai.max_call_depth must be >= 1 when set` |
 
-Run `conduitctl validate --file …` before reload. Script **syntax**, unknown `table_lookup` literals, and metric registration are checked at **snapshot compile** time — see [Reload and validation](#reload-and-validation).
+Run `conduitctl validate --file …` before reload. Script **syntax**, unknown `lookup` literals, and metric registration are checked at **snapshot compile** time — see [Reload and validation](#reload-and-validation).
 
 ## What each limit does
 
@@ -86,7 +86,7 @@ Conduit checks elapsed wall time during script execution (via Rhai’s progress 
 
 Some **`txn`** methods are allowed on only one hook (for example **`set_source_v4`** on request, **`request_retry`** on response). Calling a guarded API on the wrong hook fails that script invocation with a **phase guard** error (`reason="phase_guard"`).
 
-Phase guards are documented on [Hooks and phases — Phase guards](/rhai/hooks-and-phases.md#phase-guards) and in [Transaction API](/rhai/transaction-api.md) entries.
+Phase guards are documented on [Hooks and phases — Phase guards](/rhai/hooks-and-phases.md#phase-guards) and in [Transaction API (`txn`)](/rhai/txn-api.md) entries.
 
 ## Fail-open behavior
 
@@ -113,7 +113,7 @@ Put safety-critical built-ins **before** `rhai` when script failure must not lea
 | Stage | When | What fails |
 |-------|------|------------|
 | **YAML validation** | `conduitctl validate`, startup, reload | Invalid `rhai:` numeric fields |
-| **Snapshot compile** | After YAML validation on startup / reload / apply | Missing script file, Rhai syntax error, invalid `table_lookup` table literal, metric registration conflict |
+| **Snapshot compile** | After YAML validation on startup / reload / apply | Missing script file, Rhai syntax error, invalid `lookup` table literal, metric registration conflict |
 | **Runtime sandbox** | Per query on matching `rhai` action | Operations, timeout, call depth, phase guards, runtime eval errors |
 
 Compile failures **reject** the new snapshot (startup exits; reload keeps [last-good snapshot](/glossary/index.md#last-good-snapshot)). Runtime sandbox faults affect **one hook invocation** only.
@@ -129,7 +129,7 @@ Script faults increment [`conduit_script_errors_total`](/observability/built-in-
 | `timeout` | `hook_timeout_ms` exceeded |
 | `operation_limit` | `max_operations` exhausted |
 | `phase_guard` | `txn` API on wrong hook |
-| `lookup_unknown_table` | Runtime `table_lookup` to undefined table (returns `""`; throttled warn logs) |
+| `lookup_unknown_table` | Runtime `lookup` to undefined table (returns `""`; throttled warn logs) |
 | `eval` | Other Rhai evaluation error |
 
 Each event also logs **`rhai script error`** at **warn** with `script`, `rule`, and `reason`.
@@ -140,9 +140,9 @@ PromQL example:
 sum(rate(conduit_script_errors_total[5m])) by (reason)
 ```
 
-Unknown-table lookups use milestone + periodic logging — see [Data sources and lookups — table_lookup behavior](/rhai/data-sources-and-lookups.md#table_lookup-behavior).
+Unknown-table lookups use milestone + periodic logging — see [Data sources and lookups — lookup behavior](/rhai/data-sources-and-lookups.md#lookup-behavior).
 
-**Script logging:** **`log_info`** / **`log_warn`** from Rhai are rate-limited (first call per script/rule per snapshot, then every **100** calls). See [Transaction API — Script logging](/rhai/transaction-api.md#script-logging).
+**Script logging:** **`log.info`** / **`log.warn`** from Rhai are rate-limited (first call per script/rule per snapshot, then every **100** calls). See [Script logging](/rhai/script-logging.md).
 
 ## Safe patterns
 
@@ -150,7 +150,7 @@ Unknown-table lookups use milestone + periodic logging — see [Data sources and
 2. **Validate before reload** — `conduitctl validate --file` catches compile errors early.
 3. **Order actions deliberately** — run `set_pool`, `set_tag`, `drop`, and other critical built-ins **before** `rhai` when script failure must not skip them.
 4. **Keep scripts short** — one concern per file; avoid unbounded loops and huge allocations.
-5. **Use compile-time table names** — literal `table_lookup("name", …)` names are checked at compile; dynamic table names fail open at runtime with metrics.
+5. **Use compile-time table names** — literal `lookup("name", …)` names are checked at compile; dynamic table names fail open at runtime with metrics.
 6. **Monitor `conduit_script_errors_total`** — alert on sustained `timeout` or `operation_limit` after deploys.
 7. **Test with tight limits in lab** — use low `max_operations` / `hook_timeout_ms` to verify scripts fail safely (see `with-rhai-infinite-loop.yaml` in repository fixtures).
 
@@ -159,10 +159,11 @@ Rule Rhai adds interpreted cost versus built-ins alone — see [Rule Rhai overvi
 ## Related topics
 
 - [Rule Rhai overview](/rhai/rule-rhai.md) — when to use scripts
+- [Host API overview](/rhai/host-api.md) — five scope objects
 - [Hooks and phases](/rhai/hooks-and-phases.md) — request vs response, phase guards, script errors on a hook
-- [Transaction API](/rhai/transaction-api.md) — `txn` methods
+- [Transaction API (`txn`)](/rhai/txn-api.md) — per-query policy methods
 - [Rules and actions](/policy-routing/rules-and-actions.md) — action order, scripted policy
-- [Data sources and lookups](/rhai/data-sources-and-lookups.md) — `table_lookup` compile vs runtime behavior
+- [Data sources and lookups](/rhai/data-sources-and-lookups.md) — `lookup` compile vs runtime behavior
 - [Built-in metrics](/observability/built-in-metrics.md) — `conduit_script_errors_total`
 - [Config file](/control-plane/config-file.md) — path resolution for `.rhai` files
 - [Rhai overview](/rhai/index.md)

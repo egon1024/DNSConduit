@@ -143,6 +143,12 @@ Configured upstream destination Conduit forwards DNS queries to; settings contro
 
 → [Pools and backends](/policy-routing/pools-and-backends.md)
 
+### EWMA
+
+**Exponentially weighted moving average** — a smoothed statistic that blends each new measurement with prior history, giving **more weight to recent samples** than to older ones. Conduit updates a per-[backend](/glossary/index.md#backend) **latency EWMA** from successful health-probe round-trip times. That value reflects how fast the backend has been responding lately (not a single spike or one slow query). [Route](/concepts/architecture-and-packet-path.md#route) uses the EWMA — through a damped **`weight_factor`** — to reduce traffic share to slower but still-eligible backends without removing them from the pool.
+
+→ [Runtime API — `latency_ewma_ms`](/rhai/runtime-api.md#backendruntimelatency_ewma_ms), [`min_latency_ewma_ms`](/rhai/runtime-api.md#poolruntimemin_latency_ewma_ms)
+
 ### Selector
 
 Condition on a [rule](/policy-routing/rules-and-actions.md) that tests query or response fields (for example query name, type, response code, or [tag](/glossary/index.md#tags) presence). Conduit evaluates rules in first-match order on each hook.
@@ -153,13 +159,13 @@ Condition on a [rule](/policy-routing/rules-and-actions.md) that tests query or 
 
 DNS response code for the current forward attempt (for example **SERVFAIL**, **NOERROR**). [Response rules](/concepts/architecture-and-packet-path.md#response-rules) match on `rcode` selectors; [Rule Rhai](/glossary/index.md#rule-rhai) uses `txn.response_rcode()` on the response hook.
 
-→ [Rules and actions — Selectors](/policy-routing/rules-and-actions.md#selectors), [Transaction API — Query and response](/rhai/transaction-api.md#query-and-response)
+→ [Rules and actions — Selectors](/policy-routing/rules-and-actions.md#selectors), [Transaction API — Query and response](/rhai/txn-api.md#query-and-response)
 
 ### sample_percent
 
 Deterministic sampling on a **`0..100`** scale. `0` never matches; `100` always matches. By default the hash uses the transaction id only. Optional **`key`** (static string) or **`key_from`** (`qname`, `rule_name` on rules, `sink_name` on event sinks) selects an independent bucket namespace — see [Sampling and cadence](/policy-routing/rules-and-actions.md#sampling-and-cadence).
 
-On [rules](/policy-routing/rules-and-actions.md), use selector type **`sample_percent`** with optional `key` / `key_from`, or **`every_nth_worker`** / **`every_nth_global`**. On [tracing](/observability/tracing.md) and [event export](/observability/event-export.md), use top-level **`sample_percent`** with optional **`sample_key`** / **`sample_key_from`**. Rhai: [`txn.sample_percent`](/rhai/transaction-api.md#txnsample_percent) and related methods on [Transaction API — Sampling](/rhai/transaction-api.md#sampling).
+On [rules](/policy-routing/rules-and-actions.md), use selector type **`sample_percent`** with optional `key` / `key_from`, or **`every_nth_worker`** / **`every_nth_global`**. On [tracing](/observability/tracing.md) and [event export](/observability/event-export.md), use top-level **`sample_percent`** with optional **`sample_key`** / **`sample_key_from`**. Rhai: [`txn.sample_percent`](/rhai/txn-api.md#txnsample_percent) and related methods on [Transaction API — Sampling](/rhai/txn-api.md#sampling).
 
 → [Sampling and cadence](/policy-routing/rules-and-actions.md#sampling-and-cadence), [Event export](/observability/event-export.md), [Tracing](/observability/tracing.md)
 

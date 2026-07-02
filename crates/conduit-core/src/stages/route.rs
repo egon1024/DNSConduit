@@ -187,6 +187,72 @@ pools:
     }
 
     #[test]
+    fn route_uses_default_pool_when_selected_pool_none() {
+        let yaml = r#"
+schema_version: 1
+listeners:
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+pools:
+  - name: default
+    backends:
+      - address: "127.0.0.1:5300"
+        weight: 100
+  - name: vip
+    backends:
+      - address: "127.0.0.1:5301"
+        weight: 100
+"#;
+        let cfg = load_yaml(yaml).unwrap();
+        let snap = Arc::new(RuntimeSnapshot::from_config(cfg));
+        let mut txn = Transaction::new(
+            1,
+            "127.0.0.1:53".parse::<SocketAddr>().unwrap(),
+            ClientProtocol::Udp,
+        );
+        txn.selected_pool = None;
+        RouteStage::new().handle(&mut txn, &snap);
+        assert_eq!(txn.selected_pool.as_deref(), Some("default"));
+        assert_eq!(
+            txn.selected_backend,
+            Some("127.0.0.1:5300".parse::<SocketAddr>().unwrap())
+        );
+    }
+
+    #[test]
+    fn retry_route_uses_default_when_selected_pool_cleared() {
+        let yaml = r#"
+schema_version: 1
+listeners:
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+pools:
+  - name: default
+    backends:
+      - address: "127.0.0.1:5300"
+        weight: 100
+  - name: vip
+    backends:
+      - address: "127.0.0.1:5301"
+        weight: 100
+"#;
+        let cfg = load_yaml(yaml).unwrap();
+        let snap = Arc::new(RuntimeSnapshot::from_config(cfg));
+        let mut txn = Transaction::new(
+            1,
+            "127.0.0.1:53".parse::<SocketAddr>().unwrap(),
+            ClientProtocol::Udp,
+        );
+        txn.selected_pool = Some("vip".into());
+        txn.attempt_count = 1;
+        txn.selected_pool = None;
+        RouteStage::new().handle(&mut txn, &snap);
+        assert_eq!(txn.selected_pool.as_deref(), Some("default"));
+    }
+
+    #[test]
     fn retry_route_uses_stashed_retry_pool() {
         let snap = minimal_snapshot();
         let mut txn = Transaction::new(

@@ -10,6 +10,7 @@ pub mod phase;
 pub mod pipeline;
 pub mod routing;
 pub mod rules;
+pub mod runtime_view;
 pub mod script_host;
 pub mod snapshot;
 pub mod stages;
@@ -39,6 +40,7 @@ pub use routing::{
     PoolHealthView,
 };
 pub use rules::CompiledRules;
+pub use runtime_view::build_routing_runtime_snapshot;
 pub use snapshot::{RuntimeSnapshot, SnapshotStore};
 pub use structural_parse::{apply_parsed_query, structural_parse, ParsedQuery};
 pub use transaction::{ClientProtocol, TagSet, Transaction};

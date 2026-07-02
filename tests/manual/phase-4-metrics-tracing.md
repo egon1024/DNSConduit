@@ -270,7 +270,7 @@ The **`with-rhai-slow-login.yaml`** fixture pairs request tagging with response 
 1. Start Conduit with `tests/fixtures/config/with-rhai-slow-login.yaml` and a slow or delayed upstream (or tune `forward.timeout_ms` low to force high RTT).
 2. Query `login.suspicious.example.` — request rule sets tag **`suspicious`**.
 3. On response hook, if upstream forward exceeded **500 ms**, script increments user metric **`slow_login`** (`conduit_user_slow_login`).
-4. Confirm with Prometheus scrape or logs; see [Transaction API — `last_forward_ms()`](/operator-docs/docs/rhai/transaction-api.md#txnlast_forward_ms).
+4. Confirm with Prometheus scrape or logs; see [Transaction API — `last_forward_ms()`](/operator-docs/docs/rhai/txn-api.md#txnlast_forward_ms).
 
 ## Future documentation note
 

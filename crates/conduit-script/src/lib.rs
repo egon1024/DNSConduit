@@ -6,8 +6,10 @@ mod data_sources;
 mod dns_wire;
 mod error;
 mod host;
+mod host_api;
 mod lookup_scan;
 mod metrics;
+mod routing_view;
 mod runtime;
 mod script_errors;
 
@@ -25,5 +27,6 @@ pub use host::{
     unix_secs, utc_hour_and_weekday, ClientProtocol, HostTransaction, ResponseWireMeta, ScriptPhase,
 };
 pub use metrics::{MetricRegistry, UserMetricDef, UserMetricExportTier};
+pub use routing_view::{BackendRoutingView, PoolRoutingView, RoutingRuntimeSnapshot};
 pub use runtime::{run_scripts, ScriptRunOutcome, ScriptRunStats};
 pub use script_errors::rhai_script_errors_total;

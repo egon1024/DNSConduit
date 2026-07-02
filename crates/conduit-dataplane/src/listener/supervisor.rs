@@ -210,16 +210,24 @@ pub fn start(
                         health_registry.clone(),
                     )),
                 );
+                let outstanding: conduit_core::stages::OutstandingPerBackendFn = {
+                    let table = table.clone();
+                    Arc::new(move || table.outstanding_per_backend().into_iter().collect())
+                };
                 orchestrator.registry.register(
                     Phase::RequestRules,
                     Arc::new(conduit_core::stages::RequestRulesStage {
                         metrics: Some(metrics.clone()),
+                        health: Some(health_registry.clone()),
+                        outstanding: Some(outstanding.clone()),
                     }),
                 );
                 orchestrator.registry.register(
                     Phase::ResponseRules,
                     Arc::new(conduit_core::stages::ResponseRulesStage {
                         metrics: Some(metrics.clone()),
+                        health: Some(health_registry.clone()),
+                        outstanding: Some(outstanding),
                     }),
                 );
                 orchestrator.registry.register(Phase::Forward, forward);
