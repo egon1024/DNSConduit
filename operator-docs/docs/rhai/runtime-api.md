@@ -28,6 +28,7 @@ It is **not** a view from process startup. Each `runtime.routing().pool(...)` or
 |----------------|-------------------|
 | **Captured at hook phase start** | Request rules or response rules **begin** for this query on this worker; health and routing fields reflect state then. |
 | **Frozen while the script runs** | Probes, **`conduitctl health`** drain/freeze, and [config reload](/control-plane/reload-and-export.md) can change backends after the snapshot was taken. Your variables do not update until the next hook. |
+| **Snapshot build vs reads** | Building the snapshot walks configured pools/backends once at hook entry (bounded by config size, outside Rhai **`max_operations`**). Each **`runtime.routing().pool()`** / **`.backend()`** call inside the script is an O(1) read and **does** count toward **`max_operations`** — see [Sandbox limits — Host API and `max_operations`](/rhai/sandbox-limits.md#host-api-and-max_operations). |
 | **New snapshot each hook** | Request hook, each response hook, and each [retry](/policy-routing/retries-and-transactions.md) response pass builds a fresh snapshot. Do not carry values from one hook to the next. |
 | **Close to the next Route pick** | [Route](/concepts/architecture-and-packet-path.md#route) uses the same health sources when it selects the next backend on this query (Route reads again at selection time, so health can move in the short gap after your script). |
 
@@ -114,7 +115,7 @@ Routing and health snapshot for configured pools/backends.
 
 - **Read-only** — does not change routing, health, or transaction state.
 - Built once when **this hook phase begins** from the health side-table, pool config, and outstanding-forward counts; every `runtime.routing()` call in the same script shares it.
-- Counts toward [sandbox](/rhai/sandbox-limits.md) **`max_operations`** like other host calls.
+- Per-call reads count toward [sandbox `max_operations`](/rhai/sandbox-limits.md#host-api-and-max_operations); snapshot build at hook entry does not.
 
 </div>
 
