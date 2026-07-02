@@ -6,7 +6,7 @@ use crate::host::{
 };
 use crate::host_api::{register_host_surfaces, LogView, LookupView, MetricsView, RuntimeView};
 use crate::metrics::MetricRegistry;
-use crate::routing_view::RoutingRuntimeSnapshot;
+use crate::routing_view::{PoolRoutingView, RoutingRuntimeSnapshot};
 use crate::script_errors::{report_lookup_unknown_table, report_script_eval_error};
 use conduit_events::{hash_sample_keyed, matches_every_nth_global, matches_every_nth_worker};
 use conduit_metrics::BuiltinRegistry;
@@ -1685,6 +1685,72 @@ rules:
         assert_eq!(stats.errors, 1);
         assert_eq!(outcome, ScriptRunOutcome::Ok);
         assert!(!host.dropped);
+    }
+
+    #[test]
+    fn routing_host_calls_count_against_operation_limit() {
+        reset_thread_runtime_for_tests();
+        let mut engine = Engine::new();
+        register_host_api(&mut engine);
+        engine.set_max_operations(50);
+
+        let mut pools = HashMap::new();
+        pools.insert(
+            "primary".to_string(),
+            PoolRoutingView {
+                configured: true,
+                configured_count: 2,
+                eligible_count: 2,
+                fail_open_active: false,
+                min_latency_ewma_ms: None,
+                max_outstanding: 0,
+            },
+        );
+        let snapshot = Arc::new(RoutingRuntimeSnapshot::new(1, pools, HashMap::new()));
+
+        let effects = Arc::new(Mutex::new(ScriptEffects::default()));
+        let txn = RhaiTxn {
+            phase: ScriptPhase::Request,
+            txn_id: 1,
+            global_query_index: 0,
+            config_generation: 0,
+            rule_name: "routing-op-budget".into(),
+            qname: Some("test.example.".into()),
+            qtype: Some(1),
+            qclass: Some(1),
+            opcode: Some(0),
+            edns_option_codes: Vec::new(),
+            dns_id: 1,
+            rcode: None,
+            client_addr: "127.0.0.1:53".parse().unwrap(),
+            client_protocol: ClientProtocol::Udp,
+            listener_label: None,
+            received_at: std::time::UNIX_EPOCH,
+            selected_pool: None,
+            selected_backend: None,
+            selected_backend_label: None,
+            response_meta: None,
+            attempt_count: 0,
+            started_at: Instant::now(),
+            last_forward_ms: 0,
+            tags_snapshot_bools: HashMap::new(),
+            tags_snapshot_strings: HashMap::new(),
+            effects: effects.clone(),
+        };
+        let mut scope = Scope::new();
+        scope.push("txn", txn);
+        scope.push("runtime", RuntimeView::new(snapshot));
+
+        let ast = engine
+            .compile(r#"while runtime.routing().pool("primary").eligible_count() >= 0 {}"#)
+            .unwrap();
+        let result = engine.run_ast_with_scope(&mut scope, &ast);
+        assert!(result.is_err(), "expected operation limit");
+        let msg = result.unwrap_err().to_string().to_lowercase();
+        assert!(
+            msg.contains("operations") || msg.contains("too many"),
+            "expected operation limit error, got: {msg}"
+        );
     }
 
     #[test]

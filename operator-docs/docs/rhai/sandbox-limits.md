@@ -67,6 +67,8 @@ When exhausted, evaluation stops with an **operation limit** error (`reason="ope
 
 **Tuning:** Default **10000** is generous for typical policy scripts (tag, pool, one lookup). Lower it in lab when testing guardrails; raise only with evidence that legitimate scripts hit the cap in production.
 
+Host API calls (`txn`, **`runtime.routing()`**, **`lookup`**, **`metrics`**, **`log`**) each consume operations like Rhai bytecode — see [Host API and `max_operations`](#host-api-and-max_operations).
+
 ### `max_call_depth`
 
 Limits recursive or deeply nested function calls inside Rhai. Exceeding it fails script evaluation (`reason="eval"` unless Rhai maps it to operation limit).
@@ -81,6 +83,33 @@ Conduit checks elapsed wall time during script execution (via Rhai’s progress 
 
 !!! note "Not forward timeout"
     **`hook_timeout_ms`** bounds **Rhai only**. Upstream wait uses **`forward.timeout_ms`** — see [Architecture and packet path — Forward](/concepts/architecture-and-packet-path.md#forward).
+
+## Host API and `max_operations` { #host-api-and-max_operations }
+
+Every **host call** from Rhai into Conduit counts against the same **`max_operations`** budget as Rhai bytecode steps.
+
+| Surface | What counts |
+|---------|-------------|
+| **`txn.*`** | One operation per method call |
+| **`runtime.routing()`**, **`pool()`**, **`backend()`**, view getters | One operation per Rhai method call — each reads the hook snapshot (O(1)) |
+| **`lookup(table, key)`** | One operation per call, plus lookup work bounded by table size |
+| **`metrics.inc`** / **`metrics.inc_labels`** | One operation per call |
+| **`log.info`** / **`log.warn`** | One operation per call |
+
+### Routing snapshot build (hook entry)
+
+Before your script's first line runs, Conduit builds the **routing runtime snapshot** once for this hook phase: it walks configured pools and backends to compute **`eligible_count`**, pool aggregates ([EWMA](/glossary/index.md#ewma) min, max outstanding), and per-backend health fields.
+
+| Aspect | Detail |
+|--------|--------|
+| **When** | Start of request rules or response rules on this worker — same moment as [Runtime API — When values are taken](/rhai/runtime-api.md#when-values-are-taken) |
+| **Cost driver** | Number of pools and backends in config (bounded by your topology, not query rate) |
+| **Rhai budget** | Snapshot build runs **outside** the Rhai operation counter — it is **not** charged again on each **`runtime.routing().pool()`** call inside the script |
+| **After build** | Every **`pool()`** / **`backend()`** call reuses frozen data; tight loops over many names still consume **`max_operations`** per call |
+
+Avoid polling large topologies in a loop without need. Prefer a few named lookups (config literals, **`txn.selected_pool()`**, or **`lookup()`**-resolved names) over unbounded iteration.
+
+Detail: [Runtime API](/rhai/runtime-api.md), [Host API overview](/rhai/host-api.md).
 
 ## Phase guards
 
@@ -164,6 +193,7 @@ Rule Rhai adds interpreted cost versus built-ins alone — see [Rule Rhai overvi
 - [Transaction API (`txn`)](/rhai/txn-api.md) — per-query policy methods
 - [Rules and actions](/policy-routing/rules-and-actions.md) — action order, scripted policy
 - [Data sources and lookups](/rhai/data-sources-and-lookups.md) — `lookup` compile vs runtime behavior
+- [Runtime API](/rhai/runtime-api.md) — `runtime.routing()` snapshot timing
 - [Built-in metrics](/observability/built-in-metrics.md) — `conduit_script_errors_total`
 - [Config file](/control-plane/config-file.md) — path resolution for `.rhai` files
 - [Rhai overview](/rhai/index.md)
