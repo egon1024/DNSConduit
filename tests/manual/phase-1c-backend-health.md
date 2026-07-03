@@ -1,4 +1,4 @@
-# Manual test guide — phase 1c backend health (Gates A–B)
+# Manual test guide — phase 1c backend health (Gates A–E)
 
 > **Repository:** DNSConduit root. **OpenSpec:** `backend-health-probes` (+ `pool-routing`, `dns-forward` deltas).  
 > **Gate A scope:** active probing and health **state only** — Phase A wires probe
@@ -520,7 +520,76 @@ Fill in the Pass / fail lines above and the Gate D sign-off below.
 |----------|------|-------|
 |  |  |  |
 
-**Approved to start Phase E (metrics, §10):** **___**
+**Approved to start Phase E (metrics, §10):** **yes**
+
+---
+
+# Gate E — observability / metrics scrape (§11)
+
+> **Gate E scope:** Phase E exports backend-health Prometheus series on the
+> `full` metrics profile. Confirm scrape correctness during an induced outage,
+> observed-vs-applied divergence under operator drain (freeze + set down), and
+> bounded `(pool, backend)` cardinality only.
+
+Lab: reuse [`config/phase-1c-health.yaml`](config/phase-1c-health.yaml) with
+`metrics.profile: full` and scrape `http://127.0.0.1:19090/metrics`. Backend
+metric labels use configured names (`live`, `dead`).
+
+Health encoding: `observed`/`applied` gauges — `0`=unknown, `1`=up, `2`=down;
+`probe_automatic` — `1`=automatic, `0`=frozen.
+
+---
+
+## 11.1 Series present and correct during induced outage (task 11.1)
+
+Baseline: `live` observed/applied `1`, effective weight `100`; `dead`
+observed/applied `2`, effective weight `0`; `conduit_pool_backends_active`
+`1`, `conduit_pool_backends_configured` `2`.
+
+Induced outage on `live` (stop dnsmasq): after probe fall, `live`
+observed/applied `2`, effective weight `0`, pool active `0`. Recovery after
+probe rise restored `live` to up and pool active `1`.
+
+**Pass / fail:** Pass
+
+---
+
+## 11.2 Observed vs applied divergence under drain (task 11.2)
+
+`conduitctl health set down --pool default --backend live` while probes still
+succeed: single scrape showed `observed=1`, `applied=2`,
+`probe_automatic=0`, `effective_weight=0`. `health resume` snapped applied to
+observed immediately.
+
+**Pass / fail:** Pass
+
+---
+
+## 11.3 Cardinality bounded to (pool, backend) (task 11.3)
+
+Health series use only `pool` and `backend` labels (pool-level gauges use
+`pool` only). Two configured backends → two lines per per-backend gauge;
+varied client qnames did not increase series count.
+
+**Pass / fail:** Pass
+
+---
+
+## 11.4 Record results (task 11.4)
+
+Gate E results recorded in this section.
+
+**Pass / fail:** Pass
+
+---
+
+## Gate E sign-off
+
+| Reviewer | Date | Notes |
+|----------|------|-------|
+|  | 2026-07-02 | Gate E manual validation complete (§11.1–11.4) |
+
+**Approved to start Gate F (pre-documentation freeze, §12):** **yes**
 
 ---
 
@@ -531,3 +600,4 @@ Fill in the Pass / fail lines above and the Gate D sign-off below.
 | 2026-06-29 | Initial scaffold for phase 1c Gate A (probing + state, no routing impact) |
 | 2026-06-30 | Gate C scaffold (passive fast-trip: speed, probe-only recovery, passive toggle) |
 | 2026-06-30 | Gate D scaffold (operator controls: drain, resume, scope precedence) |
+| 2026-07-02 | Gate E complete — health metrics scrape validation (§11); signed off |
