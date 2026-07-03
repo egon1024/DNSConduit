@@ -6,7 +6,7 @@ use crate::host::{
 };
 use crate::host_api::{register_host_surfaces, LogView, LookupView, MetricsView, RuntimeView};
 use crate::metrics::MetricRegistry;
-use crate::routing_view::{PoolRoutingView, RoutingRuntimeSnapshot};
+use crate::routing_view::RoutingRuntimeSnapshot;
 use crate::script_errors::{report_lookup_unknown_table, report_script_eval_error};
 use conduit_events::{hash_sample_keyed, matches_every_nth_global, matches_every_nth_worker};
 use conduit_metrics::BuiltinRegistry;
@@ -976,6 +976,7 @@ mod tests {
     use crate::compile::compile_from_config;
     use crate::host::ResponseWireMeta;
     use crate::rhai_script_errors_total;
+    use crate::routing_view::PoolRoutingView;
     use crate::testing::MockHost;
     use conduit_config::load_yaml;
     use conduit_metrics::{BuiltinProfile, BuiltinRegistry};
