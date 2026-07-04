@@ -7,6 +7,7 @@ Operator-facing changes by release. For the full list of merged pull requests, s
 
 | Version | Summary |
 | --- | --- |
+| [0.18.0](0.18.0.md) | Breaking changes — Rule Rhai host API { #breaking-changes--rule-rhai-host-api } |
 | [0.17.0](0.17.0.md) | Improvements |
 | [0.16.0](0.16.0.md) | New features |
 | [0.15.0](0.15.0.md) | New features |
