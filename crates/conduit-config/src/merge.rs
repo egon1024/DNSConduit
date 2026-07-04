@@ -76,6 +76,12 @@ pub fn merge_file_and_overlay(file: &Config, overlay: &Config) -> Result<Config,
     if overlay.data_source_limits.is_some() {
         merged.data_source_limits = overlay.data_source_limits;
     }
+    if overlay.lookup.is_some() {
+        merged.lookup = overlay.lookup.clone();
+    }
+    if !overlay.caches.is_empty() {
+        merged.caches = overlay.caches.clone();
+    }
 
     if !overlay.pools.is_empty() {
         merge_pools(&mut merged.pools, &overlay.pools)?;
@@ -102,6 +108,8 @@ pub fn is_overlay_patch_empty(cfg: &Config) -> bool {
         && cfg.pools.is_empty()
         && cfg.data_sources.is_empty()
         && cfg.data_source_limits.is_none()
+        && cfg.lookup.is_none()
+        && cfg.caches.is_empty()
 }
 
 /// Merge one overlay patch into another (same rules as [`merge_file_and_overlay`]).

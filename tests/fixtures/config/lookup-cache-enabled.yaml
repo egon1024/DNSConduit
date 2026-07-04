@@ -1,0 +1,27 @@
+schema_version: 1
+listeners:
+  threads: 1
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+pools:
+  - name: default
+    backends:
+      - address: "127.0.0.1:5300"
+caches:
+  - name: global
+    type: memory
+    max_entries: 100000
+    negative_cache:
+      enabled: true
+      nxdomain_covers_descendants: true
+      servfail_ttl_secs: 10
+    on_hit:
+      response_rules: skip
+lookup:
+  profiles:
+    default:
+      providers:
+        - type: cache
+          cache: global
+        - type: forward

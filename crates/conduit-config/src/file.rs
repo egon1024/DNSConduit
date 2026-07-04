@@ -8,13 +8,16 @@ use crate::defaults::{
 };
 use crate::error::ConfigError;
 use conduit_proto::config::{
-    Action, Backend, Config, ControlConfig, ControlTlsConfig, DataSource, DataSourceLimits,
-    DataplaneConfig, EventSinkFilters, EventsConfig, ForwardConfig, HealthCheck, Listener,
-    ListenersConfig, LoggingConfig, MetricsConfig, OrchestratorConfig, OtelMetricsConfig, Pool,
-    PrometheusMetricsConfig, RhaiConfig, Rule, RulesConfig, Selector, ShutdownConfig,
-    TracingActivation, TracingConfig, TracingOutput, UserMetricExportConfig,
+    Action, Backend, CacheInstance, CacheKeyAugmentConfig, CacheKeyConfig, CacheMemoryConfig,
+    CacheNegativeConfig, CacheOnHitConfig, Config, ControlConfig, ControlTlsConfig, DataSource,
+    DataSourceLimits, DataplaneConfig, EventSinkFilters, EventsConfig, ForwardConfig, HealthCheck,
+    Listener, ListenersConfig, LoggingConfig, LookupConfig, LookupProfile, LookupProvider,
+    MetricsConfig, OrchestratorConfig, OtelMetricsConfig, Pool, PrometheusMetricsConfig,
+    RhaiConfig, Rule, RulesConfig, Selector, ShutdownConfig, TracingActivation, TracingConfig,
+    TracingOutput, UserMetricExportConfig,
 };
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -49,6 +52,10 @@ pub(crate) struct YamlConfig {
     shutdown: Option<YamlShutdown>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     data_source_limits: Option<YamlDataSourceLimits>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    caches: Vec<YamlCacheInstance>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    lookup: Option<YamlLookup>,
 }
 
 /// Sparse overlay patch: omitted top-level keys stay unset (`None` / empty) in [`Config`].
@@ -86,6 +93,10 @@ pub(crate) struct YamlOverlayPatch {
     shutdown: Option<YamlShutdown>,
     #[serde(default)]
     data_source_limits: Option<YamlDataSourceLimits>,
+    #[serde(default)]
+    caches: Vec<YamlCacheInstance>,
+    #[serde(default)]
+    lookup: Option<YamlLookup>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -767,6 +778,86 @@ fn is_false(v: &bool) -> bool {
     !*v
 }
 
+#[derive(Debug, Deserialize, Serialize, Default)]
+pub(crate) struct YamlLookup {
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    profiles: HashMap<String, YamlLookupProfile>,
+}
+
+impl YamlLookup {
+    fn is_empty(&self) -> bool {
+        self.profiles.is_empty()
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub(crate) struct YamlLookupProfile {
+    providers: Vec<YamlLookupProvider>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub(crate) struct YamlLookupProvider {
+    #[serde(rename = "type")]
+    provider_type: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    cache: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub(crate) struct YamlCacheInstance {
+    name: String,
+    #[serde(rename = "type")]
+    cache_type: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    negative_cache: Option<YamlCacheNegativeConfig>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    on_hit: Option<YamlCacheOnHitConfig>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    cache_truncated_udp: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    truncated_udp_ttl_secs: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    rotate_rrset_on_serve: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    memory: Option<YamlCacheMemoryConfig>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    key: Option<YamlCacheKeyConfig>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    max_entries: Option<u64>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Default)]
+pub(crate) struct YamlCacheNegativeConfig {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    enabled: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    nxdomain_covers_descendants: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    servfail_ttl_secs: Option<u32>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub(crate) struct YamlCacheOnHitConfig {
+    response_rules: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub(crate) struct YamlCacheMemoryConfig {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    shard_count: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    eviction: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Default)]
+pub(crate) struct YamlCacheKeyConfig {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    augment: Option<YamlCacheKeyAugmentConfig>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Default)]
+pub(crate) struct YamlCacheKeyAugmentConfig {}
+
 pub fn load_yaml(input: &str) -> Result<Config, ConfigError> {
     let y: YamlConfig = serde_yaml::from_str(input)?;
     Ok(y.into())
@@ -805,6 +896,8 @@ impl From<YamlOverlayPatch> for Config {
             dataplane: y.dataplane.map(Into::into),
             shutdown: y.shutdown.map(Into::into),
             data_source_limits: y.data_source_limits.map(Into::into),
+            caches: y.caches.into_iter().map(Into::into).collect(),
+            lookup: y.lookup.map(Into::into),
         }
     }
 }
@@ -828,6 +921,8 @@ impl From<YamlConfig> for Config {
             dataplane: y.dataplane.map(Into::into),
             shutdown: y.shutdown.map(Into::into),
             data_source_limits: y.data_source_limits.map(Into::into),
+            caches: y.caches.into_iter().map(Into::into).collect(),
+            lookup: y.lookup.map(Into::into),
         }
     }
 }
@@ -1218,6 +1313,87 @@ impl From<YamlControl> for ControlConfig {
     }
 }
 
+impl From<YamlLookup> for LookupConfig {
+    fn from(y: YamlLookup) -> Self {
+        LookupConfig {
+            profiles: y
+                .profiles
+                .into_iter()
+                .map(|(name, profile)| (name, profile.into()))
+                .collect(),
+        }
+    }
+}
+
+impl From<YamlLookupProfile> for LookupProfile {
+    fn from(y: YamlLookupProfile) -> Self {
+        LookupProfile {
+            providers: y.providers.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl From<YamlLookupProvider> for LookupProvider {
+    fn from(y: YamlLookupProvider) -> Self {
+        LookupProvider {
+            r#type: y.provider_type,
+            cache: y.cache,
+        }
+    }
+}
+
+impl From<YamlCacheInstance> for CacheInstance {
+    fn from(y: YamlCacheInstance) -> Self {
+        CacheInstance {
+            name: y.name,
+            r#type: y.cache_type,
+            negative_cache: y.negative_cache.map(Into::into),
+            on_hit: y.on_hit.map(Into::into),
+            cache_truncated_udp: y.cache_truncated_udp,
+            truncated_udp_ttl_secs: y.truncated_udp_ttl_secs,
+            rotate_rrset_on_serve: y.rotate_rrset_on_serve,
+            memory: y.memory.map(Into::into),
+            key: y.key.map(Into::into),
+            max_entries: y.max_entries,
+        }
+    }
+}
+
+impl From<YamlCacheNegativeConfig> for CacheNegativeConfig {
+    fn from(y: YamlCacheNegativeConfig) -> Self {
+        CacheNegativeConfig {
+            enabled: y.enabled,
+            nxdomain_covers_descendants: y.nxdomain_covers_descendants,
+            servfail_ttl_secs: y.servfail_ttl_secs,
+        }
+    }
+}
+
+impl From<YamlCacheOnHitConfig> for CacheOnHitConfig {
+    fn from(y: YamlCacheOnHitConfig) -> Self {
+        CacheOnHitConfig {
+            response_rules: y.response_rules,
+        }
+    }
+}
+
+impl From<YamlCacheMemoryConfig> for CacheMemoryConfig {
+    fn from(y: YamlCacheMemoryConfig) -> Self {
+        CacheMemoryConfig {
+            shard_count: y.shard_count,
+            eviction: y.eviction,
+        }
+    }
+}
+
+impl From<YamlCacheKeyConfig> for CacheKeyConfig {
+    fn from(y: YamlCacheKeyConfig) -> Self {
+        CacheKeyConfig {
+            augment: y.augment.map(|_| CacheKeyAugmentConfig {}),
+        }
+    }
+}
+
 /// Build the YAML view of `cfg` for serialization. Default sections are omitted when sparse.
 pub(crate) fn config_to_yaml(cfg: &Config) -> Result<YamlConfig, ConfigError> {
     Ok(YamlConfig {
@@ -1299,6 +1475,15 @@ pub(crate) fn config_to_yaml(cfg: &Config) -> Result<YamlConfig, ConfigError> {
         data_source_limits: cfg.data_source_limits.as_ref().and_then(|l| {
             let y = YamlDataSourceLimits::from(l);
             if y.is_default() {
+                None
+            } else {
+                Some(y)
+            }
+        }),
+        caches: cfg.caches.iter().map(YamlCacheInstance::from).collect(),
+        lookup: cfg.lookup.as_ref().and_then(|l| {
+            let y = YamlLookup::from(l);
+            if y.is_empty() {
                 None
             } else {
                 Some(y)
@@ -1647,6 +1832,87 @@ impl TryFrom<&ControlConfig> for YamlControl {
     }
 }
 
+impl From<&LookupConfig> for YamlLookup {
+    fn from(l: &LookupConfig) -> Self {
+        YamlLookup {
+            profiles: l
+                .profiles
+                .iter()
+                .map(|(name, profile)| (name.clone(), YamlLookupProfile::from(profile)))
+                .collect(),
+        }
+    }
+}
+
+impl From<&LookupProfile> for YamlLookupProfile {
+    fn from(p: &LookupProfile) -> Self {
+        YamlLookupProfile {
+            providers: p.providers.iter().map(YamlLookupProvider::from).collect(),
+        }
+    }
+}
+
+impl From<&LookupProvider> for YamlLookupProvider {
+    fn from(p: &LookupProvider) -> Self {
+        YamlLookupProvider {
+            provider_type: p.r#type.clone(),
+            cache: p.cache.clone(),
+        }
+    }
+}
+
+impl From<&CacheInstance> for YamlCacheInstance {
+    fn from(c: &CacheInstance) -> Self {
+        YamlCacheInstance {
+            name: c.name.clone(),
+            cache_type: c.r#type.clone(),
+            negative_cache: c.negative_cache.as_ref().map(YamlCacheNegativeConfig::from),
+            on_hit: c.on_hit.as_ref().map(YamlCacheOnHitConfig::from),
+            cache_truncated_udp: c.cache_truncated_udp,
+            truncated_udp_ttl_secs: c.truncated_udp_ttl_secs,
+            rotate_rrset_on_serve: c.rotate_rrset_on_serve,
+            memory: c.memory.as_ref().map(YamlCacheMemoryConfig::from),
+            key: c.key.as_ref().map(YamlCacheKeyConfig::from),
+            max_entries: c.max_entries,
+        }
+    }
+}
+
+impl From<&CacheNegativeConfig> for YamlCacheNegativeConfig {
+    fn from(n: &CacheNegativeConfig) -> Self {
+        YamlCacheNegativeConfig {
+            enabled: n.enabled,
+            nxdomain_covers_descendants: n.nxdomain_covers_descendants,
+            servfail_ttl_secs: n.servfail_ttl_secs,
+        }
+    }
+}
+
+impl From<&CacheOnHitConfig> for YamlCacheOnHitConfig {
+    fn from(o: &CacheOnHitConfig) -> Self {
+        YamlCacheOnHitConfig {
+            response_rules: o.response_rules.clone(),
+        }
+    }
+}
+
+impl From<&CacheMemoryConfig> for YamlCacheMemoryConfig {
+    fn from(m: &CacheMemoryConfig) -> Self {
+        YamlCacheMemoryConfig {
+            shard_count: m.shard_count,
+            eviction: m.eviction.clone(),
+        }
+    }
+}
+
+impl From<&CacheKeyConfig> for YamlCacheKeyConfig {
+    fn from(k: &CacheKeyConfig) -> Self {
+        YamlCacheKeyConfig {
+            augment: k.augment.as_ref().map(|_| YamlCacheKeyAugmentConfig {}),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1765,6 +2031,51 @@ pools:
         let rules = cfg.rules.as_ref().expect("rules");
         assert_eq!(rules.rules.len(), 2);
         assert_eq!(rules.rules[0].name, "use-primary");
+    }
+
+    #[test]
+    fn lookup_forward_only_fixture_validates() {
+        let yaml = include_str!("../../../tests/fixtures/config/lookup-forward-only.yaml");
+        let cfg = load_yaml(yaml).expect("parse");
+        let v = crate::validate::validate(&cfg);
+        assert!(v.ok, "{:?}", v.errors);
+        let lookup = cfg.lookup.as_ref().expect("lookup");
+        assert!(lookup.profiles.contains_key("default"));
+    }
+
+    #[test]
+    fn lookup_cache_enabled_fixture_validates() {
+        let yaml = include_str!("../../../tests/fixtures/config/lookup-cache-enabled.yaml");
+        let cfg = load_yaml(yaml).expect("parse");
+        let v = crate::validate::validate(&cfg);
+        assert!(v.ok, "{:?}", v.errors);
+        assert_eq!(cfg.caches.len(), 1);
+    }
+
+    #[test]
+    fn lookup_invalid_fixtures_fail_validation() {
+        let cases = [
+            include_str!("../../../tests/fixtures/config/lookup-invalid-cache-ref.yaml"),
+            include_str!("../../../tests/fixtures/config/lookup-invalid-on-hit.yaml"),
+            include_str!("../../../tests/fixtures/config/lookup-invalid-truncated-ttl.yaml"),
+        ];
+        for yaml in cases {
+            let cfg = load_yaml(yaml).expect("parse");
+            let v = crate::validate::validate(&cfg);
+            assert!(!v.ok);
+        }
+    }
+
+    #[test]
+    fn lookup_cache_round_trips_through_export() {
+        let yaml = include_str!("../../../tests/fixtures/config/lookup-cache-enabled.yaml");
+        let cfg = load_yaml(yaml).expect("parse");
+        let exported = crate::export_yaml(&cfg).expect("export");
+        assert!(exported.contains("lookup:"));
+        assert!(exported.contains("caches:"));
+        let reparsed = load_yaml(&exported).expect("reparse");
+        assert_eq!(reparsed.lookup, cfg.lookup);
+        assert_eq!(reparsed.caches.len(), cfg.caches.len());
     }
 
     #[test]

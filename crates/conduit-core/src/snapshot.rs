@@ -5,6 +5,7 @@ use crate::rules::CompiledRules;
 use arc_swap::ArcSwap;
 use conduit_config::forward::{CompiledForward, CompiledPoolForward};
 use conduit_config::health::{compile_health_from_config, CompiledHealth};
+use conduit_config::lookup::CompiledLookup;
 use conduit_config::validate;
 use conduit_events::{compile_from_config as compile_events, CompiledEvents};
 use conduit_metrics::{compile_from_config as compile_metrics, CompiledMetrics, CompiledTracing};
@@ -27,6 +28,7 @@ pub struct RuntimeSnapshot {
     /// snapshot in a side-table reconciled across swaps — never store mutable
     /// health state here.
     pub health: CompiledHealth,
+    pub lookup: CompiledLookup,
     pub metrics: CompiledMetrics,
     pub tracing: CompiledTracing,
     pub generation: u64,
@@ -150,6 +152,9 @@ impl RuntimeSnapshot {
         let health = compile_health_from_config(&config).unwrap_or_else(|e| {
             panic!("health compile failed at snapshot build: {e}");
         });
+        let lookup = CompiledLookup::compile_from_config(&config).unwrap_or_else(|e| {
+            panic!("lookup compile failed at snapshot build: {e}");
+        });
         Self {
             rules: CompiledRules::compile(config.rules.as_ref(), &scripting),
             events,
@@ -157,6 +162,7 @@ impl RuntimeSnapshot {
             forward,
             pool_forward,
             health,
+            lookup,
             metrics,
             tracing,
             config,
@@ -181,6 +187,11 @@ impl RuntimeSnapshot {
             rule_name: "health".into(),
             message: e,
         })?;
+        let lookup =
+            CompiledLookup::compile_from_config(&config).map_err(|e| ScriptError::Rule {
+                rule_name: "lookup".into(),
+                message: e,
+            })?;
         Ok(Self {
             rules: CompiledRules::compile(config.rules.as_ref(), &scripting),
             events,
@@ -188,6 +199,7 @@ impl RuntimeSnapshot {
             forward,
             pool_forward,
             health,
+            lookup,
             metrics,
             tracing,
             config,
@@ -209,6 +221,14 @@ impl RuntimeSnapshot {
 
     pub fn scripting_enabled(&self) -> bool {
         !self.scripting.is_empty()
+    }
+
+    pub fn lookup_enabled(&self) -> bool {
+        self.lookup.lookup_enabled()
+    }
+
+    pub fn cache_enabled(&self) -> bool {
+        self.lookup.cache_enabled()
     }
 }
 
@@ -361,6 +381,27 @@ mod tests {
         store.install_validated(cfg2).unwrap();
         assert_eq!(store.load().config.listeners.as_ref().unwrap().threads, 8);
         assert_eq!(store.generation(), 1);
+    }
+
+    #[test]
+    fn lookup_snapshot_compiles_from_fixtures() {
+        use conduit_config::CompiledLookup;
+
+        let forward_only = load_yaml(include_str!(
+            "../../../tests/fixtures/config/lookup-forward-only.yaml"
+        ))
+        .unwrap();
+        let compiled = CompiledLookup::compile_from_config(&forward_only).unwrap();
+        assert!(compiled.lookup_enabled());
+        assert!(!compiled.cache_enabled());
+
+        let cache_enabled = load_yaml(include_str!(
+            "../../../tests/fixtures/config/lookup-cache-enabled.yaml"
+        ))
+        .unwrap();
+        let compiled = CompiledLookup::compile_from_config(&cache_enabled).unwrap();
+        assert!(compiled.cache_enabled());
+        assert!(compiled.cache_instances.contains_key("global"));
     }
 
     #[test]

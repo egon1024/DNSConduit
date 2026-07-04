@@ -21,6 +21,8 @@ message Config {
   optional DataplaneConfig dataplane = 14;
   optional ShutdownConfig shutdown = 15;
   optional DataSourceLimits data_source_limits = 16;
+  repeated CacheInstance caches = 17;
+  optional LookupConfig lookup = 18;
 }
 
 // Process shutdown behavior: graceful drain of in-flight transactions before exit.
@@ -266,4 +268,55 @@ message ControlConfig {
   bool reflection_enabled = 2;  // expose gRPC reflection service (dev/test convenience)
   repeated string api_keys = 3; // when non-empty, require matching key on control RPCs
   ControlTlsConfig tls = 4;     // when set, serve gRPC over TLS (optional mTLS)
+}
+
+// Pluggable lookup profiles and named cache instances (pluggable-lookup-system).
+message LookupConfig {
+  map<string, LookupProfile> profiles = 1;
+}
+
+message LookupProfile {
+  repeated LookupProvider providers = 1;
+}
+
+message LookupProvider {
+  string type = 1;              // "cache" | "forward"
+  optional string cache = 2;    // cache instance name when type is cache
+}
+
+message CacheInstance {
+  string name = 1;
+  string type = 2;              // "memory" (v1) | "lmdb" | "ebpf_map" (reserved)
+  optional CacheNegativeConfig negative_cache = 3;
+  optional CacheOnHitConfig on_hit = 4;
+  optional bool cache_truncated_udp = 5;
+  optional uint32 truncated_udp_ttl_secs = 6;
+  optional bool rotate_rrset_on_serve = 7;
+  optional CacheMemoryConfig memory = 8;
+  optional CacheKeyConfig key = 9;  // reserved: key augmenters
+  optional uint64 max_entries = 10;
+}
+
+message CacheNegativeConfig {
+  optional bool enabled = 1;
+  optional bool nxdomain_covers_descendants = 2;  // default true (RFC 8020)
+  optional uint32 servfail_ttl_secs = 3;        // default 10; 0 = do not cache SERVFAIL
+}
+
+message CacheOnHitConfig {
+  string response_rules = 1;      // "skip" (default) | "run"
+}
+
+message CacheMemoryConfig {
+  optional uint32 shard_count = 1;
+  optional string eviction = 2;   // "passive" (default) | "active"
+}
+
+// Reserved for future cache key augmenters (CIDR, Rhai scripts).
+message CacheKeyConfig {
+  optional CacheKeyAugmentConfig augment = 1;
+}
+
+message CacheKeyAugmentConfig {
+  // Placeholder — augmenters deferred to backlog.
 }

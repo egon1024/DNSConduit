@@ -336,6 +336,8 @@ mod tests {
             dataplane: None,
             shutdown: None,
             data_source_limits: None,
+            caches: vec![],
+            lookup: None,
         };
         let (_, t) = compile_from_config(&cfg);
         assert!(!t.enabled);
@@ -375,6 +377,8 @@ mod tests {
             dataplane: None,
             shutdown: None,
             data_source_limits: None,
+            caches: vec![],
+            lookup: None,
         };
         let (_, t) = compile_from_config(&cfg);
         assert!(t.enabled);
@@ -416,6 +420,8 @@ mod tests {
             dataplane: None,
             shutdown: None,
             data_source_limits: None,
+            caches: vec![],
+            lookup: None,
         };
         let (m, _) = compile_from_config(&cfg);
         assert_eq!(
