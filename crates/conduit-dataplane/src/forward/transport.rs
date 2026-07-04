@@ -110,12 +110,9 @@ impl ForwardTransport {
             return;
         };
         let pool = txn.selected_pool.as_deref().unwrap_or("default");
-        if let Some(result) = registry.record_passive_forward_outcome(
-            &snapshot.health,
-            pool,
-            backend,
-            is_failure,
-        ) {
+        if let Some(result) =
+            registry.record_passive_forward_outcome(&snapshot.health, pool, backend, is_failure)
+        {
             let qname = txn.qname.as_deref().unwrap_or("?");
             let qtype = txn.qtype.unwrap_or(0);
             let reason = reason.unwrap_or("unknown");
