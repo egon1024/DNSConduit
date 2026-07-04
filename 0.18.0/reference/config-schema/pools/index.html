@@ -1,0 +1,3017 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Operator documentation for DNS Conduit">
+      
+      
+      
+        <link rel="canonical" href="https://egon1024.github.io/DNSConduit/0.18.0/reference/config-schema/pools/">
+      
+      
+        <link rel="prev" href="../listeners/">
+      
+      
+        <link rel="next" href="../health/">
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.5.49">
+    
+    
+      
+        <title>Pools - DNS Conduit</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.6f8fc17f.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/version-label.css">
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/column-no-wrap.css">
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/txn-api.css">
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/toc-collapse.css">
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#config-schema-pools" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="DNS Conduit" class="md-header__button md-logo" aria-label="DNS Conduit" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            DNS Conduit
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Pools
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/egon1024/DNSConduit" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    egon1024/DNSConduit
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="DNS Conduit" class="md-nav__button md-logo" aria-label="DNS Conduit" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    DNS Conduit
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/egon1024/DNSConduit" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    egon1024/DNSConduit
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Home
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Getting started
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            Getting started
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../getting-started/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Overview
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../getting-started/what-conduit-is-for/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    What Conduit is for
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../getting-started/install-and-run/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Install and run
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../getting-started/minimal-configuration/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Minimal configuration
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../getting-started/first-query/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    First query
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Concepts
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            Concepts
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../concepts/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Overview
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../concepts/architecture-and-packet-path/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Architecture and packet path
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../concepts/runtime-and-concurrency/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Runtime and concurrency
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Policy & routing
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            Policy & routing
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../policy-routing/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Overview
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../policy-routing/rules-and-actions/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Rules and actions
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../policy-routing/pools-and-backends/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Pools and backends
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../policy-routing/backend-health/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Backend health
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../policy-routing/retries-and-transactions/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Retries and transactions
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Control plane
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            Control plane
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../control-plane/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Overview
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../control-plane/configuration-model/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Configuration model
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../control-plane/config-file/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Config file
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../control-plane/reload-and-export/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Reload and export
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../control-plane/grpc-and-conduitctl/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    gRPC and conduitctl
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Rhai
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            Rhai
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../rhai/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Overview
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_2" id="__nav_6_2_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Host API
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_2">
+            <span class="md-nav__icon md-icon"></span>
+            Host API
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../rhai/host-api/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Overview
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../rhai/txn-api/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Transaction (txn)
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../rhai/runtime-api/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Runtime
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../rhai/data-sources-and-lookups/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Lookups
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../rhai/user-metrics/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Metrics
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../rhai/script-logging/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Script logging
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_3" id="__nav_6_3_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    For rules
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_3">
+            <span class="md-nav__icon md-icon"></span>
+            For rules
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../rhai/rule-rhai/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Overview
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../rhai/hooks-and-phases/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Hooks and phases
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../rhai/sandbox-limits/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Sandbox limits
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Observability
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            Observability
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../observability/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Overview
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../observability/metrics/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Metrics
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../observability/built-in-metrics/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Built-in metrics
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../observability/tracing/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Tracing
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../observability/event-export/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Event export
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../observability/logging/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Logging
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Guides
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            Guides
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Overview
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/rhai-policy/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Rhai policy
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/backend-health/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Backend health
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/dual-stack-forwarding/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Dual-stack forwarding
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/dataplane-runtime-tuning/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Dataplane runtime tuning
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/control-plane-workflows/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Control plane workflows
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/metrics-and-tracing/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Metrics and tracing
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/event-export-dnstap/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Event export and dnstap
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/operator-metrics-profiles/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Operator metrics profiles
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Security
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            Security
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../security/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Overview
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../security/api-keys/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    API keys
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../security/mtls/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    mTLS
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../troubleshooting/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Troubleshooting
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../glossary/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Glossary
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_12" >
+        
+          
+          <label class="md-nav__link" for="__nav_12" id="__nav_12_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Release notes
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_12">
+            <span class="md-nav__icon md-icon"></span>
+            Release notes
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../release-notes/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Overview
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../release-notes/unreleased/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Unreleased
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_13" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_13" id="__nav_13_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Reference
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_13_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_13">
+            <span class="md-nav__icon md-icon"></span>
+            Reference
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Overview
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_13_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_13_2" id="__nav_13_2_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Config schema
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_13_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_13_2">
+            <span class="md-nav__icon md-icon"></span>
+            Config schema
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Overview
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../listeners/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Listeners
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  <span class="md-ellipsis">
+    Pools
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  <span class="md-ellipsis">
+    Pools
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        
+
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#pools" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pools
+      
+    </span>
+  </a>
+  
+  
+</li>
+
+      
+        
+
+
+  
+    
+      
+    
+  
+    
+      
+    
+  
+    
+      
+    
+  
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#pool-object" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pool object
+      
+    </span>
+  </a>
+  
+  
+    <nav class="md-nav md-toc__branch-children" aria-label="Pool object">
+      <ul class="md-nav__list">
+        
+          
+            
+
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#default-pool-selection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Default pool selection
+      
+    </span>
+  </a>
+  
+  
+</li>
+
+          
+        
+          
+            
+
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#pool-sources_v4-sources_v6-constraints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pool sources_v4 / sources_v6 constraints
+      
+    </span>
+  </a>
+  
+  
+</li>
+
+          
+        
+          
+            
+
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#per-pool-in-flight-limit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Per-pool in-flight limit
+      
+    </span>
+  </a>
+  
+  
+</li>
+
+          
+        
+      </ul>
+    </nav>
+  
+</li>
+
+      
+        
+
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#backend-object" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Backend object
+      
+    </span>
+  </a>
+  
+  
+</li>
+
+      
+        
+
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#validation-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Validation summary
+      
+    </span>
+  </a>
+  
+  
+</li>
+
+      
+        
+
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#reload-and-restart" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reload and restart
+      
+    </span>
+  </a>
+  
+  
+</li>
+
+      
+        
+
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#example-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example configuration
+      
+    </span>
+  </a>
+  
+  
+</li>
+
+      
+        
+
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#related-topics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Related topics
+      
+    </span>
+  </a>
+  
+  
+</li>
+
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../health/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Health
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../forward/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Forward
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../orchestrator/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Orchestrator
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../dataplane/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Dataplane
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../shutdown/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Shutdown
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../rules/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Rules
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../control/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Control
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../events/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Events
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../metrics-and-tracing/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Metrics and tracing
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../grpc-and-cli/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    gRPC and CLI
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://egon1024.github.io/DNSConduit/versions/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Versions
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../contributing/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Contributing
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../license/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    License
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        
+
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#pools" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pools
+      
+    </span>
+  </a>
+  
+  
+</li>
+
+      
+        
+
+
+  
+    
+      
+    
+  
+    
+      
+    
+  
+    
+      
+    
+  
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#pool-object" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pool object
+      
+    </span>
+  </a>
+  
+  
+    <nav class="md-nav md-toc__branch-children" aria-label="Pool object">
+      <ul class="md-nav__list">
+        
+          
+            
+
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#default-pool-selection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Default pool selection
+      
+    </span>
+  </a>
+  
+  
+</li>
+
+          
+        
+          
+            
+
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#pool-sources_v4-sources_v6-constraints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pool sources_v4 / sources_v6 constraints
+      
+    </span>
+  </a>
+  
+  
+</li>
+
+          
+        
+          
+            
+
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#per-pool-in-flight-limit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Per-pool in-flight limit
+      
+    </span>
+  </a>
+  
+  
+</li>
+
+          
+        
+      </ul>
+    </nav>
+  
+</li>
+
+      
+        
+
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#backend-object" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Backend object
+      
+    </span>
+  </a>
+  
+  
+</li>
+
+      
+        
+
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#validation-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Validation summary
+      
+    </span>
+  </a>
+  
+  
+</li>
+
+      
+        
+
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#reload-and-restart" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reload and restart
+      
+    </span>
+  </a>
+  
+  
+</li>
+
+      
+        
+
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#example-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example configuration
+      
+    </span>
+  </a>
+  
+  
+</li>
+
+      
+        
+
+
+
+
+<li class="md-nav__item">
+  
+  <a href="#related-topics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Related topics
+      
+    </span>
+  </a>
+  
+  
+</li>
+
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+  
+  
+
+
+<h1 id="config-schema-pools">Config schema: pools</h1>
+<p>Field reference for the top-level <code>pools:</code> list and each <a href="../../../glossary/#pool">pool</a> / <a href="../../../glossary/#backend">backend</a> object. For behavior — selection, weights, multiple pools, retries — see <a href="../../../policy-routing/pools-and-backends/">Pools and backends</a>.</p>
+<h2 id="pools"><code>pools</code></h2>
+<table>
+<thead>
+<tr>
+<th>Property</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Type</strong></td>
+<td>List of pool objects</td>
+</tr>
+<tr>
+<td><strong>Required</strong></td>
+<td>Yes for a runnable installation (forwarding needs at least one pool with backends)</td>
+</tr>
+<tr>
+<td><strong>Location</strong></td>
+<td>Top-level key in the <a href="../../../control-plane/config-file/">config file</a></td>
+</tr>
+</tbody>
+</table>
+<p>Each list entry is one named pool. Pool <code>name</code> values must be <strong>unique</strong> within the file; duplicate names fail <a href="../../../control-plane/config-file/">validation</a>.</p>
+<h2 id="pool-object">Pool object</h2>
+<table>
+<thead>
+<tr><th class="column-no-wrap column-no-wrap-cell">Field</th><th>Type</th><th>Required</th><th>Default</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td class="column-no-wrap-cell"><code>name</code></td><td>string</td><td>yes</td><td>—</td><td>Identifier referenced by <code>set_pool</code>, <code>set_retry_pool</code>, <a href="../../../rhai/">Rhai</a> <code>set_pool</code> / <code>set_retry_pool</code>, <a href="../../../observability/metrics/">metrics</a> labels, and event filters. Must be non-empty and unique among pools. The name <code>default</code> is a convention for the catch-all pool when nothing else selects a pool — see <a href="#default-pool-selection">Default pool selection</a>.</td></tr>
+<tr><td class="column-no-wrap-cell"><code>backends</code></td><td>list</td><td>yes</td><td>—</td><td>One or more <a href="#backend-object">backend</a> entries. An empty list fails validation.</td></tr>
+<tr><td class="column-no-wrap-cell"><code>health</code></td><td>object</td><td>no</td><td>(disabled)</td><td>Optional <a href="../../../policy-routing/backend-health/">backend health</a> settings for this pool. See <a href="../health/">Reference: health</a>.</td></tr>
+<tr><td class="column-no-wrap-cell"><code>sources_v4</code></td><td>list of strings</td><td>no</td><td>(use <a href="../forward/">forward</a> defaults)</td><td>IPv4 addresses to bind when forwarding to this pool’s backends. Overrides global <code>forward.sources_v4</code> for this pool when non-empty. See <a href="../../../guides/dual-stack-forwarding/">Dual-stack forwarding</a>.</td></tr>
+<tr><td class="column-no-wrap-cell"><code>sources_v6</code></td><td>list of strings</td><td>no</td><td>(use <a href="../forward/">forward</a> defaults)</td><td>IPv6 addresses for upstream egress for this pool. Overrides global <code>forward.sources_v6</code> when non-empty.</td></tr>
+<tr><td class="column-no-wrap-cell"><code>max_inflight</code></td><td>integer</td><td>no</td><td>(unlimited)</td><td>Optional cap on <strong>concurrent in-flight forwards</strong> for this pool. When set, must be <strong>≥ 1</strong>. Enforced under the <strong><code>split_io</code></strong> <a href="../../../concepts/runtime-and-concurrency/#runtime-models">runtime</a>; a query that would exceed the cap returns <strong>SERVFAIL</strong> rather than queueing. See <a href="#per-pool-in-flight-limit">Per-pool in-flight limit</a>.</td></tr>
+</tbody>
+</table>
+<h3 id="default-pool-selection">Default pool selection</h3>
+<p>When no <a href="../../../policy-routing/rules-and-actions/">rule</a>, <a href="../../../rhai/">Rhai</a> script, or <a href="../../../policy-routing/retries-and-transactions/">retry</a> has set a pool for the <a href="../../../glossary/#transaction">transaction</a>, Conduit picks a pool at Route time:</p>
+<ol>
+<li>If a pool named <strong><code>default</code></strong> exists, use it.</li>
+<li>Otherwise use the <strong>first</strong> pool in the <code>pools:</code> list (YAML order).</li>
+</ol>
+<p>Naming a catch-all pool <code>default</code> is a convention, not a schema requirement — validation does not require that name. If you omit <code>default</code>, list order defines the fallback pool. A pool named <code>default</code> that appears later in the list still wins over earlier pools when fallback applies.</p>
+<p>For examples (split horizon, explicit rules vs catch-all), see <a href="../../../policy-routing/pools-and-backends/">Pools and backends</a>.</p>
+<h3 id="pool-sources_v4-sources_v6-constraints">Pool <code>sources_v4</code> / <code>sources_v6</code> constraints</h3>
+<ul>
+<li>Each entry must be a valid IPv4 or IPv6 address (not <code>ip:port</code>).</li>
+<li>Entries must not be empty strings.</li>
+<li>At most <strong>32</strong> addresses per list (<code>sources_v4</code> and <code>sources_v6</code> separately).</li>
+<li>When a pool list is empty or omitted, Conduit uses the corresponding global <code>forward.sources_v4</code> or <code>forward.sources_v6</code> list (if any), then system defaults for bind behavior.</li>
+</ul>
+<h3 id="per-pool-in-flight-limit">Per-pool in-flight limit</h3>
+<p><code>max_inflight</code> bounds how many <a href="../../../glossary/#transaction">transactions</a> may be <strong>forwarding to this pool at once</strong>. It is a coarse pool-level guard — distinct from per-backend upstream concurrency (<code>forward.outstanding_per_backend</code>) and the global <a href="../../../concepts/runtime-and-concurrency/#transaction-slot-pool">transaction slot pool</a> (<code>orchestrator.txn_table_capacity</code>).</p>
+<ul>
+<li><strong>Default (unset)</strong> — no per-pool cap; pool concurrency is bounded only by the slot pool and per-backend limits.</li>
+<li><strong>Set</strong> — when a forward would exceed the cap, Conduit returns <strong>SERVFAIL</strong> to the client immediately (it does not queue or block). The reserved slot is released when the upstream replies, times out, or errors.</li>
+<li><strong>Runtime scope</strong> — enforced under the <strong><code>split_io</code></strong> <a href="../../../concepts/runtime-and-concurrency/#runtime-models">runtime</a>. Under <strong><code>sync</code></strong>, pool concurrency is already bounded by listener <a href="../listeners/#block-fields"><code>threads</code></a>, so <code>max_inflight</code> is validated but not separately enforced.</li>
+</ul>
+<h2 id="backend-object">Backend object</h2>
+<p>Backends are nested under <code>pools[].backends</code>. Each backend is one upstream resolver. An optional <strong><code>name</code></strong> gives the backend a stable identity for <a href="../../../observability/metrics/">metrics</a> labels and control-plane overlay patches; without it the upstream is identified by <code>address</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>address</code></td>
+<td>string</td>
+<td>yes</td>
+<td>—</td>
+<td>Upstream resolver as <code>ip:port</code>. IPv6 literals use bracket notation, for example <code>[2001:db8::1]:53</code>. Must parse as a socket address.</td>
+</tr>
+<tr>
+<td><code>weight</code></td>
+<td>integer</td>
+<td>no</td>
+<td><strong>100</strong></td>
+<td>Load-balancing weight within the pool. If set, must be <strong>≥ 1</strong>. Omitted or unset means effective weight 100.</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>string</td>
+<td>no</td>
+<td>(use <code>address</code>)</td>
+<td>Stable identity for this backend. When set, it becomes the <strong><code>backend</code></strong> <a href="../../../observability/metrics/">metric</a> label and the key for <a href="../../../control-plane/configuration-model/">overlay patches</a> that target <code>(pool, name)</code>. Must be <strong>unique within the pool</strong> when set.</td>
+</tr>
+<tr>
+<td><code>probe_qname</code></td>
+<td>string</td>
+<td>no</td>
+<td>(pool health template)</td>
+<td>Per-backend override for health probe query name when pool health is enabled.</td>
+</tr>
+<tr>
+<td><code>probe_qtype</code></td>
+<td>string</td>
+<td>no</td>
+<td>(pool health template)</td>
+<td>Per-backend override for health probe query type.</td>
+</tr>
+<tr>
+<td><code>probe_source</code></td>
+<td>string</td>
+<td>no</td>
+<td>(system bind)</td>
+<td>Local IP address to bind for health probes to this backend.</td>
+</tr>
+<tr>
+<td><code>transport</code></td>
+<td>string</td>
+<td>no</td>
+<td>—</td>
+<td>Reserved for forward-compatible use; not honored when it diverges from <code>forward.upstream_transport</code>.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="validation-summary">Validation summary</h2>
+<table>
+<thead>
+<tr>
+<th>Rule</th>
+<th>Error if violated</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Unique pool <code>name</code></td>
+<td><code>duplicate pool name '…'</code></td>
+</tr>
+<tr>
+<td>Non-empty pool <code>name</code></td>
+<td><code>pool name must not be empty</code></td>
+</tr>
+<tr>
+<td>Pool has ≥ 1 backend</td>
+<td><code>pool '…' has no backends</code></td>
+</tr>
+<tr>
+<td>Backend <code>address</code> parses</td>
+<td><code>pool '…' backend '…': invalid socket address</code></td>
+</tr>
+<tr>
+<td>Backend <code>weight</code> ≥ 1 when set</td>
+<td><code>pool '…' backend '…' weight must be &gt;= 1</code></td>
+</tr>
+<tr>
+<td>Backend <code>name</code> unique within a pool</td>
+<td><code>pool '…' duplicate backend name '…'</code></td>
+</tr>
+<tr>
+<td>Pool <code>max_inflight</code> ≥ 1 when set</td>
+<td><code>pool '…' max_inflight must be &gt;= 1 when set</code></td>
+</tr>
+<tr>
+<td>Valid pool <code>sources_v4</code> / <code>sources_v6</code></td>
+<td><code>pool '…': …</code> (parse/limit messages)</td>
+</tr>
+</tbody>
+</table>
+<p>Validate with <code>conduitctl validate --file …</code> or load via the running process; see <a href="../../../control-plane/config-file/">Config file</a>.</p>
+<h2 id="reload-and-restart">Reload and restart</h2>
+<p>Pool routing — backend <code>address</code>, <code>weight</code>, <code>name</code>, pool membership, and <code>sources_v4</code> / <code>sources_v6</code> — is <strong>hot</strong>: a successful <a href="../../../control-plane/reload-and-export/">reload</a> applies to new queries from the next snapshot, and metric labels follow the new <code>name</code> values.</p>
+<p><strong><code>max_inflight</code> is fixed at process start.</strong> A changed value is stored in the new snapshot but the active limit is not re-read until you <strong>restart</strong> <code>conduit</code>.</p>
+<h2 id="example-configuration">Example configuration</h2>
+<div class="highlight"><pre><span></span><code><span class="nt">pools</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default</span>
+<span class="w">    </span><span class="nt">sources_v4</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;10.0.0.10&quot;</span><span class="w">   </span><span class="c1"># Conduit host on the recursor-facing VLAN</span>
+<span class="w">    </span><span class="nt">backends</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">address</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;10.0.0.1:53&quot;</span>
+<span class="w">        </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">resolver-a</span><span class="w">   </span><span class="c1"># stable metrics label + overlay target</span>
+<span class="w">        </span><span class="nt">weight</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">70</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">address</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;10.0.0.2:53&quot;</span>
+<span class="w">        </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">resolver-b</span>
+<span class="w">        </span><span class="c1"># weight omitted → 100</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">internal</span>
+<span class="w">    </span><span class="nt">max_inflight</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">256</span><span class="w">       </span><span class="c1"># cap concurrent forwards to this pool (split_io)</span>
+<span class="w">    </span><span class="nt">sources_v4</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;10.0.1.10&quot;</span><span class="w">   </span><span class="c1"># Conduit host on the internal DNS network</span>
+<span class="w">    </span><span class="nt">backends</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">address</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;10.0.1.53:53&quot;</span>
+</code></pre></div>
+<h2 id="related-topics">Related topics</h2>
+<ul>
+<li><a href="../../../policy-routing/pools-and-backends/">Pools and backends</a> — behavior and examples</li>
+<li><a href="../../../policy-routing/rules-and-actions/">Rules and actions</a> — <code>set_pool</code> and selectors</li>
+<li><a href="../../../policy-routing/retries-and-transactions/">Retries and transactions</a> — <code>set_retry_pool</code>, <code>retry</code></li>
+<li><a href="../../../control-plane/configuration-model/">Configuration model</a> — overlay patches targeting backends by <code>(pool, name)</code></li>
+<li><a href="../../../concepts/runtime-and-concurrency/">Runtime and concurrency</a> — transaction slot pool and in-flight limits</li>
+<li><a href="../../../guides/dual-stack-forwarding/">Dual-stack forwarding</a> — pool and global egress sources</li>
+<li><a href="../health/">Reference: health</a> — pool <code>health:</code> block and per-backend probe overrides</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    <script id="__config" type="application/json">{"base": "../../..", "features": ["navigation.instant", "navigation.tracking", "toc.follow", "search.suggest", "content.code.copy"], "search": "../../../assets/javascripts/workers/search.6ce7567c.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "0.18.0"}}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.88dd0f4e.min.js"></script>
+      
+        <script src="../../../assets/javascripts/doc-version.js"></script>
+      
+        <script src="../../../assets/javascripts/toc-collapse.js"></script>
+      
+        <script src="../../../assets/javascripts/txn-api-cards.js"></script>
+      
+    
+  </body>
+</html>
