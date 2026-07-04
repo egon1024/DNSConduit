@@ -106,7 +106,7 @@ listeners:
       protocol: udp
 ```
 
-`rcvbuf` applies to UDP only and can be overridden per listener. There is no per-listener `sndbuf` today (the block-level `sndbuf` is reserved and not applied). See [Reference: listeners — Block fields](/reference/config-schema/listeners.md#block-fields).
+`rcvbuf` applies to UDP only and can be overridden per listener. Block-level `sndbuf` is reserved and not applied. See [Reference: listeners — Block fields](/reference/config-schema/listeners.md#block-fields).
 
 ## Verify with metrics
 

@@ -58,6 +58,24 @@ impl Health {
     }
 }
 
+/// Outcome of a passive (live-traffic) failure recorded against a backend.
+/// Returned by [`BackendHealthState::record_passive_failure`] so callers can
+/// emit appropriately-tiered logs with full query context.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PassiveFailureResult {
+    /// Resulting `applied` health after this failure.
+    pub applied: Health,
+    /// Passive failure count *after* this failure (1-based).
+    pub consecutive_failures: u32,
+    /// Configured threshold (`passive_fall`).
+    pub passive_fall: u32,
+    /// True when this failure crossed the threshold and moved `observed` to Down.
+    pub transitioned: bool,
+    /// True when the backend was already `observed == Down` before this failure
+    /// (post-trip in-flight query completing).
+    pub already_down: bool,
+}
+
 /// Identity of a backend within the running config. Includes the pool so the
 /// same address in two pools is two independent health entries.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -291,24 +309,36 @@ impl BackendHealthState {
 
     /// Record a live forward failure (timeout / hard error). Passive may open
     /// the circuit at `passive_fall`; only probe rise may close (design §D1).
-    pub fn record_passive_failure(&self, passive_fall: u32) -> Health {
+    ///
+    /// Returns a [`PassiveFailureResult`] so callers can log with full query
+    /// context (the state machine itself has no query knowledge).
+    pub fn record_passive_failure(&self, passive_fall: u32) -> PassiveFailureResult {
+        let was_already_down = self.observed() == Health::Down;
         let failures = self
             .passive_consecutive_failures
             .load(Ordering::Relaxed)
             .saturating_add(1);
         self.passive_consecutive_failures
             .store(failures, Ordering::Relaxed);
+        let mut transitioned = false;
         if failures >= passive_fall.max(1) {
             let prev = self.observed();
             self.observed.store(Health::Down.to_u8(), Ordering::Relaxed);
             if prev != Health::Down {
                 self.note_transition();
+                transitioned = true;
             }
             if !self.is_frozen() {
                 self.set_applied(Health::Down);
             }
         }
-        self.applied()
+        PassiveFailureResult {
+            applied: self.applied(),
+            consecutive_failures: failures,
+            passive_fall,
+            transitioned,
+            already_down: was_already_down,
+        }
     }
 
     /// Reset the passive failure run on a successful forward. Does not mark up.
@@ -475,40 +505,30 @@ impl HealthRegistry {
 
     /// Fold a live forward outcome into passive health (design §D1/D11).
     ///
-    /// No-op when health is not enabled for the pool, `passive_fast_trip` is
-    /// off, or the backend is absent from the side-table.
+    /// Returns `Some(PassiveFailureResult)` when a failure was recorded (callers
+    /// use it to log with full query context). Returns `None` for successes and
+    /// when passive is disabled/inapplicable.
     pub fn record_passive_forward_outcome(
         &self,
         compiled: &CompiledHealth,
         pool: &str,
         backend: SocketAddr,
         is_failure: bool,
-    ) {
+    ) -> Option<PassiveFailureResult> {
         let Some(pool_cfg) = compiled.pool(pool) else {
-            return;
+            return None;
         };
         if !pool_cfg.passive_fast_trip {
-            return;
+            return None;
         };
         let Some(state) = self.get(pool, backend) else {
-            return;
+            return None;
         };
-        let key = BackendKey::new(pool, backend);
-        let before = (state.observed(), state.applied());
         if is_failure {
-            state.record_passive_failure(pool_cfg.passive_fall);
+            Some(state.record_passive_failure(pool_cfg.passive_fall))
         } else {
             state.record_passive_success();
-        }
-        let after = (state.observed(), state.applied());
-        if before != after {
-            tracing::info!(
-                pool = %key.pool,
-                backend = %key.address,
-                observed = ?after.0,
-                applied = ?after.1,
-                "backend health transition"
-            );
+            None
         }
     }
 }
@@ -608,10 +628,28 @@ mod tests {
     #[test]
     fn passive_fall_threshold_marks_down() {
         let s = optimistic();
-        assert_eq!(s.record_passive_failure(2), Health::Up);
-        assert_eq!(s.record_passive_failure(2), Health::Down);
+        let r1 = s.record_passive_failure(2);
+        assert_eq!(r1.applied, Health::Up);
+        assert_eq!(r1.consecutive_failures, 1);
+        assert!(!r1.transitioned);
+        assert!(!r1.already_down);
+        let r2 = s.record_passive_failure(2);
+        assert_eq!(r2.applied, Health::Down);
+        assert_eq!(r2.consecutive_failures, 2);
+        assert!(r2.transitioned);
+        assert!(!r2.already_down);
         assert_eq!(s.observed(), Health::Down);
         assert_eq!(s.applied(), Health::Down);
+    }
+
+    #[test]
+    fn passive_failure_already_down_flag() {
+        let s = optimistic();
+        let r1 = s.record_passive_failure(1);
+        assert!(r1.transitioned, "first failure trips");
+        let r2 = s.record_passive_failure(1);
+        assert!(!r2.transitioned, "no new transition");
+        assert!(r2.already_down, "backend was already down");
     }
 
     #[test]
@@ -635,9 +673,11 @@ mod tests {
     fn frozen_backend_ignores_passive_on_applied() {
         let s = optimistic();
         s.freeze();
-        s.record_passive_failure(1);
+        let r = s.record_passive_failure(1);
         assert_eq!(s.observed(), Health::Down);
         assert_eq!(s.applied(), Health::Up, "frozen applied must not move");
+        assert!(r.transitioned, "observed still transitions");
+        assert_eq!(r.applied, Health::Up, "frozen applied stays up");
     }
 
     #[test]
@@ -796,12 +836,13 @@ mod tests {
         let state = reg
             .get("default", "127.0.0.1:5300".parse().unwrap())
             .unwrap();
-        reg.record_passive_forward_outcome(
+        let result = reg.record_passive_forward_outcome(
             &pool,
             "default",
             "127.0.0.1:5300".parse().unwrap(),
             true,
         );
+        assert!(result.is_none(), "disabled passive returns None");
         assert_eq!(state.applied(), Health::Up);
         assert_eq!(state.passive_consecutive_failures(), 0);
     }

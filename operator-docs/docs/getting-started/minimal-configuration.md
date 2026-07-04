@@ -28,7 +28,7 @@ That is a complete, runnable configuration. You do not need to declare `forward`
 
 ### `schema_version`
 
-Required top-level key. The only supported value today is **`1`**. Omitting the key fails YAML parsing; any other value fails [validation](/control-plane/config-file.md).
+Required top-level key. The only accepted value is **`1`**. Omitting the key fails YAML parsing; any other value fails [validation](/control-plane/config-file.md).
 
 ### `listeners`
 
@@ -61,6 +61,7 @@ To see the effective configuration after defaults are applied, run **`conduitctl
 You can add these once the baseline works — none are required to start Conduit:
 
 - **[Rules](/policy-routing/rules-and-actions.md)** — policy routing before forward
+- **[Backend health](/policy-routing/backend-health.md)** — optional per-pool probes and passive fast-trip (`pools[].health`; disabled by default)
 - **[Metrics](/observability/metrics.md)** and **[tracing](/observability/tracing.md)** — observability
 - **[Event export](/observability/event-export.md)** (dnstap sinks) — requires `events.sinks`
 - **[API keys](/security/api-keys.md)** and **[mTLS](/security/mtls.md)** — control-plane security (requires an explicit `control:` block)

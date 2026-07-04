@@ -45,12 +45,19 @@ Policy effects remain on **`txn`**: `set_pool`, tags, retry/drop, egress overrid
 
 ---
 
-## Backend health (phase 1c)
+## Backend health
 
 Shipped in the **same release** as the Rhai host API changes above:
 
-- Active health probing, passive fast-trip, and health-aware [Route](/concepts/architecture-and-packet-path.md#route) selection (including latency [EWMA](/glossary/index.md#ewma)-weighted backend shares)
-- Operator controls via **`conduitctl health`** (show, set down/up, freeze, resume)
-- Health-related Prometheus metrics when `metrics.profile: full`
+- Active health probing, passive fast-trip, and health-aware [Route](/concepts/architecture-and-packet-path.md#route) selection (including latency [EWMA](/glossary/index.md#ewma)-weighted backend shares) — [Backend health](/policy-routing/backend-health.md)
+- Operator controls via **`conduitctl health`** (show, set down/up, freeze, resume) — [gRPC and conduitctl — health](/control-plane/grpc-and-conduitctl.md#health)
+- Health-related Prometheus metrics when `metrics.profile: full` — [Built-in metrics — Backend health](/observability/built-in-metrics.md#backend-health)
+- Config: [`pools[].health`](/reference/config-schema/health.md)
 
-Scripts read live health through **`runtime.routing`** on the hot path — not control-plane RPC per query.
+Scripts read live health through **`runtime.routing`** on the hot path — not control-plane RPC per query. See [Runtime API — routing](/rhai/runtime-api.md#routingruntime).
+
+### Health and forward metrics
+
+- **[`conduit_probe_results_total`](/observability/built-in-metrics.md#conduit_probe_results_total)** (`full` only) — active health-probe outcomes per backend (`success`, `failure`, `timeout`, `send_error`).
+- **[`conduit_forward_errors_total`](/observability/built-in-metrics.md#conduit_forward_errors_total)** now includes a **`backend`** label (`pool`, `backend`, `reason`) so timeouts and other forward errors are attributable per upstream. Existing PromQL that only groups by `pool` / `reason` still works; series identity gains the new label.
+- Passive fast-trip logs each counting failure and the trip event at WARN with query and client context — [Backend health](/policy-routing/backend-health.md).

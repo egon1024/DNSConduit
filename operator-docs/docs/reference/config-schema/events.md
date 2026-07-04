@@ -22,7 +22,7 @@ Each entry under `events.sinks` describes one dnstap export path.
 
 | Field {: .column-no-wrap } | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| `type` | string | yes | — | Must be **`dnstap`** (only supported value today) |
+| `type` | string | yes | — | Must be **`dnstap`** (only accepted value) |
 | `name` | string | conditional | — | Canonical operator / metrics id. Required unless `export_id` is set (legacy) |
 | `export_id` | string | conditional | `name` | dnstap protobuf wire identity. Defaults to `name` when `name` is set and `export_id` is empty |
 | `destinations` | list of strings | yes | — | At least one **`unix:`** or **`tcp:`** destination (see [Event export — Destinations](/observability/event-export.md#destinations)) |

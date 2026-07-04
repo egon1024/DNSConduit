@@ -5,7 +5,7 @@ toc_collapsible: true
 
 # Runtime API (`runtime`)
 
-The **`runtime`** scope object exposes **read-only process state** at hook entry. Today the only domain is **`routing`** — pool-wide health and in-flight counts aligned with [Route](/concepts/architecture-and-packet-path.md#route).
+The **`runtime`** scope object exposes **read-only process state** at hook entry. Use **`runtime.routing()`** for pool-wide health and in-flight counts aligned with [Route](/concepts/architecture-and-packet-path.md#route).
 
 For why this is separate from **`txn`**, see [Host API overview](/rhai/host-api.md#five-scope-objects).
 
@@ -27,7 +27,7 @@ It is **not** a view from process startup. Each `runtime.routing().pool(...)` or
 | What to expect | Practical meaning |
 |----------------|-------------------|
 | **Captured at hook phase start** | Request rules or response rules **begin** for this query on this worker; health and routing fields reflect state then. |
-| **Frozen while the script runs** | Probes, **`conduitctl health`** drain/freeze, and [config reload](/control-plane/reload-and-export.md) can change backends after the snapshot was taken. Your variables do not update until the next hook. |
+| **Frozen while the script runs** | Probes, **`conduitctl health`** [drain](/glossary/index.md#drain)/[freeze](/glossary/index.md#freeze), and [config reload](/control-plane/reload-and-export.md) can change backends after the snapshot was taken. Your variables do not update until the next hook. |
 | **Snapshot build vs reads** | Building the snapshot walks configured pools/backends once at hook entry (bounded by config size, outside Rhai **`max_operations`**). Each **`runtime.routing().pool()`** / **`.backend()`** call inside the script is an O(1) read and **does** count toward **`max_operations`** — see [Sandbox limits — Host API and `max_operations`](/rhai/sandbox-limits.md#host-api-and-max_operations). |
 | **New snapshot each hook** | Request hook, each response hook, and each [retry](/policy-routing/retries-and-transactions.md) response pass builds a fresh snapshot. Do not carry values from one hook to the next. |
 | **Close to the next Route pick** | [Route](/concepts/architecture-and-packet-path.md#route) uses the same health sources when it selects the next backend on this query (Route reads again at selection time, so health can move in the short gap after your script). |
@@ -292,7 +292,7 @@ Returns `i64` — number of backends defined on the pool in config.
 #### Behavior
 
 - Counts all **`pools[].backends`** entries — not only currently eligible backends.
-- Compare with **`eligible_count()`** to detect partial outage or drain.
+- Compare with **`eligible_count()`** to detect partial outage or [drain](/glossary/index.md#drain).
 
 </div>
 
@@ -437,7 +437,7 @@ Return `string` — `"up"`, `"down"`, or `"unknown"`.
 #### Behavior
 
 - **`applied`** is the health state Route uses for eligibility and weighted selection.
-- Operator drain/freeze via **`conduitctl health`** sets **`applied`** to **`down`** even when probes still report **`observed == up`**.
+- Operator [drain](/glossary/index.md#drain) (`set down`) sets **`applied`** to **`down`** and [freezes](/glossary/index.md#freeze) the scope, even when probes still report **`observed == up`**. [Freeze](/glossary/index.md#freeze) alone holds **`applied`** without changing it.
 - Compare with **`observed()`** when diagnosing probe vs operator override.
 
 </div>
@@ -452,7 +452,7 @@ Return `string` — `"up"`, `"down"`, or `"unknown"`.
 
 Return `string` — `"up"`, `"down"`, or `"unknown"`.
 
-Probe/passive truth (may differ from **`applied`** when frozen/drained).
+Probe and passive fast-trip truth (may differ from **`applied`** when [frozen](/glossary/index.md#freeze)/[drained](/glossary/index.md#drain)).
 
 </div>
 
@@ -460,8 +460,8 @@ Probe/passive truth (may differ from **`applied`** when frozen/drained).
 
 #### Behavior
 
-- Reflects active/passive probe outcomes before operator overrides.
-- May differ from **`applied()`** when the backend is frozen or drained — Route follows **`applied`**, not **`observed`**.
+- Reflects probe and passive fast-trip outcomes before operator overrides.
+- May differ from **`applied()`** when the backend is [frozen](/glossary/index.md#freeze) or [drained](/glossary/index.md#drain) — Route follows **`applied`**, not **`observed`**.
 - **`unknown`** when no probe sample exists yet for this backend.
 
 </div>
@@ -495,7 +495,7 @@ Returns `bool` — `true` when **`applied == up`**.
 
 <div class="txn-api-brief" markdown="1">
 
-Returns `bool` — operator freeze/drain scope active for this backend.
+Returns `bool` — operator [freeze](/glossary/index.md#freeze)/[drain](/glossary/index.md#drain) scope active for this backend.
 
 </div>
 
@@ -503,9 +503,9 @@ Returns `bool` — operator freeze/drain scope active for this backend.
 
 #### Behavior
 
-- `true` when an operator **`conduitctl health`** freeze/drain applies to this pool/backend.
+- `true` when an operator **`conduitctl health`** [freeze](/glossary/index.md#freeze)/[drain](/glossary/index.md#drain) applies to this pool/backend.
 - Often pairs with **`observed() == "up"`** and **`applied() == "down"`** — probes still succeed but Route treats the backend as down.
-- Scripts should not call the control plane per query; read **`frozen()`** for policy branching only.
+- Scripts only **read** health — use **`frozen()`** for policy branching. [Freeze](/glossary/index.md#freeze), [drain](/glossary/index.md#drain), and resume are operator control-plane actions (`conduitctl health`), not Rhai calls.
 
 </div>
 
@@ -604,11 +604,11 @@ Returns `()` when unknown, else `i64` — Unix ms of last observed/applied trans
 
 | Mechanism | Path | Use |
 |-----------|------|-----|
-| **`conduitctl health`** / gRPC | Control plane | Drain, freeze, resume — changes **`applied`** and scope |
+| **`conduitctl health`** / gRPC | Control plane | [Drain](/glossary/index.md#drain), [freeze](/glossary/index.md#freeze), resume — changes **`applied`** and scope |
 | **`runtime.routing()`** | Hot path (Rhai) | Read **`applied`**, **`eligible`**, pool-wide counts for **policy** |
 | Probe logs | `backend health transition` INFO | Observe probe-driven changes in process logs |
 
-Scripts should **not** call the control plane per query. Use **`runtime.routing()`** for branching; use **`conduitctl`** for operational drain/freeze.
+Scripts only **read** health through **`runtime.routing()`** for policy branching. [Freeze](/glossary/index.md#freeze), [drain](/glossary/index.md#drain), and resume are operator control-plane actions (`conduitctl health`), not Rhai calls.
 
 ## Related
 

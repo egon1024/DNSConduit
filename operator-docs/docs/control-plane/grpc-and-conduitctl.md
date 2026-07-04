@@ -4,7 +4,7 @@ This page is the **connection and command reference** for the optional [control 
 
 ## Enabling the control plane
 
-Conduit starts the gRPC listener only when the process **starts** with a `control:` block that sets **`listen_address`** (for example `127.0.0.1:5199`). Without it, DNS still runs but **`conduitctl apply`**, **`export`**, **`reload`**, and **`trace`** are unavailable — use **SIGHUP** or a process restart to reload from disk instead.
+Conduit starts the gRPC listener only when the process **starts** with a `control:` block that sets **`listen_address`** (for example `127.0.0.1:5199`). Without it, DNS still runs but **`conduitctl apply`**, **`export`**, **`reload`**, **`trace`**, and **`health`** are unavailable — use **SIGHUP** or a process restart to reload from disk instead.
 
 Adding or changing `control:` via reload updates the stored config but does **not** start or rebind the listener today. **Restart** `conduit` after enabling or moving the control address.
 
@@ -42,6 +42,7 @@ Details: [API keys](/security/api-keys.md), [mTLS](/security/mtls.md).
 | `conduitctl reload` | Yes | [Reload from disk](/glossary/index.md#reload-from-disk); clear overlay |
 | `conduitctl validate --file` | **No** | Offline YAML validation and runtime snapshot compile (Rhai, data sources, forward) |
 | `conduitctl trace` | Yes | Fetch pipeline trace events for a transaction id |
+| `conduitctl health` | Yes | Per-backend health show, [freeze](/glossary/index.md#freeze), set up/down ([drain](/glossary/index.md#drain)), resume automatic |
 
 RPC methods and messages: [Reference: gRPC and CLI](/reference/grpc-and-cli.md).
 
@@ -99,6 +100,35 @@ conduitctl trace TXN_ID
 ```
 
 Prints pipeline trace events when [tracing](/observability/tracing.md) captured the transaction. Exits non-zero if no trace was found.
+
+### `health`
+
+Per-[backend](/glossary/index.md#backend) health inspection and operator controls. Requires the control plane. Behavior: [Backend health](/policy-routing/backend-health.md). RPC reference: [Reference: gRPC and CLI — BackendHealth](/reference/grpc-and-cli.md#service-backendhealth).
+
+```bash
+conduitctl health show
+conduitctl health show --pool default
+conduitctl health show --pool default --backend resolver-a
+
+conduitctl health freeze --global
+conduitctl health freeze --pool default
+conduitctl health freeze --pool default --backend resolver-a
+
+conduitctl health set down --pool default --backend resolver-a
+conduitctl health set up --pool default --backend resolver-a
+
+conduitctl health resume --global
+conduitctl health resume --pool default --backend resolver-a
+```
+
+| Subcommand | Purpose |
+|------------|---------|
+| `show` | Print observed/applied health, scope, eligibility, latency EWMA per backend |
+| `freeze` | [Freeze](/glossary/index.md#freeze) — stop probe-driven changes to `applied` at the scope (`--global`, `--pool`, or `--pool` + `--backend`) |
+| `set up\|down` | Manually set applied health and **imply [freeze](/glossary/index.md#freeze)** ([drain](/glossary/index.md#drain) = set down) |
+| `resume` | **Resume automatic** — unfreeze and snap `applied` to `observed` |
+
+`--backend` accepts the configured backend `name` or `host:port` address. Prefer **`health resume`** over ad-hoc clear sequences while [frozen](/glossary/index.md#freeze) — see [Clear-while-frozen](/policy-routing/backend-health.md#clear-while-frozen-footgun).
 
 ## Access logs
 

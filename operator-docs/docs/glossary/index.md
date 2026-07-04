@@ -53,9 +53,9 @@ YAML serialization of the **[effective config](/glossary/index.md#effective-conf
 
 ### Runtime snapshot
 
-The validated settings bundle the [dataplane](/glossary/index.md#dataplane) uses to answer queries at a given moment — effective config (listeners, pools, forward behavior), loaded rules and scripts, and observability filters. All listener workers share the same snapshot until you reload or apply new settings.
+The validated settings bundle the [dataplane](/glossary/index.md#dataplane) uses to answer queries at a given moment — effective config (listeners, pools, forward behavior, health probe settings), loaded rules and scripts, and observability filters. All listener workers share the same snapshot until you reload or apply new settings. [Backend health](/policy-routing/backend-health.md) **runtime** state (observed/applied liveness, freeze/drain) lives outside the snapshot.
 
-→ [Architecture and packet path](../concepts/architecture-and-packet-path.md)
+→ [Architecture and packet path](/concepts/architecture-and-packet-path.md), [Configuration model](/control-plane/configuration-model.md#runtime-snapshot)
 
 ### Last-good snapshot
 
@@ -105,7 +105,7 @@ Preallocated arena of [transaction](/glossary/index.md#transaction) slots, share
 
 The `conduit` service and query-processing runtime: configured listeners accept client DNS traffic, each query runs through the pipeline as a [transaction](/glossary/index.md#transaction), and responses come from upstream [backends](/glossary/index.md#backend). Distinct from the optional [control plane](/glossary/index.md#control-plane), which exposes gRPC and `conduitctl` when enabled.
 
-→ [Architecture and packet path](../concepts/architecture-and-packet-path.md)
+→ [Architecture and packet path](/concepts/architecture-and-packet-path.md)
 
 ### Listener
 
@@ -117,19 +117,19 @@ A configured client-facing DNS bind address (`listeners.listeners[]`: `address` 
 
 Everything Conduit remembers for one client query on the [dataplane](/glossary/index.md#dataplane) — the question, client and listener context, [tags](/glossary/index.md#tags), selected [pool](/glossary/index.md#pool) and [backend](/glossary/index.md#backend), query and response messages, and optional trace — from [Receive](/concepts/architecture-and-packet-path.md#receive) through [Send](/concepts/architecture-and-packet-path.md#send) or drop.
 
-→ [Architecture and packet path](../concepts/architecture-and-packet-path.md)
+→ [Architecture and packet path](/concepts/architecture-and-packet-path.md)
 
 ### Tags
 
 Runtime key/value annotations on a [transaction](/glossary/index.md#transaction), set or tested by rules and scripts; persist across [retries](/glossary/index.md#retry) unless cleared. Not part of on-disk config export.
 
-→ [Architecture and packet path](../concepts/architecture-and-packet-path.md)
+→ [Architecture and packet path](/concepts/architecture-and-packet-path.md)
 
 ### Retry
 
 Another [Route](/concepts/architecture-and-packet-path.md#route) → [Forward](/concepts/architecture-and-packet-path.md#forward) cycle for the same client [transaction](/glossary/index.md#transaction), triggered from [Response rules](/concepts/architecture-and-packet-path.md#response-rules) via the `retry` or `retry_now` [action](/glossary/index.md#action) (or [Rhai](/glossary/index.md#rhai)); capped by `orchestrator.max_attempts`, `orchestrator.max_txn_duration_ms`, and pool exhaustion when every [backend](/glossary/index.md#backend) in the target [pool](/glossary/index.md#pool) was already tried.
 
-→ [Retries and transactions](../policy-routing/retries-and-transactions.md)
+→ [Retries and transactions](/policy-routing/retries-and-transactions.md)
 
 ### Pool
 
@@ -139,15 +139,51 @@ Named group of [backends](/glossary/index.md#backend); [rules](/glossary/index.m
 
 ### Backend
 
-Configured upstream destination Conduit forwards DNS queries to; settings control how Conduit reaches and uses that destination (for example address and weight in current releases).
+Configured upstream destination Conduit forwards DNS queries to; settings control how Conduit reaches and uses that destination (for example address and weight).
 
 → [Pools and backends](/policy-routing/pools-and-backends.md)
+
+### Observed health
+
+Probe- and passive-derived liveness for a [backend](/glossary/index.md#backend) — always updated as probes and live forwards run. [Route](/concepts/architecture-and-packet-path.md#route) does **not** read observed health directly; use **applied** health for eligibility.
+
+→ [Backend health — Observed vs applied](/policy-routing/backend-health.md#observed-vs-applied-health)
+
+### Applied health
+
+The liveness value [Route](/concepts/architecture-and-packet-path.md#route) uses to decide whether a [backend](/glossary/index.md#backend) is eligible. Normally tracks **observed** health; holds steady when the backend is [frozen](#freeze) or [drained](#drain).
+
+→ [Backend health](/policy-routing/backend-health.md), [Built-in metrics — `conduit_backend_health_applied`](/observability/built-in-metrics.md#conduit_backend_health_applied)
+
+### Freeze
+
+Operator or scope state that stops probe-driven changes to **applied** health while **observed** health keeps updating. **Applied** stays at its current value (**up** or **down**); freeze alone does not take traffic off a backend. Used for incident holds and as part of a [drain](#drain).
+
+→ [Backend health — Operator controls](/policy-routing/backend-health.md#operator-controls-freeze-drain-resume), [`conduitctl health freeze`](/control-plane/grpc-and-conduitctl.md#health)
+
+### Drain
+
+Operator action that takes a [backend](/glossary/index.md#backend) out of rotation for maintenance: sets **applied** health to **down** and [freezes](#freeze) that scope so probes cannot put it back. Implemented as `conduitctl health set down`. Not the same as [graceful drain on shutdown](/concepts/runtime-and-concurrency.md#graceful-drain-on-shutdown).
+
+→ [Backend health — Operator controls](/policy-routing/backend-health.md#operator-controls-freeze-drain-resume), [`conduitctl health set down`](/control-plane/grpc-and-conduitctl.md#health)
+
+### Passive fast-trip
+
+Live forward timeouts and hard errors on client traffic that can mark a backend **down** faster than active probes alone; cannot mark a backend **up** again (only `rise` consecutive successful probes do).
+
+→ [Backend health — Active probes and passive fast-trip](/policy-routing/backend-health.md#active-probes-and-passive-fast-trip)
+
+### Fail-open floor
+
+Configured `min_eligible` threshold: when too few backends in a [pool](/glossary/index.md#pool) are eligible, [Route](/concepts/architecture-and-packet-path.md#route) ignores health and treats all backends as eligible rather than failing the pool. Single-backend pools always fail open.
+
+→ [Backend health — Route](/policy-routing/backend-health.md#route-eligibility-weight-and-fail-open), [Reference: health — `min_eligible`](/reference/config-schema/health.md)
 
 ### EWMA
 
 **Exponentially weighted moving average** — a smoothed statistic that blends each new measurement with prior history, giving **more weight to recent samples** than to older ones. Conduit updates a per-[backend](/glossary/index.md#backend) **latency EWMA** from successful health-probe round-trip times. That value reflects how fast the backend has been responding lately (not a single spike or one slow query). [Route](/concepts/architecture-and-packet-path.md#route) uses the EWMA — through a damped **`weight_factor`** — to reduce traffic share to slower but still-eligible backends without removing them from the pool.
 
-→ [Runtime API — `latency_ewma_ms`](/rhai/runtime-api.md#backendruntimelatency_ewma_ms), [`min_latency_ewma_ms`](/rhai/runtime-api.md#poolruntimemin_latency_ewma_ms)
+→ [Runtime API — `latency_ewma_ms`](/rhai/runtime-api.md#backendruntimelatency_ewma_ms), [`min_latency_ewma_ms`](/rhai/runtime-api.md#poolruntimemin_latency_ewma_ms), [Backend health](/policy-routing/backend-health.md)
 
 ### Selector
 
@@ -185,7 +221,7 @@ Built-in effect on a matching [rule](/policy-routing/rules-and-actions.md) (for 
 
 **Also called:** Rhai for rules.
 
-Scripted **policy** on [rules](/policy-routing/rules-and-actions.md) in current releases: `.rhai` files referenced from `rhai` [actions](/glossary/index.md#action), loaded into the [runtime snapshot](/glossary/index.md#runtime-snapshot) on reload or apply, run at [Request rules](/concepts/architecture-and-packet-path.md#request-rules) and [Response rules](/concepts/architecture-and-packet-path.md#response-rules) within [sandbox limits](/rhai/sandbox-limits.md). Uses the `txn` API — not DNS wire editing.
+Scripted **policy** on [rules](/policy-routing/rules-and-actions.md): `.rhai` files referenced from `rhai` [actions](/glossary/index.md#action), loaded into the [runtime snapshot](/glossary/index.md#runtime-snapshot) on reload or apply, run at [Request rules](/concepts/architecture-and-packet-path.md#request-rules) and [Response rules](/concepts/architecture-and-packet-path.md#response-rules) within [sandbox limits](/rhai/sandbox-limits.md). Uses the `txn` API — not DNS wire editing.
 
 → [Rule Rhai](/rhai/rule-rhai.md), [Rhai](/rhai/index.md), [Rules and actions](/policy-routing/rules-and-actions.md)
 
@@ -201,11 +237,11 @@ Embedded scripting in Conduit — [Rule Rhai](/glossary/index.md#rule-rhai) on `
 
 Optional gRPC API and operator tools (`conduitctl`, reload, export). Separate from the DNS [dataplane](/glossary/index.md#dataplane), which serves queries whether or not control is enabled.
 
-→ [Control plane](../control-plane/index.md)
+→ [Control plane](/control-plane/index.md)
 
 ### conduitctl
 
-CLI for the [control plane](/glossary/index.md#control-plane) — `apply` (with merge / replace / clear modes), `export`, `reload`, `validate`, and `trace`.
+CLI for the [control plane](/glossary/index.md#control-plane) — `apply` (with merge / replace / clear modes), `export`, `reload`, `validate`, `trace`, and `health`.
 
 → [gRPC and conduitctl](/control-plane/grpc-and-conduitctl.md)
 

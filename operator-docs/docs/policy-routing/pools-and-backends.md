@@ -6,7 +6,7 @@ This page explains how Conduit groups upstream DNS servers into [pools](/glossar
 
 [Pools](/glossary/index.md#pool) and [backends](/glossary/index.md#backend) are the organizational pattern Conduit uses to route forwarded DNS queries.
 
-A [backend](/glossary/index.md#backend) is a configured upstream destination Conduit forwards DNS queries to. Each backend carries settings that control how Conduit reaches and uses that destination (for example, address, port, an optional load-balancing weight, and an optional stable name in current releases).
+A [backend](/glossary/index.md#backend) is a configured upstream destination Conduit forwards DNS queries to. Each backend carries settings that control how Conduit reaches and uses that destination (for example, address, port, an optional load-balancing weight, and an optional stable name).
 
 A [pool](/glossary/index.md#pool) is a named group of [backends](/glossary/index.md#backend). [Rules](/policy-routing/rules-and-actions.md) and scripts select a pool by name; Conduit then picks one backend inside that pool (see [Backend weights](#backend-weights)) and forwards the query.
 
@@ -58,10 +58,23 @@ pools:
 
 Over many queries, traffic approximates the configured weight ratio. On the **first** forward attempt for a query, Conduit uses this sticky weighted pick. On [retries](/glossary/index.md#retry) within the same [pool](/glossary/index.md#pool), Conduit selects among backends not already used for that pool on that [transaction](/glossary/index.md#transaction) — see [Retries and transactions](/policy-routing/retries-and-transactions.md).
 
-!!! note "No active health checking today"
-    Backend selection is purely weight-based. Conduit does **no active health probing** of backends, so a backend stays eligible even while an upstream is down; an unhealthy upstream is handled reactively through [retries](/policy-routing/retries-and-transactions.md) and forward timeouts, not by removing it from selection. Active health checks (and health-based eligibility) are planned for a future release.
+When pool [health](/reference/config-schema/health.md) is enabled, [Route](/concepts/architecture-and-packet-path.md#route) selects only among backends whose **applied** health is **up**, using **effective weight** (configured weight × optional latency factor) instead of configured weight alone. Backends marked down receive no new queries until probes or operator controls mark them up again. See [Backend health](/policy-routing/backend-health.md).
 
 Pool weights can be changed at runtime through the [control plane](/glossary/index.md#control-plane) (for example via `ApplyConfig`); see [Control plane workflows](/guides/control-plane-workflows.md).
+
+## Backend health
+
+Optional per-pool **active health probing** and a **passive fast-trip** on live forwards detect upstream failure and recovery. Health is **disabled by default** — without `health.enabled: true`, selection stays weight-based and failures are handled reactively through [retries](/policy-routing/retries-and-transactions.md) and forward timeouts.
+
+| Concern | Summary |
+|---------|---------|
+| **Eligibility** | Only backends with **applied** health **up** are candidates at Route. |
+| **Effective weight** | With `latency_weighting: true`, share scales by probe latency [EWMA](/glossary/index.md#ewma) among eligible backends (floor **0.25** — latency never zeroes a backend). |
+| **Fail-open floor** | `min_eligible` — when too few backends are up, Route treats all as eligible rather than failing the pool. Single-backend pools always fail open. |
+| **[Drain](/glossary/index.md#drain) / maintenance** | `conduitctl health set down` [freezes](/glossary/index.md#freeze) and marks applied down while probes keep updating **observed**. |
+| **Scripts** | Read health at hook entry via **`runtime.routing()`** — [Runtime API](/rhai/runtime-api.md#routingruntime). |
+
+Full behavior, operator controls, and scope precedence: [Backend health](/policy-routing/backend-health.md). Config fields: [Reference: health](/reference/config-schema/health.md).
 
 ## Backend names
 
@@ -106,7 +119,7 @@ pools:
         weight: 100
 
 rules:
-  match_mode: first_match   # only supported mode today
+  match_mode: first_match
   rules:
     - name: internal-zones
       hook: request
@@ -124,7 +137,8 @@ The pool name in `set_pool`, `set_retry_pool` (or in Rhai’s `set_pool(...)` / 
 
 ## Related topics
 
-- [Glossary](/glossary/index.md) — [pool](/glossary/index.md#pool), [backend](/glossary/index.md#backend), [transaction](/glossary/index.md#transaction), [retry](/glossary/index.md#retry)
+- [Backend health](/policy-routing/backend-health.md) — probing, eligibility, [drain](/glossary/index.md#drain), and metrics
+- [Glossary](/glossary/index.md) — [pool](/glossary/index.md#pool), [backend](/glossary/index.md#backend), [transaction](/glossary/index.md#transaction), [retry](/glossary/index.md#retry), [freeze](/glossary/index.md#freeze), [drain](/glossary/index.md#drain)
 - [Rules and actions](/policy-routing/rules-and-actions.md) — how request and response rules select pools
 - [Retries and transactions](/policy-routing/retries-and-transactions.md) — failing over to another pool or backend
 - [Minimal configuration](/getting-started/minimal-configuration.md) — smallest runnable config including `pools:`

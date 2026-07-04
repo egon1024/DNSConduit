@@ -6,7 +6,7 @@ Metrics, tracing, event export, and logging for Conduit — how you observe the 
 
 | You need… | Use | Config block |
 |-----------|-----|--------------|
-| Aggregate QPS, pool mix, forward health, SLO dashboards | [Metrics](/observability/metrics.md) | `metrics:` |
+| Aggregate QPS, pool mix, forward errors, [backend health](/observability/built-in-metrics.md#backend-health) gauges, SLO dashboards | [Metrics](/observability/metrics.md) | `metrics:` |
 | Every built-in series name, label, and PromQL examples | [Built-in metrics](/observability/built-in-metrics.md) | (same `metrics:`) |
 | Per-query wire copies to a log analytics or tap collector | [Event export](/observability/event-export.md) | `events:` |
 | Per-query pipeline phases (route, forward, retries) on selected queries | [Tracing](/observability/tracing.md) | `tracing:` |

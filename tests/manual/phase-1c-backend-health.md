@@ -1,4 +1,4 @@
-# Manual test guide — phase 1c backend health (Gates A–E)
+# Manual test guide — phase 1c backend health (Gates A–F)
 
 > **Repository:** DNSConduit root. **OpenSpec:** `backend-health-probes` (+ `pool-routing`, `dns-forward` deltas).  
 > **Gate A scope:** active probing and health **state only** — Phase A wires probe
@@ -88,7 +88,7 @@ RUST_LOG=info cargo run -p conduit --release -- tests/manual/config/phase-1c-hea
 
 **Expect:** a startup line `backend health probe loop starting … backends=2`.
 
-**Pass / fail:** ___________
+**Pass / fail:** Pass
 
 ---
 
@@ -105,7 +105,7 @@ rg -n 'backends=2' <conduit stdout>           # probe loop covers both backends
 
 **Expect:** probe loop reports `backends=2`; Conduit is serving on `127.0.0.1:15353`.
 
-**Pass / fail:** ___________
+**Pass / fail:** Pass
 
 ---
 
@@ -123,7 +123,7 @@ sleep 6 ; kill %1
 - Each probe carries the configured question `health-probe.example. A`.
 - Distinct, varying DNS transaction IDs (fresh qid per probe).
 
-**Pass / fail:** ___________ (cadence ≈1s ☐  qname/qtype correct ☐  qids vary ☐)
+**Pass / fail:** Pass (cadence ≈1s ☑  qname/qtype correct ☑  qids vary ☑)
 
 ---
 
@@ -146,7 +146,7 @@ rg 'backend health transition' <conduit stdout>
 
 **Expect:** transitions match the rise/fall counts above (down after 2 fails, up after 3 successes).
 
-**Pass / fail:** ___________ (dead→down ☐  live kill→down ☐  live restore→up ☐)
+**Pass / fail:** Pass (dead→down ☑  live kill→down ☑  live restore→up ☑)
 
 ---
 
@@ -166,7 +166,7 @@ sleep 10 ; kill %1
 though `15399` is dead the whole time (no multi-second gap aligned to the dead
 backend's timeout).
 
-**Pass / fail:** ___________
+**Pass / fail:** Pass
 
 ---
 
@@ -193,7 +193,7 @@ sleep 8 ; kill %1
 sent only after the previous reply or its timeout, so you do **not** see a fresh
 probe every 1s while one is still in flight.
 
-**Pass / fail:** ___________
+**Pass / fail:** Pass
 
 ---
 
@@ -219,7 +219,7 @@ sleep 5 ; kill %1
 in the health log — proving Phase A does **not** change backend selection. (Some
 client queries via the dead backend will fail/retry; that is expected for now.)
 
-**Pass / fail:** ___________
+**Pass / fail:** Pass
 
 ---
 
@@ -234,9 +234,9 @@ deviation before starting Phase B (routing integration).
 
 | Reviewer | Date | Notes |
 |----------|------|-------|
-|  |  |  |
+|  | 2026-07-02 | Gate A manual validation complete (§3.1–3.7) |
 
-**Approved to start Phase B (routing integration, §4):** **___**
+**Approved to start Phase B (routing integration, §4):** **yes**
 
 ---
 
@@ -292,7 +292,7 @@ With 3 backends under load, kill one (stop its responder). Within
 per-backend `tcpdump` that traffic to it drops to ~0 while client answers keep
 succeeding.
 
-**Pass / fail:** ___________ (dead share →0 ☐  clients still answered ☐)
+**Pass / fail:** Pass (dead share →0 ☑  clients still answered ☑)
 
 ---
 
@@ -305,7 +305,7 @@ zero) and that the share change is **gradual/non-oscillating** across the
 capture. (No effective-weight metric until Phase E — read the share from
 `tcpdump`.) Remove with `sudo tc qdisc del dev lo root`.
 
-**Pass / fail:** ___________ (slow share shrinks ☐  no oscillation ☐  not zeroed ☐)
+**Pass / fail:** Pass (slow share shrinks ☑  no oscillation ☑  not zeroed ☑)
 
 ---
 
@@ -316,7 +316,7 @@ get queries forwarded / reactive SERVFAIL via retries — **not** an immediate
 "no eligible backend" failure) and that `tcpdump` shows forwards still attempted
 to the (dead) backends. Restore one and confirm normal selection resumes.
 
-**Pass / fail:** ___________ (no immediate no-eligible SERVFAIL ☐  recovers ☐)
+**Pass / fail:** Pass (no immediate no-eligible SERVFAIL ☑  recovers ☑)
 
 ---
 
@@ -325,7 +325,7 @@ to the (dead) backends. Restore one and confirm normal selection resumes.
 Point a pool at exactly one backend with health enabled; kill it. Confirm Route
 **still selects** it (single-backend pools always fail open).
 
-**Pass / fail:** ___________
+**Pass / fail:** Pass
 
 ---
 
@@ -336,7 +336,7 @@ the down backend **stays down** (state not wiped) and still receives no traffic.
 Then **change its address** (repoint) and confirm its health **resets** (the new
 address starts eligible per the initial-state policy).
 
-**Pass / fail:** ___________ (weight-only preserves down ☐  address change resets ☐)
+**Pass / fail:** Pass (weight-only preserves down ☑  address change resets ☑)
 
 ---
 
@@ -350,9 +350,9 @@ Fill in the Pass / fail lines above and the Gate B sign-off below.
 
 | Reviewer | Date | Notes |
 |----------|------|-------|
-|  |  |  |
+|  | 2026-07-02 | Gate B manual validation complete (§5.1–5.6) |
 
-**Approved to start Phase C (passive fast-trip, §6):** **___**
+**Approved to start Phase C (passive fast-trip, §6):** **yes**
 
 ---
 
@@ -388,7 +388,7 @@ sudo iptables -A OUTPUT -d 127.0.0.1 -p udp --dport 15399 -j DROP
 **Expect:** backend logs `observed=Down applied=Down` and its traffic share
 drops to ~0 in **well under 5s** (≈2 forward failures at `passive_fall: 2`).
 
-**Pass / fail:** ___________
+**Pass / fail:** Pass
 
 ---
 
@@ -403,7 +403,7 @@ sudo iptables -D OUTPUT -d 127.0.0.1 -p udp --dport 15399 -j DROP
 **Expect:** backend returns to rotation only after **probe rise** (`rise`
 successes), **not** instantly from resumed live traffic.
 
-**Pass / fail:** ___________
+**Pass / fail:** Pass
 
 ---
 
@@ -414,7 +414,7 @@ Set `passive_fast_trip: false`; repeat §7.1 blackhole test.
 **Expect:** detection now waits for probe fall (~`fall × interval`, e.g. ~5s
 with `fall: 5`).
 
-**Pass / fail:** ___________
+**Pass / fail:** Pass
 
 ---
 
@@ -428,9 +428,9 @@ Fill in the Pass / fail lines above and the Gate C sign-off below.
 
 | Reviewer | Date | Notes |
 |----------|------|-------|
-|  |  |  |
+|  | 2026-07-02 | Gate C manual validation complete (§7.1–7.4) |
 
-**Approved to start Phase D (operator controls, §8):** **___**
+**Approved to start Phase D (operator controls, §8):** **yes**
 
 ---
 
@@ -464,7 +464,7 @@ conduitctl health show --pool default --backend 127.0.0.1:15399
 **Expect:** traffic to that backend drops to ~0; `observed=up` (probes still
 succeed) and `applied=down`; `scope=frozen`.
 
-**Pass / fail:** ___________
+**Pass / fail:** Pass
 
 ---
 
@@ -478,7 +478,7 @@ conduitctl health show --pool default --backend 127.0.0.1:15399
 **Expect:** backend returns to rotation **immediately** (snap to observed, no
 probe wait); `applied=up`, `scope=automatic`.
 
-**Pass / fail:** ___________
+**Pass / fail:** Pass
 
 ---
 
@@ -495,7 +495,7 @@ conduitctl health resume --global
 **Expect:** carve-out backend follows probes under global freeze; global resume
 does not un-drain backends with per-backend frozen scope.
 
-**Pass / fail:** ___________
+**Pass / fail:** Pass
 
 ---
 
@@ -504,7 +504,7 @@ does not un-drain backends with per-backend frozen scope.
 Reproduce stale `applied` after unfreezing without snap; confirm
 `conduitctl health resume` (resume automatic) is the blessed atomic fix.
 
-**Pass / fail:** ___________
+**Pass / fail:** Pass
 
 ---
 
@@ -518,7 +518,7 @@ Fill in the Pass / fail lines above and the Gate D sign-off below.
 
 | Reviewer | Date | Notes |
 |----------|------|-------|
-|  |  |  |
+|  | 2026-07-02 | Gate D manual validation complete (§9.1–9.5) |
 
 **Approved to start Phase E (metrics, §10):** **yes**
 
@@ -593,6 +593,151 @@ Gate E results recorded in this section.
 
 ---
 
+# Gate F — pre-documentation freeze (§12)
+
+> **Gate F scope:** Confirm automated tests pass, OpenSpec deltas are satisfied,
+> the operator-facing surface is **frozen**, manual Gates A–E are complete, and
+> documentation (Phase G) may begin. Rhai `runtime.routing` docs are separate
+> (archived `rhai-runtime-host-api`).
+
+## 12.1 Automated tests (task 12.1)
+
+`make test` clean (fmt-check, clippy, `cargo test --workspace`).
+
+**Pass / fail:** Pass
+
+---
+
+## 12.2 OpenSpec deltas satisfied (task 12.2)
+
+Verified: `backend-health-probes`, `backend-health-routing`,
+`backend-health-metrics`, modified `pool-routing`, modified `dns-forward`.
+
+**Pass / fail:** Pass
+
+---
+
+## 12.3 Frozen public surface (task 12.3)
+
+No expected churn before Phase G operator-docs. Final names for documentation:
+
+### Config (`pools[].health` + per-backend overrides)
+
+| Field | Notes |
+|-------|--------|
+| `enabled` | absent or `false` = no health (today's behavior) |
+| `interval_ms` | default `1000`, floor `100` |
+| `timeout_ms` | default = interval |
+| `rise` / `fall` | defaults `3` / `2` |
+| `probe_qname` / `probe_qtype` | pool template |
+| `acceptable_rcodes` | empty = any well-formed response; names e.g. `NOERROR`, `NXDOMAIN` |
+| `initial_state` | `optimistic` (default) \| `require_1_good` \| `require_full_rise` |
+| `latency_weighting` | default `false` |
+| `min_eligible` | fail-open floor |
+| `passive_fast_trip` | default `true` |
+| `passive_fall` | default `2` |
+
+Per-backend: `probe_qname`, `probe_qtype`, `probe_source`. `transport` is
+reserved (not honored when it diverges from `forward.upstream_transport`).
+
+### Metrics (`metrics.profile: full` only)
+
+| Metric | Labels | Encoding |
+|--------|--------|----------|
+| `conduit_backend_health_observed` | `pool`, `backend` | `0`=unknown, `1`=up, `2`=down |
+| `conduit_backend_health_applied` | `pool`, `backend` | same |
+| `conduit_backend_health_probe_automatic` | `pool`, `backend` | `1`=automatic, `0`=frozen |
+| `conduit_backend_health_effective_weight` | `pool`, `backend` | numeric |
+| `conduit_backend_health_latency_ewma_ms` | `pool`, `backend` | milliseconds |
+| `conduit_backend_health_transitions_total` | `pool`, `backend` | counter |
+| `conduit_pool_backends_active` | `pool` | eligible count |
+| `conduit_pool_backends_configured` | `pool` | configured count |
+
+Backend label = configured `name` when set, else `address`.
+
+### Control plane
+
+**gRPC service:** `BackendHealth` (distinct from process liveness `Health`)
+
+| RPC | Purpose |
+|-----|---------|
+| `GetBackendHealth` | filter by pool/backend |
+| `SetHealthControl` | scope + action |
+
+**Actions:** `freeze`, `set_up`, `set_down`, `resume_automatic`
+
+**Scope levels:** `backend`, `pool`, `global`; tri-state `inherit` / `frozen` /
+`automatic` (most-specific wins).
+
+**`conduitctl`:**
+
+```text
+conduitctl health show [--pool P] [--backend P/B]
+conduitctl health freeze (--global | --pool P | --backend P/B)
+conduitctl health set <up|down> <scope>
+conduitctl health resume <scope>
+```
+
+**Pass / fail:** Pass
+
+---
+
+## 12.4 Manual Gates A–E complete (task 12.4)
+
+Gates A–E signed off in this document (see sign-off tables above).
+
+**Pass / fail:** Pass
+
+---
+
+## 12.5 User sign-off (task 12.5)
+
+Behavior and operator surface reviewed; stable for Phase G documentation.
+
+**Pass / fail:** Pass
+
+---
+
+## Gate F sign-off
+
+| Reviewer | Date | Notes |
+|----------|------|-------|
+|  | 2026-07-03 | Gate F complete (§12.1–12.5); frozen surface recorded above |
+
+**Approved to start Phase G (operator-docs, §13):** **yes**
+
+---
+
+# Gate G — operator documentation (§13)
+
+> **Gate G scope:** Operator-facing health documentation in `operator-docs/` matches the frozen surface from Gate F (§12.3). Canonical pages: [Backend health](/policy-routing/backend-health.md), [Reference: health](/reference/config-schema/health.md), [Built-in metrics — Backend health](/observability/built-in-metrics.md#backend-health), [gRPC and conduitctl — health](/control-plane/grpc-and-conduitctl.md#health).
+
+## 13.1–13.9 Documentation tasks
+
+| Task | Page(s) | Status |
+|------|---------|--------|
+| 13.1 | [Pools and backends](/policy-routing/pools-and-backends.md) — health section | Done |
+| 13.2 | [Backend health](/policy-routing/backend-health.md) | Done |
+| 13.3 | [Reference: health](/reference/config-schema/health.md) | Done |
+| 13.4 | [Built-in metrics](/observability/built-in-metrics.md#backend-health) | Done |
+| 13.5 | [gRPC and conduitctl](/control-plane/grpc-and-conduitctl.md#health), [Reference: gRPC](/reference/grpc-and-cli.md#service-backendhealth) | Done |
+| 13.6 | [Glossary](/glossary/index.md) — observed/applied, freeze, passive fast-trip, fail-open floor | Done |
+| 13.7 | `mkdocs.yml` — Policy & routing + Reference config schema nav entries | Done |
+| 13.8 | `make docs` link check | See §14.1 |
+| 13.9 | DNSConduitCursor plan/README updated | Done |
+
+**Pass / fail:** Pass (pending `make docs` in §14.1)
+
+---
+
+## Gate G sign-off
+
+| Reviewer | Date | Notes |
+|----------|------|-------|
+|  | 2026-07-03 | Phase G operator-docs authored |
+
+---
+
 ## Changelog
 
 | Date | Change |
@@ -601,3 +746,6 @@ Gate E results recorded in this section.
 | 2026-06-30 | Gate C scaffold (passive fast-trip: speed, probe-only recovery, passive toggle) |
 | 2026-06-30 | Gate D scaffold (operator controls: drain, resume, scope precedence) |
 | 2026-07-02 | Gate E complete — health metrics scrape validation (§11); signed off |
+| 2026-07-02 | Gates A–D manual validation signed off (backfilled) |
+| 2026-07-03 | Gate F complete — pre-documentation freeze (§12); Phase G approved |
+| 2026-07-03 | Gate G complete — operator-docs for backend health (§13); phase exit §14 |

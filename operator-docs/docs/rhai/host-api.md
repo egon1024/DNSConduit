@@ -28,7 +28,7 @@ Methods are grouped under purpose headings (`## Routing`, `## Tags`, …). Each 
 | Scope | Rhai binding | Mutability | What it represents |
 |-------|--------------|------------|-------------------|
 | **`txn`** | `txn` | **Read/write** (this query) | Per-query policy: pools, tags, drop/retry, egress overrides, question/response reads |
-| **`runtime`** | `runtime` | **Read-only** (process) | Routing and health snapshot at **hook phase start** — today **`runtime.routing()`** |
+| **`runtime`** | `runtime` | **Read-only** (process) | Routing and health snapshot at **hook phase start** via **`runtime.routing()`** |
 | **`lookup`** | `lookup` (object) + global **`lookup()`** | **Read-only** (snapshot) | CSV tables from **`data_sources:`** |
 | **`metrics`** | `metrics` | **Write** (counters) | Declared user metrics → `conduit_user_*` |
 | **`log`** | `log` | **Write** (emit) | Structured script log lines via Conduit tracing |
@@ -81,7 +81,7 @@ Detail on **`runtime.routing()`** timing: [Runtime API — When values are taken
 **Request hook** — typical order of thought:
 
 1. Read **`txn.question()`** / **`lookup()`** for client intent and static tables.
-2. Read **`runtime.routing().pool(...)`** when health-aware pool choice matters (failover, drain awareness).
+2. Read **`runtime.routing().pool(...)`** when health-aware pool choice matters (failover, [drain](/glossary/index.md#drain) awareness).
 3. **`txn.set_pool`**, **`txn.set_tag`**, **`txn.drop_query`**, etc. to set policy.
 4. **`metrics.inc`** for counters; **`log.warn`** for canary/debug branches.
 

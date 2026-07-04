@@ -84,13 +84,21 @@ fn passive_marks_down_faster_than_probe_fall() {
 
     // Simulate mid-load blackhole: two consecutive forward failures trip passive
     // (passive_fall=2) while probe fall=5 would need five probe failures.
-    registry.record_passive_forward_outcome(&snap.health, "default", b1, true);
+    let r1 = registry
+        .record_passive_forward_outcome(&snap.health, "default", b1, true)
+        .expect("failure returns result");
+    assert_eq!(r1.consecutive_failures, 1);
+    assert!(!r1.transitioned);
     assert_eq!(
         registry.get("default", b1).unwrap().applied(),
         Health::Up,
         "one passive failure is not enough"
     );
-    registry.record_passive_forward_outcome(&snap.health, "default", b1, true);
+    let r2 = registry
+        .record_passive_forward_outcome(&snap.health, "default", b1, true)
+        .expect("failure returns result");
+    assert!(r2.transitioned, "second failure crosses passive_fall=2");
+    assert_eq!(r2.passive_fall, 2);
     assert_eq!(
         registry.get("default", b1).unwrap().applied(),
         Health::Down,

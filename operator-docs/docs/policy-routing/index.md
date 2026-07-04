@@ -11,6 +11,7 @@ Read [Architecture and packet path](/concepts/architecture-and-packet-path.md) f
 | Match queries; set pool, tags, egress, or drop | `rules:` | [Rules and actions](/policy-routing/rules-and-actions.md) |
 | Scripted policy on matching rules | `rules:` + `type: rhai` | [Rhai for rules](/rhai/rule-rhai.md) ([Rhai](/rhai/index.md)), [Rhai policy](/guides/rhai-policy.md) |
 | Group upstream resolvers and load-balance | `pools:` | [Pools and backends](/policy-routing/pools-and-backends.md) |
+| Exclude unhealthy backends from selection | `pools[].health` | [Backend health](/policy-routing/backend-health.md) |
 | Caps and behavior on repeat attempts | `orchestrator:` | [Retries and transactions](/policy-routing/retries-and-transactions.md), [Reference: orchestrator](/reference/config-schema/orchestrator.md) |
 | Default upstream timeout and egress address lists | `forward:` | [Reference: forward](/reference/config-schema/forward.md), [Dual-stack forwarding](/guides/dual-stack-forwarding.md) |
 
@@ -41,7 +42,8 @@ flowchart TD
 1. [Rules and actions](/policy-routing/rules-and-actions.md) — `rules:` hooks, selectors, built-in actions, reload behavior
 2. [Rhai for rules](/rhai/rule-rhai.md) — scripted policy when built-in actions are not enough
 3. [Pools and backends](/policy-routing/pools-and-backends.md) — `pools:` layout, weights, default pool, **SERVFAIL** when routing fails
-4. [Retries and transactions](/policy-routing/retries-and-transactions.md) — response-hook retries, backend exclusion per attempt, `orchestrator` caps
+4. [Backend health](/policy-routing/backend-health.md) — active probes, passive fast-trip, eligibility, and [freeze](/glossary/index.md#freeze)/[drain](/glossary/index.md#drain) controls
+5. [Retries and transactions](/policy-routing/retries-and-transactions.md) — response-hook retries, backend exclusion per attempt, `orchestrator` caps
 
 ## Prerequisites
 
@@ -54,6 +56,7 @@ flowchart TD
 |-------|-----------|
 | `rules:` | [Reference: rules](/reference/config-schema/rules.md) |
 | `pools:` | [Reference: pools](/reference/config-schema/pools.md) |
+| `pools[].health` | [Reference: health](/reference/config-schema/health.md) |
 | `orchestrator:` | [Reference: orchestrator](/reference/config-schema/orchestrator.md), [Retries and transactions — Global limits](/policy-routing/retries-and-transactions.md#global-limits-orchestrator) |
 | `forward:` | [Reference: forward](/reference/config-schema/forward.md), [Dual-stack forwarding](/guides/dual-stack-forwarding.md) |
 
@@ -61,7 +64,9 @@ Rule and pool changes load into the [runtime snapshot](/glossary/index.md#runtim
 
 ## Related
 
+- [Guide: Backend health](/guides/backend-health.md) — enable probes, drain, and resume in a lab
 - [Dual-stack forwarding](/guides/dual-stack-forwarding.md) — `forward.sources_*`, pool `sources_*`, per-query `set_source_v4` / `set_source_v6`
 - [Rhai](/rhai/index.md) — Rhai for rules
 - [Rhai for rules](/rhai/rule-rhai.md) — scripted policy on request and response hooks
-- [Built-in metrics](/observability/built-in-metrics.md) — `pool` labels and forward health after you add pools and rules
+- [Built-in metrics](/observability/built-in-metrics.md) — `pool` / `backend` labels, forward errors, and [backend health](/observability/built-in-metrics.md#backend-health) gauges
+- [Backend health](/policy-routing/backend-health.md) — probes, eligibility, and `conduitctl health`

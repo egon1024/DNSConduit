@@ -62,6 +62,8 @@ struct Outstanding {
 pub struct BackendProbe {
     pub key: BackendKey,
     pub address: SocketAddr,
+    /// Metric/log label: configured backend `name` when set, else address.
+    pub label: String,
     pub source: Option<IpAddr>,
     state: Arc<BackendHealthState>,
     spec: ProbeSpec,
@@ -81,6 +83,7 @@ impl BackendProbe {
     pub fn new(
         key: BackendKey,
         address: SocketAddr,
+        label: String,
         source: Option<IpAddr>,
         state: Arc<BackendHealthState>,
         spec: ProbeSpec,
@@ -96,6 +99,7 @@ impl BackendProbe {
         Self {
             key,
             address,
+            label,
             source,
             state,
             spec,
@@ -157,6 +161,13 @@ impl ProbeScheduler {
 
     pub fn len(&self) -> usize {
         self.backends.len()
+    }
+
+    /// Pool name and metric label for `backend_idx`, when in range.
+    pub fn backend_labels(&self, backend_idx: usize) -> Option<(&str, &str)> {
+        self.backends
+            .get(backend_idx)
+            .map(|b| (b.key.pool.as_str(), b.label.as_str()))
     }
 
     fn jitter(&mut self, interval: Duration) -> Duration {
@@ -375,6 +386,7 @@ mod tests {
         BackendProbe::new(
             BackendKey::new("default", addr),
             addr,
+            addr.to_string(),
             None,
             Arc::new(BackendHealthState::from_initial_policy(
                 conduit_config::health::InitialHealthState::Optimistic,
@@ -523,6 +535,7 @@ mod tests {
         BackendProbe::new(
             BackendKey::new("default", addr),
             addr,
+            addr.to_string(),
             None,
             Arc::new(BackendHealthState::from_initial_policy(
                 conduit_config::health::InitialHealthState::Optimistic,

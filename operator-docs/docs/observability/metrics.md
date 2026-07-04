@@ -47,13 +47,13 @@ flowchart LR
 
 Hot-path counters and histograms are updated on listener workers while queries run. Scrape-time gauges (config generation, pool layout, optional process stats) are refreshed when export runs. The same registry backs both Prometheus scrape and OTEL push.
 
-**Prometheus** — bind `listen_address` (for example loopback in production). The endpoint has **no built-in authentication** today (authorization for scrape is planned for a future release); restrict reachability with firewall or bind address. Smoke test after start:
+**Prometheus** — bind `listen_address` (for example loopback in production). The endpoint has **no built-in authentication**; restrict reachability with firewall or bind address. Smoke test after start:
 
 ```bash
 curl -sS "http://127.0.0.1:9090/metrics" | head
 ```
 
-**OTEL** — `endpoint` must be an `http://` or `https://` URL for OTLP HTTP (typically ending in `/v1/metrics`). Conduit pushes built-in metrics on `push_interval_ms` over plain HTTP or HTTPS. **`https://`** endpoints validate server certificates against public roots by default; set **`allow_invalid_certs: true`** only for lab collectors with self-signed or otherwise invalid certificates. Optional `resource_attributes` attach resource labels to pushed metrics. Optional **`metrics.otel.headers`** (map of string keys to values) are sent as HTTP headers on each OTLP push — use for collector bearer tokens or API keys. This is **OTLP metrics only** — not distributed trace or log export (those are planned separately; see [Tracing](/observability/tracing.md) for pipeline traces).
+**OTEL** — `endpoint` must be an `http://` or `https://` URL for OTLP HTTP (typically ending in `/v1/metrics`). Conduit pushes built-in metrics on `push_interval_ms` over plain HTTP or HTTPS. **`https://`** endpoints validate server certificates against public roots by default; set **`allow_invalid_certs: true`** only for lab collectors with self-signed or otherwise invalid certificates. Optional `resource_attributes` attach resource labels to pushed metrics. Optional **`metrics.otel.headers`** (map of string keys to values) are sent as HTTP headers on each OTLP push — use for collector bearer tokens or API keys. This is **OTLP metrics only** — not distributed trace or log export (see [Tracing](/observability/tracing.md) for in-process pipeline traces).
 
 Example (lab collector with bearer auth):
 
@@ -87,7 +87,7 @@ Exhaustive list — every built-in name, label, and **when** it increments: **[B
 Built-in labels never include `qname`, client IP, or transaction id. Use [Event export](/observability/event-export.md) or [Tracing](/observability/tracing.md) for per-query detail.
 
 !!! note "Pipeline tracing is not OTEL traces"
-    The separate **`tracing:`** config block enables optional per-query **pipeline traces** (`GetTrace`, JSON log output). That is not OpenTelemetry distributed trace export over OTLP (planned for a future release).
+    The separate **`tracing:`** config block enables optional per-query **pipeline traces** (`GetTrace`, JSON log output). That is not OpenTelemetry distributed trace export over OTLP (not implemented).
 
 ## Related topics
 

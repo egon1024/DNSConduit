@@ -18,6 +18,7 @@ Each list entry is one named pool. Pool `name` values must be **unique** within 
 |-------|------|----------|---------|-------------|
 | `name` | string | yes | — | Identifier referenced by `set_pool`, `set_retry_pool`, [Rhai](/rhai/index.md) `set_pool` / `set_retry_pool`, [metrics](/observability/metrics.md) labels, and event filters. Must be non-empty and unique among pools. The name `default` is a convention for the catch-all pool when nothing else selects a pool — see [Default pool selection](#default-pool-selection). |
 | `backends` | list | yes | — | One or more [backend](#backend-object) entries. An empty list fails validation. |
+| `health` | object | no | (disabled) | Optional [backend health](/policy-routing/backend-health.md) settings for this pool. See [Reference: health](/reference/config-schema/health.md). |
 | `sources_v4` | list of strings | no | (use [forward](/reference/config-schema/forward.md) defaults) | IPv4 addresses to bind when forwarding to this pool’s backends. Overrides global `forward.sources_v4` for this pool when non-empty. See [Dual-stack forwarding](/guides/dual-stack-forwarding.md). |
 | `sources_v6` | list of strings | no | (use [forward](/reference/config-schema/forward.md) defaults) | IPv6 addresses for upstream egress for this pool. Overrides global `forward.sources_v6` when non-empty. |
 | `max_inflight` | integer | no | (unlimited) | Optional cap on **concurrent in-flight forwards** for this pool. When set, must be **≥ 1**. Enforced under the **`split_io`** [runtime](/concepts/runtime-and-concurrency.md#runtime-models); a query that would exceed the cap returns **SERVFAIL** rather than queueing. See [Per-pool in-flight limit](#per-pool-in-flight-limit). |
@@ -57,6 +58,10 @@ Backends are nested under `pools[].backends`. Each backend is one upstream resol
 | `address` | string | yes | — | Upstream resolver as `ip:port`. IPv6 literals use bracket notation, for example `[2001:db8::1]:53`. Must parse as a socket address. |
 | `weight` | integer | no | **100** | Load-balancing weight within the pool. If set, must be **≥ 1**. Omitted or unset means effective weight 100. |
 | `name` | string | no | (use `address`) | Stable identity for this backend. When set, it becomes the **`backend`** [metric](/observability/metrics.md) label and the key for [overlay patches](/control-plane/configuration-model.md) that target `(pool, name)`. Must be **unique within the pool** when set. |
+| `probe_qname` | string | no | (pool health template) | Per-backend override for health probe query name when pool health is enabled. |
+| `probe_qtype` | string | no | (pool health template) | Per-backend override for health probe query type. |
+| `probe_source` | string | no | (system bind) | Local IP address to bind for health probes to this backend. |
+| `transport` | string | no | — | Reserved for forward-compatible use; not honored when it diverges from `forward.upstream_transport`. |
 
 ## Validation summary
 
@@ -109,4 +114,4 @@ pools:
 - [Configuration model](/control-plane/configuration-model.md) — overlay patches targeting backends by `(pool, name)`
 - [Runtime and concurrency](/concepts/runtime-and-concurrency.md) — transaction slot pool and in-flight limits
 - [Dual-stack forwarding](/guides/dual-stack-forwarding.md) — pool and global egress sources
-- [Config schema overview](/reference/config-schema/index.md)
+- [Reference: health](/reference/config-schema/health.md) — pool `health:` block and per-backend probe overrides

@@ -121,6 +121,8 @@ pub struct BuiltinRegistry {
     forward_attempts: IntCounterVec,
     forward_errors: IntCounterVec,
     forward_duration: HistogramVec,
+    /// Active health-probe outcomes (`full` only).
+    probe_results: Option<IntCounterVec>,
     retries_total: IntCounterVec,
     script_errors_total: Option<IntCounterVec>,
     forward_outstanding: GaugeVec,
@@ -241,7 +243,7 @@ impl BuiltinRegistry {
         .expect("metric");
         let forward_errors = IntCounterVec::new(
             Opts::new("conduit_forward_errors_total", "Forward errors"),
-            &["pool", "reason"],
+            &["pool", "backend", "reason"],
         )
         .expect("metric");
         let forward_duration = HistogramVec::new(
@@ -451,6 +453,7 @@ impl BuiltinRegistry {
             backend_health_latency_ewma_ms,
             backend_health_transitions_total,
             pool_backends_active,
+            probe_results,
         ) = if is_full {
             let observed = GaugeVec::new(
                 Opts::new(
@@ -508,6 +511,14 @@ impl BuiltinRegistry {
                 &["pool"],
             )
             .expect("metric");
+            let probe_results = IntCounterVec::new(
+                Opts::new(
+                    "conduit_probe_results_total",
+                    "Active health-probe outcomes per backend",
+                ),
+                &["pool", "backend", "outcome"],
+            )
+            .expect("metric");
             for m in [
                 &observed,
                 &applied,
@@ -521,6 +532,9 @@ impl BuiltinRegistry {
             registry
                 .register(Box::new(transitions.clone()))
                 .expect("register");
+            registry
+                .register(Box::new(probe_results.clone()))
+                .expect("register");
             (
                 Some(observed),
                 Some(applied),
@@ -529,9 +543,10 @@ impl BuiltinRegistry {
                 Some(latency_ewma),
                 Some(transitions),
                 Some(active),
+                Some(probe_results),
             )
         } else {
-            (None, None, None, None, None, None, None)
+            (None, None, None, None, None, None, None, None)
         };
 
         let (process_resident_bytes, process_open_fds) = if effective && is_full {
@@ -564,6 +579,7 @@ impl BuiltinRegistry {
             forward_attempts,
             forward_errors,
             forward_duration,
+            probe_results,
             retries_total,
             script_errors_total,
             forward_outstanding,
@@ -691,11 +707,29 @@ impl BuiltinRegistry {
             .inc();
     }
 
-    pub fn record_forward_error(&self, pool: &str, reason: &str) {
+    pub fn record_forward_error(&self, pool: &str, backend: &str, reason: &str) {
         if !self.enabled {
             return;
         }
-        self.forward_errors.with_label_values(&[pool, reason]).inc();
+        self.forward_errors
+            .with_label_values(&[pool, backend, reason])
+            .inc();
+    }
+
+    /// Record one active health-probe outcome (`full` profile only).
+    ///
+    /// `outcome` is one of: `success`, `failure` (unacceptable reply),
+    /// `timeout`, or `send_error` (transport send/connect failure).
+    pub fn record_probe_result(&self, pool: &str, backend: &str, outcome: &str) {
+        if !self.enabled || self.profile == BuiltinProfile::Minimal {
+            return;
+        }
+        let Some(counter) = self.probe_results.as_ref() else {
+            return;
+        };
+        counter
+            .with_label_values(&[pool, backend, outcome])
+            .inc();
     }
 
     pub fn record_forward_duration(&self, pool: &str, backend: &str, duration_secs: f64) {
@@ -982,7 +1016,7 @@ mod tests {
                 "typo_table",
             );
             reg.record_parse_rejected("wire_error");
-            reg.record_forward_error("default", "timeout");
+            reg.record_forward_error("default", "127.0.0.1:5300", "timeout");
             reg.record_retry("default");
             let body = encode_builtin(reg.gather());
             assert!(
@@ -998,12 +1032,40 @@ mod tests {
                 "{profile:?} body:\n{body}"
             );
             assert!(
-                body.contains("conduit_forward_errors_total"),
+                body.contains(
+                    r#"conduit_forward_errors_total{backend="127.0.0.1:5300",pool="default",reason="timeout"}"#
+                ),
                 "{profile:?} body:\n{body}"
             );
             assert!(
                 body.contains("conduit_retries_total"),
                 "{profile:?} body:\n{body}"
+            );
+        }
+    }
+
+    #[test]
+    fn probe_results_recorded_only_on_full() {
+        let minimal = BuiltinRegistry::new(true, BuiltinProfile::Minimal);
+        minimal.record_probe_result("default", "127.0.0.1:5300", "timeout");
+        let body_min = encode_builtin(minimal.gather());
+        assert!(
+            !body_min.contains("conduit_probe_results_total"),
+            "minimal must not record probe results, body:\n{body_min}"
+        );
+
+        let full = BuiltinRegistry::new(true, BuiltinProfile::Full);
+        full.record_probe_result("default", "127.0.0.1:5300", "success");
+        full.record_probe_result("default", "127.0.0.1:5300", "timeout");
+        full.record_probe_result("default", "127.0.0.1:5300", "failure");
+        full.record_probe_result("default", "127.0.0.1:5300", "send_error");
+        let body_full = encode_builtin(full.gather());
+        for outcome in ["success", "timeout", "failure", "send_error"] {
+            assert!(
+                body_full.contains(&format!(
+                    r#"conduit_probe_results_total{{backend="127.0.0.1:5300",outcome="{outcome}",pool="default"}}"#
+                )),
+                "missing outcome={outcome} in:\n{body_full}"
             );
         }
     }

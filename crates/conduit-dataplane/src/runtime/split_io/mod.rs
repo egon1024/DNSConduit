@@ -92,9 +92,12 @@ pub fn start_split_io(
 
     let mut thread_handles = Vec::new();
 
-    if let Some(h) =
-        crate::probe::spawn_probe_loop(&snap, health_registry.clone(), shutdown.clone())
-    {
+    if let Some(h) = crate::probe::spawn_probe_loop(
+        &snap,
+        health_registry.clone(),
+        metrics.clone(),
+        shutdown.clone(),
+    ) {
         thread_handles.push(h);
     }
 

@@ -86,6 +86,7 @@ nav:
       - Overview: policy-routing/index.md
       - Rules and actions: policy-routing/rules-and-actions.md
       - Pools and backends: policy-routing/pools-and-backends.md
+      - Backend health: policy-routing/backend-health.md
       - Retries and transactions: policy-routing/retries-and-transactions.md
   - Control plane:
       - Overview: control-plane/index.md
@@ -116,6 +117,7 @@ nav:
   - Guides:
       - Overview: guides/index.md
       - Rhai policy: guides/rhai-policy.md
+      - Backend health: guides/backend-health.md
       - Dual-stack forwarding: guides/dual-stack-forwarding.md
       - Dataplane runtime tuning: guides/dataplane-runtime-tuning.md
       - Control plane workflows: guides/control-plane-workflows.md
@@ -137,6 +139,7 @@ nav:
           - Overview: reference/config-schema/index.md
           - Listeners: reference/config-schema/listeners.md
           - Pools: reference/config-schema/pools.md
+          - Health: reference/config-schema/health.md
           - Forward: reference/config-schema/forward.md
           - Orchestrator: reference/config-schema/orchestrator.md
           - Dataplane: reference/config-schema/dataplane.md

@@ -363,8 +363,10 @@ fn split_io_records_forward_timeout_metric_with_pool_and_name() {
         "expected named-backend timeout attempt with real pool; body:\n{body}"
     );
     assert!(
-        body.contains(r#"conduit_forward_errors_total{pool="default",reason="timeout"} 1"#),
-        "expected timeout forward error on the default pool; body:\n{body}"
+        body.contains(
+            r#"conduit_forward_errors_total{backend="resolver-east",pool="default",reason="timeout"} 1"#
+        ),
+        "expected timeout forward error on the named backend; body:\n{body}"
     );
     assert!(
         !body.contains(r#"pool="unknown""#),

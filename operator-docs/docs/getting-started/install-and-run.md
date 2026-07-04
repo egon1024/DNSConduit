@@ -18,7 +18,7 @@ Each stable release publishes:
 Every tarball and package includes three binaries:
 
 - **`conduit`** — DNS [dataplane](/glossary/index.md#dataplane) (the service)
-- **`conduitctl`** — [control plane](/glossary/index.md#control-plane) CLI (validate, apply, export when control is enabled)
+- **`conduitctl`** — [control plane](/glossary/index.md#control-plane) CLI (`validate` offline; `apply`, `export`, `reload`, `trace`, and `health` when control is enabled)
 - **`conduit-dnstap-tracer`** — development/troubleshooting dnstap listener (decodes export to stdout). **Not** part of the production systemd service; use only for debugging dnstap sinks.
 
 Production vs debug differs only by **stripped vs unstripped** binaries. Use production artifacts on servers; use debug artifacts when you need symbols for `gdb` or postmortem analysis.

@@ -5,7 +5,7 @@ Optional per-query **[pipeline traces](/glossary/index.md#pipeline-trace)** for 
 Use tracing when you need to debug routing, forwarding, or retries on **specific** queries. For aggregate volume and latency, use [Metrics](/observability/metrics.md). For wire-level query/response export to a collector, use [Event export](/observability/event-export.md).
 
 !!! note "Pipeline tracing is not OTEL traces"
-    The **`tracing:`** config block controls **in-process pipeline traces** stored for `GetTrace` / `conduitctl trace` and optional JSON log output. It is **not** OpenTelemetry distributed trace export over OTLP (planned for a future release). OTLP **metrics** live under **`metrics.otel`** — see [Metrics](/observability/metrics.md).
+    The **`tracing:`** config block controls **in-process pipeline traces** stored for `GetTrace` / `conduitctl trace` and optional JSON log output. It is **not** OpenTelemetry distributed trace export over OTLP (not implemented). OTLP **metrics** live under **`metrics.otel`** — see [Metrics](/observability/metrics.md).
 
 ## Enabling tracing
 
@@ -153,7 +153,7 @@ When **`output.log_json: true`**, Conduit logs the completed trace as JSON at **
 INFO conduit::trace: pipeline trace txn_id=42 events=[{"phase":"parse","elapsed_us":12,...}, ...]
 ```
 
-Use this for ad hoc debugging or shipping traces to a log aggregator. It is separate from **`logging.level`** and from planned OTLP log export.
+Use this for ad hoc debugging or shipping traces to a log aggregator. It is separate from **`logging.level`** and from OTLP log export (not implemented).
 
 ## Cost and when to enable
 
