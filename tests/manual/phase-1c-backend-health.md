@@ -1,4 +1,4 @@
-# Manual test guide — phase 1c backend health (Gates A–F)
+# Manual test guide — phase 1c backend health (Gates A–G + phase exit)
 
 > **Repository:** DNSConduit root. **OpenSpec:** `backend-health-probes` (+ `pool-routing`, `dns-forward` deltas).  
 > **Gate A scope:** active probing and health **state only** — Phase A wires probe
@@ -723,10 +723,10 @@ Behavior and operator surface reviewed; stable for Phase G documentation.
 | 13.5 | [gRPC and conduitctl](/control-plane/grpc-and-conduitctl.md#health), [Reference: gRPC](/reference/grpc-and-cli.md#service-backendhealth) | Done |
 | 13.6 | [Glossary](/glossary/index.md) — observed/applied, freeze, passive fast-trip, fail-open floor | Done |
 | 13.7 | `mkdocs.yml` — Policy & routing + Reference config schema nav entries | Done |
-| 13.8 | `make docs` link check | See §14.1 |
+| 13.8 | `make docs` link check | Done (§14.1) |
 | 13.9 | DNSConduitCursor plan/README updated | Done |
 
-**Pass / fail:** Pass (pending `make docs` in §14.1)
+**Pass / fail:** Pass
 
 ---
 
@@ -735,6 +735,45 @@ Behavior and operator surface reviewed; stable for Phase G documentation.
 | Reviewer | Date | Notes |
 |----------|------|-------|
 |  | 2026-07-03 | Phase G operator-docs authored |
+
+---
+
+# Phase exit (§14)
+
+> Final automated verification and readiness for `/opsx:archive`.
+
+## 14.1 Final `make test` + `make docs` (task 14.1)
+
+| Command | Result |
+|---------|--------|
+| `make test` (fmt-check, clippy, `cargo test --workspace`) | Pass (Gate F §12.1; health-focused crates re-verified 2026-07-03) |
+| `make docs-build` (`mkdocs build --strict`) | Pass (2026-07-03; no links to `docs/superpowers/`, `openspec/`, or `.cursor/`) |
+
+**Pass / fail:** Pass
+
+---
+
+## 14.2 Manual test doc finalized (task 14.2)
+
+Gates A–G recorded above with Pass / fail and sign-off tables. Frozen public surface is in §12.3. Operator-docs pages listed in Gate G match that surface.
+
+**Pass / fail:** Pass
+
+---
+
+## 14.3 Ready for archive (task 14.3)
+
+OpenSpec change `phase-1c-backend-health` is ready for `/opsx:archive` after review. Known follow-ups from verify (not blocking archive of the change artifacts themselves if accepted): see verification notes for `require_1_good` vs `require_full_rise` and new-backend-under-freeze eligibility if those warnings remain open.
+
+**Pass / fail:** Pass
+
+---
+
+## Phase exit sign-off
+
+| Reviewer | Date | Notes |
+|----------|------|-------|
+|  | 2026-07-03 | §14.1–14.3 recorded; phase exit complete |
 
 ---
 
@@ -748,4 +787,5 @@ Behavior and operator surface reviewed; stable for Phase G documentation.
 | 2026-07-02 | Gate E complete — health metrics scrape validation (§11); signed off |
 | 2026-07-02 | Gates A–D manual validation signed off (backfilled) |
 | 2026-07-03 | Gate F complete — pre-documentation freeze (§12); Phase G approved |
-| 2026-07-03 | Gate G complete — operator-docs for backend health (§13); phase exit §14 |
+| 2026-07-03 | Gate G complete — operator-docs for backend health (§13) |
+| 2026-07-03 | Phase exit §14 recorded (`make test` / `make docs`, archive readiness) |

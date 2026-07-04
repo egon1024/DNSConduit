@@ -50,3 +50,15 @@ pub fn minimal_control_setup() -> ControlSetup {
         Some(workspace_fixture("tests/fixtures/config")),
     )
 }
+
+/// Control-plane setup with pool health enabled (`with-health.yaml`).
+#[allow(dead_code)]
+pub fn health_control_setup() -> ControlSetup {
+    let yaml = include_str!("../../../tests/fixtures/config/with-health.yaml");
+    let file_cfg = conduit_config::load_yaml(yaml).expect("parse");
+    control_setup(
+        file_cfg,
+        workspace_fixture("tests/fixtures/config/with-health.yaml"),
+        Some(workspace_fixture("tests/fixtures/config")),
+    )
+}
