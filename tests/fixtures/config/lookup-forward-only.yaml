@@ -1,0 +1,15 @@
+schema_version: 1
+listeners:
+  threads: 1
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+pools:
+  - name: default
+    backends:
+      - address: "127.0.0.1:5300"
+lookup:
+  profiles:
+    default:
+      providers:
+        - type: forward
