@@ -21,7 +21,7 @@ When the block is omitted entirely, Conduit applies defaults at parse time (`thr
 | `threads` | integer | no | **1** | Default number of **ingress worker** threads **per** [listener entry](#listener-object) below. Must be **≥ 1**. Each thread is an ingress worker: under **`sync`** it runs the whole query [pipeline](/concepts/architecture-and-packet-path.md#pipeline-phases) on its thread; under **`split_io`** it accepts and hands off (see [Runtime and concurrency](/concepts/runtime-and-concurrency.md#runtime-models)). A listener entry may override this — see [Per-listener overrides](#per-listener-overrides-and-inheritance). |
 | `reuse_port` | boolean | no | **`false`** | When **`true`**, UDP sockets use **`SO_REUSEPORT`** (Unix only) so multiple workers can bind the same address. Use **`true`** when `threads` > **1** on UDP. Ignored on non-Unix platforms and for TCP listeners. |
 | `rcvbuf` | integer | no | **0** (OS default) | When **> 0**, sets the UDP socket receive buffer size (bytes) before bind. **0** leaves the OS default. Applies to UDP listeners only. |
-| `sndbuf` | integer | no | **0** | Reserved — accepted in YAML but **not applied** to sockets in current releases. |
+| `sndbuf` | integer | no | **0** | Reserved — accepted in YAML but **not applied** to sockets. |
 | `listeners` | list | yes (for DNS service) | `[]` | One or more [listener objects](#listener-object). Conduit binds each entry at **process start**. |
 
 ### Worker count
@@ -53,7 +53,7 @@ Each list entry under `listeners.listeners` is one bind address and protocol.
 | `name` | string | no | derived from `address` | Stable identity for this listener. When set, it becomes the **`listener`** [metric](/observability/metrics.md) label instead of the address. Must be **unique** across entries when set. |
 | `rcvbuf` | integer | no | inherits block **`rcvbuf`** | Per-entry UDP receive-buffer override in bytes; **0** keeps the OS default. UDP only. |
 
-There is no per-listener **`sndbuf`** — `sndbuf` is a block-level reserved field only (see [Block fields](#block-fields)).
+**`sndbuf`** is a block-level reserved field only and is not applied to sockets (see [Block fields](#block-fields)).
 
 ### Per-listener overrides and inheritance
 

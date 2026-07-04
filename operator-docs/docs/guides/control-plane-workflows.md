@@ -33,6 +33,8 @@ flowchart TB
 
 **Reload** and **SIGHUP** clear any active [overlay](/glossary/index.md#overlay) and [reload from disk](/glossary/index.md#reload-from-disk): Conduit re-reads the startup YAML and drops in-memory patches. **`conduitctl apply`** does the opposite — it updates the overlay only and does not rewrite the file on disk; effective config stays "file plus overlay" until you reload or clear.
 
+**Backend maintenance** ([drain](/glossary/index.md#drain), [freeze](/glossary/index.md#freeze), resume) is **not** a config reload or overlay — use **`conduitctl health`**. Health **runtime** state (observed/applied liveness and freeze scope) survives reload when backend identity and probe semantics are unchanged. See [Backend health](/policy-routing/backend-health.md), [gRPC and conduitctl — health](/control-plane/grpc-and-conduitctl.md#health), and [Guide: Backend health](/guides/backend-health.md).
+
 ### After a disk edit — reload enough, or restart?
 
 Most sections take effect on **reload** for new queries. A few update the snapshot but need a **process restart** to rebind sockets or export listeners:
@@ -41,7 +43,7 @@ Most sections take effect on **reload** for new queries. A few update the snapsh
 flowchart LR
   Edit[Edit startup YAML] --> Reload[reload or SIGHUP]
 
-  Reload --> Hot[Hot on reload — pools, rules, Rhai, orchestrator, data_sources]
+  Reload --> Hot[Hot on reload — pools, health probe config, rules, Rhai, orchestrator, data_sources]
   Reload --> Pending[Snapshot updates — restart to apply on wire]
 
   Pending --> Restart[listeners, forward, control, metrics, tracing, logging]
@@ -212,13 +214,15 @@ Rule changes enter the snapshot on reload; see [Rules and actions — when chang
 | Mutating RPC OK | `conduitctl reload` / `apply` → `ok`; non-zero exit on failure |
 | Generation bumped | Log `config applied` with `generation=N`; metric [`conduit_config_generation`](/observability/built-in-metrics.md#conduit_config_generation) |
 | Effective weights or pools | `conduitctl export` |
+| Backend health / drain | `conduitctl health show` — [Backend health](/policy-routing/backend-health.md) |
 | Restart pending | Log `listeners: pending (restart required)` or `forward egress: pending (restart required)` |
 
 ## Related topics
 
 - [Reload and export](/control-plane/reload-and-export.md) — apply modes, full pool-weight example, export normalization
-- [Configuration model](/control-plane/configuration-model.md) — file layer, overlay merge, last-good snapshot
-- [gRPC and conduitctl](/control-plane/grpc-and-conduitctl.md) — endpoint, API keys, TLS
+- [Configuration model](/control-plane/configuration-model.md) — file layer, overlay merge, last-good snapshot, health state outside the snapshot
+- [gRPC and conduitctl](/control-plane/grpc-and-conduitctl.md) — endpoint, API keys, TLS, **`health`**
+- [Guide: Backend health](/guides/backend-health.md) — probes, drain, and resume lab
 - [Reference: gRPC and CLI](/reference/grpc-and-cli.md) — RPC and `OverlayApplyMode` for automation
 - [Troubleshooting](/troubleshooting/index.md) — observability and config symptom tables
 - [Guides](/guides/index.md) — other walkthroughs

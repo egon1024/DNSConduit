@@ -58,7 +58,8 @@ impl WaitResponseStage {
         hub.builtin
             .record_forward_attempt(pool, &backend_label, outcome);
         if !success {
-            hub.builtin.record_forward_error(pool, "timeout");
+            hub.builtin
+                .record_forward_error(pool, &backend_label, "timeout");
         }
         hub.builtin.record_forward_duration(
             pool,
@@ -66,7 +67,51 @@ impl WaitResponseStage {
             txn.last_forward_ms() as f64 / 1000.0,
         );
         if let (Some(registry), Some(backend)) = (self.health.as_ref(), txn.selected_backend) {
-            registry.record_passive_forward_outcome(&snapshot.health, pool, backend, !success);
+            let is_failure = !success;
+            if let Some(result) = registry.record_passive_forward_outcome(
+                &snapshot.health,
+                pool,
+                backend,
+                is_failure,
+            ) {
+                let qname = txn.qname.as_deref().unwrap_or("?");
+                let qtype = txn.qtype.unwrap_or(0);
+                if result.transitioned {
+                    tracing::warn!(
+                        %pool,
+                        backend = %backend,
+                        reason = "timeout",
+                        %qname,
+                        qtype,
+                        client = %txn.client_addr,
+                        passive_failures = result.consecutive_failures,
+                        passive_fall = result.passive_fall,
+                        "passive fast-trip: backend marked down"
+                    );
+                } else if result.already_down {
+                    tracing::debug!(
+                        %pool,
+                        backend = %backend,
+                        reason = "timeout",
+                        %qname,
+                        qtype,
+                        client = %txn.client_addr,
+                        "passive health: forward failure (backend already down)"
+                    );
+                } else {
+                    tracing::warn!(
+                        %pool,
+                        backend = %backend,
+                        reason = "timeout",
+                        %qname,
+                        qtype,
+                        client = %txn.client_addr,
+                        passive_failures = result.consecutive_failures,
+                        passive_fall = result.passive_fall,
+                        "passive health: forward failure"
+                    );
+                }
+            }
         }
     }
 }

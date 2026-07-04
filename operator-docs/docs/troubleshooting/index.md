@@ -5,6 +5,7 @@ Symptom-oriented pointers for common operator issues. Each section links to the 
 | Section | Covers |
 |---------|--------|
 | [DNS and forwarding](#dns-and-forwarding) | Startup bind failures, no client reply, **SERVFAIL**, upstream timeouts |
+| [Backend health](#backend-health) | Probes, passive fast-trip, fail-open, [drain](/glossary/index.md#drain)/[freeze](/glossary/index.md#freeze), health metrics |
 | [Dataplane runtime and concurrency](#dataplane-runtime) | Slot-pool exhaustion, `split_io` runtime and worker misconfiguration |
 | [Control plane](#control-plane) | **`conduitctl`** connectivity, rejected reload/apply, overlay surprises, restart-pending changes |
 | [Observability](#observability) | Metrics scrape, OTEL push, dnstap, tracing, logging |
@@ -60,7 +61,7 @@ When [metrics](/observability/metrics.md) are enabled:
 curl -sS "http://127.0.0.1:9090/metrics" | grep conduit_forward_errors
 ```
 
-See [`conduit_forward_errors_total`](/observability/built-in-metrics.md#conduit_forward_errors_total) (`reason` = `timeout`, `send_error`, etc.).
+See [`conduit_forward_errors_total`](/observability/built-in-metrics.md#conduit_forward_errors_total) (`pool`, `backend`, `reason` = `timeout`, `send_error`, etc.).
 
 ### Upstream timeouts and slow responses
 
@@ -72,6 +73,28 @@ See [`conduit_forward_errors_total`](/observability/built-in-metrics.md#conduit_
 | Wrong egress path (multi-homed host) | Source bind or pool **`sources_*`** | [Dual-stack forwarding](/guides/dual-stack-forwarding.md) |
 
 Response-hook **`retry`** can run after timeout — Conduit still reaches [Response rules](/concepts/architecture-and-packet-path.md#response-rules) so policy can fail over to another pool.
+
+## Backend health { #backend-health }
+
+For probes, passive fast-trip, eligibility, and operator controls, see [Backend health](/policy-routing/backend-health.md). Health is **opt-in** (`pools[].health.enabled: true`).
+
+| Symptom | Likely cause | What to check |
+|---------|--------------|---------------|
+| Traffic still hits a dead backend | Health **disabled** for the pool (default) | Enable `health:` on the pool — [Backend health — When to enable](/policy-routing/backend-health.md#when-to-enable-health) |
+| All backends marked down; queries still succeed | [Fail-open floor](/glossary/index.md#fail-open-floor) or single-backend pool | `min_eligible`; single-backend pools always fail open — [Backend health — Route](/policy-routing/backend-health.md#route-eligibility-weight-and-fail-open) |
+| Backend stays down after upstream recovers | Waiting for probe **`rise`**; passive fast-trip cannot mark **up** | Wait for `rise` consecutive successful probes, or `conduitctl health set up` / **`health resume`** — [Active probes and passive fast-trip](/policy-routing/backend-health.md#active-probes-and-passive-fast-trip) |
+| Drained backend returns to rotation unexpectedly | Scope not [frozen](/glossary/index.md#freeze), or **`health resume`** snapped applied to observed | `conduitctl health show`; drain is `health set down` (implies freeze) — [Operator controls](/policy-routing/backend-health.md#operator-controls-freeze-drain-resume) |
+| Applied health stale after clear/freeze sequence | Clear-while-frozen footgun | Prefer atomic **`conduitctl health resume`** — [Clear-while-frozen](/policy-routing/backend-health.md#clear-while-frozen-footgun) |
+| `conduitctl health` fails | No control plane at process start | Same as [conduitctl cannot connect](#conduitctl-cannot-connect) |
+| Health gauges missing from scrape | Profile not **`full`**, or health not enabled | `metrics.profile: full` and at least one pool with health — [Built-in metrics — Backend health](/observability/built-in-metrics.md#backend-health) |
+| High probe load on upstreams | Low `interval_ms` × many backends | Raise interval; size for upstream tolerance — [Probe behavior](/policy-routing/backend-health.md#probe-behavior-operator-view) |
+
+```bash
+conduitctl health show
+curl -sS "http://127.0.0.1:9090/metrics" | grep -E 'conduit_backend_health_|conduit_probe_results'
+```
+
+Process logs: active-probe transitions at INFO (`backend health transition`); passive fast-trip at WARN (`passive health: forward failure`, `passive fast-trip: backend marked down`).
 
 ## Dataplane runtime and concurrency { #dataplane-runtime }
 
@@ -207,6 +230,7 @@ Bind Prometheus scrape to loopback or restrict with firewall — scrape has **no
 ## Related topics
 
 - [Getting started — First query](/getting-started/first-query.md) — end-to-end lab and basic `dig` failures
+- [Guide: Backend health](/guides/backend-health.md) — probes, drain, and resume lab
 - [Control plane workflows](/guides/control-plane-workflows.md) — reload, apply, export, and restart
 - [Config file](/control-plane/config-file.md) — validation, startup path, startup vs reload
 - [Configuration model](/control-plane/configuration-model.md) — overlay, last-good snapshot, pending reconcile

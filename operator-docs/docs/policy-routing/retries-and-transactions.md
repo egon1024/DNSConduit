@@ -6,9 +6,9 @@ This page explains how Conduit handles **retries** — sending the same client [
 
 A [transaction](/glossary/index.md#transaction) is everything Conduit remembers for one client query from [Receive](/concepts/architecture-and-packet-path.md#receive) through [Send](/concepts/architecture-and-packet-path.md#send) or drop. Retries reuse that same transaction: the original question, client address, [tags](/glossary/index.md#tags), and request-side [pool](/glossary/index.md#pool) choice stay in place unless policy changes them on a later hook.
 
-In current releases, **only [Response rules](/concepts/architecture-and-packet-path.md#response-rules)** (built-in actions or [Rhai](/rhai/index.md) on the response hook) can trigger a retry. [Request rules](/concepts/architecture-and-packet-path.md#request-rules) run **once** at the start of the transaction; they do not run again when Conduit re-enters at [Route](/concepts/architecture-and-packet-path.md#route).
+**Only [Response rules](/concepts/architecture-and-packet-path.md#response-rules)** (built-in actions or [Rhai](/rhai/index.md) on the response hook) can trigger a retry. [Request rules](/concepts/architecture-and-packet-path.md#request-rules) run **once** at the start of the transaction; they do not run again when Conduit re-enters at [Route](/concepts/architecture-and-packet-path.md#route).
 
-When policy requests a retry, Conduit jumps from [Response rules](/concepts/architecture-and-packet-path.md#response-rules) back to [Route](/concepts/architecture-and-packet-path.md#route), picks a [backend](/glossary/index.md#backend) in the target [pool](/glossary/index.md#pool), and forwards again. When limits are reached, every [backend](/glossary/index.md#backend) in the target pool was already tried, or policy accepts the outcome, Conduit continues to [Send](/concepts/architecture-and-packet-path.md#send) and replies to the client.
+When policy requests a retry, Conduit jumps from [Response rules](/concepts/architecture-and-packet-path.md#response-rules) back to [Route](/concepts/architecture-and-packet-path.md#route), picks an **eligible** [backend](/glossary/index.md#backend) in the target [pool](/glossary/index.md#pool) (see [Backend selection on retries](#backend-selection-on-retries)), and forwards again. When limits are reached, every eligible [backend](/glossary/index.md#backend) in the target pool was already tried, or policy accepts the outcome, Conduit continues to [Send](/concepts/architecture-and-packet-path.md#send) and replies to the client.
 
 ```mermaid
 stateDiagram-v2
@@ -206,12 +206,14 @@ Allowed-set enforcement at Forward is unchanged. See [Dual-stack forwarding](/gu
 
 | Attempt | Behavior |
 |---------|----------|
-| **First** (`attempt_count` 0 before [Route](/concepts/architecture-and-packet-path.md#route)) | Sticky weighted pick among all [backends](/glossary/index.md#backend) in the pool — same as normal [Pools and backends](/policy-routing/pools-and-backends.md) load balancing |
-| **Retry** (`attempt_count` > 0) | Weighted pick among [backends](/glossary/index.md#backend) in the **target pool** that were **not** already used for that pool on this [transaction](/glossary/index.md#transaction) |
+| **First** (`attempt_count` 0 before [Route](/concepts/architecture-and-packet-path.md#route)) | Sticky weighted pick among **eligible** [backends](/glossary/index.md#backend) in the pool — same as normal [Pools and backends](/policy-routing/pools-and-backends.md) load balancing |
+| **Retry** (`attempt_count` > 0) | Weighted pick among **eligible** [backends](/glossary/index.md#backend) in the **target pool** that were **not** already used for that pool on this [transaction](/glossary/index.md#transaction) |
+
+**Eligible** means every configured backend when pool [health](/policy-routing/backend-health.md) is off, and backends whose **[applied](/glossary/index.md#applied-health)** health is **up** when health is on (plus any [fail-open](/glossary/index.md#fail-open-floor) treatment). Retries never prefer a backend that Route would skip on the first attempt.
 
 On a cross-pool retry, only backends tried **in the target pool** are excluded — backends used in other pools do not count.
 
-When every backend in the target pool was already tried, [Route](/concepts/architecture-and-packet-path.md#route) cannot select another backend. Conduit sets **SERVFAIL** and moves to [Send](/concepts/architecture-and-packet-path.md#send) (pool exhausted for this transaction).
+When every eligible backend in the target pool was already tried (or none are eligible), [Route](/concepts/architecture-and-packet-path.md#route) cannot select another backend. Conduit sets **SERVFAIL** and moves to [Send](/concepts/architecture-and-packet-path.md#send) (pool exhausted for this transaction).
 
 A pool with only one [backend](/glossary/index.md#backend) cannot offer an alternate target on retry; the next retry attempt hits pool exhaustion immediately after the first forward fails.
 
@@ -231,7 +233,7 @@ A retry stops when any of these occurs:
 
 - **`max_attempts`** reached
 - **`max_txn_duration_ms`** exceeded
-- **Pool exhausted** — no unused [backend](/glossary/index.md#backend) left in the target pool for this [transaction](/glossary/index.md#transaction)
+- **Pool exhausted** — no unused **eligible** [backend](/glossary/index.md#backend) left in the target pool for this [transaction](/glossary/index.md#transaction)
 - Policy accepts the answer (no retry intent on [Response rules](/concepts/architecture-and-packet-path.md#response-rules))
 
 Validation: `max_attempts` must be **≥ 1**.
@@ -254,6 +256,7 @@ You can adjust response metadata before [Send](/concepts/architecture-and-packet
 
 - [Rules and actions](/policy-routing/rules-and-actions.md) — `retry`, `retry_now`, `set_retry_pool`, `set_rcode`, response [selectors](/glossary/index.md#selector)
 - [Pools and backends](/policy-routing/pools-and-backends.md) — pool names, weights, default pool
+- [Backend health](/policy-routing/backend-health.md) — eligibility and fail-open at [Route](/concepts/architecture-and-packet-path.md#route)
 - [Architecture and packet path](/concepts/architecture-and-packet-path.md) — [Response rules](/concepts/architecture-and-packet-path.md#response-rules), [Send](/concepts/architecture-and-packet-path.md#send), timeouts
 - [Rhai — Transaction API (Routing)](/rhai/txn-api.md#routing) — `txn.set_pool`, `txn.clear_pool`, `txn.set_retry_pool`, `txn.clear_retry_pool`
 - [Rhai — Transaction API (Egress)](/rhai/txn-api.md#egress) — `txn.set_source_*`, `txn.set_retry_source_*`, `txn.clear_retry_source_*`

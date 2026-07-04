@@ -18,8 +18,9 @@ use crate::probe::scheduler::{BackendProbe, ProbeScheduler};
 use conduit_config::forward::UpstreamTransport;
 use conduit_config::health::CompiledHealth;
 use conduit_core::clock::{Clock, SystemClock};
-use conduit_core::health::{BackendKey, HealthRegistry, ProbeSpec};
+use conduit_core::health::{BackendKey, HealthRegistry, ProbeOutcome, ProbeSpec};
 use conduit_core::snapshot::RuntimeSnapshot;
+use conduit_metrics::MetricsHub;
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr, UdpSocket};
 use std::sync::Arc;
 use std::thread;
@@ -134,6 +135,7 @@ fn build_backends(
             backends.push(BackendProbe::new(
                 BackendKey::new(pool_name.clone(), backend.address),
                 backend.address,
+                backend.label.clone(),
                 backend.probe_source,
                 state,
                 spec,
@@ -157,6 +159,7 @@ fn build_backends(
 pub fn spawn_probe_loop(
     snapshot: &Arc<RuntimeSnapshot>,
     registry: Arc<HealthRegistry>,
+    metrics: Arc<MetricsHub>,
     shutdown: DataplaneShutdown,
 ) -> Option<thread::JoinHandle<()>> {
     if snapshot.health.is_empty() {
@@ -179,16 +182,45 @@ pub fn spawn_probe_loop(
     let scheduler = ProbeScheduler::new(clock.clone(), seed, backends);
     tracing::info!(backends = probe_count, "backend health probe loop starting");
     Some(thread::spawn(move || {
-        if let Err(e) = run_loop(scheduler, transports, clock, shutdown) {
+        if let Err(e) = run_loop(scheduler, transports, clock, metrics, shutdown) {
             tracing::error!(error = %e, "backend health probe loop exited");
         }
     }))
+}
+
+fn record_probe_result(
+    metrics: &MetricsHub,
+    scheduler: &ProbeScheduler,
+    backend_idx: usize,
+    outcome: &str,
+) {
+    if let Some((pool, backend)) = scheduler.backend_labels(backend_idx) {
+        metrics.builtin.record_probe_result(pool, backend, outcome);
+    }
+}
+
+fn record_reply_outcome(
+    metrics: &MetricsHub,
+    scheduler: &ProbeScheduler,
+    backend_idx: usize,
+    outcome: Option<ProbeOutcome>,
+) {
+    match outcome {
+        Some(ProbeOutcome::Success) => {
+            record_probe_result(metrics, scheduler, backend_idx, "success");
+        }
+        Some(ProbeOutcome::Failure) => {
+            record_probe_result(metrics, scheduler, backend_idx, "failure");
+        }
+        Some(ProbeOutcome::Unmatched) | None => {}
+    }
 }
 
 fn run_loop(
     mut scheduler: ProbeScheduler,
     transports: Vec<ProbeTransport>,
     clock: Arc<dyn Clock>,
+    metrics: Arc<MetricsHub>,
     shutdown: DataplaneShutdown,
 ) -> std::io::Result<()> {
     let poller = polling::Poller::new()?;
@@ -221,7 +253,9 @@ fn run_loop(
                 ProbeTransport::Udp(sock) => {
                     if let Err(e) = sock.send(&due.wire) {
                         tracing::debug!(backend = %due.address, error = %e, "probe send failed");
-                        scheduler.on_failure(due.backend_idx);
+                        if scheduler.on_failure(due.backend_idx) {
+                            record_probe_result(&metrics, &scheduler, due.backend_idx, "send_error");
+                        }
                     }
                 }
                 ProbeTransport::Tcp {
@@ -249,16 +283,26 @@ fn run_loop(
         while let Ok(outcome) = tcp_rx.try_recv() {
             match outcome.wire {
                 Some(wire) => {
-                    scheduler.on_reply(outcome.backend_idx, &wire);
+                    let classified = scheduler.on_reply(outcome.backend_idx, &wire);
+                    record_reply_outcome(&metrics, &scheduler, outcome.backend_idx, classified);
                 }
                 None => {
-                    scheduler.on_failure(outcome.backend_idx);
+                    if scheduler.on_failure(outcome.backend_idx) {
+                        record_probe_result(
+                            &metrics,
+                            &scheduler,
+                            outcome.backend_idx,
+                            "send_error",
+                        );
+                    }
                 }
             }
         }
 
         // 3) Expire UDP/TCP probes past their deadline (timeout = failure).
-        scheduler.expire_timeouts();
+        for idx in scheduler.expire_timeouts() {
+            record_probe_result(&metrics, &scheduler, idx, "timeout");
+        }
 
         // 3b) Refresh damped latency effective-weight factors (design §D3).
         scheduler.recompute_weight_factors();
@@ -283,7 +327,8 @@ fn run_loop(
                 loop {
                     match sock.recv(&mut buf) {
                         Ok(len) => {
-                            scheduler.on_reply(ev.key, &buf[..len]);
+                            let classified = scheduler.on_reply(ev.key, &buf[..len]);
+                            record_reply_outcome(&metrics, &scheduler, ev.key, classified);
                         }
                         Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => break,
                         Err(_) => break,

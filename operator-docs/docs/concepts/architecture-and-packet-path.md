@@ -123,7 +123,7 @@ Default happy path (single attempt, no early drop):
 | [Receive](/concepts/architecture-and-packet-path.md#receive) | Listener accepts the DNS message (UDP or TCP) and opens a [transaction](/glossary/index.md#transaction) on the worker. |
 | [Parse](/concepts/architecture-and-packet-path.md#parse) | Valid single-question query only; malformed or unsupported shapes → silent **drop** (no DNS reply). |
 | [Request rules](/concepts/architecture-and-packet-path.md#request-rules) | **First-match** [request rules](/policy-routing/rules-and-actions.md) and request [Rhai](/rhai/index.md) — `set_pool`, `set_source_v4` / `set_source_v6`, tags, or **drop**; no match → default path to [Route](/concepts/architecture-and-packet-path.md#route). |
-| [Route](/concepts/architecture-and-packet-path.md#route) | First attempt: `selected_pool` → `default` / first pool. **Retry** re-entry (`attempt_count > 0`): `retry_pool` (if set) → `selected_pool` → default. Sticky weighted [backend](/glossary/index.md#backend) on first attempt, exclude-tried on [retries](/glossary/index.md#retry). Missing pool or exhausted pool → **SERVFAIL** → [Send](/concepts/architecture-and-packet-path.md#send). |
+| [Route](/concepts/architecture-and-packet-path.md#route) | First attempt: `selected_pool` → `default` / first pool. **Retry** re-entry (`attempt_count > 0`): `retry_pool` (if set) → `selected_pool` → default. Sticky weighted [backend](/glossary/index.md#backend) among **eligible** members (all backends when health is off; **applied up** when health is on — [Backend health](/policy-routing/backend-health.md)); exclude-tried on [retries](/glossary/index.md#retry). Missing pool or exhausted pool → **SERVFAIL** → [Send](/concepts/architecture-and-packet-path.md#send). |
 | [Forward](/concepts/architecture-and-packet-path.md#forward) | Send upstream (UDP/TCP per `forward.upstream_transport`); `forward.timeout_ms` and source addresses apply. Hard errors → **SERVFAIL** → [Send](/concepts/architecture-and-packet-path.md#send). |
 | [Wait for response](/concepts/architecture-and-packet-path.md#wait-for-response) | Wait for upstream answer or timeout; answer or timeout → [Response rules](/concepts/architecture-and-packet-path.md#response-rules) (retry policy may follow). |
 | [Response rules](/concepts/architecture-and-packet-path.md#response-rules) | **First-match** response rules and Rhai — accept, **drop**, or **retry** (`retry` / `retry_now`) → [Route](/concepts/architecture-and-packet-path.md#route) ([Retries and transactions](/policy-routing/retries-and-transactions.md)). |
@@ -172,7 +172,12 @@ When **no** rule matches, Conduit continues to [Route](/concepts/architecture-an
 
 After each Route, Conduit updates **`selected_pool`** to the pool that attempt used. Multi-attempt behavior and when to re-stash **`retry_pool`**: [Retries and transactions — Pool selection lifecycle](/policy-routing/retries-and-transactions.md#pool-selection-lifecycle).
 
-On the **first** attempt, Conduit selects a [backend](/glossary/index.md#backend) using sticky weighted choice among eligible members of the pool (see [Pools and backends](/policy-routing/pools-and-backends.md)). When pool health is enabled, configured weights are scaled by each backend's latency [EWMA](/glossary/index.md#ewma)-driven **`weight_factor`** — slower healthy backends receive a smaller share, not zero traffic. On **retries**, Conduit picks among backends in the target pool that were **not** already used for that pool on this [transaction](/glossary/index.md#transaction) — cross-pool retries only exclude backends tried in the **target** pool.
+On the **first** attempt, Conduit selects a [backend](/glossary/index.md#backend) using sticky weighted choice among **eligible** members of the pool (see [Pools and backends](/policy-routing/pools-and-backends.md)):
+
+- **Health off** (default) — every configured backend is eligible; selection uses configured weights only.
+- **Health on** (`pools[].health.enabled: true`) — only backends whose **[applied](/glossary/index.md#applied-health)** health is **up** are eligible. Configured weights may be scaled by each backend's latency [EWMA](/glossary/index.md#ewma)-driven **`weight_factor`** when `latency_weighting` is enabled — slower healthy backends receive a smaller share, not zero traffic. A [fail-open floor](/glossary/index.md#fail-open-floor) (`min_eligible`) can treat all backends as eligible when too few are up. See [Backend health](/policy-routing/backend-health.md).
+
+On **retries**, Conduit picks among eligible backends in the target pool that were **not** already used for that pool on this [transaction](/glossary/index.md#transaction) — cross-pool retries only exclude backends tried in the **target** pool.
 
 Each forward attempt increments the transaction’s attempt counter. When the pipeline continues to [Forward](/concepts/architecture-and-packet-path.md#forward), [`conduit_queries_by_pool_total`](/observability/built-in-metrics.md#conduit_queries_by_pool_total) records the selected pool.
 
@@ -220,7 +225,7 @@ Successful replies and synthesized errors both complete the [transaction](/gloss
 
 ## Tags
 
-**[Tags](/glossary/index.md#tags)** are named runtime annotations on a transaction (boolean or string values in current releases). [Request rules](/concepts/architecture-and-packet-path.md#request-rules) and [Response rules](/concepts/architecture-and-packet-path.md#response-rules) — built-in actions and [Rhai](/rhai/index.md) on those hooks — set tags; [selectors](/glossary/index.md#selector) on later rules test them.
+**[Tags](/glossary/index.md#tags)** are named runtime annotations on a transaction (boolean or string values). [Request rules](/concepts/architecture-and-packet-path.md#request-rules) and [Response rules](/concepts/architecture-and-packet-path.md#response-rules) — built-in actions and [Rhai](/rhai/index.md) on those hooks — set tags; [selectors](/glossary/index.md#selector) on later rules test them.
 
 Tags persist across [retries](/glossary/index.md#retry) on the same transaction unless cleared. They are useful for:
 
@@ -250,7 +255,7 @@ Full retry semantics, actions, and examples: [Retries and transactions](/policy-
 
 ## Runtime snapshot
 
-A **[runtime snapshot](/glossary/index.md#runtime-snapshot)** is the bundle of settings Conduit uses to answer queries at a given moment: effective config (listeners, pools, forward behavior), loaded rules and scripts, and observability filters. All listener workers share the same snapshot until you change configuration.
+A **[runtime snapshot](/glossary/index.md#runtime-snapshot)** is the bundle of settings Conduit uses to answer queries at a given moment: effective config (listeners, pools, forward behavior, health probe settings), loaded rules and scripts, and observability filters. All listener workers share the same snapshot until you change configuration. [Backend health](/policy-routing/backend-health.md) **runtime** state (observed/applied liveness, freeze/drain) lives **outside** the snapshot and is preserved across reload when backend identity and probe semantics are unchanged — see [Configuration model](/control-plane/configuration-model.md#runtime-snapshot).
 
 When you reload or apply new settings, Conduit validates the change and builds a new snapshot for **later** queries. **SIGHUP** and **`conduitctl reload`** [reload from disk](/glossary/index.md#reload-from-disk); **`conduitctl apply`** updates the [overlay](/glossary/index.md#overlay) through the [control plane](/glossary/index.md#control-plane). Queries already in flight keep using the settings they started with — they do not jump mid-query to a half-applied config. [`conduit_config_generation`](/observability/built-in-metrics.md#conduit_config_generation) reflects the active generation at scrape time.
 
@@ -263,10 +268,11 @@ Some changes update the snapshot immediately but still need a **process restart*
 - [Getting started](/getting-started/index.md) — install, minimal config, first query
 - [Runtime and concurrency](/concepts/runtime-and-concurrency.md) — runtime models, workers, slot pool, and shutdown drain
 - [Pools and backends](/policy-routing/pools-and-backends.md) — pool selection at [Route](/concepts/architecture-and-packet-path.md#route)
+- [Backend health](/policy-routing/backend-health.md) — eligibility, probes, and fail-open at [Route](/concepts/architecture-and-packet-path.md#route)
 - [Rules and actions](/policy-routing/rules-and-actions.md) — [Request rules](/concepts/architecture-and-packet-path.md#request-rules) and [Response rules](/concepts/architecture-and-packet-path.md#response-rules) hooks
 - [Retries and transactions](/policy-routing/retries-and-transactions.md) — retry loops and limits
 - [Configuration model](/control-plane/configuration-model.md) — snapshots and effective config
 - [Observability](/observability/index.md) — metrics, tracing, event export, logging
 - [Built-in metrics](/observability/built-in-metrics.md) — Prometheus series and pipeline mapping
-- [Rhai](/rhai/index.md) — scripted policy on rules today
+- [Rhai](/rhai/index.md) — scripted policy on rules
 - [Glossary](/glossary/index.md) — [dataplane](/glossary/index.md#dataplane), [transaction](/glossary/index.md#transaction), [runtime snapshot](/glossary/index.md#runtime-snapshot), [tags](/glossary/index.md#tags)

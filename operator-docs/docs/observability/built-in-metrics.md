@@ -4,7 +4,7 @@ Catalog of **built-in** Prometheus series exported by Conduit (not Rhai `conduit
 
 Built-in labels never include `qname`, client IP, or transaction id — use [event export](/observability/event-export.md) or [tracing](/observability/tracing.md) for per-name detail.
 
-The **`backend`** label on forward metrics ([`conduit_forward_attempts_total`](#conduit_forward_attempts_total), [`conduit_forward_duration_seconds`](#conduit_forward_duration_seconds), [`conduit_forward_outstanding`](#conduit_forward_outstanding)) is the backend [`name`](/policy-routing/pools-and-backends.md#backend-names) when one is set, otherwise its `address`. Naming a backend keeps its time series stable across an address change; see [Backend names](/policy-routing/pools-and-backends.md#backend-names).
+The **`backend`** label on forward and health-probe metrics ([`conduit_forward_attempts_total`](#conduit_forward_attempts_total), [`conduit_forward_errors_total`](#conduit_forward_errors_total), [`conduit_forward_duration_seconds`](#conduit_forward_duration_seconds), [`conduit_forward_outstanding`](#conduit_forward_outstanding), [`conduit_probe_results_total`](#conduit_probe_results_total), and the [`conduit_backend_health_*`](#backend-health) series) is the backend [`name`](/policy-routing/pools-and-backends.md#backend-names) when one is set, otherwise its `address`. Naming a backend keeps its time series stable across an address change; see [Backend names](/policy-routing/pools-and-backends.md#backend-names).
 
 ## Profiles { #profiles }
 
@@ -30,6 +30,7 @@ Use **`minimal`** when you want query volume, pool mix, response mix, and alerta
 - Richer [`conduit_queries_total`](#conduit_queries_total) labels (`qtype`, `qclass`, `ip_family`)
 - Fine [`conduit_responses_total`](#conduit_responses_total) `rcode` labels and `ip_family`
 - Forward attempt counts, forward RTT histograms, per-phase timing histograms (see table below)
+- Active health-probe outcome counts ([`conduit_probe_results_total`](#conduit_probe_results_total)) when health is enabled
 - Transaction slot-pool gauges ([`conduit_slots_in_use`](#conduit_slots_in_use), [`conduit_slots_capacity`](#conduit_slots_capacity)) at scrape time
 - Linux process gauges ([`conduit_process_resident_bytes`](#conduit_process_resident_bytes), [`conduit_process_open_fds`](#conduit_process_open_fds)) at scrape time
 
@@ -43,12 +44,14 @@ Use **`full`** for day-two operations, SLO dashboards, and debugging upstream or
 | [`conduit_queries_by_pool_total`](#conduit_queries_by_pool_total) | yes (`pool`) | yes | — |
 | [`conduit_parse_rejected_total`](#conduit_parse_rejected_total) | yes (`reason`) | yes | — |
 | [`conduit_responses_total`](#conduit_responses_total) | yes (`listener`, `protocol`, coarse `rcode`) | yes (+ fine `rcode`, `ip_family`) | — |
-| [`conduit_forward_errors_total`](#conduit_forward_errors_total) | yes (`pool`, `reason`) | yes | — |
+| [`conduit_forward_errors_total`](#conduit_forward_errors_total) | yes (`pool`, `backend`, `reason`) | yes | — |
 | [`conduit_retries_total`](#conduit_retries_total) | yes (`pool`) | yes | — |
 | [`conduit_script_errors_total`](#conduit_script_errors_total) | yes (`reason`, `script`, `table`) | yes | — |
 | Phase / forward-attempt / forward-duration histograms below | no | yes | — |
+| [`conduit_probe_results_total`](#conduit_probe_results_total) | no | yes (`full` only) | — |
 | [`conduit_forward_outstanding`](#conduit_forward_outstanding) | — | — | yes |
 | [`conduit_pool_backends_configured`](#conduit_pool_backends_configured) | — | — | yes |
+| Backend health gauges ([`conduit_backend_health_*`](#backend-health), [`conduit_pool_backends_active`](#conduit_pool_backends_active)) | — | — | yes (`full` only) |
 | [`conduit_slots_in_use`](#conduit_slots_in_use), [`conduit_slots_capacity`](#conduit_slots_capacity) | — | — | yes (`full` only) |
 | [`conduit_slot_pool_exhausted_total`](#conduit_slot_pool_exhausted_total) | — | — | yes |
 | [`conduit_build_info`](#conduit_build_info), [`conduit_start_time_seconds`](#conduit_start_time_seconds), [`conduit_config_generation`](#conduit_config_generation) | — | — | yes |
@@ -130,9 +133,11 @@ Bucket upper bounds (seconds, cumulative): 100 µs, 1 ms, 10 ms, 50 ms, 100 ms, 
 | | |
 |--|--|
 | **Type** | Counter |
-| **Labels** | `pool`, `reason` |
+| **Labels** | `pool`, `backend`, `reason` |
 | **Profile** | `minimal` and `full` |
 | **When** | A forward attempt ends with `outcome="error"` |
+
+`backend` is the configured backend `name` when set, otherwise its `address`. When no backend was selected (for example `reason="no_backend"`), `backend` is `unknown`.
 
 Common `reason` values:
 
@@ -181,7 +186,7 @@ Both profiles use the label name **`rcode`**, but bucketing differs:
 | **`minimal`** | Coarse buckets: `NOERROR`, `NXDOMAIN`, `SERVFAIL`, `REFUSED`, `OTHER` (uncommon IANA codes roll into `OTHER`) |
 | **`full`** | Per-IANA names for codes 0–23 (for example `FORMERR`, `NOTAUTH`, `BADCOOKIE`); unknown codes → `OTHER` |
 
-**Breaking change (full profile):** earlier releases used the label name `rcode_class` with coarse buckets only. PromQL that grouped on `rcode_class` must use `rcode` instead; full-profile dashboards can now split on individual IANA codes.
+**Breaking change (full profile):** the label is **`rcode`**, not **`rcode_class`**. PromQL or dashboards that group on **`rcode_class`** must use **`rcode`** instead; the full profile can split on individual IANA codes.
 
 ### Policy drops (no built-in counter) { #policy-drops-no-built-in-counter }
 
@@ -281,6 +286,118 @@ Each increment is a query that could not get a [slot](/concepts/runtime-and-conc
 | **Meaning** | Active [runtime snapshot](/glossary/index.md#runtime-snapshot) generation |
 
 Useful after reload/apply to confirm which config generation is live. See [Runtime snapshot](/concepts/architecture-and-packet-path.md#runtime-snapshot).
+
+### conduit_pool_backends_active { #conduit_pool_backends_active }
+
+| | |
+|--|--|
+| **Type** | Gauge |
+| **Labels** | `pool` |
+| **Profile** | `full` only |
+| **Meaning** | Count of backends in the pool with **applied** health **up** (eligible for Route) at scrape time |
+
+Only emitted for pools with health checking enabled. Compare to [`conduit_pool_backends_configured`](#conduit_pool_backends_configured) for how many backends are down or unknown.
+
+---
+
+## Backend health { #backend-health }
+
+Scrape-time gauges for [backend health](/policy-routing/backend-health.md). Exported only when **`metrics.profile: full`** and at least one pool has health enabled. Labels are **`pool`** and **`backend`** only — the `backend` label is the configured `name` when set, otherwise `address`. No per-qname or per-client dimensions.
+
+Liveness encoding for observed/applied gauges:
+
+| Value | Meaning |
+|-------|---------|
+| `0` | unknown |
+| `1` | up |
+| `2` | down |
+
+### conduit_backend_health_observed { #conduit_backend_health_observed }
+
+| | |
+|--|--|
+| **Type** | Gauge |
+| **Labels** | `pool`, `backend` |
+| **Profile** | `full` only |
+| **Meaning** | Health from probes and passive fast-trip (what Conduit observes before operator overrides) |
+
+### conduit_backend_health_applied { #conduit_backend_health_applied }
+
+| | |
+|--|--|
+| **Type** | Gauge |
+| **Labels** | `pool`, `backend` |
+| **Profile** | `full` only |
+| **Meaning** | Health [Route](/concepts/architecture-and-packet-path.md#route) uses for eligibility |
+
+May differ from [`conduit_backend_health_observed`](#conduit_backend_health_observed) when a backend is [frozen](/glossary/index.md#freeze) or [drained](/glossary/index.md#drain).
+
+### conduit_backend_health_probe_automatic { #conduit_backend_health_probe_automatic }
+
+| | |
+|--|--|
+| **Type** | Gauge |
+| **Labels** | `pool`, `backend` |
+| **Profile** | `full` only |
+| **Meaning** | `1` = probe-driven transitions apply; `0` = [frozen](/glossary/index.md#freeze) at this backend's resolved scope |
+
+### conduit_backend_health_effective_weight { #conduit_backend_health_effective_weight }
+
+| | |
+|--|--|
+| **Type** | Gauge |
+| **Labels** | `pool`, `backend` |
+| **Profile** | `full` only |
+| **Meaning** | Effective load-balancing weight Route uses (0 when applied down) |
+
+### conduit_backend_health_latency_ewma_ms { #conduit_backend_health_latency_ewma_ms }
+
+| | |
+|--|--|
+| **Type** | Gauge |
+| **Labels** | `pool`, `backend` |
+| **Profile** | `full` only |
+| **Meaning** | Probe round-trip EWMA in milliseconds |
+
+### conduit_backend_health_transitions_total { #conduit_backend_health_transitions_total }
+
+| | |
+|--|--|
+| **Type** | Counter |
+| **Labels** | `pool`, `backend` |
+| **Profile** | `full` only |
+| **Meaning** | Cumulative observed or applied health transitions |
+
+### conduit_probe_results_total { #conduit_probe_results_total }
+
+| | |
+|--|--|
+| **Type** | Counter |
+| **Labels** | `pool`, `backend`, `outcome` |
+| **Profile** | `full` only (not incremented on `minimal`) |
+| **When** | Each active health probe completes (success, failure, timeout, or send error) |
+
+`outcome` values:
+
+| `outcome` | Meaning |
+|-----------|---------|
+| `success` | Probe reply accepted as healthy |
+| `failure` | Probe reply received but not acceptable (for example narrowed `acceptable_rcodes`) |
+| `timeout` | No reply before the probe timeout |
+| `send_error` | Probe could not be sent (UDP send failure or TCP connect/transport failure) |
+
+Unmatched replies (wrong query id or garbage) do not increment this counter; the outstanding probe stays open until a matching reply or timeout.
+
+PromQL examples:
+
+```promql
+conduit_pool_backends_active / conduit_pool_backends_configured
+conduit_backend_health_applied{pool="default"} == 2
+conduit_backend_health_observed != conduit_backend_health_applied
+sum(rate(conduit_probe_results_total{outcome!="success"}[5m])) by (pool, backend, outcome)
+```
+
+Process logs emit health transitions when `observed` or `applied` changes. Active-probe transitions log `backend health transition` at INFO. Passive fast-trip logs each counting failure at WARN (`passive health: forward failure`) and the threshold-crossing event as `passive fast-trip: backend marked down` (with pool, backend, reason, qname, qtype, and client).
 
 ---
 
@@ -385,13 +502,15 @@ sum(rate(conduit_queries_by_pool_total[5m])) by (pool)
 sum(rate(conduit_parse_rejected_total[5m])) by (reason)
 sum(rate(conduit_responses_total[5m])) by (rcode)
 sum(rate(conduit_responses_total[5m])) by (rcode, ip_family)   # full profile only
-sum(rate(conduit_forward_errors_total[5m])) by (pool, reason)
+sum(rate(conduit_forward_errors_total[5m])) by (pool, backend, reason)
 sum(rate(conduit_script_errors_total[5m])) by (reason)
 histogram_quantile(0.99, sum(rate(conduit_forward_duration_seconds_bucket[5m])) by (le, pool))
 sum(conduit_forward_outstanding) by (pool, backend)                 # concurrent upstream waits (split_io)
 conduit_slots_in_use / conduit_slots_capacity                       # slot-pool utilization (full profile)
 sum(rate(conduit_slot_pool_exhausted_total[5m]))                    # slot exhaustion (alert on > 0)
 conduit_config_generation
+conduit_pool_backends_active
+conduit_backend_health_applied{pool="default"}
 conduit_build_info{revision="abc1234", dirty="false", profile="release"}
 ```
 

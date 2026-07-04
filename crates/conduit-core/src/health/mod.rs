@@ -16,4 +16,6 @@ pub use control::{
 };
 pub use probe::{ProbeOutcome, ProbeSpec};
 pub use scrape::{build_health_scrape, BackendHealthScrapeRow};
-pub use state::{BackendHealthState, BackendKey, Health, HealthRegistry, HealthTable};
+pub use state::{
+    BackendHealthState, BackendKey, Health, HealthRegistry, HealthTable, PassiveFailureResult,
+};

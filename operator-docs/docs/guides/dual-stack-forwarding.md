@@ -11,7 +11,7 @@ Configure local bind addresses under:
 
 When a pool list is empty, Conduit uses the global `forward.sources_*` list. See [Reference: pools](/reference/config-schema/pools.md) for limits and validation.
 
-At [Forward](/concepts/architecture-and-packet-path.md#forward), Conduit picks a source using **`forward.source_selection`** (round-robin in current releases) unless a per-query override is set.
+At [Forward](/concepts/architecture-and-packet-path.md#forward), Conduit picks a source using **`forward.source_selection`** (round-robin) unless a per-query override is set.
 
 ## Choosing an egress source {#choosing-an-egress-source}
 

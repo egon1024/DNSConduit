@@ -120,8 +120,12 @@ pub fn start(
     // so it survives reloads (reconciled, not rebuilt); the probe loop writes it
     // and Route reads it lock-free.
     let health_registry = store.health();
-    let probe_handle =
-        crate::probe::spawn_probe_loop(&snap, health_registry.clone(), shutdown.clone());
+    let probe_handle = crate::probe::spawn_probe_loop(
+        &snap,
+        health_registry.clone(),
+        metrics.clone(),
+        shutdown.clone(),
+    );
 
     let Some(listeners) = listeners else {
         return Ok(DataplaneHandle::new(

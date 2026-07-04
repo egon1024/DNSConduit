@@ -10,7 +10,7 @@ A **rule** is a named piece of policy with:
 - **[Selectors](/glossary/index.md#selector)** — conditions on the [transaction](/glossary/index.md#transaction) (query name, type, response code, [tags](/glossary/index.md#tags), …)
 - **[Actions](/glossary/index.md#action)** — built-in effects when every selector on that rule matches
 
-Rules live under the top-level **`rules:`** key. In current releases, **`match_mode: first_match`** is the only supported mode: on each hook, Conduit walks the rule list from top to bottom and stops at the **first** rule whose selectors all match. Later rules on that hook are skipped for that query. Other **`match_mode`** values may be supported in a future release; until then, only **`first_match`** is accepted at config load.
+Rules live under the top-level **`rules:`** key. **`match_mode: first_match`** is the only accepted mode: on each hook, Conduit walks the rule list from top to bottom and stops at the **first** rule whose selectors all match. Later rules on that hook are skipped for that query.
 
 When **no** rule matches on the request hook, Conduit continues to [Route](/concepts/architecture-and-packet-path.md#route) with the default [pool](/glossary/index.md#pool) path ([Pools and backends](/policy-routing/pools-and-backends.md)). When no rule matches on the response hook, Conduit continues to [Send](/concepts/architecture-and-packet-path.md#send) with the upstream answer or error already on the transaction.
 
@@ -99,7 +99,7 @@ Queries already in progress keep the rules they started with — they do not swi
 
 ## Selectors { #selectors }
 
-Every selector on a rule must match (**logical AND**). Supported types in current releases, grouped by purpose:
+Every selector on a rule must match (**logical AND**). Supported types, grouped by purpose:
 
 ### Query identity
 

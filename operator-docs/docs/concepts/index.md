@@ -9,7 +9,7 @@ Mental models for how Conduit handles DNS — the query path on the [dataplane](
 
 **Where next:**
 
-- [Policy & routing](/policy-routing/index.md) — [selectors](/glossary/index.md#selector), [actions](/glossary/index.md#action), [pools](/glossary/index.md#pool), [retries](/glossary/index.md#retry), and Rhai for rules ([Rule Rhai](/glossary/index.md#rule-rhai))
+- [Policy & routing](/policy-routing/index.md) — [selectors](/glossary/index.md#selector), [actions](/glossary/index.md#action), [pools](/glossary/index.md#pool), [backend health](/policy-routing/backend-health.md), [retries](/glossary/index.md#retry), and Rhai for rules ([Rule Rhai](/glossary/index.md#rule-rhai))
 - [Rhai](/rhai/index.md) — Rhai for rules
 - [Observability](/observability/index.md) — [metrics](/observability/metrics.md), tracing, and event export
 - [Glossary](/glossary/index.md) — short definitions for terms used across the docs

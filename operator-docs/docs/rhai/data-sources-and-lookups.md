@@ -25,7 +25,7 @@ Each entry in **`data_sources:`**:
 | Field {: .column-no-wrap } | Required | Default | Meaning |
 |-------|----------|---------|---------|
 | `name` | yes | — | Table name passed to **`lookup`** (must be unique in the list) |
-| `type` | yes | — | **`csv`** only in current releases |
+| `type` | yes | — | **`csv`** only |
 | `path` | yes | — | CSV file path; resolved relative to the [config file directory](/control-plane/config-file.md#path-resolution-base-directory) unless absolute |
 | `key_column` | no | `key` (or first column) | Header name for the key column, or use column index 0 when no header |
 | `value_column` | no | `value` (or second column) | Header name for the value column, or use column index 1 when no header |

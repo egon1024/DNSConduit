@@ -104,12 +104,57 @@ impl ForwardTransport {
         snapshot: &RuntimeSnapshot,
         backend: std::net::SocketAddr,
         is_failure: bool,
+        reason: Option<&str>,
     ) {
         let Some(registry) = self.health.as_ref() else {
             return;
         };
         let pool = txn.selected_pool.as_deref().unwrap_or("default");
-        registry.record_passive_forward_outcome(&snapshot.health, pool, backend, is_failure);
+        if let Some(result) = registry.record_passive_forward_outcome(
+            &snapshot.health,
+            pool,
+            backend,
+            is_failure,
+        ) {
+            let qname = txn.qname.as_deref().unwrap_or("?");
+            let qtype = txn.qtype.unwrap_or(0);
+            let reason = reason.unwrap_or("unknown");
+            if result.transitioned {
+                tracing::warn!(
+                    %pool,
+                    backend = %backend,
+                    %reason,
+                    %qname,
+                    qtype,
+                    client = %txn.client_addr,
+                    passive_failures = result.consecutive_failures,
+                    passive_fall = result.passive_fall,
+                    "passive fast-trip: backend marked down"
+                );
+            } else if result.already_down {
+                tracing::debug!(
+                    %pool,
+                    backend = %backend,
+                    %reason,
+                    %qname,
+                    qtype,
+                    client = %txn.client_addr,
+                    "passive health: forward failure (backend already down)"
+                );
+            } else {
+                tracing::warn!(
+                    %pool,
+                    backend = %backend,
+                    %reason,
+                    %qname,
+                    qtype,
+                    client = %txn.client_addr,
+                    passive_failures = result.consecutive_failures,
+                    passive_fall = result.passive_fall,
+                    "passive health: forward failure"
+                );
+            }
+        }
     }
 
     fn passive_failure_reason(reason: &str) -> bool {
@@ -147,7 +192,8 @@ impl ForwardTransport {
         hub.builtin
             .record_forward_attempt(pool, &backend_label, outcome);
         if let Some(reason) = error_reason {
-            hub.builtin.record_forward_error(pool, reason);
+            hub.builtin
+                .record_forward_error(pool, &backend_label, reason);
         }
         hub.builtin
             .record_forward_duration(pool, &backend_label, started.elapsed().as_secs_f64());
@@ -177,7 +223,7 @@ impl ForwardTransport {
         parse_wire_meta: bool,
     ) -> StageOutcome {
         self.record_forward(txn, snapshot, Some(key.backend), "success", None, started);
-        self.report_passive_outcome(txn, snapshot, key.backend, false);
+        self.report_passive_outcome(txn, snapshot, key.backend, false, None);
         self.table.remove(key);
         record_upstream_response(txn, &wire, parse_wire_meta);
         txn.response_wire = Some(wire);
@@ -196,7 +242,7 @@ impl ForwardTransport {
         self.record_forward(txn, snapshot, backend, "error", Some(reason), started);
         if let Some(b) = backend {
             if Self::passive_failure_reason(reason) {
-                self.report_passive_outcome(txn, snapshot, b, true);
+                self.report_passive_outcome(txn, snapshot, b, true, Some(reason));
             }
         }
         if let Some(k) = key {
@@ -437,7 +483,7 @@ impl ForwardTransport {
                     Some("timeout"),
                     started,
                 );
-                self.report_passive_outcome(txn, snapshot, backend, true);
+                self.report_passive_outcome(txn, snapshot, backend, true, Some("timeout"));
                 self.table.remove(key);
                 txn.set_rcode_name("SERVFAIL");
                 StageOutcome::Continue(Phase::ResponseRules)

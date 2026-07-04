@@ -5,7 +5,7 @@ Process logs for Conduit — startup, configuration changes, control-plane RPCs,
 Configure **`logging:`** to set process log severity and whether lines go to **stderr** or **stdout**. The subscriber is always active — omitting **`logging:`** still yields **`info`** on stderr for lifecycle events (startup, reload, control RPC access). Per-query **`query complete`** and **`query dropped`** lines are emitted at **`debug`**, so default **`info`** stays quiet under load. For traffic volume and latency, use [Metrics](/observability/metrics.md). For full wire copies or phase-by-phase detail on selected queries, see [Event export](/observability/event-export.md) and [Tracing](/observability/tracing.md).
 
 !!! note "Process logging is not OTLP logs"
-    **`logging:`** controls the Rust **`tracing`** subscriber (severity and sink). It is **not** OpenTelemetry log export over OTLP (planned for a future release). OTLP **metrics** use **`metrics.otel`** — see [Metrics](/observability/metrics.md).
+    **`logging:`** controls the Rust **`tracing`** subscriber (severity and sink). It is **not** OpenTelemetry log export over OTLP (not implemented). OTLP **metrics** use **`metrics.otel`** — see [Metrics](/observability/metrics.md).
 
 !!! note "`logging.level: trace` is not pipeline tracing"
     The config value **`trace`** is maximum **log verbosity**. Per-query **[pipeline traces](/glossary/index.md#pipeline-trace)** are configured under the separate **`tracing:`** block — see [Tracing](/observability/tracing.md).

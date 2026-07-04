@@ -17,7 +17,37 @@ Field-level reference for the **`ConduitControl`** gRPC service and how **`condu
 Mutating RPCs (`ApplyConfig`, `ReloadFromFile`) leave the prior [runtime snapshot](/glossary/index.md#runtime-snapshot) unchanged when `ok` is false.
 
 !!! note "`Health` is process liveness only"
-    `Health` reports that the control plane is serving; it does **not** report upstream [backend](/glossary/index.md#backend) health. Conduit does **no active backend health probing** today — backend selection is weight-based and upstream failures are handled by [retries](/policy-routing/retries-and-transactions.md) and timeouts (active health checks are planned for a future release).
+    `Health` reports that the control plane is serving; it does **not** report upstream [backend](/glossary/index.md#backend) health. Per-backend health uses the separate **`BackendHealth`** service — see [BackendHealth service](#service-backendhealth) below and [Backend health](/policy-routing/backend-health.md).
+
+## Service: `BackendHealth`
+
+Proto source: `proto/conduit/v1/health.proto`. Operator commands: [gRPC and conduitctl — health](/control-plane/grpc-and-conduitctl.md#health).
+
+| RPC {: .column-no-wrap } | Request | Response | Notes |
+|-----|---------|----------|-------|
+| `GetBackendHealth` | optional `filter` (`pool`, `backend`) | `entries[]` | Per-backend observed/applied health, scope, eligibility, latency EWMA |
+| `SetHealthControl` | `scope`, `action` | `results[]` | Freeze, manual up/down, or resume automatic |
+
+### `BackendHealthEntry` fields
+
+| Field | Meaning |
+|-------|---------|
+| `pool`, `backend` | Pool name and backend label (`name` or `address`) |
+| `observed`, `applied` | `unknown`, `up`, or `down` |
+| `scope_state` | Resolved scope: `inherit`, `frozen`, or `automatic` |
+| `eligible` | Whether Route would select this backend now |
+| `latency_ewma_ms` | Optional probe latency EWMA |
+| `last_transition_unix_ms` | Optional Unix ms of last health transition |
+
+### `SetHealthControl` actions
+
+| Action | Effect |
+|--------|--------|
+| `freeze` | [Freeze](/glossary/index.md#freeze) — stop probe-driven changes to `applied` at the scope |
+| `set_up` / `set_down` | Set `applied` and imply [freeze](/glossary/index.md#freeze) ([drain](/glossary/index.md#drain) = `set_down`) |
+| `resume_automatic` | Unfreeze and snap `applied := observed` |
+
+`scope.level`: `backend`, `pool`, or `global`; optional `pool` and `backend` identify the target. `backend` may be the configured `name` or `host:port` address.
 
 ## OverlayApplyMode
 
@@ -54,6 +84,10 @@ Overlay patches must not include **`rules`**, **`metrics`**, or **`tracing`** �
 | `reload` | `ReloadFromFile` | No |
 | `validate --file` | — | **Yes** (does not call `ValidateConfig`) |
 | `trace` | `GetTrace` | No |
+| `health show` | `GetBackendHealth` | No |
+| `health freeze` | `SetHealthControl` (`freeze`) | No |
+| `health set` | `SetHealthControl` (`set_up` / `set_down`) | No |
+| `health resume` | `SetHealthControl` (`resume_automatic`) | No |
 
 Global client flags: `--endpoint` / `CONDUIT_CONTROL`, `--api-key` / `CONDUIT_API_KEY`. See [gRPC and conduitctl — connecting](/control-plane/grpc-and-conduitctl.md#connecting).
 

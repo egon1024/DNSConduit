@@ -11,7 +11,7 @@ Every hook invocation exposes five scopes. Each has a distinct mutability class:
 | Scope | Role | Reference |
 |-------|------|-----------|
 | **`txn`** | Per-query policy — pools, tags, drop/retry, egress, question/response reads | [Transaction API (`txn`)](/rhai/txn-api.md) |
-| **`runtime`** | Read-only process state — today **`runtime.routing()`** for health-aware routing | [Runtime API](/rhai/runtime-api.md) |
+| **`runtime`** | Read-only process state — **`runtime.routing()`** for health-aware routing | [Runtime API](/rhai/runtime-api.md) |
 | **`lookup`** | Read-only CSV tables from **`data_sources:`** via **`lookup()`** | [Data sources and lookups](/rhai/data-sources-and-lookups.md) |
 | **`metrics`** | Write-only user counters → `conduit_user_*` | [User metrics](/rhai/user-metrics.md) |
 | **`log`** | Script log lines via Conduit tracing | [Script logging](/rhai/script-logging.md) |
@@ -34,8 +34,9 @@ Rhai for rules does **not** edit DNS wire bytes (qname rewrite, response mutatio
 3. [Rhai policy](/guides/rhai-policy.md) — blocklist drop and CSV pool routing labs (request hook)
 4. [Hooks and phases](/rhai/hooks-and-phases.md) — request vs response hooks; slow-login and tag + dnstap pairing
 5. [Transaction API (`txn`)](/rhai/txn-api.md) — per-query policy methods and YAML equivalents
+6. [Runtime API](/rhai/runtime-api.md) — **`runtime.routing()`** pool/backend health reads for policy branching
 
-Behavioral context: [Rules and actions](/policy-routing/rules-and-actions.md), [Policy & routing](/policy-routing/index.md).
+Behavioral context: [Rules and actions](/policy-routing/rules-and-actions.md), [Backend health](/policy-routing/backend-health.md), [Policy & routing](/policy-routing/index.md).
 
 ## Prerequisites
 

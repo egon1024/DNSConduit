@@ -31,7 +31,7 @@ At process start, Conduit reads the **file layer** from your startup path, appli
 
 The **file layer** is the YAML file you pass as the first argument to `conduit` (for example `conduit conduit.yaml`). It is the durable baseline operators edit in version control or configuration management.
 
-- **`schema_version`** is required. The only supported value today is **`1`**.
+- **`schema_version`** is required. The only accepted value is **`1`**.
 - You can author a **sparse** file — Conduit supplies defaults for omitted top-level blocks at load time. The smallest runnable file needs only `schema_version`, `listeners`, and `pools`; see [Minimal configuration](/getting-started/minimal-configuration.md).
 - Blocks such as **`rules:`**, **`metrics:`**, and **`tracing:`** live only in the file layer today. Changing them requires a **file reload**, not an API overlay.
 
@@ -151,6 +151,8 @@ pools:
 
 The **[runtime snapshot](/glossary/index.md#runtime-snapshot)** is what the [dataplane](/glossary/index.md#dataplane) actually uses: validated effective config plus compiled artifacts — [rules](/policy-routing/rules-and-actions.md), [Rhai](/rhai/index.md) scripts, event sinks, forward source tables, and observability filters. All listener workers share one snapshot until the next successful reload or apply.
 
+**[Backend health](/policy-routing/backend-health.md)** probe **configuration** (`pools[].health` and per-backend probe overrides) is part of the snapshot and hot-reloads with it. Health **runtime state** — observed/applied liveness, freeze/drain scope, and probe counters — lives **outside** the snapshot. On reload or overlay apply, Conduit **preserves** that state for backends whose identity and probe semantics are unchanged, and **resets** it when a backend is new, its address changes, or probe semantics change. Operator [freeze](/glossary/index.md#freeze)/[drain](/glossary/index.md#drain) therefore survives a normal reload. Details: [Backend health — Reload and health state](/policy-routing/backend-health.md#reload-and-health-state).
+
 Each successful swap bumps a **generation** counter exposed as [`conduit_config_generation`](/observability/built-in-metrics.md#conduit_config_generation). [Transactions](/glossary/index.md#transaction) record the generation they started under (`snapshot_generation` internally) so you can correlate behavior with config changes.
 
 If validation or compile fails (invalid YAML, bad script path, duplicate sink identity, and similar), the swap is rejected and the previous snapshot stays active.
@@ -164,6 +166,7 @@ Not every config change is immediately visible on the wire even after a successf
 These updates apply to **later** queries as soon as the new snapshot is installed:
 
 - [Pools](/policy-routing/pools-and-backends.md) and [backend](/glossary/index.md#backend) weights (including via overlay)
+- [Backend health](/policy-routing/backend-health.md) probe configuration (`pools[].health` and per-backend probe overrides); health **runtime** state is preserved separately (see [Runtime snapshot](#runtime-snapshot))
 - [Rules](/policy-routing/rules-and-actions.md) and [Rhai](/rhai/index.md) scripts (file reload)
 - `orchestrator` limits, `events` sinks, `data_sources` tables
 
@@ -199,5 +202,6 @@ Commands and RPC details: [gRPC and conduitctl](/control-plane/grpc-and-conduitc
 - [Architecture and packet path](/concepts/architecture-and-packet-path.md) — how the snapshot feeds the query [pipeline phases](/concepts/architecture-and-packet-path.md#pipeline-phases)
 - [Config file](/control-plane/config-file.md) — format, paths, and validation
 - [Reload and export](/control-plane/reload-and-export.md) — SIGHUP, `conduitctl reload` / `apply` / `export`
+- [Backend health](/policy-routing/backend-health.md) — probe config in the snapshot; runtime health state preserved across reload
 - [Rules and actions](/policy-routing/rules-and-actions.md) — when rule changes enter the snapshot
 - [Glossary](/glossary/index.md) — [overlay](/glossary/index.md#overlay), [clear overlay without reload](/glossary/index.md#clear-overlay-without-reload), [effective config](/glossary/index.md#effective-config), [last-good snapshot](/glossary/index.md#last-good-snapshot)
