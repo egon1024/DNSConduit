@@ -515,15 +515,11 @@ impl HealthRegistry {
         backend: SocketAddr,
         is_failure: bool,
     ) -> Option<PassiveFailureResult> {
-        let Some(pool_cfg) = compiled.pool(pool) else {
-            return None;
-        };
+        let pool_cfg = compiled.pool(pool)?;
         if !pool_cfg.passive_fast_trip {
             return None;
         };
-        let Some(state) = self.get(pool, backend) else {
-            return None;
-        };
+        let state = self.get(pool, backend)?;
         if is_failure {
             Some(state.record_passive_failure(pool_cfg.passive_fall))
         } else {
