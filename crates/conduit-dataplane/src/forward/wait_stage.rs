@@ -68,12 +68,9 @@ impl WaitResponseStage {
         );
         if let (Some(registry), Some(backend)) = (self.health.as_ref(), txn.selected_backend) {
             let is_failure = !success;
-            if let Some(result) = registry.record_passive_forward_outcome(
-                &snapshot.health,
-                pool,
-                backend,
-                is_failure,
-            ) {
+            if let Some(result) =
+                registry.record_passive_forward_outcome(&snapshot.health, pool, backend, is_failure)
+            {
                 let qname = txn.qname.as_deref().unwrap_or("?");
                 let qtype = txn.qtype.unwrap_or(0);
                 if result.transitioned {

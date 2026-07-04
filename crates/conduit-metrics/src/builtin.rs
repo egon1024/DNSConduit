@@ -727,9 +727,7 @@ impl BuiltinRegistry {
         let Some(counter) = self.probe_results.as_ref() else {
             return;
         };
-        counter
-            .with_label_values(&[pool, backend, outcome])
-            .inc();
+        counter.with_label_values(&[pool, backend, outcome]).inc();
     }
 
     pub fn record_forward_duration(&self, pool: &str, backend: &str, duration_secs: f64) {

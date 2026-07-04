@@ -254,7 +254,12 @@ fn run_loop(
                     if let Err(e) = sock.send(&due.wire) {
                         tracing::debug!(backend = %due.address, error = %e, "probe send failed");
                         if scheduler.on_failure(due.backend_idx) {
-                            record_probe_result(&metrics, &scheduler, due.backend_idx, "send_error");
+                            record_probe_result(
+                                &metrics,
+                                &scheduler,
+                                due.backend_idx,
+                                "send_error",
+                            );
                         }
                     }
                 }

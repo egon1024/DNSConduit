@@ -2,8 +2,8 @@ mod support;
 
 use conduit_proto::control::backend_health_client::BackendHealthClient;
 use conduit_proto::control::{
-    BackendHealthFilter, GetBackendHealthRequest, HealthControlAction, HealthLiveness,
-    HealthScope, HealthScopeLevel, HealthScopeState, SetHealthControlRequest,
+    BackendHealthFilter, GetBackendHealthRequest, HealthControlAction, HealthLiveness, HealthScope,
+    HealthScopeLevel, HealthScopeState, SetHealthControlRequest,
 };
 use std::net::SocketAddr;
 
