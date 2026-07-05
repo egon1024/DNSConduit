@@ -2,7 +2,7 @@
 #
 # Ordering: version + release notes are committed to main before any tag or GitHub Release.
 # Docs deploy and artifact builds run only after gh release create succeeds.
-# See tests/manual/release-workflow.md for failure recovery.
+# See docs/superpowers/process/release-workflow-manual-testing.md for failure recovery.
 
 name: Release
 
@@ -130,6 +130,7 @@ jobs:
           set -euo pipefail
           python3 operator-docs/scripts/finalize_release_notes.py \
             --version "${NEXT_VERSION}" \
+            --release-date "$(date -u +%Y-%m-%d)" \
             --repo "https://github.com/${GITHUB_REPOSITORY}"
 
       - name: Verify operator docs build

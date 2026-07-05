@@ -100,17 +100,26 @@ jobs:
           TAG: ${{ env.DEPLOY_VERSION }}
         run: |
           set -euo pipefail
-          PAGE_SRC="operator-docs/site-root/versions/index.html"
+          PAGE_DIR="operator-docs/site-root/versions"
+          PAGE_SRC="${PAGE_DIR}/index.html"
+          DATES_SRC="${PAGE_DIR}/release-dates.json"
           # The page is identical across versions (it reads live data). When deploying a
           # tag from before the global page existed, take it from the default branch so
           # the root page always reflects the current template.
           if [[ -f "${PAGE_SRC}" ]]; then
             SRC_FILE="${PAGE_SRC}"
+            DATES_FILE="${DATES_SRC}"
           else
             git fetch origin main --depth=1
             mkdir -p /tmp/global-versions
             git show origin/main:"${PAGE_SRC}" > /tmp/global-versions/index.html
             SRC_FILE="/tmp/global-versions/index.html"
+            if git cat-file -e "origin/main:${DATES_SRC}" 2>/dev/null; then
+              git show origin/main:"${DATES_SRC}" > /tmp/global-versions/release-dates.json
+              DATES_FILE="/tmp/global-versions/release-dates.json"
+            else
+              DATES_FILE=""
+            fi
           fi
 
           # Run after mike's pushes; rebase on the freshest gh-pages so we never race.
@@ -119,13 +128,16 @@ jobs:
           git worktree add "${WORK}" gh-pages
           mkdir -p "${WORK}/versions"
           cp "${SRC_FILE}" "${WORK}/versions/index.html"
+          if [[ -n "${DATES_FILE}" && -f "${DATES_FILE}" ]]; then
+            cp "${DATES_FILE}" "${WORK}/versions/release-dates.json"
+          fi
           (
             cd "${WORK}"
-            if [[ -z "$(git status --porcelain versions/index.html)" ]]; then
+            if [[ -z "$(git status --porcelain versions/)" ]]; then
               echo "Global versions page already current; nothing to push."
               exit 0
             fi
-            git add versions/index.html
+            git add versions/
             git commit -m "docs: refresh global versions page (deploy ${TAG})"
             git fetch origin gh-pages
             git rebase origin/gh-pages
