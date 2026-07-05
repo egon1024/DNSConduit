@@ -127,6 +127,7 @@
           <thead>
             <tr>
               <th>Version</th>
+              <th>Released</th>
               <th>Aliases</th>
               <th>Open</th>
             </tr>
@@ -190,6 +191,10 @@
           return base + "versions.json";
         }
 
+        function releaseDatesJsonUrl(base) {
+          return base + "versions/release-dates.json";
+        }
+
         function el(tag, attrs, children) {
           var node = document.createElement(tag);
           if (attrs) {
@@ -243,7 +248,13 @@
           return entry.version || entry.title || "";
         }
 
-        function render(entries, base) {
+        function textCell(value, className) {
+          var td = el("td", { class: className || "" });
+          td.textContent = value;
+          return td;
+        }
+
+        function render(entries, base, releaseDates) {
           var statusEl = document.getElementById("status");
 
           var versions = entries
@@ -278,9 +289,14 @@
                 aliasesCell.appendChild(el("code", { text: alias }));
               });
             }
+            var released =
+              releaseDates && releaseDates[v.version]
+                ? releaseDates[v.version]
+                : "—";
             relBody.appendChild(
               el("tr", null, [
                 codeCell(v.version),
+                textCell(released, "nowrap"),
                 aliasesCell,
                 openLink(base, v.version),
               ])
@@ -342,24 +358,37 @@
 
         function load() {
           var base = siteBase();
-          var url = versionsJsonUrl(base);
+          var versionsUrl = versionsJsonUrl(base);
+          var datesUrl = releaseDatesJsonUrl(base);
           var done = false;
 
-          fetch(url, { cache: "no-cache" })
-            .then(function (resp) {
+          Promise.all([
+            fetch(versionsUrl, { cache: "no-cache" }).then(function (resp) {
               if (!resp.ok) {
                 throw new Error("HTTP " + resp.status);
               }
               return resp.json();
-            })
-            .then(function (data) {
+            }),
+            fetch(datesUrl, { cache: "no-cache" }).then(function (resp) {
+              if (!resp.ok) {
+                return {};
+              }
+              return resp.json();
+            }),
+          ])
+            .then(function (results) {
               done = true;
+              var data = results[0];
+              var releaseDates = results[1];
               var entries = Array.isArray(data)
                 ? data
                 : data && Array.isArray(data.versions)
                 ? data.versions
                 : [];
-              render(entries, base);
+              if (releaseDates && typeof releaseDates !== "object") {
+                releaseDates = {};
+              }
+              render(entries, base, releaseDates || {});
             })
             .catch(function () {
               done = true;

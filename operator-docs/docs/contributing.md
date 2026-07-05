@@ -15,7 +15,7 @@ Purely internal refactors, test-only changes, or dependency bumps with no operat
 
 ## Release notes
 
-Operator-facing changes should add bullet(s) under **`operator-docs/docs/release-notes/unreleased.md`** in the same pull request. At release cut, automation promotes that content to a versioned page and resets **Unreleased**.
+Operator-facing changes should add bullet(s) under **`operator-docs/docs/release-notes/unreleased.md`** in the same pull request. At release cut, automation promotes that content to a versioned page (with an ISO **Released** date), updates **`operator-docs/site-root/versions/release-dates.json`**, and resets **Unreleased**.
 
 - Use **`## New features`**, **`## Fixes`**, and **`## Upgrade notes`** sections when helpful.
 - Link to canonical docs pages; do not duplicate full explanations.
@@ -34,6 +34,8 @@ make docs-build
 ```
 
 Use **`make docs-serve`** for live preview while editing. The build runs **`mkdocs build --strict`** — broken internal links fail the build.
+
+To preview the global **Versions** page (outside MkDocs), run **`make docs-versions-preview`** and open the printed URL. Edit **`operator-docs/site-root/versions/release-dates.json`** and refresh the browser; nothing is published until docs deploy runs on a tag.
 
 ## Contributing code
 

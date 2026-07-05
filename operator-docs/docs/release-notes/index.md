@@ -5,13 +5,13 @@ Operator-facing changes by release. For the full list of merged pull requests, s
 
 ## Releases
 
-| Version | Summary |
-| --- | --- |
-| [0.18.0](0.18.0.md) | Breaking changes — Rule Rhai host API { #breaking-changes--rule-rhai-host-api } |
-| [0.17.0](0.17.0.md) | Improvements |
-| [0.16.0](0.16.0.md) | New features |
-| [0.15.0](0.15.0.md) | New features |
-| [0.14.0](0.14.0.md) | New features |
+| Version | Released | Summary |
+| --- | --- | --- |
+| [0.18.0](0.18.0.md) | 2026-07-04 | Breaking changes — Rule Rhai host API { #breaking-changes--rule-rhai-host-api } |
+| [0.17.0](0.17.0.md) | 2026-06-29 | Improvements |
+| [0.16.0](0.16.0.md) | 2026-06-29 | New features |
+| [0.15.0](0.15.0.md) | 2026-06-28 | New features |
+| [0.14.0](0.14.0.md) | 2026-06-23 | New features |
 
 
 ## In development

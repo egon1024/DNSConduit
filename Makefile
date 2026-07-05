@@ -16,7 +16,7 @@ PYTHON ?= python3
 DOCS_DIR := operator-docs
 DOCS_PORT ?= 8000
 
-.PHONY: help test performance fmt fmt-check clippy unit build docs-serve docs-build docs-version
+.PHONY: help test performance fmt fmt-check clippy unit build docs-serve docs-build docs-version docs-versions-preview
 
 help:
 	@echo "DNSConduit Makefile targets:"
@@ -29,6 +29,7 @@ help:
 	@echo "  make build        Build all workspace crates"
 	@echo "  make docs-serve   Serve operator-docs/ at http://0.0.0.0:$(DOCS_PORT) (live reload)"
 	@echo "  make docs-build   Build operator-docs/ (mkdocs --strict)"
+	@echo "  make docs-versions-preview  Serve global Versions page locally (port 8765)"
 
 # Write the header version label only. The Versions list now lives on a single global
 # page published to the site root; it is no longer generated per build.
@@ -41,6 +42,9 @@ docs-build: docs-version
 
 docs-serve: docs-version
 	cd $(DOCS_DIR) && $(PYTHON) -m mkdocs serve -a 0.0.0.0:$(DOCS_PORT)
+
+docs-versions-preview:
+	@bash operator-docs/scripts/preview-versions-page.sh
 
 test: fmt-check clippy unit
 
