@@ -1,9 +1,11 @@
 use conduit_config::{load_yaml, validate};
 use conduit_core::{
+    lookup::LookupStage,
     orchestrator::{Orchestrator, RunOutcome},
     phase::Phase,
     pipeline::{PipelineStage, StageOutcome},
     snapshot::RuntimeSnapshot,
+    stages::RouteStage,
     transaction::ClientProtocol,
     SystemClock, Transaction,
 };
@@ -98,11 +100,16 @@ fn orchestrator_with_mock_forward(hub: Arc<MetricsHub>) -> Orchestrator {
         }),
     );
     orch.registry.register(
-        Phase::Forward,
-        Arc::new(MockForwardStage { metrics: Some(hub) }),
+        Phase::Lookup,
+        Arc::new(LookupStage::new(
+            Arc::new(RouteStage::new()),
+            Arc::new(MockForwardStage {
+                metrics: Some(hub.clone()),
+            }),
+            Arc::new(PassthroughWait),
+            Some(hub.clone()),
+        )),
     );
-    orch.registry
-        .register(Phase::WaitResponse, Arc::new(PassthroughWait));
     orch
 }
 

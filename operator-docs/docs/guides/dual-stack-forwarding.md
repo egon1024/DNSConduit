@@ -32,7 +32,7 @@ When a rule sets both pool and source, list **`set_pool` before `set_source_v4` 
 
 Conduit selects the source address family to match the [backend](/glossary/index.md#backend) address (IPv4 backend → v4 source list; IPv6 backend → v6 source list). Cross-family forwarding is determined by your pool/backend layout and source lists — validate end-to-end in a lab before production.
 
-Manual lab scenarios: `tests/manual/ipv4-ipv6-forwarding.md` in the product repository (not linked from published docs).
+Manual lab scenarios: `docs/superpowers/plans/manual-lab-ipv4-ipv6-forwarding.md` in the product repository (not linked from published docs).
 
 ## Related topics
 

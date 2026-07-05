@@ -216,7 +216,7 @@ if egress != "" {
 Fixed literal (repository fixture pattern — address must be in `forward.sources_v4` or pool `sources_v4` for the override to take effect):
 
 ```rhai
-txn.set_source_v4("127.0.0.1");
+txn.set_source_v4("127.0.2.1");
 ```
 
 </div>
@@ -996,7 +996,7 @@ Clears soft-drop intent set earlier on this rule pass.
 - Clears **soft-drop** intent on the [transaction](/glossary/index.md#transaction) for this rule evaluation (same as built-in **`clear_drop`**).
 - Only affects intent set **on this rule pass** — not drops already committed by an earlier matching rule.
 - Typical use: an earlier action (built-in or Rhai) set soft drop, but later script logic decides to **retry** instead. Call **`txn.clear_drop()`** before **`txn.request_retry()`** / **`txn.request_retry_now()`** — hard retry does **not** clear soft drop automatically. See [Outcome at end of rule](/policy-routing/rules-and-actions.md#outcome-at-end-of-rule).
-- Manual lab with ordered actions: `tests/manual/ordered-rule-actions.md` and `tests/manual/config/09-ordered-actions.yaml` in the repository.
+- Manual lab with ordered actions: `docs/superpowers/plans/manual-lab-ordered-rule-actions.md` and `tests/manual/config/ordered-rule-actions.yml` in the repository.
 
 #### YAML equivalent
 

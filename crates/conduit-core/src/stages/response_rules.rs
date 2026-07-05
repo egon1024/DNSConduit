@@ -49,7 +49,7 @@ impl PipelineStage for ResponseRulesStage {
         );
 
         if result.outcome == RuleOutcome::Retry {
-            return StageOutcome::Continue(Phase::Route);
+            return StageOutcome::Continue(Phase::Lookup);
         }
 
         match result.outcome {

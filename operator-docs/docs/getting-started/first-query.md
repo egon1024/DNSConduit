@@ -51,12 +51,12 @@ On success the command prints `ok` and exits with status **0**.
 Conduit does not answer from a built-in cache in this setup — something must listen on the pool backend address (`127.0.0.1:5300` in the minimal file). In **terminal A**, start dnsmasq as a forwarder to `$UPSTREAM_DNS`:
 
 ```bash
-dnsmasq --keep-in-foreground \
+dnsmasq -d \
   --port=5300 \
   --bind-interfaces \
   --listen-address=127.0.0.1 \
   --server="$UPSTREAM_DNS" \
-  --no-hosts --no-resolv --log-queries
+  --no-hosts --no-resolv --log-queries --log-facility=-
 ```
 
 Leave this process running. If the port is already in use, pick another loopback port, update `pools[].backends[].address` in `conduit.yaml` to match, and re-run `conduitctl validate --file conduit.yaml`.

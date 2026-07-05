@@ -7,9 +7,11 @@ use crate::forward::{
 use crate::listener::{shutdown::DataplaneShutdown, startup_log, tcp, udp};
 use conduit_config::resolve_listener_ingress;
 use conduit_core::health::HealthRegistry;
+use conduit_core::lookup::LookupStage;
 use conduit_core::orchestrator::Orchestrator;
 use conduit_core::phase::Phase;
 use conduit_core::snapshot::SnapshotStore;
+use conduit_core::stages::RouteStage;
 use conduit_core::txn_store::{SharedTxnStore, DEFAULT_SLOT_CHUNK_SIZE};
 use conduit_events::EventHub;
 use conduit_metrics::{MetricsHub, TracingHub};
@@ -205,15 +207,20 @@ pub fn start(
                         return;
                     }
                 };
+                let wait = Arc::new(WaitResponseStage::new(
+                    parse_wire_meta,
+                    Some(metrics.clone()),
+                    Some(health_registry.clone()),
+                ));
+                let lookup = Arc::new(LookupStage::new(
+                    Arc::new(RouteStage::with_health(health_registry.clone())),
+                    forward,
+                    wait,
+                    Some(metrics.clone()),
+                ));
                 let mut orchestrator = Orchestrator::with_default_stages();
                 orchestrator.metrics = Some(metrics.clone());
                 orchestrator.tracing = Some(tracing.clone());
-                orchestrator.registry.register(
-                    Phase::Route,
-                    Arc::new(conduit_core::stages::RouteStage::with_health(
-                        health_registry.clone(),
-                    )),
-                );
                 let outstanding: conduit_core::stages::OutstandingPerBackendFn = {
                     let table = table.clone();
                     Arc::new(move || table.outstanding_per_backend().into_iter().collect())
@@ -234,15 +241,7 @@ pub fn start(
                         outstanding: Some(outstanding),
                     }),
                 );
-                orchestrator.registry.register(Phase::Forward, forward);
-                orchestrator.registry.register(
-                    Phase::WaitResponse,
-                    Arc::new(WaitResponseStage::new(
-                        parse_wire_meta,
-                        Some(metrics.clone()),
-                        Some(health_registry),
-                    )),
-                );
+                orchestrator.registry.register(Phase::Lookup, lookup);
                 let orchestrator = Arc::new(orchestrator);
 
                 let result = match worker {

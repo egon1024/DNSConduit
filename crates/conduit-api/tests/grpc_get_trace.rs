@@ -2,10 +2,12 @@ mod support;
 
 use conduit_config::load_yaml;
 use conduit_core::{
+    lookup::LookupStage,
     orchestrator::{Orchestrator, RunOutcome},
     phase::Phase,
     pipeline::{PipelineStage, StageOutcome},
     snapshot::RuntimeSnapshot,
+    stages::RouteStage,
     transaction::ClientProtocol,
     SystemClock, Transaction,
 };
@@ -84,10 +86,15 @@ async fn get_trace_returns_events_after_traced_query() {
 
     let mut orch = Orchestrator::with_default_stages();
     orch.tracing = Some(tracing.clone());
-    orch.registry
-        .register(Phase::Forward, Arc::new(MockForwardStage));
-    orch.registry
-        .register(Phase::WaitResponse, Arc::new(PassthroughWait));
+    orch.registry.register(
+        Phase::Lookup,
+        Arc::new(LookupStage::new(
+            Arc::new(RouteStage::new()),
+            Arc::new(MockForwardStage),
+            Arc::new(PassthroughWait),
+            None,
+        )),
+    );
 
     let snap = snapshots.load();
     let txn_id = 42_u64;
@@ -127,11 +134,16 @@ async fn get_trace_returns_events_after_traced_query() {
         trace.events
     );
     assert!(
-        trace
+        trace.events.iter().any(|e| e.phase == "lookup"),
+        "events: {:?}",
+        trace.events
+    );
+    assert!(
+        !trace
             .events
             .iter()
-            .any(|e| e.phase == "route" || e.phase == "forward"),
-        "events: {:?}",
+            .any(|e| e.phase == "route" || e.phase == "forward" || e.phase == "wait_response"),
+        "legacy top-level forward phases must not appear: {:?}",
         trace.events
     );
 }

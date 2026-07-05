@@ -1,7 +1,0 @@
-# Sparse overlay patch: default pool backend weight 100 → 50.
-schema_version: 1
-pools:
-  - name: default
-    backends:
-      - address: "127.0.0.1:15300"
-        weight: 50

@@ -2,10 +2,12 @@
 
 use conduit_config::load_yaml;
 use conduit_core::clock::SystemClock;
+use conduit_core::lookup::LookupStage;
 use conduit_core::orchestrator::{Orchestrator, RunOutcome};
 use conduit_core::phase::Phase;
 use conduit_core::pipeline::{PipelineStage, StageOutcome};
 use conduit_core::snapshot::RuntimeSnapshot;
+use conduit_core::stages::RouteStage;
 use conduit_core::transaction::{ClientProtocol, Transaction};
 use conduit_dataplane::forward::{TxnTable, UdpForwardStage};
 use hickory_proto::op::{Message, Query, ResponseCode};
@@ -55,9 +57,15 @@ fn orchestrator_with_forward(snap: &RuntimeSnapshot, table: Arc<TxnTable>) -> Or
     )
     .expect("forward egress");
     let mut orch = Orchestrator::with_default_stages();
-    orch.registry.register(Phase::Forward, Arc::new(forward));
-    orch.registry
-        .register(Phase::WaitResponse, Arc::new(PassthroughWait));
+    orch.registry.register(
+        Phase::Lookup,
+        Arc::new(LookupStage::new(
+            Arc::new(RouteStage::new()),
+            Arc::new(forward),
+            Arc::new(PassthroughWait),
+            None,
+        )),
+    );
     orch
 }
 

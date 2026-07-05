@@ -1,0 +1,56 @@
+# Manual test: data_sources load-safety limits (config-integrity DoS hardening).
+#
+# As written, validating this config FAILS (exit 1) because the referenced CSV
+# (~0.7 KB, 27 entries) exceeds the 256-byte `max_file_bytes` cap set below:
+#
+#   conduitctl validate --file tests/manual/config/data-source-limits-oversize.yml
+#   -> data source 'blocklist': file .../data-source-limits-oversize.csv exceeds max_file_bytes 256
+#
+# To exercise a DIFFERENT limit, set ONLY that field to the value shown and
+# leave the others at 0 (0 = use the generous built-in default), then re-run
+# validate. Expected error substring per scenario:
+#
+#   max_file_bytes: 256                          -> "exceeds max_file_bytes 256"   (as written)
+#   max_entries: 10                              -> "exceeds max_entries 10"
+#   max_key_bytes: 32                            -> "exceeds max_key_bytes 32"
+#   max_value_bytes: 32                          -> "exceeds max_value_bytes 32"
+#   max_total_bytes: 256                         -> "exceeds max_total_bytes 256"
+#   max_tables: 1  (+ uncomment 2nd source)      -> "...max_tables 1" (caught at validate stage)
+#
+# A per-entry override on a data_sources entry (e.g. `max_file_bytes: 4`) takes
+# precedence over the block below for that table.
+schema_version: 1
+listeners:
+  threads: 1
+  reuse_port: false
+  listeners:
+    - address: "127.0.2.1:15353"
+      protocol: udp
+forward:
+  outstanding_per_backend: 100
+  timeout_ms: 2000
+pools:
+  - name: default
+    backends:
+      - address: "127.0.2.1:15300"
+        weight: 100
+data_source_limits:
+  max_file_bytes: 256   # as written: trips on the oversize CSV below
+  max_entries: 0
+  max_key_bytes: 0
+  max_value_bytes: 0
+  max_tables: 0
+  max_total_bytes: 0
+data_sources:
+  - name: blocklist
+    type: csv
+    path: ../data/data-source-limits-oversize.csv
+    key_column: qname
+    value_column: action
+  # Uncomment together with `max_tables: 1` above to trip the table-count limit
+  # (checked before any file is read):
+  # - name: blocklist-copy
+  #   type: csv
+  #   path: ../data/data-source-limits-oversize.csv
+  #   key_column: qname
+  #   value_column: action

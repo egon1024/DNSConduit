@@ -1,5 +1,6 @@
 //! Per-query state carried through pipeline phases (spec §4.1).
 
+use crate::lookup::{AnswerSource, LookupForwardStep, LookupOutcome};
 use crate::parse_reject::ParseRejectReason;
 use crate::phase::Phase;
 use crate::routing::AttemptRecord;
@@ -112,8 +113,18 @@ pub struct Transaction {
     pub trace_log: Option<TraceLog>,
     /// Ingress structural parse already populated metadata; skip wire parse in orchestrator.
     pub pre_parsed: bool,
-    /// Wall time when the pipeline suspended (split_io I/O park); used for WaitResponse phase metrics.
+    /// Wall time when the pipeline suspended (split_io I/O park); used for Lookup phase metrics.
     pub suspend_phase_started_at: Option<Instant>,
+    /// Active lookup profile name (default when unset).
+    pub lookup_profile: Option<String>,
+    /// Outcome of the most recent lookup provider attempt.
+    pub lookup_outcome: Option<LookupOutcome>,
+    /// How the answer was produced (`cache` or `forward`).
+    pub answer_source: Option<AnswerSource>,
+    /// When false, cache lookup provider returns Bypass.
+    pub cache_lookup_eligible: bool,
+    /// Resume point inside forward provider after async upstream I/O.
+    pub lookup_forward_step: Option<LookupForwardStep>,
     rcode: Option<u16>,
 }
 
@@ -158,6 +169,11 @@ impl Transaction {
             trace_log: None,
             pre_parsed: false,
             suspend_phase_started_at: None,
+            lookup_profile: None,
+            lookup_outcome: None,
+            answer_source: None,
+            cache_lookup_eligible: true,
+            lookup_forward_step: None,
             rcode: None,
         }
     }

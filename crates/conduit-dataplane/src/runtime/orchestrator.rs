@@ -5,6 +5,7 @@ use crate::forward::{ForwardMode, ForwardTransport, IoBackend, WaitResponseStage
 use crate::forward::{TxnTable, WorkerForwardEgress};
 use conduit_config::forward::CompiledForward;
 use conduit_core::health::HealthRegistry;
+use conduit_core::lookup::LookupStage;
 use conduit_core::orchestrator::Orchestrator;
 use conduit_core::phase::Phase;
 use conduit_core::snapshot::RuntimeSnapshot;
@@ -44,13 +45,20 @@ pub fn build_orchestrator(
         Some(health.clone()),
     )?);
     let parse_wire_meta = snap.scripting.needs_response_wire_meta;
+    let wait = Arc::new(WaitResponseStage::new(
+        parse_wire_meta,
+        Some(metrics.clone()),
+        Some(health.clone()),
+    ));
+    let lookup = Arc::new(LookupStage::new(
+        Arc::new(RouteStage::with_health(health.clone())),
+        forward,
+        wait,
+        Some(metrics.clone()),
+    ));
     let mut orchestrator = Orchestrator::with_default_stages();
     orchestrator.metrics = Some(metrics.clone());
     orchestrator.tracing = Some(tracing);
-    orchestrator.registry.register(
-        Phase::Route,
-        Arc::new(RouteStage::with_health(health.clone())),
-    );
     orchestrator.registry.register(
         Phase::RequestRules,
         Arc::new(conduit_core::stages::RequestRulesStage {
@@ -67,15 +75,7 @@ pub fn build_orchestrator(
             outstanding: Some(outstanding),
         }),
     );
-    orchestrator.registry.register(Phase::Forward, forward);
-    orchestrator.registry.register(
-        Phase::WaitResponse,
-        Arc::new(WaitResponseStage::new(
-            parse_wire_meta,
-            Some(metrics.clone()),
-            Some(health),
-        )),
-    );
+    orchestrator.registry.register(Phase::Lookup, lookup);
     Ok(Arc::new(orchestrator))
 }
 

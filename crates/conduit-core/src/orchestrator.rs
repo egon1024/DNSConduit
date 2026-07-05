@@ -145,12 +145,26 @@ impl Orchestrator {
         events: Option<&EventHub>,
         resume_phase: Phase,
     ) -> OrchestratorRun {
-        if resume_phase == Phase::WaitResponse {
+        if resume_phase == Phase::Lookup {
             if let Some(hub) = self.metrics.as_ref() {
                 if hub.metrics_enabled() {
                     if let Some(started) = txn.suspend_phase_started_at.take() {
                         hub.builtin.observe_phase(
-                            phase_name(Phase::WaitResponse),
+                            phase_name(Phase::Lookup),
+                            started.elapsed().as_secs_f64(),
+                        );
+                    }
+                }
+            } else {
+                let _ = txn.suspend_phase_started_at.take();
+            }
+        } else if resume_phase == Phase::WaitResponse {
+            // Legacy internal resume (tests only).
+            if let Some(hub) = self.metrics.as_ref() {
+                if hub.metrics_enabled() {
+                    if let Some(started) = txn.suspend_phase_started_at.take() {
+                        hub.builtin.observe_phase(
+                            phase_name(Phase::Lookup),
                             started.elapsed().as_secs_f64(),
                         );
                     }
@@ -197,12 +211,6 @@ impl Orchestrator {
     ) -> OrchestratorRun {
         let metrics = self.metrics.as_deref();
         let tracing = self.tracing.as_deref();
-        let max_attempts = snapshot
-            .config
-            .orchestrator
-            .as_ref()
-            .map(|o| o.max_attempts)
-            .unwrap_or(3);
         let max_duration = snapshot
             .config
             .orchestrator
@@ -217,11 +225,6 @@ impl Orchestrator {
 
         loop {
             if txn.started_at.elapsed() > Duration::from_millis(max_duration as u64) {
-                txn.set_rcode_name("SERVFAIL");
-                txn.current_phase = Phase::Send;
-            }
-
-            if txn.current_phase == Phase::Route && txn.attempt_count >= max_attempts {
                 txn.set_rcode_name("SERVFAIL");
                 txn.current_phase = Phase::Send;
             }
@@ -255,8 +258,9 @@ impl Orchestrator {
 
             let phase = txn.current_phase;
             let phase_started = std::time::Instant::now();
-            let skip_post_phase_observe =
-                resumed && phase == Phase::WaitResponse && txn.suspend_phase_started_at.is_none();
+            let skip_post_phase_observe = resumed
+                && (phase == Phase::Lookup || phase == Phase::WaitResponse)
+                && txn.suspend_phase_started_at.is_none();
             let outcome = stage.handle(txn, snapshot);
             if let Some(hub) = metrics {
                 if hub.metrics_enabled() && !skip_post_phase_observe {
@@ -307,16 +311,7 @@ impl Orchestrator {
                             }
                         }
                     }
-                    if phase == Phase::Route && next == Phase::Forward {
-                        if let Some(hub) = metrics {
-                            if hub.metrics_enabled() {
-                                if let Some(ref pool) = txn.selected_pool {
-                                    hub.builtin.record_query_by_pool(pool);
-                                }
-                            }
-                        }
-                    }
-                    if phase == Phase::ResponseRules && next == Phase::Route {
+                    if phase == Phase::ResponseRules && next == Phase::Lookup {
                         if let Some(hub) = metrics {
                             let retry_target =
                                 txn.retry_pool.as_ref().or(txn.selected_pool.as_ref());
@@ -414,11 +409,11 @@ fn phase_name(phase: Phase) -> &'static str {
         Phase::Receive => "receive",
         Phase::Parse => "parse",
         Phase::RequestRules => "request_rules",
-        Phase::Route => "route",
-        Phase::Forward => "forward",
-        Phase::WaitResponse => "wait_response",
+        Phase::Lookup => "lookup",
         Phase::ResponseRules => "response_rules",
         Phase::Send => "send",
+        // Internal forward-provider steps — not emitted on the top-level trace path.
+        Phase::Route | Phase::Forward | Phase::WaitResponse => "lookup",
     }
 }
 
@@ -426,24 +421,20 @@ fn next_phase(phase: Phase) -> Phase {
     match phase {
         Phase::Receive => Phase::Parse,
         Phase::Parse => Phase::RequestRules,
-        Phase::RequestRules => Phase::Route,
-        Phase::Route => Phase::Forward,
-        Phase::Forward => Phase::WaitResponse,
-        Phase::WaitResponse => Phase::ResponseRules,
+        Phase::RequestRules => Phase::Lookup,
+        Phase::Lookup => Phase::ResponseRules,
         Phase::ResponseRules => Phase::Send,
         Phase::Send => Phase::Send,
+        Phase::Route | Phase::Forward | Phase::WaitResponse => Phase::Lookup,
     }
 }
 
 impl Orchestrator {
     pub fn with_default_stages() -> Self {
-        use crate::stages::{
-            ParseStage, RequestRulesStage, ResponseRulesStage, RouteStage, SendStage,
-        };
+        use crate::stages::{ParseStage, RequestRulesStage, ResponseRulesStage, SendStage};
         let mut registry = StageRegistry::new();
         registry.register(Phase::Parse, Arc::new(ParseStage));
         registry.register(Phase::RequestRules, Arc::new(RequestRulesStage::default()));
-        registry.register(Phase::Route, Arc::new(RouteStage::new()));
         registry.register(
             Phase::ResponseRules,
             Arc::new(ResponseRulesStage::default()),
@@ -470,8 +461,23 @@ mod tests {
     use hickory_proto::serialize::binary::{BinEncodable, BinEncoder};
     use std::path::PathBuf;
 
+    use crate::lookup::LookupStage;
+    use crate::stages::RouteStage;
+
     fn fixtures_config_base() -> PathBuf {
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/config")
+    }
+
+    fn register_lookup_stage(o: &mut Orchestrator, forward: Arc<dyn PipelineStage>) {
+        o.registry.register(
+            Phase::Lookup,
+            Arc::new(LookupStage::new(
+                Arc::new(RouteStage::new()),
+                forward,
+                Arc::new(PassthroughWait),
+                None,
+            )),
+        );
     }
 
     fn snapshot_from_fixture(yaml: &str) -> Arc<RuntimeSnapshot> {
@@ -541,10 +547,7 @@ mod tests {
 
     fn orchestrator_with_forward_no_response() -> Orchestrator {
         let mut o = Orchestrator::with_default_stages();
-        o.registry
-            .register(Phase::Forward, Arc::new(MockForwardNoResponse));
-        o.registry
-            .register(Phase::WaitResponse, Arc::new(PassthroughWait));
+        register_lookup_stage(&mut o, Arc::new(MockForwardNoResponse));
         o
     }
 
@@ -562,10 +565,7 @@ mod tests {
 
     fn orchestrator_with_suspend_forward() -> Orchestrator {
         let mut o = Orchestrator::with_default_stages();
-        o.registry
-            .register(Phase::Forward, Arc::new(SuspendForwardStage));
-        o.registry
-            .register(Phase::WaitResponse, Arc::new(PassthroughWait));
+        register_lookup_stage(&mut o, Arc::new(SuspendForwardStage));
         o
     }
 
@@ -603,7 +603,7 @@ mod tests {
         let mut encoder = BinEncoder::new(&mut buf);
         msg.emit(&mut encoder).unwrap();
         txn.response_wire = Some(buf);
-        let _ = orch.resume_after_suspend(&mut txn, &snap, &SystemClock, None, Phase::WaitResponse);
+        let _ = orch.resume_after_suspend(&mut txn, &snap, &SystemClock, None, Phase::Lookup);
         assert!(txn.suspend_phase_started_at.is_none());
     }
 
@@ -619,10 +619,10 @@ mod tests {
         assert_eq!(
             step,
             OrchestratorRun::Suspended {
-                resume_phase: Phase::WaitResponse
+                resume_phase: Phase::Lookup
             }
         );
-        assert_eq!(txn.current_phase, Phase::Forward);
+        assert_eq!(txn.current_phase, Phase::Lookup);
     }
 
     #[test]
@@ -646,8 +646,7 @@ mod tests {
         msg.emit(&mut encoder).unwrap();
         txn.response_wire = Some(buf);
 
-        let step =
-            orch.resume_after_suspend(&mut txn, &snap, &SystemClock, None, Phase::WaitResponse);
+        let step = orch.resume_after_suspend(&mut txn, &snap, &SystemClock, None, Phase::Lookup);
         assert!(matches!(
             step,
             OrchestratorRun::Finished(RunOutcome::Response(_))
@@ -671,8 +670,7 @@ mod tests {
             OrchestratorRun::Suspended { .. }
         ));
         thread::sleep(Duration::from_millis(80));
-        let step =
-            orch.resume_after_suspend(&mut txn, &snap, &SystemClock, None, Phase::WaitResponse);
+        let step = orch.resume_after_suspend(&mut txn, &snap, &SystemClock, None, Phase::Lookup);
         match step {
             OrchestratorRun::Finished(RunOutcome::Response(_)) => {
                 assert_eq!(txn.rcode_label().as_deref(), Some("SERVFAIL"));
@@ -720,14 +718,12 @@ mod tests {
         let mut txn = Transaction::new(2, "127.0.0.1:15353".parse().unwrap(), ClientProtocol::Udp)
             .with_query_wire(example_query());
         let mut orch = Orchestrator::with_default_stages();
-        orch.registry.register(
-            Phase::Forward,
+        register_lookup_stage(
+            &mut orch,
             Arc::new(SuspendOnceThenRespond {
                 calls: AtomicU32::new(0),
             }),
         );
-        orch.registry
-            .register(Phase::WaitResponse, Arc::new(PassthroughWait));
 
         assert!(matches!(
             orch.run_until_suspend(&mut txn, &snap, &SystemClock, None),
@@ -743,8 +739,7 @@ mod tests {
         txn.response_wire = Some(buf);
         txn.set_rcode(2);
 
-        let step =
-            orch.resume_after_suspend(&mut txn, &snap, &SystemClock, None, Phase::WaitResponse);
+        let step = orch.resume_after_suspend(&mut txn, &snap, &SystemClock, None, Phase::Lookup);
         assert!(matches!(step, OrchestratorRun::Finished(_)));
         assert!(txn.attempts.len() >= 2, "attempts={:?}", txn.attempts);
     }
@@ -780,10 +775,7 @@ mod tests {
 
     fn orchestrator_with_mock_forward() -> Orchestrator {
         let mut o = Orchestrator::with_default_stages();
-        o.registry
-            .register(Phase::Forward, Arc::new(MockForwardStage));
-        o.registry
-            .register(Phase::WaitResponse, Arc::new(PassthroughWait));
+        register_lookup_stage(&mut o, Arc::new(MockForwardStage));
         o
     }
 
