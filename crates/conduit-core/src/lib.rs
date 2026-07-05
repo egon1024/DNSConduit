@@ -4,6 +4,7 @@ pub mod clock;
 pub mod configurator;
 pub mod event_emit;
 pub mod health;
+pub mod lookup;
 pub mod orchestrator;
 pub mod parse_reject;
 pub mod phase;
@@ -31,9 +32,10 @@ pub use health::{
     BackendHealthState, BackendKey, Health, HealthControlAction, HealthControlScope,
     HealthRegistry, HealthTable, ProbeOutcome, ProbeSpec,
 };
+pub use lookup::{AnswerSource, LookupForwardStep, LookupOutcome, LookupStage};
 pub use orchestrator::{Orchestrator, OrchestratorRun, RunOutcome, StageRegistry};
 pub use parse_reject::ParseRejectReason;
-pub use phase::Phase;
+pub use phase::{Phase, PipelineAttachment};
 pub use pipeline::{PipelineStage, StageOutcome};
 pub use routing::{
     backend_metric_label, backend_metric_label_for_addr, select_backend, AttemptRecord,

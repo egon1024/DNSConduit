@@ -81,7 +81,8 @@ mod tests {
 
     #[test]
     fn accepts_pool_only_overlay_patch() {
-        let yaml = include_str!("../../../tests/manual/config/phase-5-overlay-pools-only.yaml");
+        let yaml =
+            include_str!("../../../tests/manual/config/control-plane-overlay-pools-only.yml");
         let patch = load_overlay_patch(yaml).expect("sparse pools overlay");
         let v = validate_overlay_patch(&patch);
         assert!(v.ok, "{:?}", v.errors);

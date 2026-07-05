@@ -23,7 +23,7 @@ impl HostTransaction for Transaction {
 
     fn phase(&self) -> ScriptPhase {
         match self.current_phase {
-            Phase::ResponseRules | Phase::WaitResponse | Phase::Send => ScriptPhase::Response,
+            Phase::ResponseRules | Phase::Lookup | Phase::Send => ScriptPhase::Response,
             _ => ScriptPhase::Request,
         }
     }

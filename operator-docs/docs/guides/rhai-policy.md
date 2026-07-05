@@ -114,12 +114,12 @@ conduitctl validate --file conduit.yaml
 
 ```bash
 export UPSTREAM_DNS="8.8.8.8"
-dnsmasq --keep-in-foreground \
+dnsmasq -d \
   --port=5300 \
   --bind-interfaces \
   --listen-address=127.0.0.1 \
   --server="$UPSTREAM_DNS" \
-  --no-hosts --no-resolv
+  --no-hosts --no-resolv --log-queries --log-facility=-
 ```
 
 **Terminal B:**
@@ -255,22 +255,22 @@ Run **two** loopback upstream mocks — one per pool — with **different** answ
 **Terminal A** — **`standard`** pool on **`127.0.0.1:5300`**:
 
 ```bash
-dnsmasq --keep-in-foreground \
+dnsmasq -d \
   --port=5300 \
   --bind-interfaces \
   --listen-address=127.0.0.1 \
-  --no-resolv \
+  --no-hosts --no-resolv --log-queries --log-facility=- \
   --address=/app-b.customer.example/192.0.2.10
 ```
 
 **Terminal B** — **`premium`** pool on **`127.0.0.1:5301`**:
 
 ```bash
-dnsmasq --keep-in-foreground \
+dnsmasq -d \
   --port=5301 \
   --bind-interfaces \
   --listen-address=127.0.0.1 \
-  --no-resolv \
+  --no-hosts --no-resolv --log-queries --log-facility=- \
   --address=/app-a.customer.example/192.0.2.99
 ```
 

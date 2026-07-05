@@ -8,26 +8,34 @@ Conduit **forwards** queries to the `pools` backends in the YAML. If nothing is 
 
 ### Mock upstreams (for a real A record)
 
-Example 1 uses `127.0.0.1:5300` (default) and `127.0.0.1:5301` (vip). With [dnsmasq](https://dnsmasq.org/):
+Example 1 uses `127.0.2.1:5300` (default) and `127.0.2.1:5301` (vip). With [dnsmasq](https://dnsmasq.org/):
 
 ```bash
 # Terminal A
-dnsmasq --port=5300 --bind-interfaces --listen-address=127.0.0.1 \
-  --no-resolv --address=/foo.vip.example/192.0.2.1
+dnsmasq -d \
+  --port=5300 \
+  --bind-interfaces \
+  --listen-address=127.0.2.1 \
+  --no-hosts --no-resolv --log-queries --log-facility=- \
+  --address=/foo.vip.example/192.0.2.1
 
 # Terminal B (vip pool — different IP proves routing)
-dnsmasq --port=5301 --bind-interfaces --listen-address=127.0.0.1 \
-  --no-resolv --address=/foo.vip.example/192.0.2.99
+dnsmasq -d \
+  --port=5301 \
+  --bind-interfaces \
+  --listen-address=127.0.2.1 \
+  --no-hosts --no-resolv --log-queries --log-facility=- \
+  --address=/foo.vip.example/192.0.2.99
 ```
 
 ### Run Conduit and query
 
 ```bash
 cargo run -p conduit -- tests/fixtures/config/with-rhai-vip-pool.yaml
-dig @127.0.0.1 -p 15353 foo.vip.example A
+dig @127.0.2.1 -p 15353 foo.vip.example A
 ```
 
-With both dnsmasq instances, expect **192.0.2.99** and logs showing backend `127.0.0.1:5301` / pool `vip`.
+With both dnsmasq instances, expect **192.0.2.99** and logs showing backend `127.0.2.1:5301` / pool `vip`.
 
 Optional: `cargo run -p conduit-dnstap-tracer -- -u /tmp/dnstap.sock` for dnstap examples.
 
@@ -61,9 +69,9 @@ Example 5: `sample_percent(percent)` uses the same deterministic hash as observa
 | 11 | `routing-backend-attempt.rhai` | `with-rhai-routing-backend.yaml` | `runtime.routing().backend_for_attempt()` on SERVFAIL |
 | 12 | `clear-pool.rhai` | `with-rhai-clear-pool.yaml` | `set_pool` then `clear_pool` — Route uses default pool |
 
-**Manual lab** for this Rhai runtime host API change: [`tests/manual/phase-rhai-runtime-host-api.md`](../../manual/phase-rhai-runtime-host-api.md). Backends use **`127.0.0.1:15300`** (live) and **`127.0.0.1:15399`** (second / failover), matching the phase **1c** health lab port map.
+**Manual lab** for this Rhai runtime host API change: [`docs/superpowers/plans/manual-lab-rhai-runtime-host-api.md`](../../manual/phase-rhai-runtime-host-api.md). Backends use **`127.0.2.1:15300`** (live) and **`127.0.2.1:15399`** (second / failover), matching the phase **1c** health lab port map.
 
-**Manual lab** for ordered actions (`drop`, `drop_now`, `clear_drop`, `set_retry_pool`, rhai interleaving): [`tests/manual/ordered-rule-actions.md`](../../manual/ordered-rule-actions.md) and [`tests/manual/config/09-ordered-actions.yaml`](../../manual/config/09-ordered-actions.yaml).
+**Manual lab** for ordered actions (`drop`, `drop_now`, `clear_drop`, `set_retry_pool`, rhai interleaving): [`docs/superpowers/plans/manual-lab-ordered-rule-actions.md`](../../manual/ordered-rule-actions.md) and [`tests/manual/config/ordered-rule-actions.yml`](../../manual/config/ordered-rule-actions.yml).
 
 ## Action list order
 

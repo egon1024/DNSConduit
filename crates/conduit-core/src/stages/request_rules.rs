@@ -54,7 +54,7 @@ impl PipelineStage for RequestRulesStage {
 
         match result.outcome {
             RuleOutcome::Drop => StageOutcome::Drop,
-            RuleOutcome::Continue | RuleOutcome::Retry => StageOutcome::Continue(Phase::Route),
+            RuleOutcome::Continue | RuleOutcome::Retry => StageOutcome::Continue(Phase::Lookup),
         }
     }
 }

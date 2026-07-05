@@ -108,7 +108,7 @@ fn process_resume(
         events,
         reply_routes,
         inflight,
-        Some(Phase::WaitResponse),
+        Some(Phase::Lookup),
     );
 }
 

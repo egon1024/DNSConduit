@@ -1,0 +1,35 @@
+# Gate B — trace shape: top-level phase must be "lookup" only.
+schema_version: 1
+listeners:
+  threads: 1
+  listeners:
+    - address: "127.0.2.1:15353"
+      protocol: udp
+lookup:
+  profiles:
+    default:
+      providers:
+        - type: forward
+forward:
+  timeout_ms: 2000
+orchestrator:
+  max_attempts: 3
+  max_txn_duration_ms: 5000
+  txn_table_capacity: 1024
+pools:
+  - name: default
+    backends:
+      - address: "127.0.2.1:15300"
+        weight: 100
+control:
+  listen_address: "127.0.2.1:5199"
+  reflection_enabled: true
+tracing:
+  enabled: true
+  activation:
+    selectors:
+      - type: qtype
+        value: A
+    sample_percent: 100
+  output:
+    log_json: false

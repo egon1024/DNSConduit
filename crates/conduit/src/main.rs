@@ -20,7 +20,7 @@ async fn main() -> anyhow::Result<()> {
     let yaml = std::fs::read_to_string(&path).map_err(|e| {
         if e.to_string().contains("UTF-8") {
             anyhow::anyhow!(
-                "reading config {:?}: {e} (pass the YAML path only, e.g. tests/manual/config/01-v4-only.yaml — not the conduit binary)",
+                "reading config {:?}: {e} (pass the YAML path only, e.g. tests/manual/config/ipv4-ipv6-forwarding-v4-only.yml — not the conduit binary)",
                 path
             )
         } else {

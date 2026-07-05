@@ -145,9 +145,17 @@ impl CompiledLookup {
         let cache_instances = compile_cache_instances(&cfg.caches)?;
         let lookup_cfg = match cfg.lookup.as_ref() {
             None => {
+                let mut profiles = HashMap::new();
+                profiles.insert(
+                    DEFAULT_LOOKUP_PROFILE.to_string(),
+                    CompiledLookupProfile {
+                        name: DEFAULT_LOOKUP_PROFILE.to_string(),
+                        providers: vec![CompiledLookupProvider::Forward],
+                    },
+                );
                 return Ok(Self {
-                    enabled: false,
-                    profiles: HashMap::new(),
+                    enabled: true,
+                    profiles,
                     cache_instances,
                     cache_provider_configured: false,
                 });
@@ -540,11 +548,13 @@ mod tests {
     }
 
     #[test]
-    fn lookup_absent_means_disabled() {
+    fn lookup_absent_synthesizes_implicit_default_forward_profile() {
         let yaml = include_str!("../../../tests/fixtures/config/minimal.yaml");
         let cfg = load_yaml(yaml).expect("minimal");
         let compiled = CompiledLookup::compile_from_config(&cfg).expect("compile");
-        assert!(!compiled.lookup_enabled());
+        assert!(compiled.lookup_enabled());
         assert!(!compiled.cache_enabled());
+        let default = compiled.default_profile().expect("default profile");
+        assert_eq!(default.providers, vec![CompiledLookupProvider::Forward]);
     }
 }

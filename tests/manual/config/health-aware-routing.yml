@@ -1,0 +1,50 @@
+# Phase 1c — backend health probing (manual Gate A).
+#
+# Pool `default` has two backends: a live resolver (dnsmasq on 15300) and a
+# deliberately dead address (nothing listening on 15399). Health is enabled at a
+# 1s interval. Phase A is state-only: probes run and health state transitions,
+# but routing still selects both backends (proven in §6).
+schema_version: 1
+listeners:
+  threads: 1
+  reuse_port: false
+  listeners:
+    - address: "127.0.2.1:15353"
+      protocol: udp
+      name: lab-udp
+forward:
+  outstanding_per_backend: 100
+  timeout_ms: 2000
+orchestrator:
+  max_attempts: 3
+  max_txn_duration_ms: 5000
+  txn_table_capacity: 1024
+events:
+  queue_depth: 4096
+  drop_policy: drop_oldest
+pools:
+  - name: default
+    health:
+      enabled: true
+      interval_ms: 1000
+      timeout_ms: 1000
+      rise: 3
+      fall: 2
+      probe_qname: "health-probe.example."
+      probe_qtype: A
+    backends:
+      - address: "127.0.2.1:15300"
+        name: live
+        weight: 100
+      - address: "127.0.2.1:15399"
+        name: dead
+        weight: 100
+control:
+  listen_address: "127.0.2.1:5199"
+  reflection_enabled: true
+metrics:
+  enabled: true
+  profile: full
+  prometheus:
+    listen_address: "127.0.2.1:19090"
+    path: /metrics
