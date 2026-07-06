@@ -310,6 +310,8 @@ mod tests {
             qclass: None,
             opcode: None,
             edns_option_codes: &[],
+            answer_source: None,
+            cache_instance: None,
             tag_has: &tag_has,
         };
         let a = trace_activation_matches(&activation, &ctx);

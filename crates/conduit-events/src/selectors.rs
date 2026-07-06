@@ -15,6 +15,8 @@ pub enum CompiledSelector {
     Opcode(u8),
     EdnsOption(u16),
     Tag(String),
+    AnswerSource(AnswerSourceSelector),
+    CacheInstance(String),
     SamplePercent { percent: PercentKey, key: SampleKey },
     EveryNthWorker(u64),
     EveryNthGlobal(u64),
@@ -36,6 +38,12 @@ pub struct SelectorCompileCtx {
     pub sink_name: Option<String>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AnswerSourceSelector {
+    Cache,
+    Forward,
+}
+
 /// Inputs for selector matching without coupling to `conduit-core::Transaction`.
 #[derive(Clone)]
 pub struct SelectorMatchCtx<'a> {
@@ -47,6 +55,10 @@ pub struct SelectorMatchCtx<'a> {
     pub qclass: Option<u16>,
     pub opcode: Option<u8>,
     pub edns_option_codes: &'a [u16],
+    /// `cache` or `forward` when an answer is present.
+    pub answer_source: Option<&'a str>,
+    /// Named cache instance when the answer came from cache.
+    pub cache_instance: Option<&'a str>,
     pub tag_has: &'a dyn Fn(&str) -> bool,
 }
 
@@ -60,6 +72,8 @@ pub const SELECTOR_TYPES: &[&str] = &[
     "opcode",
     "edns_option",
     "tag",
+    "answer_source",
+    "cache_instance",
     "sample_percent",
     "every_nth_worker",
     "every_nth_global",
@@ -73,6 +87,8 @@ pub const NON_RULE_SELECTOR_TYPES: &[&str] = &[
     "opcode",
     "edns_option",
     "tag",
+    "answer_source",
+    "cache_instance",
     "sample_percent",
 ];
 
@@ -107,7 +123,16 @@ pub fn validate_wire_selector_value(selector_type: &str, value: &str) -> Result<
         "qtype" | "rcode" | "qclass" | "opcode" | "edns_option" => {
             parse_selector_wire_value(selector_type, value).map(|_| ())
         }
+        "answer_source" => parse_answer_source(value).map(|_| ()),
         _ => Ok(()),
+    }
+}
+
+pub fn parse_answer_source(value: &str) -> Result<AnswerSourceSelector, String> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "cache" => Ok(AnswerSourceSelector::Cache),
+        "forward" => Ok(AnswerSourceSelector::Forward),
+        other => Err(format!("answer_source '{other}' must be cache or forward")),
     }
 }
 
@@ -279,6 +304,13 @@ impl CompiledSelector {
             "edns_option" => parse_selector_wire_value("edns_option", &sel.value)
                 .map(CompiledSelector::EdnsOption),
             "tag" => Ok(CompiledSelector::Tag(sel.value.clone())),
+            "answer_source" => parse_answer_source(&sel.value).map(CompiledSelector::AnswerSource),
+            "cache_instance" => {
+                if sel.value.trim().is_empty() {
+                    return Err("cache_instance selector value must be non-empty".into());
+                }
+                Ok(CompiledSelector::CacheInstance(sel.value.clone()))
+            }
             "sample_percent" => {
                 let percent = parse_percent_key(sel.value.as_str())?;
                 let key = compile_sample_key_fields(
@@ -314,6 +346,14 @@ impl CompiledSelector {
             CompiledSelector::Opcode(wire) => ctx.opcode == Some(*wire),
             CompiledSelector::EdnsOption(wire) => ctx.edns_option_codes.contains(wire),
             CompiledSelector::Tag(key) => (ctx.tag_has)(key),
+            CompiledSelector::AnswerSource(expected) => ctx.answer_source.is_some_and(|s| {
+                matches!(
+                    (expected, s),
+                    (AnswerSourceSelector::Cache, "cache")
+                        | (AnswerSourceSelector::Forward, "forward")
+                )
+            }),
+            CompiledSelector::CacheInstance(name) => ctx.cache_instance == Some(name.as_str()),
             CompiledSelector::SamplePercent { percent, key } => {
                 if matches!(key, SampleKey::FromQname) && ctx.qname.is_none() {
                     return false;
@@ -434,6 +474,8 @@ mod tests {
             qclass: None,
             opcode: None,
             edns_option_codes: &[],
+            answer_source: None,
+            cache_instance: None,
             tag_has,
         }
     }
@@ -467,6 +509,35 @@ mod tests {
             salt_differs,
             "different salts should diverge for some txn ids"
         );
+    }
+
+    #[test]
+    fn answer_source_selector_matches() {
+        let cache = CompiledSelector::compile(
+            &Selector {
+                r#type: "answer_source".into(),
+                value: "cache".into(),
+                key: None,
+                key_from: None,
+            },
+            &SelectorCompileCtx::default(),
+        )
+        .unwrap();
+        let mut ctx = test_ctx(1, 1, Some("x.example."), None, None, &|_| false);
+        assert!(!cache.matches_ctx(&ctx));
+        ctx.answer_source = Some("cache");
+        assert!(cache.matches_ctx(&ctx));
+        ctx.answer_source = Some("forward");
+        assert!(!cache.matches_ctx(&ctx));
+    }
+
+    #[test]
+    fn cache_instance_selector_matches() {
+        let sel = CompiledSelector::CacheInstance("global".into());
+        let mut ctx = test_ctx(1, 1, None, None, None, &|_| false);
+        assert!(!sel.matches_ctx(&ctx));
+        ctx.cache_instance = Some("global");
+        assert!(sel.matches_ctx(&ctx));
     }
 
     #[test]

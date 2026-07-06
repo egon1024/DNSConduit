@@ -37,6 +37,8 @@ pub struct MockHost {
     pub attempts: u32,
     pub started: Instant,
     pub last_forward_ms: u64,
+    pub answer_source: Option<String>,
+    pub cache_instance: Option<String>,
     pub phase: ScriptPhase,
 }
 
@@ -74,6 +76,8 @@ impl Default for MockHost {
             attempts: 0,
             started: Instant::now(),
             last_forward_ms: 0,
+            answer_source: None,
+            cache_instance: None,
             phase: ScriptPhase::Request,
         }
     }
@@ -256,6 +260,14 @@ impl HostTransaction for MockHost {
 
     fn last_forward_ms(&self) -> u64 {
         self.last_forward_ms
+    }
+
+    fn answer_source(&self) -> Option<&str> {
+        self.answer_source.as_deref()
+    }
+
+    fn cache_instance(&self) -> Option<&str> {
+        self.cache_instance.as_deref()
     }
 
     fn is_dropped(&self) -> bool {

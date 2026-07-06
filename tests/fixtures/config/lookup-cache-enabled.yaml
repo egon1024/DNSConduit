@@ -16,8 +16,6 @@ caches:
       enabled: true
       nxdomain_covers_descendants: true
       servfail_ttl_secs: 10
-    on_hit:
-      response_rules: skip
 lookup:
   profiles:
     default:

@@ -20,6 +20,7 @@ This directory holds **assets only**: configs (config/), scripts (scripts/), and
 | Rhai sample keys | [manual-lab-rhai-sample-keys.md](../../docs/superpowers/plans/manual-lab-rhai-sample-keys.md) |
 | Pluggable lookup checklist | [manual-lab-pluggable-lookup-checklist.md](../../docs/superpowers/plans/manual-lab-pluggable-lookup-checklist.md) |
 | Pluggable lookup Gate B | [2026-07-05-pluggable-lookup-gate-b-manual-lab.md](../../docs/superpowers/plans/2026-07-05-pluggable-lookup-gate-b-manual-lab.md) |
+| Pluggable lookup Gate C | [2026-07-05-pluggable-lookup-gate-c-manual-lab.md](../../docs/superpowers/plans/2026-07-05-pluggable-lookup-gate-c-manual-lab.md) |
 | Release workflow validation | [release-workflow-manual-testing.md](../../docs/superpowers/process/release-workflow-manual-testing.md) |
 | Release artifact validation | [release-artifacts-manual-testing.md](../../docs/superpowers/process/release-artifacts-manual-testing.md) |
 
@@ -27,11 +28,19 @@ This directory holds **assets only**: configs (config/), scripts (scripts/), and
 
 ```zsh
 cd ~/git_repos/DNSConduit
+cargo build -p conduit -p conduitctl --release
 export UPSTREAM_DNS_PRIMARY=192.168.1.21
 export UPSTREAM_DNS_SECONDARY=192.168.1.25
 chmod +x tests/manual/scripts/check-ports.sh
 tests/manual/scripts/check-ports.sh
+
+scrape() { curl -sS http://127.0.2.1:19090/metrics | rg "$1"; }
+runcon() { RUST_LOG=info,conduit_core=debug ./target/release/conduit "$@"; }
+runcon-info() { RUST_LOG=info ./target/release/conduit "$@"; }
+ctl() { ./target/release/conduitctl "$@"; }
 ```
+
+Shell helpers are defined in [manual-testing.md](../../docs/superpowers/process/manual-testing.md#shell-helpers-zsh).
 
 ## Configs
 

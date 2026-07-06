@@ -367,6 +367,7 @@ dependencies = [
  "conduit-proto",
  "conduit-script",
  "hickory-proto",
+ "parking_lot",
  "serde_json",
  "tempfile",
  "thiserror 2.0.18",

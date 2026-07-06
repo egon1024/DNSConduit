@@ -52,8 +52,8 @@ pub enum OnHitResponseRules {
 impl OnHitResponseRules {
     pub fn parse(raw: &str) -> Result<Self, String> {
         match raw.trim() {
-            "" | "skip" => Ok(Self::Skip),
-            "run" => Ok(Self::Run),
+            "skip" => Ok(Self::Skip),
+            "" | "run" => Ok(Self::Run),
             other => Err(format!(
                 "on_hit.response_rules '{other}' must be skip or run"
             )),
@@ -354,7 +354,7 @@ fn compile_negative_cache(
 
 fn compile_on_hit(cfg: Option<&CacheOnHitConfig>, ctx: &str) -> Result<OnHitResponseRules, String> {
     match cfg {
-        None => Ok(OnHitResponseRules::Skip),
+        None => Ok(OnHitResponseRules::Run),
         Some(o) => {
             OnHitResponseRules::parse(&o.response_rules).map_err(|e| format!("{ctx}.on_hit: {e}"))
         }
@@ -479,6 +479,41 @@ mod tests {
         let err =
             CompiledLookup::compile_from_config(&minimal_with_lookup(lookup, caches)).unwrap_err();
         assert!(err.contains("unknown cache instance 'missing'"));
+    }
+
+    #[test]
+    fn on_hit_defaults_to_run() {
+        let caches = vec![CacheInstance {
+            name: "global".into(),
+            r#type: "memory".into(),
+            negative_cache: None,
+            on_hit: None,
+            cache_truncated_udp: None,
+            truncated_udp_ttl_secs: None,
+            rotate_rrset_on_serve: None,
+            memory: None,
+            key: None,
+            max_entries: None,
+        }];
+        let compiled = CompiledLookup::compile_from_config(&minimal_with_lookup(
+            LookupConfig {
+                profiles: HashMap::from([(
+                    "default".into(),
+                    LookupProfile {
+                        providers: vec![LookupProvider {
+                            r#type: "cache".into(),
+                            cache: Some("global".into()),
+                        }],
+                    },
+                )]),
+            },
+            caches,
+        ))
+        .unwrap();
+        assert_eq!(
+            compiled.cache_instances["global"].on_hit_response_rules,
+            OnHitResponseRules::Run
+        );
     }
 
     #[test]

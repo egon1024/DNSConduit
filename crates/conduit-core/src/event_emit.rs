@@ -19,6 +19,8 @@ fn extra_source(txn: &Transaction, include_tags: bool) -> TxnExtraSource {
         qname: txn.qname.clone(),
         rcode_label: txn.rcode_label(),
         client: txn.client_addr.to_string(),
+        answer_source: txn.answer_source.map(|s| s.as_str().to_string()),
+        cache_instance: txn.cache_instance.clone(),
         tag_bools,
         tag_strings,
     }
@@ -40,6 +42,8 @@ pub fn txn_view<'a>(txn: &'a Transaction, snapshot: &RuntimeSnapshot) -> TxnView
         query_wire: &txn.query_wire,
         response_wire: txn.response_wire.as_deref(),
         attempt_count: txn.attempt_count,
+        answer_source: txn.answer_source.map(|s| s.as_str()),
+        cache_instance: txn.cache_instance.as_deref(),
         extra: extra_source(txn, snapshot.events.needs_tag_export()),
     }
 }

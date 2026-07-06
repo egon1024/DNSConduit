@@ -123,7 +123,7 @@ message Rule {
 }
 
 message Selector {
-  string type = 1;   // qname_suffix | qname_exact | qtype | rcode | tag | sample_percent | every_nth_worker | every_nth_global
+  string type = 1;   // qname_suffix | qname_exact | qtype | rcode | tag | answer_source | cache_instance | sample_percent | every_nth_worker | every_nth_global
   string value = 2;
   optional string key = 3;       // sample_percent only: static salt (optional)
   optional string key_from = 4;  // sample_percent only: qname | rule_name | sink_name
@@ -304,7 +304,7 @@ message CacheNegativeConfig {
 }
 
 message CacheOnHitConfig {
-  string response_rules = 1;      // "skip" (default) | "run"
+  string response_rules = 1;      // "run" (default) | "skip"
 }
 
 message CacheMemoryConfig {

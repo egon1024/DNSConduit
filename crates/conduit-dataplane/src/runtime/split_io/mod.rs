@@ -9,8 +9,9 @@ use crate::forward::{ForwardMode, IoBackend, PoolInflight, TxnTable};
 use crate::listener::supervisor::DataplaneHandle;
 use crate::listener::{shutdown::DataplaneShutdown, startup_log};
 use conduit_config::{effective_io_workers, effective_policy_workers, resolve_listener_ingress};
+use conduit_core::lookup::LookupCacheRegistry;
 use conduit_core::snapshot::SnapshotStore;
-use conduit_core::txn_store::{SharedTxnStore, DEFAULT_SLOT_CHUNK_SIZE};
+use conduit_core::txn_store::{SharedTxnStore, SlotId, DEFAULT_SLOT_CHUNK_SIZE};
 use conduit_events::EventHub;
 use conduit_metrics::{MetricsHub, TracingHub};
 use crossbeam_channel::RecvTimeoutError;
@@ -76,6 +77,14 @@ pub fn start_split_io(
     // and Route reads it lock-free.
     let health_registry = store.health();
 
+    let mut cache_registry = LookupCacheRegistry::from_snapshot(&snap.lookup.cache_instances);
+    cache_registry.set_async_coalesce(true);
+    let cache_registry = Arc::new(cache_registry);
+    let cache_wake_queue = policy_queue.clone();
+    cache_registry.set_wake_handler(Arc::new(move |txn_id| {
+        cache_wake_queue.push(PolicyWork::LookupResume(SlotId::from_index(txn_id as u32)));
+    }));
+
     let orchestrator = build_orchestrator(
         &snap,
         table.clone(),
@@ -88,6 +97,7 @@ pub fn start_split_io(
         Some(io_backend_for_orchestrator),
         Some(inflight.clone()),
         health_registry.clone(),
+        Some(cache_registry),
     )?;
 
     let mut thread_handles = Vec::new();

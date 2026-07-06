@@ -1,7 +1,8 @@
 //! Built-in selector/action rules compiled at snapshot build (spec §6).
 
+use crate::selector_ctx::selector_match_ctx;
 use crate::transaction::Transaction;
-use conduit_events::{compile_rule_selectors, CompiledSelector, SelectorMatchCtx};
+use conduit_events::{compile_rule_selectors, CompiledSelector};
 use conduit_metrics::{BuiltinProfile, BuiltinRegistry, MetricsHub, UserRegistry};
 use conduit_proto::config::{Action, Rule, RulesConfig};
 use conduit_script::{
@@ -188,17 +189,8 @@ impl CompiledRule {
         if self.selectors.is_empty() {
             return true;
         }
-        let ctx = SelectorMatchCtx {
-            txn_id: txn.id,
-            global_query_index: txn.global_query_index,
-            qname: txn.qname.as_deref(),
-            qtype: txn.qtype,
-            rcode: txn.rcode(),
-            qclass: txn.qclass,
-            opcode: txn.opcode,
-            edns_option_codes: &txn.edns_option_codes,
-            tag_has: &|k| txn.tags.has(k),
-        };
+        let tag_has = |k: &str| txn.tags.has(k);
+        let ctx = selector_match_ctx(txn, &tag_has);
         self.selectors.iter().all(|s| s.matches_ctx(&ctx))
     }
 

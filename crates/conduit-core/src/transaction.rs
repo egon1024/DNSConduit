@@ -121,11 +121,31 @@ pub struct Transaction {
     pub lookup_outcome: Option<LookupOutcome>,
     /// How the answer was produced (`cache` or `forward`).
     pub answer_source: Option<AnswerSource>,
+    /// Named cache instance when `answer_source` is cache (pipeline state, not an operator tag).
+    pub cache_instance: Option<String>,
     /// When false, cache lookup provider returns Bypass.
     pub cache_lookup_eligible: bool,
     /// Resume point inside forward provider after async upstream I/O.
     pub lookup_forward_step: Option<LookupForwardStep>,
+    /// Pending cache single-flight coalesce (split_io async wait).
+    pub lookup_cache_wait: Option<LookupCacheWait>,
+    /// Cache fill target after forward completes (leader single-flight).
+    pub lookup_cache_fill: Option<LookupCacheFill>,
     rcode: Option<u16>,
+}
+
+/// Resume point after cache single-flight wait.
+#[derive(Debug, Clone)]
+pub struct LookupCacheWait {
+    pub cache_name: String,
+    pub key: Vec<u8>,
+}
+
+/// Cache instance + key to fill when forward returns an answer.
+#[derive(Debug, Clone)]
+pub struct LookupCacheFill {
+    pub cache_name: String,
+    pub key: Vec<u8>,
 }
 
 impl Transaction {
@@ -172,8 +192,11 @@ impl Transaction {
             lookup_profile: None,
             lookup_outcome: None,
             answer_source: None,
+            cache_instance: None,
             cache_lookup_eligible: true,
             lookup_forward_step: None,
+            lookup_cache_wait: None,
+            lookup_cache_fill: None,
             rcode: None,
         }
     }

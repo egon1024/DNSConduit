@@ -98,6 +98,14 @@ pub trait HostTransaction {
     fn attempt_count(&self) -> u32;
     fn started_at(&self) -> Instant;
     fn last_forward_ms(&self) -> u64;
+    /// How the answer was produced: `cache`, `forward`, or unset before an answer exists.
+    fn answer_source(&self) -> Option<&str> {
+        None
+    }
+    /// Named cache instance when `answer_source` is `cache`.
+    fn cache_instance(&self) -> Option<&str> {
+        None
+    }
     fn is_dropped(&self) -> bool;
     fn mark_dropped(&mut self);
     /// Bool tags on the host transaction at hook entry (for `has_tag` in scripts).

@@ -20,6 +20,10 @@ pub struct TxnView<'a> {
     pub query_wire: &'a [u8],
     pub response_wire: Option<&'a [u8]>,
     pub attempt_count: u32,
+    /// `cache` or `forward` when a response is available for filtering.
+    pub answer_source: Option<&'a str>,
+    /// Named cache instance when the answer came from cache.
+    pub cache_instance: Option<&'a str>,
     pub extra: TxnExtraSource,
 }
 
@@ -33,6 +37,8 @@ pub struct TxnExtraSource {
     pub qname: Option<String>,
     pub rcode_label: Option<String>,
     pub client: String,
+    pub answer_source: Option<String>,
+    pub cache_instance: Option<String>,
     pub tag_bools: Vec<(String, bool)>,
     pub tag_strings: Vec<(String, String)>,
 }
