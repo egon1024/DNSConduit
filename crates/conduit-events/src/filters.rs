@@ -18,6 +18,8 @@ fn selector_ctx<'a>(
         qclass: view.qclass,
         opcode: view.opcode,
         edns_option_codes: view.edns_option_codes,
+        answer_source: view.answer_source,
+        cache_instance: view.cache_instance,
         tag_has,
     }
 }

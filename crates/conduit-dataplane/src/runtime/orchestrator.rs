@@ -28,6 +28,7 @@ pub fn build_orchestrator(
     io_backend: Option<Arc<IoBackend>>,
     pool_inflight: Option<Arc<PoolInflight>>,
     health: Arc<HealthRegistry>,
+    cache: Option<Arc<conduit_core::lookup::LookupCacheRegistry>>,
 ) -> io::Result<Arc<Orchestrator>> {
     let outstanding: conduit_core::stages::OutstandingPerBackendFn = {
         let table = table.clone();
@@ -50,12 +51,15 @@ pub fn build_orchestrator(
         Some(metrics.clone()),
         Some(health.clone()),
     ));
-    let lookup = Arc::new(LookupStage::new(
+    let mut lookup = LookupStage::new(
         Arc::new(RouteStage::with_health(health.clone())),
         forward,
         wait,
         Some(metrics.clone()),
-    ));
+    );
+    if let Some(cache) = cache {
+        lookup = lookup.with_cache(cache);
+    }
     let mut orchestrator = Orchestrator::with_default_stages();
     orchestrator.metrics = Some(metrics.clone());
     orchestrator.tracing = Some(tracing);
@@ -75,7 +79,9 @@ pub fn build_orchestrator(
             outstanding: Some(outstanding),
         }),
     );
-    orchestrator.registry.register(Phase::Lookup, lookup);
+    orchestrator
+        .registry
+        .register(Phase::Lookup, Arc::new(lookup));
     Ok(Arc::new(orchestrator))
 }
 

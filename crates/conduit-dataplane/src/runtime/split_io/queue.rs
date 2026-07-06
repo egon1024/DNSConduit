@@ -14,6 +14,8 @@ use crate::listener::DataplaneShutdown;
 pub enum PolicyWork {
     New(SlotId),
     Resume(IoResume),
+    /// Cache single-flight coalesce completed; resume Lookup for a parked slot.
+    LookupResume(SlotId),
 }
 
 pub struct PolicyQueue {

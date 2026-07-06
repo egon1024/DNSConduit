@@ -13,6 +13,7 @@ pub mod routing;
 pub mod rules;
 pub mod runtime_view;
 pub mod script_host;
+pub mod selector_ctx;
 pub mod snapshot;
 pub mod stages;
 pub mod structural_parse;
@@ -32,7 +33,9 @@ pub use health::{
     BackendHealthState, BackendKey, Health, HealthControlAction, HealthControlScope,
     HealthRegistry, HealthTable, ProbeOutcome, ProbeSpec,
 };
-pub use lookup::{AnswerSource, LookupForwardStep, LookupOutcome, LookupStage};
+pub use lookup::{
+    AnswerSource, LookupCacheRegistry, LookupForwardStep, LookupOutcome, LookupStage,
+};
 pub use orchestrator::{Orchestrator, OrchestratorRun, RunOutcome, StageRegistry};
 pub use parse_reject::ParseRejectReason;
 pub use phase::{Phase, PipelineAttachment};

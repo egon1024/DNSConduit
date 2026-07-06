@@ -223,6 +223,8 @@ mod tests {
             query_wire: &[0u8; 8],
             response_wire: None,
             attempt_count: 1,
+            answer_source: None,
+            cache_instance: None,
             extra: TxnExtraSource::default(),
         }
     }

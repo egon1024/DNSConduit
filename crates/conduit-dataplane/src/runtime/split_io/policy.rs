@@ -42,6 +42,15 @@ pub fn run_policy_worker(
                 &reply_routes,
                 &inflight,
             ),
+            PolicyWork::LookupResume(slot_id) => process_lookup_resume(
+                slot_id,
+                &txn_store,
+                &orchestrator,
+                &store,
+                &events,
+                &reply_routes,
+                &inflight,
+            ),
         }
     }
 }
@@ -99,6 +108,36 @@ fn process_resume(
             apply_wait_completion(&mut slot.txn, &resume.completion);
             Ok(())
         });
+    }
+    run_policy_loop(
+        slot_id,
+        txn_store,
+        orchestrator,
+        store,
+        events,
+        reply_routes,
+        inflight,
+        Some(Phase::Lookup),
+    );
+}
+
+fn process_lookup_resume(
+    slot_id: SlotId,
+    txn_store: &SharedTxnStore,
+    orchestrator: &Orchestrator,
+    store: &Arc<SnapshotStore>,
+    events: &Arc<EventHub>,
+    reply_routes: &ReplyRoutes,
+    inflight: &PoolInflight,
+) {
+    {
+        let mut guard = txn_store.lock();
+        if guard
+            .transition(slot_id, SlotState::IoWait, SlotState::Policy)
+            .is_err()
+        {
+            return;
+        }
     }
     run_policy_loop(
         slot_id,

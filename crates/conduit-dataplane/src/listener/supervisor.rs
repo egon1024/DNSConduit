@@ -7,6 +7,7 @@ use crate::forward::{
 use crate::listener::{shutdown::DataplaneShutdown, startup_log, tcp, udp};
 use conduit_config::resolve_listener_ingress;
 use conduit_core::health::HealthRegistry;
+use conduit_core::lookup::LookupCacheRegistry;
 use conduit_core::lookup::LookupStage;
 use conduit_core::orchestrator::Orchestrator;
 use conduit_core::phase::Phase;
@@ -122,6 +123,9 @@ pub fn start(
     // so it survives reloads (reconciled, not rebuilt); the probe loop writes it
     // and Route reads it lock-free.
     let health_registry = store.health();
+    let cache_registry = Arc::new(LookupCacheRegistry::from_snapshot(
+        &snap.lookup.cache_instances,
+    ));
     let probe_handle = crate::probe::spawn_probe_loop(
         &snap,
         health_registry.clone(),
@@ -178,6 +182,7 @@ pub fn start(
                 WorkerKind::Udp(socket.into())
             };
 
+            let cache = cache_registry.clone();
             thread_handles.push(thread::spawn(move || {
                 let forward = match WorkerForwardEgress::new(
                     &forward_compiled,
@@ -212,12 +217,15 @@ pub fn start(
                     Some(metrics.clone()),
                     Some(health_registry.clone()),
                 ));
-                let lookup = Arc::new(LookupStage::new(
-                    Arc::new(RouteStage::with_health(health_registry.clone())),
-                    forward,
-                    wait,
-                    Some(metrics.clone()),
-                ));
+                let lookup = Arc::new(
+                    LookupStage::new(
+                        Arc::new(RouteStage::with_health(health_registry.clone())),
+                        forward,
+                        wait,
+                        Some(metrics.clone()),
+                    )
+                    .with_cache(cache),
+                );
                 let mut orchestrator = Orchestrator::with_default_stages();
                 orchestrator.metrics = Some(metrics.clone());
                 orchestrator.tracing = Some(tracing.clone());

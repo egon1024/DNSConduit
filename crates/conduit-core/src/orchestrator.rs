@@ -4,11 +4,11 @@ use crate::clock::Clock;
 use crate::event_emit::{emit_query, emit_response, emit_retry};
 use crate::phase::Phase;
 use crate::pipeline::{PipelineStage, StageOutcome};
+use crate::selector_ctx::selector_match_ctx;
 use crate::snapshot::RuntimeSnapshot;
 use crate::transaction::Transaction;
 use conduit_config::logging::log_text;
 use conduit_events::EventHub;
-use conduit_events::SelectorMatchCtx;
 use conduit_metrics::{trace_activation_matches, MetricsHub, TracingHub};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -50,17 +50,7 @@ fn observe_after_request_rules(
         if let Some(th) = tracing {
             if snapshot.tracing_master_enabled() {
                 let tag_has = |k: &str| txn.tags.has(k);
-                let ctx = SelectorMatchCtx {
-                    txn_id: txn.id,
-                    global_query_index: 0,
-                    qname: txn.qname.as_deref(),
-                    qtype: txn.qtype,
-                    rcode: txn.rcode(),
-                    qclass: txn.qclass,
-                    opcode: txn.opcode,
-                    edns_option_codes: &txn.edns_option_codes,
-                    tag_has: &tag_has,
-                };
+                let ctx = selector_match_ctx(txn, &tag_has);
                 if trace_activation_matches(&th.compiled.activation, &ctx) {
                     txn.trace_log = Some(conduit_metrics::TraceLog::default());
                 }
@@ -461,6 +451,7 @@ mod tests {
     use hickory_proto::serialize::binary::{BinEncodable, BinEncoder};
     use std::path::PathBuf;
 
+    use crate::lookup::LookupCacheRegistry;
     use crate::lookup::LookupStage;
     use crate::stages::RouteStage;
 
@@ -468,16 +459,21 @@ mod tests {
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/config")
     }
 
-    fn register_lookup_stage(o: &mut Orchestrator, forward: Arc<dyn PipelineStage>) {
-        o.registry.register(
-            Phase::Lookup,
-            Arc::new(LookupStage::new(
-                Arc::new(RouteStage::new()),
-                forward,
-                Arc::new(PassthroughWait),
-                None,
-            )),
+    fn register_lookup_stage(
+        o: &mut Orchestrator,
+        forward: Arc<dyn PipelineStage>,
+        cache: Option<Arc<LookupCacheRegistry>>,
+    ) {
+        let mut lookup = LookupStage::new(
+            Arc::new(RouteStage::new()),
+            forward,
+            Arc::new(PassthroughWait),
+            None,
         );
+        if let Some(c) = cache {
+            lookup = lookup.with_cache(c);
+        }
+        o.registry.register(Phase::Lookup, Arc::new(lookup));
     }
 
     fn snapshot_from_fixture(yaml: &str) -> Arc<RuntimeSnapshot> {
@@ -547,7 +543,7 @@ mod tests {
 
     fn orchestrator_with_forward_no_response() -> Orchestrator {
         let mut o = Orchestrator::with_default_stages();
-        register_lookup_stage(&mut o, Arc::new(MockForwardNoResponse));
+        register_lookup_stage(&mut o, Arc::new(MockForwardNoResponse), None);
         o
     }
 
@@ -565,7 +561,7 @@ mod tests {
 
     fn orchestrator_with_suspend_forward() -> Orchestrator {
         let mut o = Orchestrator::with_default_stages();
-        register_lookup_stage(&mut o, Arc::new(SuspendForwardStage));
+        register_lookup_stage(&mut o, Arc::new(SuspendForwardStage), None);
         o
     }
 
@@ -723,6 +719,7 @@ mod tests {
             Arc::new(SuspendOnceThenRespond {
                 calls: AtomicU32::new(0),
             }),
+            None,
         );
 
         assert!(matches!(
@@ -775,7 +772,7 @@ mod tests {
 
     fn orchestrator_with_mock_forward() -> Orchestrator {
         let mut o = Orchestrator::with_default_stages();
-        register_lookup_stage(&mut o, Arc::new(MockForwardStage));
+        register_lookup_stage(&mut o, Arc::new(MockForwardStage), None);
         o
     }
 

@@ -54,6 +54,20 @@ pub fn build_extra_json(
                     });
                 }
             }
+            ExtraField::AnswerSource => {
+                if let Some(src) = &source.answer_source {
+                    append_field(&mut out, &mut first, "answer_source", |o| {
+                        write!(o, "\"{}\"", json_escape(src)).ok()
+                    });
+                }
+            }
+            ExtraField::CacheInstance => {
+                if let Some(cache) = &source.cache_instance {
+                    append_field(&mut out, &mut first, "cache_instance", |o| {
+                        write!(o, "\"{}\"", json_escape(cache)).ok()
+                    });
+                }
+            }
             ExtraField::Client => {
                 append_field(&mut out, &mut first, "client", |o| {
                     write!(o, "\"{}\"", json_escape(&source.client)).ok()
@@ -169,6 +183,8 @@ mod tests {
             qname: Some("example.com.".into()),
             rcode_label: Some("NOERROR".into()),
             client: "127.0.0.1:1234".into(),
+            answer_source: Some("cache".into()),
+            cache_instance: Some("global".into()),
             tag_bools: vec![("vip".into(), true), ("debug".into(), false)],
             tag_strings: vec![("tenant".into(), "acme".into())],
         }

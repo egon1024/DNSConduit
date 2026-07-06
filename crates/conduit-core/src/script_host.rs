@@ -198,6 +198,14 @@ impl HostTransaction for Transaction {
         self.last_forward_ms()
     }
 
+    fn answer_source(&self) -> Option<&str> {
+        self.answer_source.map(|s| s.as_str())
+    }
+
+    fn cache_instance(&self) -> Option<&str> {
+        self.cache_instance.as_deref()
+    }
+
     fn is_dropped(&self) -> bool {
         self.dropped
     }

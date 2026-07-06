@@ -52,7 +52,7 @@ events:
         backend: "10.0.0.1:53"    # response/retry only
 ```
 
-Selector types match built-in rules: `qname_suffix`, `qname_exact`, `qtype`, `rcode`, `tag`. **Query** dnstap is emitted after **RequestRules**, so request-phase tags can gate query export.
+Selector types match built-in rules: `qname_suffix`, `qname_exact`, `qtype`, `rcode`, `tag`, `answer_source`, `cache_instance`. **Query** dnstap is emitted after **RequestRules**, so request-phase tags can gate query export. Cache hits are matched via **`answer_source`** / **`cache_instance`** transaction fields (not synthesized tags). Optional **`extra_fields`**: `answer_source`, `cache_instance`.
 
 Fixtures: `tests/fixtures/config/with-dnstap-filters.yaml`, `with-dnstap-sample.yaml`, `with-sample-key.yaml`.
 

@@ -155,7 +155,9 @@ fn register_host_api(engine: &mut Engine) {
         .register_fn("response_authoritative", RhaiTxn::response_authoritative)
         .register_fn("elapsed_ms", RhaiTxn::elapsed_ms)
         .register_fn("get_attempt_count", RhaiTxn::attempt_count)
-        .register_fn("last_forward_ms", RhaiTxn::last_forward_ms);
+        .register_fn("last_forward_ms", RhaiTxn::last_forward_ms)
+        .register_fn("answer_source", RhaiTxn::answer_source)
+        .register_fn("cache_instance", RhaiTxn::cache_instance);
 
     dns_wire::register_dns_wire_api(engine);
 }
@@ -275,6 +277,8 @@ pub(crate) struct RhaiTxn {
     attempt_count: u32,
     started_at: Instant,
     last_forward_ms: u64,
+    answer_source: Option<String>,
+    cache_instance: Option<String>,
     tags_snapshot_bools: HashMap<String, bool>,
     tags_snapshot_strings: HashMap<String, String>,
     effects: Arc<Mutex<ScriptEffects>>,
@@ -340,6 +344,12 @@ impl RhaiTxn {
             .or_else(|| self.selected_backend.map(|a| a.to_string()))
         {
             map.insert("backend_name".into(), Dynamic::from(label));
+        }
+        if let Some(ref src) = self.answer_source {
+            map.insert("answer_source".into(), Dynamic::from(src.clone()));
+        }
+        if let Some(ref cache) = self.cache_instance {
+            map.insert("cache_instance".into(), Dynamic::from(cache.clone()));
         }
         if let Some(meta) = self.response_meta {
             map.insert(
@@ -686,6 +696,14 @@ impl RhaiTxn {
         self.last_forward_ms as i64
     }
 
+    fn answer_source(&mut self) -> String {
+        self.answer_source.clone().unwrap_or_default()
+    }
+
+    fn cache_instance(&mut self) -> String {
+        self.cache_instance.clone().unwrap_or_default()
+    }
+
     fn attempt_count(&mut self) -> i64 {
         self.attempt_count as i64
     }
@@ -896,6 +914,8 @@ fn run_one(
         attempt_count: host.attempt_count(),
         started_at: host.started_at(),
         last_forward_ms: host.last_forward_ms(),
+        answer_source: host.answer_source().map(str::to_string),
+        cache_instance: host.cache_instance().map(str::to_string),
         tags_snapshot_bools: host.script_tag_bools(),
         tags_snapshot_strings: host.script_tag_strings(),
         effects: effects.clone(),
@@ -1288,6 +1308,8 @@ rules:
             attempt_count: 0,
             started_at: Instant::now(),
             last_forward_ms: 0,
+            answer_source: None,
+            cache_instance: None,
             tags_snapshot_bools: HashMap::new(),
             tags_snapshot_strings: HashMap::new(),
             effects: effects.clone(),
@@ -1734,6 +1756,8 @@ rules:
             attempt_count: 0,
             started_at: Instant::now(),
             last_forward_ms: 0,
+            answer_source: None,
+            cache_instance: None,
             tags_snapshot_bools: HashMap::new(),
             tags_snapshot_strings: HashMap::new(),
             effects: effects.clone(),
@@ -2144,6 +2168,31 @@ rules:
         );
     }
 
+    #[test]
+    fn answer_source_exposed_to_script() {
+        let mut host = MockHost {
+            answer_source: Some("cache".into()),
+            cache_instance: Some("global".into()),
+            phase: ScriptPhase::Response,
+            ..Default::default()
+        };
+        let (outcome, stats) = run_inline_script(
+            r#"if txn.answer_source() == "cache" && txn.cache_instance() == "global" { metrics.inc("cache_ok", 1); }"#,
+            &mut host,
+        );
+        assert_eq!(outcome, ScriptRunOutcome::Ok);
+        assert_eq!(stats.errors, 0);
+        assert_eq!(
+            stats
+                .user_metrics
+                .iter()
+                .filter(|m| m.name == "cache_ok")
+                .map(|m| m.delta)
+                .sum::<u64>(),
+            1
+        );
+    }
+
     fn run_inline_script(script: &str, host: &mut MockHost) -> (ScriptRunOutcome, ScriptRunStats) {
         static RUN: AtomicU64 = AtomicU64::new(0);
         let run_id = RUN.fetch_add(1, Ordering::Relaxed);
@@ -2465,6 +2514,8 @@ rules:
             attempt_count: 1,
             started_at: Instant::now(),
             last_forward_ms: 0,
+            answer_source: None,
+            cache_instance: None,
             tags_snapshot_bools: HashMap::new(),
             tags_snapshot_strings: HashMap::new(),
             effects: effects.clone(),
@@ -2533,6 +2584,8 @@ rules:
             attempt_count: 0,
             started_at: Instant::now(),
             last_forward_ms: 0,
+            answer_source: None,
+            cache_instance: None,
             tags_snapshot_bools: HashMap::new(),
             tags_snapshot_strings: HashMap::new(),
             effects: effects.clone(),
@@ -2625,6 +2678,8 @@ rules:
             attempt_count: 1,
             started_at: Instant::now(),
             last_forward_ms: 12,
+            answer_source: None,
+            cache_instance: None,
             tags_snapshot_bools: HashMap::new(),
             tags_snapshot_strings: HashMap::new(),
             effects: effects.clone(),
