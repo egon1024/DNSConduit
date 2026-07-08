@@ -4,19 +4,45 @@ use hickory_proto::error::ProtoError;
 use hickory_proto::op::Message;
 use hickory_proto::rr::Record;
 use hickory_proto::serialize::binary::{BinEncodable, BinEncoder};
+use std::cell::Cell;
 use std::sync::Arc;
 use std::time::Instant;
 
+thread_local! {
+    /// Fast thread-local PRNG for RRset rotation offsets (no external crate on hot path).
+    static SERVE_RAND: Cell<u64> = const { Cell::new(0x9E37_79B9_7F4A_7C15) };
+}
+
+fn next_serve_rand() -> u64 {
+    SERVE_RAND.with(|state| {
+        let mut x = state.get();
+        // xorshift64*
+        x ^= x >> 12;
+        x ^= x << 25;
+        x ^= x >> 27;
+        x = x.wrapping_mul(0x2545_F491_4F6C_DD1D);
+        state.set(x);
+        x
+    })
+}
+
 /// Clone stored wire, set response ID, decay RR TTLs by cache age, optionally rotate answer RRsets.
+/// When rotation is enabled, each serve picks a random cyclic offset per RRset (stored wire unchanged).
+/// When `client_query_wire` is set, replace the question (and EDNS) from the client query — used
+/// for RFC 8020 ancestor NXDOMAIN hits where the stored wire names the parent qname.
 pub fn prepare_served_wire(
     stored: &[u8],
     query_id: u16,
     rotate_rrset: bool,
     filled_at: Instant,
     now: Instant,
+    client_query_wire: Option<&[u8]>,
 ) -> Result<Vec<u8>, ProtoError> {
     let mut msg = Message::from_vec(stored)?;
     msg.set_id(query_id);
+    if let Some(qw) = client_query_wire {
+        apply_client_query(&mut msg, qw)?;
+    }
     let age_secs = cache_age_secs(filled_at, now);
     decay_rr_ttls(&mut msg, age_secs);
     if rotate_rrset {
@@ -28,14 +54,34 @@ pub fn prepare_served_wire(
     Ok(buf)
 }
 
+fn apply_client_query(msg: &mut Message, client_query_wire: &[u8]) -> Result<(), ProtoError> {
+    let client = Message::from_vec(client_query_wire)?;
+    msg.queries_mut().clear();
+    for q in client.queries() {
+        msg.add_query(q.clone());
+    }
+    if let Some(edns) = client.extensions().clone() {
+        msg.set_edns(edns);
+    }
+    Ok(())
+}
+
 pub fn prepare_served_arc(
     stored: &Arc<[u8]>,
     query_id: u16,
     rotate_rrset: bool,
     filled_at: Instant,
     now: Instant,
+    client_query_wire: Option<&[u8]>,
 ) -> Result<Vec<u8>, ProtoError> {
-    prepare_served_wire(stored, query_id, rotate_rrset, filled_at, now)
+    prepare_served_wire(
+        stored,
+        query_id,
+        rotate_rrset,
+        filled_at,
+        now,
+        client_query_wire,
+    )
 }
 
 /// Whole seconds since the entry was stored (DNS TTL aging uses second granularity).
@@ -80,9 +126,8 @@ fn rotate_answer_rrsets(msg: &mut Message) {
     }
     for (_, _, mut rrs) in groups {
         if rrs.len() > 1 {
-            // Rotate: move first to end (deterministic permute per hit).
-            let first = rrs.remove(0);
-            rrs.push(first);
+            let offset = (next_serve_rand() as usize) % rrs.len();
+            rrs.rotate_left(offset);
         }
         for rr in rrs {
             answers.push(rr);
@@ -122,20 +167,60 @@ mod tests {
         ])
     }
 
+    fn three_a_records() -> Arc<[u8]> {
+        encode_response(vec![
+            (60, std::net::Ipv4Addr::new(1, 1, 1, 1)),
+            (60, std::net::Ipv4Addr::new(2, 2, 2, 2)),
+            (60, std::net::Ipv4Addr::new(3, 3, 3, 3)),
+        ])
+    }
+
     #[test]
-    fn rotate_changes_order() {
+    fn rotate_differs_from_plain() {
         let stored = two_a_records();
         let now = Instant::now();
-        let plain = prepare_served_wire(&stored, 42, false, now, now).unwrap();
-        let rotated = prepare_served_wire(&stored, 42, true, now, now).unwrap();
-        assert_ne!(plain, rotated);
+        let plain = prepare_served_wire(&stored, 42, false, now, now, None).unwrap();
+        let mut saw_different = false;
+        for i in 0..16 {
+            let rotated = prepare_served_wire(&stored, i as u16, true, now, now, None).unwrap();
+            if rotated != plain {
+                saw_different = true;
+                break;
+            }
+        }
+        assert!(
+            saw_different,
+            "expected at least one rotated serve to differ from plain"
+        );
+    }
+
+    #[test]
+    fn rotate_varies_across_serves() {
+        let stored = three_a_records();
+        let now = Instant::now();
+        let mut prev: Option<Vec<u8>> = None;
+        let mut all_same = true;
+        for i in 0..24 {
+            let out = prepare_served_wire(&stored, i as u16, true, now, now, None).unwrap();
+            if let Some(p) = &prev {
+                if p != &out {
+                    all_same = false;
+                    break;
+                }
+            }
+            prev = Some(out);
+        }
+        assert!(
+            !all_same,
+            "expected RRset rotation to vary across repeated cache serves"
+        );
     }
 
     #[test]
     fn rewrites_query_id() {
         let stored = two_a_records();
         let now = Instant::now();
-        let out = prepare_served_wire(&stored, 0xabcd, false, now, now).unwrap();
+        let out = prepare_served_wire(&stored, 0xabcd, false, now, now, None).unwrap();
         let msg = Message::from_vec(&out).unwrap();
         assert_eq!(msg.id(), 0xabcd);
     }
@@ -145,7 +230,7 @@ mod tests {
         let stored = encode_response(vec![(3600, std::net::Ipv4Addr::new(192, 0, 2, 50))]);
         let filled_at = Instant::now() - Duration::from_secs(120);
         let now = Instant::now();
-        let out = prepare_served_wire(&stored, 1, false, filled_at, now).unwrap();
+        let out = prepare_served_wire(&stored, 1, false, filled_at, now, None).unwrap();
         let msg = Message::from_vec(&out).unwrap();
         let ttl = msg.answers()[0].ttl();
         assert!(ttl <= 3480, "expected decayed TTL, got {ttl}");
@@ -160,7 +245,7 @@ mod tests {
         ]);
         let filled_at = Instant::now() - Duration::from_secs(30);
         let now = Instant::now();
-        let out = prepare_served_wire(&stored, 1, false, filled_at, now).unwrap();
+        let out = prepare_served_wire(&stored, 1, false, filled_at, now, None).unwrap();
         let msg = Message::from_vec(&out).unwrap();
         let answers = msg.answers();
         assert_eq!(answers[0].ttl(), 270);
@@ -172,7 +257,7 @@ mod tests {
         let stored = encode_response(vec![(3600, std::net::Ipv4Addr::new(192, 0, 2, 1))]);
         let filled_at = Instant::now() - Duration::from_secs(60);
         let now = Instant::now();
-        let _ = prepare_served_wire(&stored, 1, false, filled_at, now).unwrap();
+        let _ = prepare_served_wire(&stored, 1, false, filled_at, now, None).unwrap();
         let msg = Message::from_vec(&stored).unwrap();
         assert_eq!(msg.answers()[0].ttl(), 3600);
     }

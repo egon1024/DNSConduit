@@ -14,7 +14,7 @@ const KEY_VERSION: u8 = 1;
 pub enum TransportKey {
     Udp = 0,
     Tcp = 1,
-    /// Stored TC=1 UDP answers when `cache_truncated_udp` is enabled.
+    /// Stored TC=1 UDP answers when `truncated_udp.enabled` is true.
     UdpTruncated = 2,
 }
 
@@ -63,7 +63,8 @@ pub fn build_truncated_udp_key(txn: &Transaction) -> Result<CacheKey, ProtoError
     )
 }
 
-fn build_key_from_parts(
+/// Build a cache key from normalized query parts (used for exact and ancestor lookups).
+pub(crate) fn build_key_from_parts(
     qname: &str,
     qtype: u16,
     qclass: u16,

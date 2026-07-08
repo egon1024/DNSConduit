@@ -52,9 +52,9 @@ pub use logging::{init_from_config, validate_logging, DEFAULT_LOG_LEVEL, DEFAULT
 pub use lookup::{
     compile_lookup_from_config, validate_lookup, CacheBackendType, CompiledCacheInstance,
     CompiledLookup, CompiledLookupProfile, CompiledLookupProvider, CompiledMemoryCache,
-    CompiledNegativeCache, EvictionMode, OnHitResponseRules, DEFAULT_LOOKUP_PROFILE,
-    DEFAULT_MEMORY_SHARD_COUNT, DEFAULT_ON_HIT_RESPONSE_RULES, DEFAULT_SERVFAIL_TTL_SECS,
-    DEFAULT_TRUNCATED_UDP_TTL_SECS,
+    CompiledNegativeCache, CompiledTruncatedUdp, EvictionMode, OnHitResponseRules,
+    DEFAULT_LOOKUP_PROFILE, DEFAULT_MEMORY_SHARD_COUNT, DEFAULT_ON_HIT_RESPONSE_RULES,
+    DEFAULT_SERVFAIL_TTL_SECS, DEFAULT_TRUNCATED_UDP_TTL_SECS,
 };
 pub use merge::{
     clear_overlay, is_overlay_patch_empty, merge_file_and_overlay, merge_overlay_patches,

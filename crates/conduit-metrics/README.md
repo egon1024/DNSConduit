@@ -29,7 +29,8 @@ When the `metrics` section is **omitted**, export is disabled (no scrape listene
 | `conduit_queries_total` | `listener`, `protocol` | + `qtype`, `qclass`, `ip_family` | — |
 | `conduit_queries_by_pool_total` | yes (`pool`) | yes | — |
 | `conduit_parse_rejected_total` | yes (`reason`) | yes | — |
-| `conduit_responses_total` | yes (`listener`, `protocol`, coarse `rcode`) | yes (+ fine `rcode`, `ip_family`) | — |
+| `conduit_responses_total` | yes (`listener`, `protocol`, coarse `rcode`, `answer_source`) | yes (+ fine `rcode`, `ip_family`) | — |
+| `conduit_responses_truncated_total` | yes (`listener`, `protocol`, `answer_source`) | yes (+ `ip_family`) | — |
 | `conduit_forward_errors_total`, `conduit_retries_total`, `conduit_script_errors_total` | yes | yes | — |
 | Phase / forward-attempt / forward-duration histograms | no | yes | — |
 | `conduit_forward_outstanding` | — | — | yes |
@@ -46,7 +47,8 @@ When the `metrics` section is **omitted**, export is disabled (no scrape listene
 | `conduit_queries_total` | see profile table | Incremented after successful parse |
 | `conduit_queries_by_pool_total` | `pool` | After route selection |
 | `conduit_parse_rejected_total` | `reason` | `empty`, `wire_error`, `not_query`, `no_question`, `multi_question` |
-| `conduit_responses_total` | `listener`, `protocol`, `rcode` (+ `ip_family` on `full`) | **`minimal`:** coarse `rcode` (`NOERROR`, `NXDOMAIN`, `SERVFAIL`, `REFUSED`, `OTHER`). **`full`:** per-IANA `rcode` (0–23 names) + `ip_family` |
+| `conduit_responses_total` | `listener`, `protocol`, `rcode`, `answer_source` (+ `ip_family` on `full`) | **`minimal`:** coarse `rcode` (`NOERROR`, `NXDOMAIN`, `SERVFAIL`, `REFUSED`, `OTHER`). **`full`:** per-IANA `rcode` (0–23 names) + `ip_family` |
+| `conduit_responses_truncated_total` | `listener`, `protocol`, `answer_source` (+ `ip_family` on `full`) | UDP send clips wire to client payload size and sets TC; joinable with `conduit_responses_total` |
 | `conduit_phase_duration_seconds` | `phase` | `full` profile only |
 | `conduit_forward_attempts_total`, `conduit_forward_duration_seconds` | (phase 4) | `full` profile only |
 | `conduit_forward_errors_total`, `conduit_retries_total`, `conduit_script_errors_total` | see profile table | `minimal` and `full` |
@@ -68,6 +70,7 @@ sum(rate(conduit_queries_total[5m])) by (listener, protocol)
 sum(rate(conduit_queries_by_pool_total[5m])) by (pool)
 sum(rate(conduit_parse_rejected_total[5m])) by (reason)
 sum(rate(conduit_responses_total[5m])) by (rcode)
+sum(rate(conduit_responses_truncated_total[5m])) by (listener, answer_source)
 sum(rate(conduit_forward_errors_total[5m])) by (pool, reason)
 sum(rate(conduit_script_errors_total[5m])) by (reason)
 sum(rate(conduit_responses_total[5m])) by (rcode, ip_family)   # full profile only

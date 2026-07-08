@@ -11,7 +11,8 @@ pools:
 caches:
   - name: global
     type: memory
-    cache_truncated_udp: true
+    truncated_udp:
+      enabled: true
 lookup:
   profiles:
     default:

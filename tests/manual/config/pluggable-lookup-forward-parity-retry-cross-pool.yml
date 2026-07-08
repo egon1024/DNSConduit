@@ -1,4 +1,4 @@
-# Gate B — SERVFAIL retry re-enters Lookup and fails over pool.
+# Forward parity — SERVFAIL retry re-enters Lookup and fails over pool.
 schema_version: 1
 listeners:
   threads: 1

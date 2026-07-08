@@ -39,6 +39,7 @@ pub struct MockHost {
     pub last_forward_ms: u64,
     pub answer_source: Option<String>,
     pub cache_instance: Option<String>,
+    pub cache_lookup_eligible: bool,
     pub phase: ScriptPhase,
 }
 
@@ -78,6 +79,7 @@ impl Default for MockHost {
             last_forward_ms: 0,
             answer_source: None,
             cache_instance: None,
+            cache_lookup_eligible: true,
             phase: ScriptPhase::Request,
         }
     }
@@ -260,6 +262,14 @@ impl HostTransaction for MockHost {
 
     fn last_forward_ms(&self) -> u64 {
         self.last_forward_ms
+    }
+
+    fn cache_lookup_eligible(&self) -> bool {
+        self.cache_lookup_eligible
+    }
+
+    fn set_cache_lookup_eligible(&mut self, eligible: bool) {
+        self.cache_lookup_eligible = eligible;
     }
 
     fn answer_source(&self) -> Option<&str> {

@@ -176,6 +176,7 @@ impl ForwardTransport {
         started: Instant,
     ) {
         txn.complete_forward_rtt(started);
+        txn.forward_metrics_recorded = true;
         let Some(hub) = self.metrics.as_ref() else {
             return;
         };

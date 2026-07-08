@@ -1,5 +1,5 @@
-# Gate C — cache → forward (sync); default on_hit.response_rules run.
-# Procedure: docs/superpowers/plans/2026-07-05-pluggable-lookup-gate-c-manual-lab.md
+# Cache fast path — cache → forward (sync), on_hit.response_rules skip (explicit).
+# Procedure: docs/superpowers/plans/2026-07-05-pluggable-lookup-cache-fast-path-manual-lab.md
 schema_version: 1
 listeners:
   threads: 1
@@ -32,6 +32,8 @@ caches:
       enabled: true
       nxdomain_covers_descendants: true
       servfail_ttl_secs: 10
+    on_hit:
+      response_rules: skip
 lookup:
   profiles:
     default:

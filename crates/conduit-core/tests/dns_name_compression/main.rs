@@ -91,7 +91,7 @@ fn hickory_compressed_response_fixture_round_trips() {
 #[test]
 fn build_error_response_reparses_client_query_after_upstream_style_roundtrip() {
     let query = valid_a_query_wire();
-    let wire = build_error_response(0x00_42, 2, &query, None);
+    let (wire, _, _) = build_error_response(0x00_42, 2, &query, None);
     let msg = Message::from_vec(&wire).unwrap();
     assert_eq!(
         msg.queries().first().unwrap().name().to_utf8(),

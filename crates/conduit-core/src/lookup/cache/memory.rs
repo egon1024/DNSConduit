@@ -209,7 +209,7 @@ mod tests {
     use super::*;
     use conduit_config::lookup::{
         CacheBackendType, CompiledCacheInstance, CompiledMemoryCache, CompiledNegativeCache,
-        EvictionMode, OnHitResponseRules,
+        CompiledTruncatedUdp, EvictionMode, OnHitResponseRules,
     };
 
     fn test_instance(max_entries: u64) -> CompiledCacheInstance {
@@ -222,8 +222,10 @@ mod tests {
                 servfail_ttl_secs: 10,
             },
             on_hit_response_rules: OnHitResponseRules::Run,
-            cache_truncated_udp: false,
-            truncated_udp_ttl_secs: 60,
+            truncated_udp: CompiledTruncatedUdp {
+                enabled: false,
+                ttl_secs: 60,
+            },
             rotate_rrset_on_serve: false,
             memory: CompiledMemoryCache {
                 shard_count: 4,

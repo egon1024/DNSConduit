@@ -302,4 +302,27 @@ mod tests {
         .unwrap();
         assert!(build_extra_json(&instance, &source_with_tags()).is_none());
     }
+
+    #[test]
+    fn answer_source_and_cache_instance_extra_fields() {
+        let instance = compile_one_sink(
+            &EventSink {
+                r#type: "dnstap".into(),
+                export_id: "x".into(),
+                destinations: vec!["unix:/tmp/x".into()],
+                emit: vec!["response".into()],
+                filters: None,
+                extra_fields: vec!["answer_source".into(), "cache_instance".into()],
+                extra_tags: vec![],
+                name: None,
+                connect_retry: None,
+            },
+            None,
+        )
+        .unwrap();
+        let json =
+            String::from_utf8(build_extra_json(&instance, &source_with_tags()).unwrap()).unwrap();
+        assert!(json.contains("\"answer_source\":\"cache\""));
+        assert!(json.contains("\"cache_instance\":\"global\""));
+    }
 }
