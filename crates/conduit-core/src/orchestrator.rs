@@ -223,17 +223,7 @@ impl Orchestrator {
                 if txn.current_phase == Phase::Send {
                     if let Some(hub) = metrics {
                         if hub.metrics_enabled() {
-                            let protocol = match txn.protocol {
-                                crate::transaction::ClientProtocol::Udp => "udp",
-                                crate::transaction::ClientProtocol::Tcp => "tcp",
-                            };
-                            let listener = txn.listener_label.as_deref().unwrap_or("unknown");
-                            hub.builtin.record_response(
-                                listener,
-                                protocol,
-                                txn.rcode(),
-                                &txn.client_addr,
-                            );
+                            record_send_completion_metrics(hub, txn);
                         }
                     }
                     if let Some(hub) = events {
@@ -314,17 +304,7 @@ impl Orchestrator {
                     if phase == Phase::Send {
                         if let Some(hub) = metrics {
                             if hub.metrics_enabled() {
-                                let protocol = match txn.protocol {
-                                    crate::transaction::ClientProtocol::Udp => "udp",
-                                    crate::transaction::ClientProtocol::Tcp => "tcp",
-                                };
-                                let listener = txn.listener_label.as_deref().unwrap_or("unknown");
-                                hub.builtin.record_response(
-                                    listener,
-                                    protocol,
-                                    txn.rcode(),
-                                    &txn.client_addr,
-                                );
+                                record_send_completion_metrics(hub, txn);
                             }
                         }
                         if let Some(hub) = events {
@@ -392,6 +372,35 @@ impl Orchestrator {
             ),
         }
     }
+}
+
+fn record_send_completion_metrics(hub: &MetricsHub, txn: &Transaction) {
+    let protocol = match txn.protocol {
+        crate::transaction::ClientProtocol::Udp => "udp",
+        crate::transaction::ClientProtocol::Tcp => "tcp",
+    };
+    let listener = txn.listener_label.as_deref().unwrap_or("unknown");
+    hub.builtin.record_response(
+        listener,
+        protocol,
+        txn.rcode(),
+        &txn.client_addr,
+        txn.answer_source.map(|s| s.as_str()),
+    );
+    if txn.udp_response_truncated_on_send {
+        hub.builtin.record_response_truncated(
+            listener,
+            protocol,
+            &txn.client_addr,
+            txn.answer_source.map(|s| s.as_str()),
+        );
+    }
+    hub.builtin.observe_response_duration(
+        txn.answer_source.map(|s| s.as_str()),
+        listener,
+        protocol,
+        txn.started_at.elapsed().as_secs_f64(),
+    );
 }
 
 fn phase_name(phase: Phase) -> &'static str {
@@ -963,5 +972,267 @@ mod tests {
             None,
         );
         assert_eq!(host.tags.has("sampled"), expected);
+    }
+
+    use crate::lookup::AnswerSource;
+    use std::sync::atomic::{AtomicU32, Ordering};
+
+    struct CountingForward {
+        calls: Arc<AtomicU32>,
+    }
+
+    impl PipelineStage for CountingForward {
+        fn name(&self) -> &'static str {
+            "counting_forward"
+        }
+
+        fn handle(&self, txn: &mut Transaction, _snapshot: &Arc<RuntimeSnapshot>) -> StageOutcome {
+            self.calls.fetch_add(1, Ordering::Relaxed);
+            let mut msg = Message::new();
+            msg.set_id(txn.dns_id);
+            msg.set_response_code(ResponseCode::NoError);
+            let mut buf = Vec::new();
+            let mut encoder = BinEncoder::new(&mut buf);
+            msg.emit(&mut encoder).unwrap();
+            txn.response_wire = Some(buf);
+            txn.set_rcode(0);
+            StageOutcome::Continue(Phase::WaitResponse)
+        }
+    }
+
+    struct ServfailForward {
+        calls: Arc<AtomicU32>,
+    }
+
+    impl PipelineStage for ServfailForward {
+        fn name(&self) -> &'static str {
+            "servfail_forward"
+        }
+
+        fn handle(&self, txn: &mut Transaction, _snapshot: &Arc<RuntimeSnapshot>) -> StageOutcome {
+            self.calls.fetch_add(1, Ordering::Relaxed);
+            let mut msg = Message::new();
+            msg.set_id(txn.dns_id);
+            msg.set_response_code(ResponseCode::ServFail);
+            let mut buf = Vec::new();
+            let mut encoder = BinEncoder::new(&mut buf);
+            msg.emit(&mut encoder).unwrap();
+            txn.response_wire = Some(buf);
+            txn.set_rcode(2);
+            StageOutcome::Continue(Phase::WaitResponse)
+        }
+    }
+
+    fn orchestrator_with_cache_and_forward(
+        forward: Arc<dyn PipelineStage>,
+    ) -> (Orchestrator, Arc<RuntimeSnapshot>, Arc<LookupCacheRegistry>) {
+        let snap = snapshot_from_fixture(include_str!(
+            "../../../tests/fixtures/config/lookup-cache-enabled.yaml"
+        ));
+        let cache = Arc::new(LookupCacheRegistry::from_snapshot(
+            &snap.lookup.cache_instances,
+        ));
+        let mut orch = Orchestrator::with_default_stages();
+        register_lookup_stage(&mut orch, forward, Some(cache.clone()));
+        (orch, snap, cache)
+    }
+
+    fn snapshot_cache_with_servfail_retry() -> Arc<RuntimeSnapshot> {
+        let mut cfg = load_yaml(include_str!(
+            "../../../tests/fixtures/config/lookup-cache-enabled.yaml"
+        ))
+        .unwrap();
+        let rules_cfg = load_yaml(include_str!(
+            "../../../tests/fixtures/config/with-rules.yaml"
+        ))
+        .unwrap();
+        cfg.rules = rules_cfg.rules;
+        cfg.pools = rules_cfg.pools;
+        cfg.orchestrator = rules_cfg.orchestrator;
+        assert!(conduit_config::validate(&cfg).ok);
+        Arc::new(RuntimeSnapshot::from_config_with_base(
+            cfg,
+            Some(&fixtures_config_base()),
+        ))
+    }
+
+    #[test]
+    fn cache_hit_skips_forward() {
+        let forward_calls = Arc::new(AtomicU32::new(0));
+        let (orch, snap, _cache) = orchestrator_with_cache_and_forward(Arc::new(CountingForward {
+            calls: forward_calls.clone(),
+        }));
+
+        let mut txn = Transaction::new(1, "127.0.0.1:15353".parse().unwrap(), ClientProtocol::Udp)
+            .with_query_wire(example_query());
+        let _ = orch.run(&mut txn, &snap, &SystemClock, None);
+        assert_eq!(forward_calls.load(Ordering::Relaxed), 1);
+        assert_eq!(txn.answer_source, Some(AnswerSource::Forward));
+
+        let mut txn2 = Transaction::new(2, "127.0.0.1:15353".parse().unwrap(), ClientProtocol::Udp)
+            .with_query_wire(example_query());
+        let _ = orch.run(&mut txn2, &snap, &SystemClock, None);
+        assert_eq!(
+            forward_calls.load(Ordering::Relaxed),
+            1,
+            "cache hit must not invoke forward again"
+        );
+        assert_eq!(txn2.answer_source, Some(AnswerSource::Cache));
+        assert_eq!(txn2.cache_instance.as_deref(), Some("global"));
+        assert_eq!(
+            txn2.rcode(),
+            Some(0),
+            "cache hit must set RCODE from cached wire"
+        );
+    }
+
+    #[test]
+    fn cache_miss_runs_forward() {
+        let forward_calls = Arc::new(AtomicU32::new(0));
+        let (orch, snap, _cache) = orchestrator_with_cache_and_forward(Arc::new(CountingForward {
+            calls: forward_calls.clone(),
+        }));
+
+        let mut txn = Transaction::new(1, "127.0.0.1:15353".parse().unwrap(), ClientProtocol::Udp)
+            .with_query_wire(example_query());
+        let _ = orch.run(&mut txn, &snap, &SystemClock, None);
+        assert_eq!(forward_calls.load(Ordering::Relaxed), 1);
+        assert_eq!(
+            txn.lookup_outcome,
+            Some(crate::lookup::LookupOutcome::Answered)
+        );
+    }
+
+    #[test]
+    fn cache_bypassed_when_lookup_not_eligible() {
+        let forward_calls = Arc::new(AtomicU32::new(0));
+        let (orch, snap, _cache) = orchestrator_with_cache_and_forward(Arc::new(CountingForward {
+            calls: forward_calls.clone(),
+        }));
+
+        let mut warm = Transaction::new(1, "127.0.0.1:15353".parse().unwrap(), ClientProtocol::Udp)
+            .with_query_wire(example_query());
+        let _ = orch.run(&mut warm, &snap, &SystemClock, None);
+        assert_eq!(forward_calls.load(Ordering::Relaxed), 1);
+
+        let mut txn = Transaction::new(2, "127.0.0.1:15353".parse().unwrap(), ClientProtocol::Udp)
+            .with_query_wire(example_query());
+        txn.cache_lookup_eligible = false;
+        let _ = orch.run(&mut txn, &snap, &SystemClock, None);
+        assert_eq!(
+            forward_calls.load(Ordering::Relaxed),
+            2,
+            "ineligible query must bypass cache and forward"
+        );
+        assert_eq!(txn.answer_source, Some(AnswerSource::Forward));
+    }
+
+    #[test]
+    fn retry_reenters_lookup_bypassing_cache() {
+        let forward_calls = Arc::new(AtomicU32::new(0));
+        let snap = snapshot_cache_with_servfail_retry();
+        let cache = Arc::new(LookupCacheRegistry::from_snapshot(
+            &snap.lookup.cache_instances,
+        ));
+        let mut orch = Orchestrator::with_default_stages();
+        register_lookup_stage(
+            &mut orch,
+            Arc::new(ServfailForward {
+                calls: forward_calls.clone(),
+            }),
+            Some(cache),
+        );
+
+        let mut txn = Transaction::new(3, "127.0.0.1:15353".parse().unwrap(), ClientProtocol::Udp)
+            .with_query_wire(example_query());
+        let _ = orch.run(&mut txn, &snap, &SystemClock, None);
+        assert!(
+            txn.attempts.len() >= 2,
+            "SERVFAIL retry should re-enter lookup, attempts={:?}",
+            txn.attempts
+        );
+        assert!(
+            forward_calls.load(Ordering::Relaxed) >= 2,
+            "retry must run forward again after cache bypass"
+        );
+        assert_eq!(txn.answer_source, Some(AnswerSource::Forward));
+    }
+
+    #[test]
+    fn cache_hit_trace_shows_provider_without_route() {
+        let forward_calls = Arc::new(AtomicU32::new(0));
+        let (orch, snap, _cache) = orchestrator_with_cache_and_forward(Arc::new(CountingForward {
+            calls: forward_calls.clone(),
+        }));
+
+        let mut cold = Transaction::new(1, "127.0.0.1:15353".parse().unwrap(), ClientProtocol::Udp)
+            .with_query_wire(example_query());
+        cold.trace_log = Some(conduit_metrics::TraceLog::default());
+        let _ = orch.run(&mut cold, &snap, &SystemClock, None);
+        assert_eq!(forward_calls.load(Ordering::Relaxed), 1);
+
+        let events = cold.trace_log.as_ref().expect("trace").events.clone();
+        assert!(
+            events
+                .iter()
+                .any(|e| e.message.as_deref() == Some("provider cache miss")),
+            "cold miss: {:?}",
+            events
+        );
+        assert!(
+            events
+                .iter()
+                .any(|e| e.message.as_deref() == Some("provider forward answered")),
+            "cold miss: {:?}",
+            events
+        );
+
+        let mut warm = Transaction::new(2, "127.0.0.1:15353".parse().unwrap(), ClientProtocol::Udp)
+            .with_query_wire(example_query());
+        warm.trace_log = Some(conduit_metrics::TraceLog::default());
+        let _ = orch.run(&mut warm, &snap, &SystemClock, None);
+        assert_eq!(forward_calls.load(Ordering::Relaxed), 1);
+
+        let warm_events = warm.trace_log.as_ref().expect("trace").events.clone();
+        assert!(
+            warm_events
+                .iter()
+                .any(|e| e.message.as_deref() == Some("provider cache answered")),
+            "warm hit: {:?}",
+            warm_events
+        );
+        assert!(
+            !warm_events.iter().any(|e| {
+                e.message.as_deref() == Some("route selected backend")
+                    || e.message.as_deref() == Some("provider forward answered")
+            }),
+            "cache hit must not record forward route: {:?}",
+            warm_events
+        );
+    }
+
+    #[test]
+    fn warm_cache_hit_serves_without_forward() {
+        let forward_calls = Arc::new(AtomicU32::new(0));
+        let (orch, snap, _cache) = orchestrator_with_cache_and_forward(Arc::new(CountingForward {
+            calls: forward_calls.clone(),
+        }));
+
+        let mut cold = Transaction::new(1, "127.0.0.1:15353".parse().unwrap(), ClientProtocol::Udp)
+            .with_query_wire(example_query());
+        let _ = orch.run(&mut cold, &snap, &SystemClock, None);
+        assert_eq!(forward_calls.load(Ordering::Relaxed), 1);
+        assert_eq!(cold.answer_source, Some(AnswerSource::Forward));
+
+        let mut warm = Transaction::new(2, "127.0.0.1:15353".parse().unwrap(), ClientProtocol::Udp)
+            .with_query_wire(example_query());
+        let _ = orch.run(&mut warm, &snap, &SystemClock, None);
+        assert_eq!(
+            forward_calls.load(Ordering::Relaxed),
+            1,
+            "warm hit must not invoke forward"
+        );
+        assert_eq!(warm.answer_source, Some(AnswerSource::Cache));
+        assert_eq!(warm.rcode(), Some(0));
     }
 }

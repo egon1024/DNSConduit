@@ -40,6 +40,8 @@ pub struct ScrapeGaugeSnapshot {
     pub health_backends: Vec<HealthScrapeBackend>,
     /// Active (eligible) backend count per health-enabled pool.
     pub pool_backends_active: Vec<(String, u32)>,
+    /// Approximate live cache entry count per named instance (full profile gauge).
+    pub cache_entry_counts: Vec<(String, u64)>,
 }
 
 /// One backend row for health Prometheus series (phase 1c §10).
@@ -109,12 +111,31 @@ enum ResponsesTotal {
     Full(IntCounterVec),
 }
 
+enum ResponsesTruncatedTotal {
+    Minimal(IntCounterVec),
+    Full(IntCounterVec),
+}
+
+enum ResponseDuration {
+    Full(HistogramVec),
+}
+
 pub struct BuiltinRegistry {
     enabled: bool,
     profile: BuiltinProfile,
     registry: Registry,
     queries_total: QueriesTotal,
     responses_total: Option<ResponsesTotal>,
+    responses_truncated_total: Option<ResponsesTruncatedTotal>,
+    response_duration: Option<ResponseDuration>,
+    lookup_provider_outcomes: Option<IntCounterVec>,
+    cache_lookups: Option<IntCounterVec>,
+    cache_fills: Option<IntCounterVec>,
+    cache_singleflight_coalesced: Option<IntCounterVec>,
+    lookup_duration: Option<HistogramVec>,
+    cache_lookup_duration: Option<HistogramVec>,
+    cache_evictions: Option<IntCounterVec>,
+    cache_entries: Option<GaugeVec>,
     parse_rejected_total: Option<IntCounterVec>,
     queries_by_pool_total: IntCounterVec,
     phase_duration: HistogramVec,
@@ -182,7 +203,13 @@ impl BuiltinRegistry {
             if is_full {
                 let v = IntCounterVec::new(
                     Opts::new("conduit_responses_total", "DNS responses sent to clients"),
-                    &["listener", "protocol", "rcode", "ip_family"],
+                    &[
+                        "listener",
+                        "protocol",
+                        "rcode",
+                        "ip_family",
+                        "answer_source",
+                    ],
                 )
                 .expect("metric");
                 registry.register(Box::new(v.clone())).expect("register");
@@ -190,7 +217,7 @@ impl BuiltinRegistry {
             } else {
                 let v = IntCounterVec::new(
                     Opts::new("conduit_responses_total", "DNS responses sent to clients"),
-                    &["listener", "protocol", "rcode"],
+                    &["listener", "protocol", "rcode", "answer_source"],
                 )
                 .expect("metric");
                 registry.register(Box::new(v.clone())).expect("register");
@@ -198,6 +225,153 @@ impl BuiltinRegistry {
             }
         } else {
             None
+        };
+
+        let responses_truncated_total = if effective {
+            if is_full {
+                let v = IntCounterVec::new(
+                    Opts::new(
+                        "conduit_responses_truncated_total",
+                        "UDP responses clipped to client payload size with TC set on send",
+                    ),
+                    &["listener", "protocol", "ip_family", "answer_source"],
+                )
+                .expect("metric");
+                registry.register(Box::new(v.clone())).expect("register");
+                Some(ResponsesTruncatedTotal::Full(v))
+            } else {
+                let v = IntCounterVec::new(
+                    Opts::new(
+                        "conduit_responses_truncated_total",
+                        "UDP responses clipped to client payload size with TC set on send",
+                    ),
+                    &["listener", "protocol", "answer_source"],
+                )
+                .expect("metric");
+                registry.register(Box::new(v.clone())).expect("register");
+                Some(ResponsesTruncatedTotal::Minimal(v))
+            }
+        } else {
+            None
+        };
+
+        let response_duration = if effective && is_full {
+            let v = HistogramVec::new(
+                HistogramOpts::new(
+                    "conduit_response_duration_seconds",
+                    "End-to-end client response time by answer source",
+                )
+                .buckets(phase_duration_buckets()),
+                &["answer_source", "listener", "protocol"],
+            )
+            .expect("metric");
+            registry.register(Box::new(v.clone())).expect("register");
+            Some(ResponseDuration::Full(v))
+        } else {
+            None
+        };
+
+        let lookup_provider_outcomes = if effective {
+            let v = IntCounterVec::new(
+                Opts::new(
+                    "conduit_lookup_provider_outcomes_total",
+                    "Terminal lookup provider outcomes per attempt",
+                ),
+                &["profile", "provider", "outcome"],
+            )
+            .expect("metric");
+            registry.register(Box::new(v.clone())).expect("register");
+            Some(v)
+        } else {
+            None
+        };
+
+        let cache_lookups = if effective {
+            let v = IntCounterVec::new(
+                Opts::new("conduit_cache_lookups_total", "Cache read path results"),
+                &["cache", "profile", "result"],
+            )
+            .expect("metric");
+            registry.register(Box::new(v.clone())).expect("register");
+            Some(v)
+        } else {
+            None
+        };
+
+        let (
+            cache_fills,
+            cache_singleflight_coalesced,
+            lookup_duration,
+            cache_lookup_duration,
+            cache_evictions,
+            cache_entries,
+        ) = if effective && is_full {
+            let fills = IntCounterVec::new(
+                Opts::new(
+                    "conduit_cache_fills_total",
+                    "Successful cache stores after upstream answers",
+                ),
+                &["cache", "profile"],
+            )
+            .expect("metric");
+            let coalesced = IntCounterVec::new(
+                Opts::new(
+                    "conduit_cache_singleflight_coalesced_total",
+                    "Cache single-flight waiters served from in-flight fill",
+                ),
+                &["cache", "profile"],
+            )
+            .expect("metric");
+            let lookup_dur = HistogramVec::new(
+                HistogramOpts::new(
+                    "conduit_lookup_duration_seconds",
+                    "Wall time in lookup provider attempt",
+                )
+                .buckets(phase_duration_buckets()),
+                &["profile", "provider"],
+            )
+            .expect("metric");
+            let cache_dur = HistogramVec::new(
+                HistogramOpts::new(
+                    "conduit_cache_lookup_duration_seconds",
+                    "Cache read path latency",
+                )
+                .buckets(phase_duration_buckets()),
+                &["cache", "profile"],
+            )
+            .expect("metric");
+            let evictions = IntCounterVec::new(
+                Opts::new("conduit_cache_evictions_total", "Cache entry evictions"),
+                &["cache", "reason"],
+            )
+            .expect("metric");
+            let entries = GaugeVec::new(
+                Opts::new(
+                    "conduit_cache_entries",
+                    "Approximate live cache entries per instance",
+                ),
+                &["cache"],
+            )
+            .expect("metric");
+            for m in [&fills, &coalesced, &evictions] {
+                registry.register(Box::new(m.clone())).expect("register");
+            }
+            for m in [&lookup_dur, &cache_dur] {
+                registry.register(Box::new(m.clone())).expect("register");
+            }
+            registry
+                .register(Box::new(entries.clone()))
+                .expect("register");
+            (
+                Some(fills),
+                Some(coalesced),
+                Some(lookup_dur),
+                Some(cache_dur),
+                Some(evictions),
+                Some(entries),
+            )
+        } else {
+            (None, None, None, None, None, None)
         };
 
         let parse_rejected_total = if effective {
@@ -573,6 +747,16 @@ impl BuiltinRegistry {
             registry,
             queries_total,
             responses_total,
+            responses_truncated_total,
+            response_duration,
+            lookup_provider_outcomes,
+            cache_lookups,
+            cache_fills,
+            cache_singleflight_coalesced,
+            lookup_duration,
+            cache_lookup_duration,
+            cache_evictions,
+            cache_entries,
             parse_rejected_total,
             queries_by_pool_total,
             phase_duration,
@@ -669,23 +853,133 @@ impl BuiltinRegistry {
         protocol: &str,
         rcode: Option<u16>,
         client_addr: &std::net::SocketAddr,
+        answer_source: Option<&str>,
     ) {
         if !self.enabled {
             return;
         }
+        let answer_source = answer_source.unwrap_or("");
         if let Some(ref responses) = self.responses_total {
             match responses {
                 ResponsesTotal::Minimal(c) => {
                     let rcode = rcode_class_label(rcode);
-                    c.with_label_values(&[listener, protocol, rcode]).inc();
+                    c.with_label_values(&[listener, protocol, rcode, answer_source])
+                        .inc();
                 }
                 ResponsesTotal::Full(c) => {
                     let rcode = rcode_label(rcode);
                     let ip_family = ip_family_label(client_addr);
-                    c.with_label_values(&[listener, protocol, rcode, ip_family])
+                    c.with_label_values(&[listener, protocol, rcode, ip_family, answer_source])
                         .inc();
                 }
             }
+        }
+    }
+
+    pub fn record_response_truncated(
+        &self,
+        listener: &str,
+        protocol: &str,
+        client_addr: &std::net::SocketAddr,
+        answer_source: Option<&str>,
+    ) {
+        if !self.enabled {
+            return;
+        }
+        let answer_source = answer_source.unwrap_or("");
+        if let Some(ref responses) = self.responses_truncated_total {
+            match responses {
+                ResponsesTruncatedTotal::Minimal(c) => {
+                    c.with_label_values(&[listener, protocol, answer_source])
+                        .inc();
+                }
+                ResponsesTruncatedTotal::Full(c) => {
+                    let ip_family = ip_family_label(client_addr);
+                    c.with_label_values(&[listener, protocol, ip_family, answer_source])
+                        .inc();
+                }
+            }
+        }
+    }
+
+    pub fn observe_response_duration(
+        &self,
+        answer_source: Option<&str>,
+        listener: &str,
+        protocol: &str,
+        duration_secs: f64,
+    ) {
+        if !self.enabled || self.profile != BuiltinProfile::Full {
+            return;
+        }
+        if let Some(ResponseDuration::Full(h)) = self.response_duration.as_ref() {
+            h.with_label_values(&[answer_source.unwrap_or(""), listener, protocol])
+                .observe(duration_secs);
+        }
+    }
+
+    pub fn record_lookup_provider_outcome(&self, profile: &str, provider: &str, outcome: &str) {
+        if !self.enabled {
+            return;
+        }
+        if let Some(c) = self.lookup_provider_outcomes.as_ref() {
+            c.with_label_values(&[profile, provider, outcome]).inc();
+        }
+    }
+
+    pub fn record_cache_lookup(&self, cache: &str, profile: &str, result: &str) {
+        if !self.enabled {
+            return;
+        }
+        if let Some(c) = self.cache_lookups.as_ref() {
+            c.with_label_values(&[cache, profile, result]).inc();
+        }
+    }
+
+    pub fn record_cache_fill(&self, cache: &str, profile: &str) {
+        if !self.enabled || self.profile != BuiltinProfile::Full {
+            return;
+        }
+        if let Some(c) = self.cache_fills.as_ref() {
+            c.with_label_values(&[cache, profile]).inc();
+        }
+    }
+
+    pub fn record_cache_singleflight_coalesced(&self, cache: &str, profile: &str) {
+        if !self.enabled || self.profile != BuiltinProfile::Full {
+            return;
+        }
+        if let Some(c) = self.cache_singleflight_coalesced.as_ref() {
+            c.with_label_values(&[cache, profile]).inc();
+        }
+    }
+
+    pub fn observe_lookup_duration(&self, profile: &str, provider: &str, duration_secs: f64) {
+        if !self.enabled || self.profile != BuiltinProfile::Full {
+            return;
+        }
+        if let Some(h) = self.lookup_duration.as_ref() {
+            h.with_label_values(&[profile, provider])
+                .observe(duration_secs);
+        }
+    }
+
+    pub fn observe_cache_lookup_duration(&self, cache: &str, profile: &str, duration_secs: f64) {
+        if !self.enabled || self.profile != BuiltinProfile::Full {
+            return;
+        }
+        if let Some(h) = self.cache_lookup_duration.as_ref() {
+            h.with_label_values(&[cache, profile])
+                .observe(duration_secs);
+        }
+    }
+
+    pub fn record_cache_eviction(&self, cache: &str, reason: &str) {
+        if !self.enabled || self.profile != BuiltinProfile::Full {
+            return;
+        }
+        if let Some(c) = self.cache_evictions.as_ref() {
+            c.with_label_values(&[cache, reason]).inc();
         }
     }
 
@@ -919,6 +1213,15 @@ impl BuiltinRegistry {
 
         self.refresh_health_scrape_gauges(&snapshot);
 
+        if let Some(gauge) = self.cache_entries.as_ref() {
+            gauge.reset();
+            for (cache, count) in &snapshot.cache_entry_counts {
+                gauge
+                    .with_label_values(&[cache.as_str()])
+                    .set(*count as f64);
+            }
+        }
+
         if self.profile == BuiltinProfile::Full {
             if let Some(ref rss) = self.process_resident_bytes {
                 rss.set(read_resident_bytes().unwrap_or(0) as f64);
@@ -950,6 +1253,11 @@ impl BuiltinRegistry {
             "reason",
             "rcode",
             "phase",
+            "profile",
+            "provider",
+            "cache",
+            "result",
+            "answer_source",
         ]
     }
 }
@@ -1167,6 +1475,7 @@ mod tests {
             ],
             health_backends: Vec::new(),
             pool_backends_active: Vec::new(),
+            cache_entry_counts: Vec::new(),
         }));
         let body = encode_builtin(reg.gather());
         assert!(body.contains("conduit_config_generation 7"));
@@ -1246,11 +1555,37 @@ mod tests {
     }
 
     #[test]
+    fn responses_truncated_joinable_with_responses_labels() {
+        let reg = BuiltinRegistry::new(true, BuiltinProfile::Minimal);
+        let addr: std::net::SocketAddr = "127.0.0.1:15353".parse().unwrap();
+        reg.record_response_truncated("ln", "udp", &addr, Some("cache"));
+        reg.record_response_truncated("ln", "udp", &addr, Some("forward"));
+        let body = encode_builtin(reg.gather());
+        assert!(
+            body.contains("conduit_responses_truncated_total"),
+            "body:\n{body}"
+        );
+        assert!(body.contains(r#"answer_source="cache""#), "body:\n{body}");
+        assert!(
+            !body.contains("ip_family="),
+            "minimal truncated responses omit ip_family, body:\n{body}"
+        );
+
+        let reg = BuiltinRegistry::new(true, BuiltinProfile::Full);
+        reg.record_response_truncated("ln", "udp", &addr, Some("cache"));
+        let body = encode_builtin(reg.gather());
+        assert!(
+            body.contains(r#"ip_family="v4""#),
+            "full truncated responses include ip_family, body:\n{body}"
+        );
+    }
+
+    #[test]
     fn minimal_profile_responses_use_coarse_rcode_buckets() {
         let reg = BuiltinRegistry::new(true, BuiltinProfile::Minimal);
         let addr: std::net::SocketAddr = "127.0.0.1:15353".parse().unwrap();
-        reg.record_response("ln", "udp", Some(9), &addr);
-        reg.record_response("ln", "udp", Some(0), &addr);
+        reg.record_response("ln", "udp", Some(9), &addr, Some("forward"));
+        reg.record_response("ln", "udp", Some(0), &addr, Some("cache"));
         let body = encode_builtin(reg.gather());
         assert!(body.contains("conduit_responses_total"), "body:\n{body}");
         assert!(
@@ -1268,7 +1603,7 @@ mod tests {
     fn full_profile_responses_use_per_rcode_labels() {
         let reg = BuiltinRegistry::new(true, BuiltinProfile::Full);
         let addr: std::net::SocketAddr = "127.0.0.1:15353".parse().unwrap();
-        reg.record_response("ln", "udp", Some(9), &addr);
+        reg.record_response("ln", "udp", Some(9), &addr, None);
         let body = encode_builtin(reg.gather());
         assert!(
             body.contains(r#"rcode="NOTAUTH""#),
@@ -1282,6 +1617,56 @@ mod tests {
             !body.contains(r#"rcode_class="#),
             "label renamed to rcode, body:\n{body}"
         );
+    }
+
+    #[test]
+    fn lookup_cache_metrics_respect_profile_tiers() {
+        for profile in [BuiltinProfile::Minimal, BuiltinProfile::Full] {
+            let reg = BuiltinRegistry::new(true, profile);
+            let addr: std::net::SocketAddr = "127.0.0.1:15353".parse().unwrap();
+            reg.record_lookup_provider_outcome("default", "cache", "answered");
+            reg.record_lookup_provider_outcome("default", "forward", "answered");
+            reg.record_cache_lookup("global", "default", "hit");
+            reg.record_cache_lookup("global", "default", "miss");
+            reg.record_cache_fill("global", "default");
+            reg.record_cache_singleflight_coalesced("global", "default");
+            reg.observe_lookup_duration("default", "cache", 0.001);
+            reg.observe_cache_lookup_duration("global", "default", 0.0005);
+            reg.record_response("ln", "udp", Some(0), &addr, Some("cache"));
+            let body = encode_builtin(reg.gather());
+            assert!(
+                body.contains("conduit_lookup_provider_outcomes_total"),
+                "{profile:?} body:\n{body}"
+            );
+            assert!(
+                body.contains(r#"provider="cache""#) && body.contains(r#"profile="default""#),
+                "{profile:?} body:\n{body}"
+            );
+            assert!(
+                body.contains("conduit_cache_lookups_total"),
+                "{profile:?} body:\n{body}"
+            );
+            assert!(
+                body.contains(r#"answer_source="cache""#),
+                "{profile:?} body:\n{body}"
+            );
+            if profile == BuiltinProfile::Full {
+                assert!(body.contains("conduit_cache_fills_total"), "body:\n{body}");
+                assert!(
+                    body.contains("conduit_cache_singleflight_coalesced_total"),
+                    "body:\n{body}"
+                );
+                assert!(
+                    body.contains("conduit_lookup_duration_seconds"),
+                    "body:\n{body}"
+                );
+            } else {
+                assert!(
+                    !body.contains("conduit_cache_fills_total"),
+                    "minimal must omit full-only series, body:\n{body}"
+                );
+            }
+        }
     }
 
     #[test]

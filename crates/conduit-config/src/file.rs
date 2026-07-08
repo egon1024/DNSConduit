@@ -9,12 +9,12 @@ use crate::defaults::{
 use crate::error::ConfigError;
 use conduit_proto::config::{
     Action, Backend, CacheInstance, CacheKeyAugmentConfig, CacheKeyConfig, CacheMemoryConfig,
-    CacheNegativeConfig, CacheOnHitConfig, Config, ControlConfig, ControlTlsConfig, DataSource,
-    DataSourceLimits, DataplaneConfig, EventSinkFilters, EventsConfig, ForwardConfig, HealthCheck,
-    Listener, ListenersConfig, LoggingConfig, LookupConfig, LookupProfile, LookupProvider,
-    MetricsConfig, OrchestratorConfig, OtelMetricsConfig, Pool, PrometheusMetricsConfig,
-    RhaiConfig, Rule, RulesConfig, Selector, ShutdownConfig, TracingActivation, TracingConfig,
-    TracingOutput, UserMetricExportConfig,
+    CacheNegativeConfig, CacheOnHitConfig, CacheTruncatedUdpConfig, Config, ControlConfig,
+    ControlTlsConfig, DataSource, DataSourceLimits, DataplaneConfig, EventSinkFilters,
+    EventsConfig, ForwardConfig, HealthCheck, Listener, ListenersConfig, LoggingConfig,
+    LookupConfig, LookupProfile, LookupProvider, MetricsConfig, OrchestratorConfig,
+    OtelMetricsConfig, Pool, PrometheusMetricsConfig, RhaiConfig, Rule, RulesConfig, Selector,
+    ShutdownConfig, TracingActivation, TracingConfig, TracingOutput, UserMetricExportConfig,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -813,9 +813,7 @@ pub(crate) struct YamlCacheInstance {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     on_hit: Option<YamlCacheOnHitConfig>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    cache_truncated_udp: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    truncated_udp_ttl_secs: Option<u32>,
+    truncated_udp: Option<YamlCacheTruncatedUdpConfig>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     rotate_rrset_on_serve: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -834,6 +832,14 @@ pub(crate) struct YamlCacheNegativeConfig {
     nxdomain_covers_descendants: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     servfail_ttl_secs: Option<u32>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Default)]
+pub(crate) struct YamlCacheTruncatedUdpConfig {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    enabled: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    ttl_secs: Option<u32>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -1349,8 +1355,7 @@ impl From<YamlCacheInstance> for CacheInstance {
             r#type: y.cache_type,
             negative_cache: y.negative_cache.map(Into::into),
             on_hit: y.on_hit.map(Into::into),
-            cache_truncated_udp: y.cache_truncated_udp,
-            truncated_udp_ttl_secs: y.truncated_udp_ttl_secs,
+            truncated_udp: y.truncated_udp.map(Into::into),
             rotate_rrset_on_serve: y.rotate_rrset_on_serve,
             memory: y.memory.map(Into::into),
             key: y.key.map(Into::into),
@@ -1365,6 +1370,15 @@ impl From<YamlCacheNegativeConfig> for CacheNegativeConfig {
             enabled: y.enabled,
             nxdomain_covers_descendants: y.nxdomain_covers_descendants,
             servfail_ttl_secs: y.servfail_ttl_secs,
+        }
+    }
+}
+
+impl From<YamlCacheTruncatedUdpConfig> for CacheTruncatedUdpConfig {
+    fn from(y: YamlCacheTruncatedUdpConfig) -> Self {
+        CacheTruncatedUdpConfig {
+            enabled: y.enabled,
+            ttl_secs: y.ttl_secs,
         }
     }
 }
@@ -1868,8 +1882,10 @@ impl From<&CacheInstance> for YamlCacheInstance {
             cache_type: c.r#type.clone(),
             negative_cache: c.negative_cache.as_ref().map(YamlCacheNegativeConfig::from),
             on_hit: c.on_hit.as_ref().map(YamlCacheOnHitConfig::from),
-            cache_truncated_udp: c.cache_truncated_udp,
-            truncated_udp_ttl_secs: c.truncated_udp_ttl_secs,
+            truncated_udp: c
+                .truncated_udp
+                .as_ref()
+                .map(YamlCacheTruncatedUdpConfig::from),
             rotate_rrset_on_serve: c.rotate_rrset_on_serve,
             memory: c.memory.as_ref().map(YamlCacheMemoryConfig::from),
             key: c.key.as_ref().map(YamlCacheKeyConfig::from),
@@ -1884,6 +1900,15 @@ impl From<&CacheNegativeConfig> for YamlCacheNegativeConfig {
             enabled: n.enabled,
             nxdomain_covers_descendants: n.nxdomain_covers_descendants,
             servfail_ttl_secs: n.servfail_ttl_secs,
+        }
+    }
+}
+
+impl From<&CacheTruncatedUdpConfig> for YamlCacheTruncatedUdpConfig {
+    fn from(t: &CacheTruncatedUdpConfig) -> Self {
+        YamlCacheTruncatedUdpConfig {
+            enabled: t.enabled,
+            ttl_secs: t.ttl_secs,
         }
     }
 }

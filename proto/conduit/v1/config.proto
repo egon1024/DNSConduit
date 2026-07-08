@@ -289,12 +289,19 @@ message CacheInstance {
   string type = 2;              // "memory" (v1) | "lmdb" | "ebpf_map" (reserved)
   optional CacheNegativeConfig negative_cache = 3;
   optional CacheOnHitConfig on_hit = 4;
-  optional bool cache_truncated_udp = 5;
-  optional uint32 truncated_udp_ttl_secs = 6;
+  reserved 5, 6;
+  reserved "cache_truncated_udp", "truncated_udp_ttl_secs";
   optional bool rotate_rrset_on_serve = 7;
   optional CacheMemoryConfig memory = 8;
   optional CacheKeyConfig key = 9;  // reserved: key augmenters
   optional uint64 max_entries = 10;
+  optional CacheTruncatedUdpConfig truncated_udp = 11;
+}
+
+// Opt-in TC=1 UDP answer caching (separate transport key and ttl_secs override).
+message CacheTruncatedUdpConfig {
+  optional bool enabled = 1;        // default false
+  optional uint32 ttl_secs = 2;     // required and > 0 when enabled
 }
 
 message CacheNegativeConfig {

@@ -21,6 +21,7 @@ Both profiles record metrics **while handling queries** on listener workers (the
 - [`conduit_queries_total`](#conduit_queries_total) with `listener` and `protocol` only
 - [`conduit_queries_by_pool_total`](#conduit_queries_by_pool_total) per `pool`
 - [`conduit_responses_total`](#conduit_responses_total) with coarse `rcode` buckets
+- [`conduit_responses_truncated_total`](#conduit_responses_truncated_total) — UDP send-path truncation (joinable with responses)
 - Failure counters: [`conduit_parse_rejected_total`](#conduit_parse_rejected_total), [`conduit_forward_errors_total`](#conduit_forward_errors_total), [`conduit_retries_total`](#conduit_retries_total), [`conduit_script_errors_total`](#conduit_script_errors_total)
 
 Use **`minimal`** when you want query volume, pool mix, response mix, and alertable failure signals without per-qtype detail, forward latency histograms, or per-phase timing on the hot path.
@@ -43,7 +44,8 @@ Use **`full`** for day-two operations, SLO dashboards, and debugging upstream or
 | [`conduit_queries_total`](#conduit_queries_total) | `listener`, `protocol` | + `qtype`, `qclass`, `ip_family` | — |
 | [`conduit_queries_by_pool_total`](#conduit_queries_by_pool_total) | yes (`pool`) | yes | — |
 | [`conduit_parse_rejected_total`](#conduit_parse_rejected_total) | yes (`reason`) | yes | — |
-| [`conduit_responses_total`](#conduit_responses_total) | yes (`listener`, `protocol`, coarse `rcode`) | yes (+ fine `rcode`, `ip_family`) | — |
+| [`conduit_responses_total`](#conduit_responses_total) | yes (`listener`, `protocol`, coarse `rcode`, `answer_source`) | yes (+ fine `rcode`, `ip_family`) | — |
+| [`conduit_responses_truncated_total`](#conduit_responses_truncated_total) | yes (`listener`, `protocol`, `answer_source`) | yes (+ `ip_family`) | — |
 | [`conduit_forward_errors_total`](#conduit_forward_errors_total) | yes (`pool`, `backend`, `reason`) | yes | — |
 | [`conduit_retries_total`](#conduit_retries_total) | yes (`pool`) | yes | — |
 | [`conduit_script_errors_total`](#conduit_script_errors_total) | yes (`reason`, `script`, `table`) | yes | — |
@@ -175,9 +177,11 @@ Bucket upper bounds (seconds): 1 ms, 10 ms, 50 ms, 100 ms, 500 ms, 1 s, 5 s, 10 
 | | |
 |--|--|
 | **Type** | Counter |
-| **Labels (`minimal`)** | `listener`, `protocol`, `rcode` |
+| **Labels (`minimal`)** | `listener`, `protocol`, `rcode`, `answer_source` |
 | **Labels (`full`)** | above + `ip_family` (`v4` / `v6`) |
 | **When** | [Send](/concepts/architecture-and-packet-path.md#send) completes — upstream answer or synthesized error |
+
+`answer_source` is `cache` or `forward` when the lookup spine produced the answer; empty when unknown (for example some synthesized errors).
 
 Both profiles use the label name **`rcode`**, but bucketing differs:
 
@@ -187,6 +191,27 @@ Both profiles use the label name **`rcode`**, but bucketing differs:
 | **`full`** | Per-IANA names for codes 0–23 (for example `FORMERR`, `NOTAUTH`, `BADCOOKIE`); unknown codes → `OTHER` |
 
 **Breaking change (full profile):** the label is **`rcode`**, not **`rcode_class`**. PromQL or dashboards that group on **`rcode_class`** must use **`rcode`** instead; the full profile can split on individual IANA codes.
+
+### conduit_responses_truncated_total { #conduit_responses_truncated_total }
+
+| | |
+|--|--|
+| **Type** | Counter |
+| **Labels (`minimal`)** | `listener`, `protocol`, `answer_source` |
+| **Labels (`full`)** | above + `ip_family` (`v4` / `v6`) |
+| **Profile** | `minimal` and `full` |
+| **When** | [Send](/concepts/architecture-and-packet-path.md#send) clips outbound **UDP** wire to the client's payload size (EDNS bufsize or 512-byte default) and sets the **TC** bit |
+
+Incremented at most once per transaction, alongside [`conduit_responses_total`](#conduit_responses_total). Labels align so you can compare truncation rate by listener, protocol, and how the answer was produced (`cache` vs `forward`). Truncation is **egress** behavior — it can happen for cache hits when the stored wire exceeds the client's bufsize, not only on forward paths.
+
+PromQL example (truncation share of responses):
+
+```promql
+sum(rate(conduit_responses_truncated_total[5m])) by (listener, answer_source)
+  / sum(rate(conduit_responses_total[5m])) by (listener, answer_source)
+```
+
+Enable **`debug`** logging to see per-transaction truncation detail (`wire_len_before`, `wire_len_after`, `client_udp_payload_size`).
 
 ### Policy drops (no built-in counter) { #policy-drops-no-built-in-counter }
 
@@ -502,6 +527,7 @@ sum(rate(conduit_queries_by_pool_total[5m])) by (pool)
 sum(rate(conduit_parse_rejected_total[5m])) by (reason)
 sum(rate(conduit_responses_total[5m])) by (rcode)
 sum(rate(conduit_responses_total[5m])) by (rcode, ip_family)   # full profile only
+sum(rate(conduit_responses_truncated_total[5m])) by (listener, answer_source)
 sum(rate(conduit_forward_errors_total[5m])) by (pool, backend, reason)
 sum(rate(conduit_script_errors_total[5m])) by (reason)
 histogram_quantile(0.99, sum(rate(conduit_forward_duration_seconds_bucket[5m])) by (le, pool))

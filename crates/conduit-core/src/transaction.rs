@@ -82,6 +82,8 @@ pub struct Transaction {
     pub listener_label: Option<String>,
     pub protocol: ClientProtocol,
     pub client_udp_payload_size: Option<u16>,
+    /// Set when Send clips outbound UDP wire to client payload size and sets TC=1.
+    pub udp_response_truncated_on_send: bool,
     pub selected_pool: Option<String>,
     pub selected_backend: Option<SocketAddr>,
     /// Logical label for the selected backend: configured `name` when set, else address.
@@ -115,6 +117,8 @@ pub struct Transaction {
     pub pre_parsed: bool,
     /// Wall time when the pipeline suspended (split_io I/O park); used for Lookup phase metrics.
     pub suspend_phase_started_at: Option<Instant>,
+    /// Set when sync forward (or submit resume) already recorded conduit_forward_* metrics.
+    pub forward_metrics_recorded: bool,
     /// Active lookup profile name (default when unset).
     pub lookup_profile: Option<String>,
     /// Outcome of the most recent lookup provider attempt.
@@ -169,6 +173,7 @@ impl Transaction {
             listener_label: None,
             protocol,
             client_udp_payload_size: None,
+            udp_response_truncated_on_send: false,
             selected_pool: None,
             selected_backend: None,
             selected_backend_label: None,
@@ -189,6 +194,7 @@ impl Transaction {
             trace_log: None,
             pre_parsed: false,
             suspend_phase_started_at: None,
+            forward_metrics_recorded: false,
             lookup_profile: None,
             lookup_outcome: None,
             answer_source: None,

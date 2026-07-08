@@ -1,6 +1,4 @@
-# Gate B — health-aware routing through Lookup (split_io, implicit default profile).
-#
-# Same health topology as pluggable-lookup-sync-health.yml; split_io runtime for suspend/resume on forward.
+# Forward parity — implicit default + split_io.
 schema_version: 1
 dataplane:
   runtime: split_io
@@ -25,20 +23,9 @@ events:
   drop_policy: drop_oldest
 pools:
   - name: default
-    health:
-      enabled: true
-      interval_ms: 1000
-      timeout_ms: 1000
-      rise: 3
-      fall: 2
-      probe_qname: "health-probe.example."
-      probe_qtype: A
     backends:
       - address: "127.0.2.1:15300"
-        name: live
-        weight: 100
-      - address: "127.0.2.1:15399"
-        name: dead
+        name: resolver-east
         weight: 100
 control:
   listen_address: "127.0.2.1:5199"

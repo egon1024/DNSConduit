@@ -1,8 +1,8 @@
 //! Compiled lookup profiles and named cache instances (pluggable-lookup-system).
 
 use conduit_proto::config::{
-    CacheInstance, CacheMemoryConfig, CacheNegativeConfig, CacheOnHitConfig, Config, LookupProfile,
-    LookupProvider,
+    CacheInstance, CacheMemoryConfig, CacheNegativeConfig, CacheOnHitConfig,
+    CacheTruncatedUdpConfig, Config, LookupProfile, LookupProvider,
 };
 use std::collections::{HashMap, HashSet};
 
@@ -113,13 +113,18 @@ pub struct CompiledMemoryCache {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct CompiledTruncatedUdp {
+    pub enabled: bool,
+    pub ttl_secs: u32,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct CompiledCacheInstance {
     pub name: String,
     pub backend_type: CacheBackendType,
     pub negative_cache: CompiledNegativeCache,
     pub on_hit_response_rules: OnHitResponseRules,
-    pub cache_truncated_udp: bool,
-    pub truncated_udp_ttl_secs: u32,
+    pub truncated_udp: CompiledTruncatedUdp,
     pub rotate_rrset_on_serve: bool,
     pub memory: CompiledMemoryCache,
     pub max_entries: u64,
@@ -299,22 +304,7 @@ fn compile_cache_instances(
         let negative_cache = compile_negative_cache(instance.negative_cache.as_ref())?;
         let on_hit_response_rules = compile_on_hit(instance.on_hit.as_ref(), &ctx)?;
         let memory = compile_memory(instance.memory.as_ref(), &ctx)?;
-
-        let cache_truncated_udp = instance.cache_truncated_udp.unwrap_or(false);
-        let truncated_udp_ttl_secs = if cache_truncated_udp {
-            match instance.truncated_udp_ttl_secs {
-                None | Some(0) => {
-                    return Err(format!(
-                        "{ctx}: truncated_udp_ttl_secs must be set and > 0 when cache_truncated_udp is true"
-                    ));
-                }
-                Some(ttl) => ttl,
-            }
-        } else {
-            instance
-                .truncated_udp_ttl_secs
-                .unwrap_or(DEFAULT_TRUNCATED_UDP_TTL_SECS)
-        };
+        let truncated_udp = compile_truncated_udp(instance.truncated_udp.as_ref(), &ctx)?;
 
         compiled.insert(
             instance.name.clone(),
@@ -323,8 +313,7 @@ fn compile_cache_instances(
                 backend_type,
                 negative_cache,
                 on_hit_response_rules,
-                cache_truncated_udp,
-                truncated_udp_ttl_secs,
+                truncated_udp,
                 rotate_rrset_on_serve: instance.rotate_rrset_on_serve.unwrap_or(false),
                 memory,
                 max_entries: instance.max_entries.unwrap_or(0),
@@ -333,6 +322,34 @@ fn compile_cache_instances(
     }
 
     Ok(compiled)
+}
+
+fn compile_truncated_udp(
+    cfg: Option<&CacheTruncatedUdpConfig>,
+    ctx: &str,
+) -> Result<CompiledTruncatedUdp, String> {
+    match cfg {
+        None => Ok(CompiledTruncatedUdp {
+            enabled: false,
+            ttl_secs: DEFAULT_TRUNCATED_UDP_TTL_SECS,
+        }),
+        Some(t) => {
+            let enabled = t.enabled.unwrap_or(false);
+            let ttl_secs = if enabled {
+                match t.ttl_secs {
+                    None | Some(0) => {
+                        return Err(format!(
+                            "{ctx}.truncated_udp.ttl_secs must be set and > 0 when truncated_udp.enabled is true"
+                        ));
+                    }
+                    Some(ttl) => ttl,
+                }
+            } else {
+                t.ttl_secs.unwrap_or(DEFAULT_TRUNCATED_UDP_TTL_SECS)
+            };
+            Ok(CompiledTruncatedUdp { enabled, ttl_secs })
+        }
+    }
 }
 
 fn compile_negative_cache(
@@ -402,7 +419,8 @@ mod tests {
     use super::*;
     use crate::file::load_yaml;
     use conduit_proto::config::{
-        CacheInstance, CacheOnHitConfig, LookupConfig, LookupProfile, LookupProvider,
+        CacheInstance, CacheOnHitConfig, CacheTruncatedUdpConfig, LookupConfig, LookupProfile,
+        LookupProvider,
     };
 
     fn minimal_with_lookup(lookup: LookupConfig, caches: Vec<CacheInstance>) -> Config {
@@ -469,8 +487,7 @@ mod tests {
             r#type: "memory".into(),
             negative_cache: None,
             on_hit: None,
-            cache_truncated_udp: None,
-            truncated_udp_ttl_secs: None,
+            truncated_udp: None,
             rotate_rrset_on_serve: None,
             memory: None,
             key: None,
@@ -488,8 +505,7 @@ mod tests {
             r#type: "memory".into(),
             negative_cache: None,
             on_hit: None,
-            cache_truncated_udp: None,
-            truncated_udp_ttl_secs: None,
+            truncated_udp: None,
             rotate_rrset_on_serve: None,
             memory: None,
             key: None,
@@ -525,8 +541,7 @@ mod tests {
             on_hit: Some(CacheOnHitConfig {
                 response_rules: "maybe".into(),
             }),
-            cache_truncated_udp: None,
-            truncated_udp_ttl_secs: None,
+            truncated_udp: None,
             rotate_rrset_on_serve: None,
             memory: None,
             key: None,
@@ -557,8 +572,10 @@ mod tests {
             r#type: "memory".into(),
             negative_cache: None,
             on_hit: None,
-            cache_truncated_udp: Some(true),
-            truncated_udp_ttl_secs: None,
+            truncated_udp: Some(CacheTruncatedUdpConfig {
+                enabled: Some(true),
+                ttl_secs: None,
+            }),
             rotate_rrset_on_serve: None,
             memory: None,
             key: None,
@@ -579,7 +596,7 @@ mod tests {
             caches,
         ))
         .unwrap_err();
-        assert!(err.contains("truncated_udp_ttl_secs"));
+        assert!(err.contains("truncated_udp.ttl_secs"));
     }
 
     #[test]

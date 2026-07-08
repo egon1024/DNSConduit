@@ -41,11 +41,14 @@ impl WaitResponseStage {
     /// means the I/O backend timed the forward out. Labels resolve the backend
     /// `name` (when configured) via the selected pool, matching the synchronous
     /// runtime so successes and timeouts for one backend share a label set.
-    fn record_forward_outcome(&self, txn: &Transaction, snapshot: &RuntimeSnapshot) {
+    fn record_forward_outcome(&self, txn: &mut Transaction, snapshot: &RuntimeSnapshot) {
         let Some(hub) = self.metrics.as_ref() else {
             return;
         };
         if !hub.metrics_enabled() {
+            return;
+        }
+        if txn.forward_metrics_recorded {
             return;
         }
         let pool = txn.selected_pool.as_deref().unwrap_or("unknown");
@@ -66,6 +69,7 @@ impl WaitResponseStage {
             &backend_label,
             txn.last_forward_ms() as f64 / 1000.0,
         );
+        txn.forward_metrics_recorded = true;
         if let (Some(registry), Some(backend)) = (self.health.as_ref(), txn.selected_backend) {
             let is_failure = !success;
             if let Some(result) =
@@ -124,5 +128,82 @@ impl PipelineStage for WaitResponseStage {
             record_upstream_response(txn, &wire, self.parse_wire_meta);
         }
         StageOutcome::Continue(Phase::ResponseRules)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use conduit_config::load_yaml;
+    use conduit_core::snapshot::RuntimeSnapshot;
+    use conduit_core::ClientProtocol;
+
+    fn snapshot() -> Arc<RuntimeSnapshot> {
+        let yaml = r#"
+schema_version: 1
+listeners:
+  threads: 1
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+metrics:
+  enabled: true
+  profile: full
+pools:
+  - name: default
+    backends:
+      - address: "127.0.0.1:15300"
+        name: resolver-east
+"#;
+        Arc::new(RuntimeSnapshot::from_config(load_yaml(yaml).unwrap()))
+    }
+
+    fn metrics_hub() -> Arc<MetricsHub> {
+        Arc::new(MetricsHub::from_config(&snapshot().config))
+    }
+
+    #[test]
+    fn skips_forward_metrics_when_already_recorded() {
+        let metrics = metrics_hub();
+        let stage = WaitResponseStage::new(false, Some(metrics.clone()), None);
+        let snap = snapshot();
+        let mut txn = Transaction::new(1, "127.0.0.1:53".parse().unwrap(), ClientProtocol::Udp);
+        txn.selected_pool = Some("default".into());
+        txn.selected_backend = Some("127.0.0.1:15300".parse().unwrap());
+        txn.selected_backend_label = Some("resolver-east".into());
+        txn.response_wire = Some(vec![0u8; 12]);
+        txn.forward_metrics_recorded = true;
+
+        stage.handle(&mut txn, &snap);
+
+        let body = conduit_metrics::render_prometheus(&metrics, &[]);
+        assert!(
+            !body.contains("conduit_forward_attempts_total"),
+            "expected no forward attempt when already recorded, body:\n{body}"
+        );
+    }
+
+    #[test]
+    fn records_forward_metrics_when_not_yet_recorded() {
+        let metrics = metrics_hub();
+        let stage = WaitResponseStage::new(false, Some(metrics.clone()), None);
+        let snap = snapshot();
+        let mut txn = Transaction::new(2, "127.0.0.1:53".parse().unwrap(), ClientProtocol::Udp);
+        txn.selected_pool = Some("default".into());
+        txn.selected_backend = Some("127.0.0.1:15300".parse().unwrap());
+        txn.selected_backend_label = Some("resolver-east".into());
+        txn.response_wire = Some(vec![0u8; 12]);
+        txn.last_forward_ms = 5;
+
+        stage.handle(&mut txn, &snap);
+
+        let body = conduit_metrics::render_prometheus(&metrics, &[]);
+        assert!(
+            body.contains(
+                r#"conduit_forward_attempts_total{backend="resolver-east",outcome="success",pool="default"} 1"#
+            ),
+            "body:\n{body}"
+        );
+        assert!(txn.forward_metrics_recorded);
     }
 }

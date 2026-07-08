@@ -1,11 +1,14 @@
-# Gate B — health-aware routing through Lookup (sync, implicit default profile).
+# Forward parity — health-aware routing through Lookup (split_io, implicit default profile).
 #
-# Pool `default`: live backend (dnsmasq on 15300) + dead backend (nothing on 15399).
-# Health enabled; selection runs inside the forward lookup provider (not a top-level Route phase).
+# Same health topology as pluggable-lookup-forward-parity-sync-health.yml; split_io runtime for suspend/resume on forward.
 schema_version: 1
+dataplane:
+  runtime: split_io
+  policy_workers: 4
+  io_workers: 1
 listeners:
-  threads: 1
-  reuse_port: false
+  threads: 2
+  reuse_port: true
   listeners:
     - address: "127.0.2.1:15353"
       protocol: udp

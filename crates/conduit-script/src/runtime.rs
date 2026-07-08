@@ -156,6 +156,10 @@ fn register_host_api(engine: &mut Engine) {
         .register_fn("elapsed_ms", RhaiTxn::elapsed_ms)
         .register_fn("get_attempt_count", RhaiTxn::attempt_count)
         .register_fn("last_forward_ms", RhaiTxn::last_forward_ms)
+        .register_fn(
+            "set_cache_lookup_eligible",
+            RhaiTxn::set_cache_lookup_eligible,
+        )
         .register_fn("answer_source", RhaiTxn::answer_source)
         .register_fn("cache_instance", RhaiTxn::cache_instance);
 
@@ -242,6 +246,7 @@ pub(crate) struct ScriptEffects {
     retry_source_override_v6: Option<std::net::Ipv6Addr>,
     clear_retry_source_v4: bool,
     clear_retry_source_v6: bool,
+    cache_lookup_eligible: Option<bool>,
     user_metric_flushes: Vec<UserMetricFlush>,
 }
 
@@ -696,11 +701,26 @@ impl RhaiTxn {
         self.last_forward_ms as i64
     }
 
+    fn set_cache_lookup_eligible(&mut self, eligible: bool) {
+        if self.phase != ScriptPhase::Request {
+            return;
+        }
+        if let Ok(mut fx) = self.effects.lock() {
+            fx.cache_lookup_eligible = Some(eligible);
+        }
+    }
+
     fn answer_source(&mut self) -> String {
+        if self.phase != ScriptPhase::Response {
+            return String::new();
+        }
         self.answer_source.clone().unwrap_or_default()
     }
 
     fn cache_instance(&mut self) -> String {
+        if self.phase != ScriptPhase::Response {
+            return String::new();
+        }
         self.cache_instance.clone().unwrap_or_default()
     }
 
@@ -872,6 +892,9 @@ fn apply_effects(host: &mut dyn HostTransaction, fx: &ScriptEffects) {
     if fx.hard_drop {
         host.mark_dropped();
     }
+    if let Some(eligible) = fx.cache_lookup_eligible {
+        host.set_cache_lookup_eligible(eligible);
+    }
 }
 
 fn run_one(
@@ -986,6 +1009,7 @@ fn run_one(
         retry_source_override_v6: fx.retry_source_override_v6,
         clear_retry_source_v4: fx.clear_retry_source_v4,
         clear_retry_source_v6: fx.clear_retry_source_v6,
+        cache_lookup_eligible: fx.cache_lookup_eligible,
         user_metric_flushes: fx.user_metric_flushes.clone(),
     })
 }
@@ -2127,26 +2151,7 @@ rules:
     fn last_forward_ms_exposed_to_script() {
         let mut host = MockHost {
             id: 20,
-            global_query_index: 0,
             qname: "slow.example.".into(),
-            qtype: 1,
-            qclass: 1,
-            opcode: 0,
-            edns_option_codes: vec![],
-            dns_id: 1,
-            rcode: Some(0),
-            pool: None,
-            retry: None,
-            dropped: false,
-            soft_drop: false,
-            source_override_v4: None,
-            source_override_v6: None,
-            retry_source_override_v4: None,
-            retry_source_override_v6: None,
-            tags: HashMap::new(),
-            tag_strings: HashMap::new(),
-            attempts: 1,
-            started: Instant::now(),
             last_forward_ms: 42,
             phase: ScriptPhase::Response,
             ..Default::default()
@@ -2193,6 +2198,54 @@ rules:
         );
     }
 
+    #[test]
+    fn answer_source_empty_on_request_hook() {
+        let mut host = MockHost {
+            answer_source: Some("cache".into()),
+            phase: ScriptPhase::Request,
+            ..Default::default()
+        };
+        let (outcome, stats) = run_inline_script(
+            r#"if txn.answer_source() == "" { metrics.inc("empty_src", 1); }"#,
+            &mut host,
+        );
+        assert_eq!(outcome, ScriptRunOutcome::Ok);
+        assert_eq!(stats.errors, 0);
+        assert_eq!(
+            stats
+                .user_metrics
+                .iter()
+                .filter(|m| m.name == "empty_src")
+                .map(|m| m.delta)
+                .sum::<u64>(),
+            1
+        );
+    }
+
+    #[test]
+    fn set_cache_lookup_eligible_on_request_hook() {
+        let mut host = MockHost {
+            phase: ScriptPhase::Request,
+            ..Default::default()
+        };
+        let (outcome, stats) =
+            run_inline_script(r#"txn.set_cache_lookup_eligible(false);"#, &mut host);
+        assert_eq!(outcome, ScriptRunOutcome::Ok);
+        assert_eq!(stats.errors, 0);
+        assert!(!host.cache_lookup_eligible);
+    }
+
+    #[test]
+    fn set_cache_lookup_eligible_ignored_on_response_hook() {
+        let mut host = MockHost {
+            phase: ScriptPhase::Response,
+            ..Default::default()
+        };
+        let (outcome, _) = run_inline_script(r#"txn.set_cache_lookup_eligible(false);"#, &mut host);
+        assert_eq!(outcome, ScriptRunOutcome::Ok);
+        assert!(host.cache_lookup_eligible);
+    }
+
     fn run_inline_script(script: &str, host: &mut MockHost) -> (ScriptRunOutcome, ScriptRunStats) {
         static RUN: AtomicU64 = AtomicU64::new(0);
         let run_id = RUN.fetch_add(1, Ordering::Relaxed);
@@ -2204,6 +2257,11 @@ rules:
         let _ = std::fs::create_dir_all(&dir);
         let script_path = dir.join("tag.rhai");
         std::fs::write(&script_path, script).unwrap();
+        let hook_phase = host.phase();
+        let hook_name = match hook_phase {
+            ScriptPhase::Request => "request",
+            ScriptPhase::Response => "response",
+        };
         let yaml = format!(
             r#"
 schema_version: 1
@@ -2236,7 +2294,7 @@ rules:
   match_mode: first_match
   rules:
     - name: tag-script
-      hook: request
+      hook: {hook_name}
       selectors: []
       actions:
         - type: rhai
@@ -2246,16 +2304,7 @@ rules:
         );
         let cfg = load_yaml(&yaml).unwrap();
         let scripting = compile_from_config(&cfg, Some(&dir)).unwrap();
-        let outcome = run_scripts(
-            &scripting,
-            &[0],
-            host,
-            ScriptPhase::Request,
-            None,
-            None,
-            None,
-            None,
-        );
+        let outcome = run_scripts(&scripting, &[0], host, hook_phase, None, None, None, None);
         let _ = std::fs::remove_dir_all(&dir);
         outcome
     }

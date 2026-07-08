@@ -3,7 +3,7 @@
 use crate::phase::Phase;
 use crate::pipeline::{PipelineStage, StageOutcome};
 use crate::snapshot::RuntimeSnapshot;
-use crate::transaction::Transaction;
+use crate::transaction::{ClientProtocol, Transaction};
 use hickory_proto::op::{Message, MessageType, ResponseCode};
 use hickory_proto::serialize::binary::{BinEncodable, BinEncoder};
 use std::sync::Arc;
@@ -16,19 +16,50 @@ impl PipelineStage for SendStage {
     }
 
     fn handle(&self, txn: &mut Transaction, _snapshot: &Arc<RuntimeSnapshot>) -> StageOutcome {
-        if txn.response_wire.is_some() {
+        if let Some(mut wire) = txn.response_wire.take() {
+            if txn.protocol == ClientProtocol::Udp {
+                let before_len = wire.len();
+                let payload_limit = txn.client_udp_payload_size.unwrap_or(512);
+                if truncate_udp(&mut wire, txn.client_udp_payload_size) {
+                    txn.udp_response_truncated_on_send = true;
+                    log_udp_truncation(txn, before_len, wire.len(), payload_limit);
+                }
+            }
+            txn.response_wire = Some(wire);
             return StageOutcome::Continue(Phase::Send);
         }
         let rcode = txn.rcode().unwrap_or(2);
-        let wire = build_error_response(
+        let payload_limit = txn.client_udp_payload_size.unwrap_or(512);
+        let (wire, truncated, before_len) = build_error_response(
             txn.dns_id,
             rcode,
             &txn.query_wire,
             txn.client_udp_payload_size,
         );
+        if truncated {
+            txn.udp_response_truncated_on_send = true;
+            log_udp_truncation(txn, before_len, wire.len(), payload_limit);
+        }
         txn.response_wire = Some(wire);
         StageOutcome::Continue(Phase::Send)
     }
+}
+
+fn log_udp_truncation(
+    txn: &Transaction,
+    wire_len_before: usize,
+    wire_len_after: usize,
+    payload_limit: u16,
+) {
+    tracing::debug!(
+        txn_id = txn.id,
+        listener = txn.listener_label.as_deref().unwrap_or("unknown"),
+        answer_source = ?txn.answer_source,
+        client_udp_payload_size = payload_limit,
+        wire_len_before,
+        wire_len_after,
+        "udp response truncated to client payload size; TC set"
+    );
 }
 
 pub fn build_error_response(
@@ -36,7 +67,7 @@ pub fn build_error_response(
     rcode: u16,
     query_wire: &[u8],
     udp_payload_size: Option<u16>,
-) -> Vec<u8> {
+) -> (Vec<u8>, bool, usize) {
     let mut msg = Message::new();
     msg.set_id(id);
     msg.set_message_type(MessageType::Response);
@@ -55,17 +86,22 @@ pub fn build_error_response(
     let mut buf = Vec::new();
     let mut encoder = BinEncoder::new(&mut buf);
     let _ = msg.emit(&mut encoder);
-    truncate_udp(&mut buf, udp_payload_size);
-    buf
+    let before_len = buf.len();
+    let truncated = truncate_udp(&mut buf, udp_payload_size);
+    (buf, truncated, before_len)
 }
 
-fn truncate_udp(buf: &mut Vec<u8>, udp_payload_size: Option<u16>) {
+/// Clip UDP response to client payload size; set TC when clipped. Returns true if truncated.
+fn truncate_udp(buf: &mut Vec<u8>, udp_payload_size: Option<u16>) -> bool {
     let limit = udp_payload_size.unwrap_or(512) as usize;
     if buf.len() > limit {
         buf.truncate(limit);
         if buf.len() >= 3 {
             buf[2] |= 0x02; // TC bit
         }
+        true
+    } else {
+        false
     }
 }
 
@@ -117,7 +153,7 @@ mod tests {
         client_query.emit(&mut qenc).unwrap();
 
         let _ = Message::from_vec(&upstream_wire).expect("compressed response parses");
-        let wire = build_error_response(0x00_42, 5, &query_wire, None);
+        let (wire, _, _) = build_error_response(0x00_42, 5, &query_wire, None);
         let parsed = Message::from_vec(&wire).unwrap();
         assert_eq!(
             parsed.queries().first().unwrap().name().to_utf8(),
@@ -128,12 +164,65 @@ mod tests {
 
     #[test]
     fn error_response_respects_512_without_edns() {
-        let wire = build_error_response(42, 2, &example_query(), None);
+        let (wire, _, _) = build_error_response(42, 2, &example_query(), None);
         assert!(wire.len() <= 512);
         assert_eq!(wire[0], 0);
         assert_eq!(wire[1], 42);
         let parsed = Message::from_vec(&wire).unwrap();
         assert_eq!(parsed.queries().len(), 1);
         assert!(parsed.header().message_type() == MessageType::Response);
+    }
+
+    #[test]
+    fn existing_response_wire_truncated_for_udp_client_payload() {
+        use crate::pipeline::PipelineStage;
+        use crate::snapshot::RuntimeSnapshot;
+        use crate::transaction::{ClientProtocol, Transaction};
+        use conduit_config::file::load_yaml;
+        use hickory_proto::op::{MessageType, ResponseCode};
+        use hickory_proto::rr::rdata::A;
+        use hickory_proto::rr::{RData, Record};
+        use std::net::SocketAddr;
+        use std::sync::Arc;
+
+        let name = Name::from_utf8("tc.policy-lab.test.example.").unwrap();
+        let mut msg = Message::new();
+        msg.set_id(0x1234);
+        msg.set_message_type(MessageType::Response);
+        msg.set_response_code(ResponseCode::NoError);
+        msg.add_query(Query::query(name.clone(), RecordType::A));
+        for i in 1..=40u8 {
+            msg.add_answer(Record::from_rdata(
+                name.clone(),
+                3600,
+                RData::A(A::new(192, 0, 2, i)),
+            ));
+        }
+        let mut oversized = Vec::new();
+        let mut enc = BinEncoder::new(&mut oversized);
+        msg.emit(&mut enc).unwrap();
+        assert!(
+            oversized.len() > 512,
+            "fixture must exceed 512 bytes, got {}",
+            oversized.len()
+        );
+
+        let addr: SocketAddr = "127.0.0.1:53".parse().unwrap();
+        let mut txn = Transaction::new(1, addr, ClientProtocol::Udp);
+        txn.client_udp_payload_size = Some(512);
+        txn.response_wire = Some(oversized);
+
+        let stage = SendStage;
+        let cfg = load_yaml(include_str!(
+            "../../../../tests/fixtures/config/minimal.yaml"
+        ))
+        .unwrap();
+        let snap = Arc::new(RuntimeSnapshot::from_config(cfg));
+        let _ = stage.handle(&mut txn, &snap);
+
+        let wire = txn.response_wire.expect("send stage must keep wire");
+        assert!(wire.len() <= 512, "wire len {}", wire.len());
+        assert_ne!(wire[2] & 0x02, 0, "TC bit must be set");
+        assert!(txn.udp_response_truncated_on_send);
     }
 }

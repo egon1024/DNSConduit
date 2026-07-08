@@ -387,7 +387,7 @@ conduit_config_generation 2
         reg.record_query("ln", "udp", Some(1), Some(1), &addr);
         reg.record_query_by_pool("default");
         reg.record_parse_rejected("wire_error");
-        reg.record_response("ln", "udp", Some(0), &addr);
+        reg.record_response("ln", "udp", Some(0), &addr, Some("forward"));
         let prom = crate::builtin::encode_builtin(reg.gather());
 
         let prom_names: std::collections::HashSet<_> = prom

@@ -106,6 +106,7 @@ pub fn build_scrape_snapshot(
         backends,
         health_backends,
         pool_backends_active: pool_active,
+        cache_entry_counts: Vec::new(),
     }
 }
 
@@ -114,7 +115,22 @@ pub fn scrape_snapshot_fn(
     table: Arc<TxnTable>,
     txn_store: SharedTxnStore,
 ) -> Arc<dyn Fn() -> ScrapeGaugeSnapshot + Send + Sync> {
-    Arc::new(move || build_scrape_snapshot(&store, &table, &txn_store))
+    scrape_snapshot_fn_with_cache(store, table, txn_store, None)
+}
+
+pub fn scrape_snapshot_fn_with_cache(
+    store: Arc<SnapshotStore>,
+    table: Arc<TxnTable>,
+    txn_store: SharedTxnStore,
+    cache: Option<Arc<conduit_core::lookup::LookupCacheRegistry>>,
+) -> Arc<dyn Fn() -> ScrapeGaugeSnapshot + Send + Sync> {
+    Arc::new(move || {
+        let mut snap = build_scrape_snapshot(&store, &table, &txn_store);
+        if let Some(cache) = cache.as_ref() {
+            snap.cache_entry_counts = cache.all_entry_counts();
+        }
+        snap
+    })
 }
 
 #[cfg(test)]

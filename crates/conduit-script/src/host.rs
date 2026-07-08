@@ -98,6 +98,11 @@ pub trait HostTransaction {
     fn attempt_count(&self) -> u32;
     fn started_at(&self) -> Instant;
     fn last_forward_ms(&self) -> u64;
+    /// Whether the cache provider may consult cache on this transaction (default true).
+    fn cache_lookup_eligible(&self) -> bool {
+        true
+    }
+    fn set_cache_lookup_eligible(&mut self, eligible: bool);
     /// How the answer was produced: `cache`, `forward`, or unset before an answer exists.
     fn answer_source(&self) -> Option<&str> {
         None

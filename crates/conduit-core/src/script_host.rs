@@ -198,6 +198,14 @@ impl HostTransaction for Transaction {
         self.last_forward_ms()
     }
 
+    fn cache_lookup_eligible(&self) -> bool {
+        self.cache_lookup_eligible
+    }
+
+    fn set_cache_lookup_eligible(&mut self, eligible: bool) {
+        self.cache_lookup_eligible = eligible;
+    }
+
     fn answer_source(&self) -> Option<&str> {
         self.answer_source.map(|s| s.as_str())
     }
