@@ -22,7 +22,7 @@ pub use compile::{
     compile_from_config, trace_activation_matches, validate_metrics_tracing, BuiltinProfile,
     CompiledMetrics, CompiledTraceActivation, CompiledTracing,
 };
-pub use export::render_prometheus;
+pub use export::{gather_prometheus_families, render_prometheus};
 pub use labels::{ip_family_label, qclass_label, qtype_label, rcode_class_label, rcode_label};
 pub use otel::{push_metrics_once, spawn_otel_push, OtelPushSettings};
 pub use prometheus_http::spawn_prometheus_server;

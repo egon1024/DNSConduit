@@ -317,7 +317,7 @@ impl BuiltinRegistry {
             let coalesced = IntCounterVec::new(
                 Opts::new(
                     "conduit_cache_singleflight_coalesced_total",
-                    "Cache single-flight waiters served from in-flight fill",
+                    "Parallel identical cache misses answered from a shared in-progress fill",
                 ),
                 &["cache", "profile"],
             )

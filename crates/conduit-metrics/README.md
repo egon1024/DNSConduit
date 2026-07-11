@@ -100,7 +100,7 @@ Rhai `metric_inc` / `metric_inc_labels` flush into the export registry after eac
 
 ### Metrics-path parity (Prometheus + OTEL)
 
-Defined export paths are **Prometheus scrape** and **OTEL push**. Both consume the same Prometheus text from `render_prometheus()`. Counters and gauges from 4b built-ins are exported to OTLP; histograms are mapped with the same bucket upper bounds as Prometheus `le` labels.
+Defined export paths are **Prometheus scrape** and **OTEL push**. Both consume the same Prometheus metric families from `gather_prometheus_families()` (scrape renders them as text; OTLP maps families directly). Counters, gauges, and histograms keep matching names, HELP text, derived units, and histogram sum/count/bucket fidelity across sinks.
 
 **Policy:** changes that add or modify a built-in on one defined path must update all defined paths in the same change (or document an explicit exception here).
 

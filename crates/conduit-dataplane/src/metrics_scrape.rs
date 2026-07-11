@@ -115,7 +115,11 @@ pub fn scrape_snapshot_fn(
     table: Arc<TxnTable>,
     txn_store: SharedTxnStore,
 ) -> Arc<dyn Fn() -> ScrapeGaugeSnapshot + Send + Sync> {
-    scrape_snapshot_fn_with_cache(store, table, txn_store, None)
+    Arc::new(move || {
+        let mut snap = build_scrape_snapshot(&store, &table, &txn_store);
+        snap.cache_entry_counts = store.cache().all_entry_counts();
+        snap
+    })
 }
 
 pub fn scrape_snapshot_fn_with_cache(
