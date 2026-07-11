@@ -7,7 +7,6 @@ use crate::forward::{
 use crate::listener::{shutdown::DataplaneShutdown, startup_log, tcp, udp};
 use conduit_config::resolve_listener_ingress;
 use conduit_core::health::HealthRegistry;
-use conduit_core::lookup::LookupCacheRegistry;
 use conduit_core::lookup::LookupStage;
 use conduit_core::orchestrator::Orchestrator;
 use conduit_core::phase::Phase;
@@ -123,9 +122,7 @@ pub fn start(
     // so it survives reloads (reconciled, not rebuilt); the probe loop writes it
     // and Route reads it lock-free.
     let health_registry = store.health();
-    let cache_registry = Arc::new(LookupCacheRegistry::from_snapshot(
-        &snap.lookup.cache_instances,
-    ));
+    let cache_registry = store.cache();
     let probe_handle = crate::probe::spawn_probe_loop(
         &snap,
         health_registry.clone(),

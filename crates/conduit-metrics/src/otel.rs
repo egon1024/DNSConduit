@@ -1,6 +1,7 @@
-//! OTEL metrics periodic push (OTLP HTTP) — Prometheus text parity for counters, gauges, histograms.
+//! OTEL metrics periodic push (OTLP HTTP) — Prometheus family parity for
+//! counters, gauges, and histograms (HELP, units, sum/count/buckets).
 
-use crate::export::render_prometheus;
+use crate::export::gather_prometheus_families;
 use crate::task::OtelPushHandle;
 use crate::MetricsHub;
 use async_trait::async_trait;
@@ -12,11 +13,12 @@ use opentelemetry_http::Bytes;
 use opentelemetry_http::HttpClient;
 use opentelemetry_otlp::{WithExportConfig, WithHttpConfig};
 use opentelemetry_sdk::metrics::data::{
-    DataPoint, Histogram, Metric, ResourceMetrics, ScopeMetrics, Sum,
+    DataPoint, Gauge, Histogram, HistogramDataPoint, Metric, ResourceMetrics, ScopeMetrics, Sum,
 };
 use opentelemetry_sdk::metrics::exporter::PushMetricExporter;
 use opentelemetry_sdk::metrics::Temporality;
 use opentelemetry_sdk::Resource;
+use prometheus::proto::{MetricFamily, MetricType};
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -56,6 +58,8 @@ pub fn spawn_otel_push(
             .collect();
         resource_kv.push(KeyValue::new("service.name", "conduit"));
 
+        // Fixed start for cumulative series for the life of this push task.
+        let series_start = SystemTime::now();
         let interval = Duration::from_millis(settings.push_interval_ms.max(1000) as u64);
         loop {
             tokio::select! {
@@ -63,9 +67,12 @@ pub fn spawn_otel_push(
                 _ = tokio::time::sleep(interval) => {
                     if hub.metrics_enabled() {
                         let obs = observation.sink_metrics_snapshot();
-                        let prom_text = render_prometheus(hub.as_ref(), &obs);
-                        let mut resource_metrics =
-                            prometheus_text_to_resource_metrics(&prom_text, resource_kv.clone());
+                        let families = gather_prometheus_families(hub.as_ref(), &obs);
+                        let mut resource_metrics = families_to_resource_metrics(
+                            &families,
+                            resource_kv.clone(),
+                            series_start,
+                        );
                         if let Err(e) = exporter.export(&mut resource_metrics).await {
                             tracing::warn!(error = %e, %endpoint, "otel metrics push failed");
                         } else {
@@ -156,107 +163,117 @@ pub async fn push_metrics_once(
         .collect();
     resource_kv.push(KeyValue::new("service.name", "conduit"));
     let obs = observation.sink_metrics_snapshot();
-    let prom_text = render_prometheus(hub, &obs);
-    let mut resource_metrics = prometheus_text_to_resource_metrics(&prom_text, resource_kv);
+    let families = gather_prometheus_families(hub, &obs);
+    let series_start = SystemTime::now();
+    let mut resource_metrics = families_to_resource_metrics(&families, resource_kv, series_start);
     exporter
         .export(&mut resource_metrics)
         .await
         .map_err(|e| e.to_string())
 }
 
-/// Map Prometheus text exposition into OTEL `ResourceMetrics` for OTLP export.
-fn prometheus_text_to_resource_metrics(
-    text: &str,
+/// Map Prometheus `MetricFamily` protos into OTEL `ResourceMetrics` for OTLP export.
+fn families_to_resource_metrics(
+    families: &[MetricFamily],
     resource_attributes: Vec<KeyValue>,
+    series_start: SystemTime,
 ) -> ResourceMetrics {
+    let now = SystemTime::now();
     let mut scope = ScopeMetrics {
         scope: opentelemetry::InstrumentationScope::builder("conduit").build(),
         metrics: Vec::new(),
     };
 
-    let mut current_name = String::new();
-    let mut current_type = String::new();
-    let mut histogram_buckets: Vec<f64> = Vec::new();
-
-    for line in text.lines() {
-        if let Some(name) = line.strip_prefix("# HELP ") {
-            if let Some((metric, _)) = name.split_once(' ') {
-                current_name = metric.to_string();
-            }
+    for family in families {
+        let name = family.get_name();
+        if name.is_empty() {
             continue;
         }
-        if let Some(typ) = line.strip_prefix("# TYPE ") {
-            if let Some((metric, ty)) = typ.split_once(' ') {
-                current_name = metric.to_string();
-                current_type = ty.to_string();
-                histogram_buckets.clear();
-            }
-            continue;
-        }
-        if line.starts_with("#") {
-            continue;
-        }
-        if line.is_empty() {
-            continue;
-        }
-
-        if current_type == "counter" {
-            if let Some((head, value)) = line.rsplit_once(' ') {
-                if let Ok(v) = value.parse::<u64>() {
-                    let (name, attrs) = parse_labels(head);
-                    scope.metrics.push(counter_metric(
-                        if name.is_empty() {
-                            &current_name
-                        } else {
-                            &name
-                        },
-                        v,
-                        attrs,
-                    ));
+        let description = family.get_help().to_string();
+        let unit = unit_from_metric_name(name);
+        match family.get_field_type() {
+            MetricType::COUNTER => {
+                let data_points: Vec<_> = family
+                    .get_metric()
+                    .iter()
+                    .map(|m| DataPoint {
+                        attributes: labels_to_attrs(m.get_label()),
+                        start_time: Some(series_start),
+                        time: Some(now),
+                        value: m.get_counter().get_value() as u64,
+                        exemplars: vec![],
+                    })
+                    .collect();
+                if !data_points.is_empty() {
+                    scope.metrics.push(Metric {
+                        name: Cow::Owned(name.to_string()),
+                        description: Cow::Owned(description),
+                        unit: Cow::Borrowed(unit),
+                        data: Box::new(Sum {
+                            data_points,
+                            temporality: Temporality::Cumulative,
+                            is_monotonic: true,
+                        }),
+                    });
                 }
             }
-        } else if current_type == "gauge" {
-            if let Some((head, value)) = line.rsplit_once(' ') {
-                if let Ok(v) = value.parse::<f64>() {
-                    let (name, attrs) = parse_labels(head);
-                    let metric_name = if name.is_empty() {
-                        current_name.as_str()
-                    } else {
-                        &name
-                    };
-                    if !metric_name.ends_with("_bucket") {
-                        scope.metrics.push(gauge_metric(metric_name, v, attrs));
-                    }
+            MetricType::GAUGE => {
+                let data_points: Vec<_> = family
+                    .get_metric()
+                    .iter()
+                    .map(|m| DataPoint {
+                        attributes: labels_to_attrs(m.get_label()),
+                        start_time: None,
+                        time: Some(now),
+                        value: m.get_gauge().get_value(),
+                        exemplars: vec![],
+                    })
+                    .collect();
+                if !data_points.is_empty() {
+                    scope.metrics.push(Metric {
+                        name: Cow::Owned(name.to_string()),
+                        description: Cow::Owned(description),
+                        unit: Cow::Borrowed(unit),
+                        data: Box::new(Gauge { data_points }),
+                    });
                 }
             }
-        } else if current_type == "histogram" {
-            if let Some((head, value)) = line.rsplit_once(' ') {
-                if head.contains("le=") {
-                    if let Some(le) = head.split("le=\"").nth(1).and_then(|s| s.split('"').next()) {
-                        if le != "+Inf" {
-                            if let Ok(b) = le.parse::<f64>() {
-                                histogram_buckets.push(b);
-                            }
+            MetricType::HISTOGRAM => {
+                let data_points: Vec<_> = family
+                    .get_metric()
+                    .iter()
+                    .map(|m| {
+                        let h = m.get_histogram();
+                        let (bounds, bucket_counts) =
+                            cumulative_buckets_to_explicit(h.get_bucket(), h.get_sample_count());
+                        HistogramDataPoint {
+                            attributes: labels_to_attrs(m.get_label()),
+                            start_time: series_start,
+                            time: now,
+                            count: h.get_sample_count(),
+                            bounds,
+                            bucket_counts,
+                            min: None,
+                            max: None,
+                            sum: h.get_sample_sum(),
+                            exemplars: vec![],
                         }
-                    }
-                    if let Ok(cumulative) = value.parse::<u64>() {
-                        let (name, attrs) = parse_labels(head);
-                        let metric_name = if name.is_empty() {
-                            current_name.clone()
-                        } else {
-                            name
-                        };
-                        if head.contains("le=\"+Inf\"") {
-                            scope.metrics.push(histogram_metric(
-                                &metric_name,
-                                attrs,
-                                &histogram_buckets,
-                                cumulative,
-                            ));
-                            histogram_buckets.clear();
-                        }
-                    }
+                    })
+                    .collect();
+                if !data_points.is_empty() {
+                    scope.metrics.push(Metric {
+                        name: Cow::Owned(name.to_string()),
+                        description: Cow::Owned(description),
+                        unit: Cow::Borrowed(unit),
+                        data: Box::new(Histogram {
+                            data_points,
+                            temporality: Temporality::Cumulative,
+                        }),
+                    });
                 }
+            }
+            MetricType::SUMMARY | MetricType::UNTYPED => {
+                // Conduit does not emit these instrument types.
             }
         }
     }
@@ -267,117 +284,288 @@ fn prometheus_text_to_resource_metrics(
     }
 }
 
-fn parse_labels(head: &str) -> (String, Vec<KeyValue>) {
-    let Some((name, rest)) = head.split_once('{') else {
-        return (head.to_string(), Vec::new());
-    };
-    let labels = rest
-        .trim_end_matches('}')
-        .split(',')
-        .filter_map(|pair| {
-            let (k, v) = pair.split_once('=')?;
-            Some(KeyValue::new(
-                k.trim().to_string(),
-                v.trim().trim_matches('"').to_string(),
-            ))
-        })
-        .collect();
-    (name.to_string(), labels)
+fn labels_to_attrs(labels: &[prometheus::proto::LabelPair]) -> Vec<KeyValue> {
+    labels
+        .iter()
+        .map(|lp| KeyValue::new(lp.get_name().to_string(), lp.get_value().to_string()))
+        .collect()
 }
 
-fn counter_metric(name: &str, value: u64, attrs: Vec<KeyValue>) -> Metric {
-    Metric {
-        name: Cow::Owned(name.to_string()),
-        description: Cow::Borrowed(""),
-        unit: Cow::Borrowed(""),
-        data: Box::new(Sum {
-            data_points: vec![DataPoint {
-                attributes: attrs,
-                start_time: None,
-                time: Some(SystemTime::now()),
-                value,
-                exemplars: vec![],
-            }],
-            temporality: Temporality::Cumulative,
-            is_monotonic: true,
-        }),
+/// Derive a UCUM-ish OTel unit from a Prometheus metric name suffix.
+fn unit_from_metric_name(name: &str) -> &'static str {
+    const SUFFIXES: &[(&str, &str)] = &[
+        ("_seconds", "s"),
+        ("_milliseconds", "ms"),
+        ("_bytes", "By"),
+        ("_ratio", "1"),
+        ("_ms", "ms"),
+    ];
+    for (suffix, unit) in SUFFIXES {
+        if name.ends_with(suffix) {
+            return unit;
+        }
     }
+    if name.ends_with("_total") || name.ends_with("_info") {
+        return "1";
+    }
+    ""
 }
 
-fn gauge_metric(name: &str, value: f64, attrs: Vec<KeyValue>) -> Metric {
-    Metric {
-        name: Cow::Owned(name.to_string()),
-        description: Cow::Borrowed(""),
-        unit: Cow::Borrowed(""),
-        data: Box::new(opentelemetry_sdk::metrics::data::Gauge {
-            data_points: vec![DataPoint {
-                attributes: attrs,
-                start_time: None,
-                time: Some(SystemTime::now()),
-                value,
-                exemplars: vec![],
-            }],
-        }),
+/// Convert Prometheus cumulative histogram buckets (+ implicit +Inf via `sample_count`)
+/// into OTel explicit bucket counts (`bucket_counts.len() == bounds.len() + 1`).
+fn cumulative_buckets_to_explicit(
+    buckets: &[prometheus::proto::Bucket],
+    sample_count: u64,
+) -> (Vec<f64>, Vec<u64>) {
+    let mut bounds = Vec::new();
+    let mut cumulatives = Vec::new();
+    for b in buckets {
+        let ub = b.get_upper_bound();
+        if ub.is_finite() {
+            bounds.push(ub);
+            cumulatives.push(b.get_cumulative_count());
+        }
     }
-}
 
-fn histogram_metric(
-    name: &str,
-    attrs: Vec<KeyValue>,
-    bucket_upper_bounds: &[f64],
-    count: u64,
-) -> Metric {
-    let now = SystemTime::now();
-    let bounds: Vec<f64> = bucket_upper_bounds.to_vec();
-    let bucket_counts = vec![count; bounds.len() + 1];
-    Metric {
-        name: Cow::Owned(name.to_string()),
-        description: Cow::Borrowed(""),
-        unit: Cow::Borrowed("s"),
-        data: Box::new(Histogram {
-            data_points: vec![opentelemetry_sdk::metrics::data::HistogramDataPoint {
-                attributes: attrs,
-                start_time: now,
-                time: now,
-                count,
-                bounds,
-                bucket_counts,
-                min: None,
-                max: None,
-                sum: 0.0,
-                exemplars: vec![],
-            }],
-            temporality: Temporality::Cumulative,
-        }),
+    let mut bucket_counts = Vec::with_capacity(bounds.len() + 1);
+    let mut prev = 0u64;
+    for &cum in &cumulatives {
+        bucket_counts.push(cum.saturating_sub(prev));
+        prev = cum;
     }
+    bucket_counts.push(sample_count.saturating_sub(prev));
+    (bounds, bucket_counts)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use prometheus::proto::{
+        Bucket as ProtoBucket, Counter as ProtoCounter, Gauge as ProtoGauge,
+        Histogram as ProtoHistogram, LabelPair, Metric as ProtoMetric, MetricFamily, MetricType,
+    };
 
-    #[test]
-    fn prom_counters_map_to_otel() {
-        let text = r#"# HELP conduit_queries_total queries
-# TYPE conduit_queries_total counter
-conduit_queries_total{listener="ln",protocol="udp"} 3
-"#;
-        let rm = prometheus_text_to_resource_metrics(text, vec![]);
-        assert_eq!(rm.scope_metrics.len(), 1);
-        assert_eq!(rm.scope_metrics[0].metrics.len(), 1);
-        assert_eq!(rm.scope_metrics[0].metrics[0].name, "conduit_queries_total");
+    fn series_start() -> SystemTime {
+        SystemTime::UNIX_EPOCH + Duration::from_secs(1_700_000_000)
+    }
+
+    fn counter_family(name: &str, help: &str, labels: &[(&str, &str)], value: f64) -> MetricFamily {
+        let mut family = MetricFamily::default();
+        family.set_name(name.to_string());
+        family.set_help(help.to_string());
+        family.set_field_type(MetricType::COUNTER);
+        let mut metric = ProtoMetric::default();
+        metric.set_label(
+            labels
+                .iter()
+                .map(|(k, v)| {
+                    let mut lp = LabelPair::default();
+                    lp.set_name((*k).to_string());
+                    lp.set_value((*v).to_string());
+                    lp
+                })
+                .collect::<Vec<_>>()
+                .into(),
+        );
+        let mut c = ProtoCounter::default();
+        c.set_value(value);
+        metric.set_counter(c);
+        family.set_metric(vec![metric].into());
+        family
+    }
+
+    fn gauge_family(name: &str, help: &str, value: f64) -> MetricFamily {
+        let mut family = MetricFamily::default();
+        family.set_name(name.to_string());
+        family.set_help(help.to_string());
+        family.set_field_type(MetricType::GAUGE);
+        let mut metric = ProtoMetric::default();
+        let mut g = ProtoGauge::default();
+        g.set_value(value);
+        metric.set_gauge(g);
+        family.set_metric(vec![metric].into());
+        family
+    }
+
+    fn histogram_family(
+        name: &str,
+        help: &str,
+        finite_buckets: &[(f64, u64)],
+        sample_count: u64,
+        sample_sum: f64,
+    ) -> MetricFamily {
+        let mut family = MetricFamily::default();
+        family.set_name(name.to_string());
+        family.set_help(help.to_string());
+        family.set_field_type(MetricType::HISTOGRAM);
+        let mut metric = ProtoMetric::default();
+        let mut h = ProtoHistogram::default();
+        h.set_sample_count(sample_count);
+        h.set_sample_sum(sample_sum);
+        h.set_bucket(
+            finite_buckets
+                .iter()
+                .map(|(ub, cum)| {
+                    let mut b = ProtoBucket::default();
+                    b.set_upper_bound(*ub);
+                    b.set_cumulative_count(*cum);
+                    b
+                })
+                .collect::<Vec<_>>()
+                .into(),
+        );
+        metric.set_histogram(h);
+        family.set_metric(vec![metric].into());
+        family
     }
 
     #[test]
-    fn prom_gauges_map_to_otel() {
-        let text = r#"# TYPE conduit_config_generation gauge
-conduit_config_generation 2
-"#;
-        let rm = prometheus_text_to_resource_metrics(text, vec![]);
-        assert!(rm.scope_metrics[0]
+    fn unit_from_metric_name_table() {
+        assert_eq!(
+            unit_from_metric_name("conduit_forward_duration_seconds"),
+            "s"
+        );
+        assert_eq!(
+            unit_from_metric_name("conduit_process_resident_bytes"),
+            "By"
+        );
+        assert_eq!(
+            unit_from_metric_name("conduit_backend_health_latency_ewma_ms"),
+            "ms"
+        );
+        assert_eq!(unit_from_metric_name("conduit_queries_total"), "1");
+        assert_eq!(unit_from_metric_name("conduit_build_info"), "1");
+        assert_eq!(unit_from_metric_name("conduit_config_generation"), "");
+    }
+
+    #[test]
+    fn cumulative_buckets_to_explicit_diffs_and_inf() {
+        let mut b0 = ProtoBucket::default();
+        b0.set_upper_bound(0.001);
+        b0.set_cumulative_count(2);
+        let mut b1 = ProtoBucket::default();
+        b1.set_upper_bound(0.01);
+        b1.set_cumulative_count(5);
+        let mut b2 = ProtoBucket::default();
+        b2.set_upper_bound(0.05);
+        b2.set_cumulative_count(8);
+        let (bounds, counts) = cumulative_buckets_to_explicit(&[b0, b1, b2], 10);
+        assert_eq!(bounds, vec![0.001, 0.01, 0.05]);
+        assert_eq!(counts, vec![2, 3, 3, 2]);
+    }
+
+    #[test]
+    fn counter_maps_help_unit_start_time_and_groups_points() {
+        let mut family = counter_family(
+            "conduit_queries_total",
+            "DNS queries received",
+            &[("listener", "ln"), ("protocol", "udp")],
+            3.0,
+        );
+        // Second label set on same family.
+        let mut m2 = ProtoMetric::default();
+        let mut lp = LabelPair::default();
+        lp.set_name("listener".into());
+        lp.set_value("other".into());
+        let mut lp2 = LabelPair::default();
+        lp2.set_name("protocol".into());
+        lp2.set_value("tcp".into());
+        m2.set_label(vec![lp, lp2].into());
+        let mut c = ProtoCounter::default();
+        c.set_value(7.0);
+        m2.set_counter(c);
+        let mut metrics: Vec<_> = family.take_metric().into();
+        metrics.push(m2);
+        family.set_metric(metrics.into());
+
+        let rm = families_to_resource_metrics(&[family], vec![], series_start());
+        assert_eq!(rm.scope_metrics[0].metrics.len(), 1);
+        let m = &rm.scope_metrics[0].metrics[0];
+        assert_eq!(m.name, "conduit_queries_total");
+        assert_eq!(m.description, "DNS queries received");
+        assert_eq!(m.unit, "1");
+        let sum = m.data.as_any().downcast_ref::<Sum<u64>>().expect("sum");
+        assert_eq!(sum.data_points.len(), 2);
+        assert_eq!(sum.data_points[0].start_time, Some(series_start()));
+        assert_eq!(sum.data_points[0].value, 3);
+        assert_eq!(sum.data_points[1].value, 7);
+    }
+
+    #[test]
+    fn gauge_maps_help_and_value() {
+        let family = gauge_family("conduit_config_generation", "Config generation", 2.0);
+        let rm = families_to_resource_metrics(&[family], vec![], series_start());
+        let m = rm.scope_metrics[0]
             .metrics
             .iter()
-            .any(|m| m.name == "conduit_config_generation"));
+            .find(|m| m.name == "conduit_config_generation")
+            .unwrap();
+        assert_eq!(m.description, "Config generation");
+        assert_eq!(m.unit, "");
+        let gauge = m.data.as_any().downcast_ref::<Gauge<f64>>().expect("gauge");
+        assert_eq!(gauge.data_points[0].value, 2.0);
+        assert!(gauge.data_points[0].start_time.is_none());
+    }
+
+    #[test]
+    fn histogram_maps_family_name_sum_count_and_explicit_buckets() {
+        let family = histogram_family(
+            "conduit_forward_duration_seconds",
+            "Forward RTT",
+            &[(0.001, 2), (0.01, 5), (0.05, 8)],
+            10,
+            0.042,
+        );
+        let rm = families_to_resource_metrics(&[family], vec![], series_start());
+        assert_eq!(rm.scope_metrics[0].metrics.len(), 1);
+        let m = &rm.scope_metrics[0].metrics[0];
+        assert_eq!(m.name, "conduit_forward_duration_seconds");
+        assert_eq!(m.description, "Forward RTT");
+        assert_eq!(m.unit, "s");
+        let hist = m
+            .data
+            .as_any()
+            .downcast_ref::<Histogram<f64>>()
+            .expect("histogram");
+        assert_eq!(hist.data_points.len(), 1);
+        let dp = &hist.data_points[0];
+        assert_eq!(dp.count, 10);
+        assert!((dp.sum - 0.042).abs() < f64::EPSILON);
+        assert_eq!(dp.bounds, vec![0.001, 0.01, 0.05]);
+        assert_eq!(dp.bucket_counts, vec![2, 3, 3, 2]);
+        assert_eq!(dp.start_time, series_start());
+    }
+
+    #[test]
+    fn builtin_forward_duration_otlp_matches_prom_sum_and_count() {
+        let reg = crate::builtin::BuiltinRegistry::new(true, crate::compile::BuiltinProfile::Full);
+        reg.record_forward_duration("default", "127.0.0.1:5300", 0.001);
+        reg.record_forward_duration("default", "127.0.0.1:5300", 0.02);
+        reg.record_forward_duration("default", "127.0.0.1:5300", 0.2);
+        let families = reg.gather();
+        let prom_family = families
+            .iter()
+            .find(|f| f.get_name() == "conduit_forward_duration_seconds")
+            .expect("prom histogram family");
+        let prom_h = prom_family.get_metric()[0].get_histogram();
+
+        let rm = families_to_resource_metrics(&families, vec![], series_start());
+        let m = rm.scope_metrics[0]
+            .metrics
+            .iter()
+            .find(|m| m.name == "conduit_forward_duration_seconds")
+            .expect("otel histogram");
+        let hist = m
+            .data
+            .as_any()
+            .downcast_ref::<Histogram<f64>>()
+            .expect("histogram");
+        let dp = &hist.data_points[0];
+        assert_eq!(dp.count, prom_h.get_sample_count());
+        assert!((dp.sum - prom_h.get_sample_sum()).abs() < 1e-12);
+        assert_eq!(dp.bucket_counts.iter().sum::<u64>(), dp.count);
+        assert_eq!(m.unit, "s");
+        assert_eq!(m.description, prom_family.get_help());
     }
 
     #[test]
@@ -388,15 +576,11 @@ conduit_config_generation 2
         reg.record_query_by_pool("default");
         reg.record_parse_rejected("wire_error");
         reg.record_response("ln", "udp", Some(0), &addr, Some("forward"));
-        let prom = crate::builtin::encode_builtin(reg.gather());
+        let families = reg.gather();
 
-        let prom_names: std::collections::HashSet<_> = prom
-            .lines()
-            .filter_map(|l| l.strip_prefix("# TYPE "))
-            .filter_map(|l| l.split_whitespace().next())
-            .map(str::to_string)
-            .collect();
-        let rm = prometheus_text_to_resource_metrics(&prom, vec![]);
+        let prom_names: std::collections::HashSet<_> =
+            families.iter().map(|f| f.get_name().to_string()).collect();
+        let rm = families_to_resource_metrics(&families, vec![], series_start());
         let otel_names: std::collections::HashSet<_> = rm
             .scope_metrics
             .iter()

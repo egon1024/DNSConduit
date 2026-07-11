@@ -1,29 +1,37 @@
-//! Render Prometheus text from all metric sources.
+//! Gather Prometheus metric families and render text for scrape / OTLP conversion.
 
-use crate::builtin::encode_builtin;
 use crate::MetricsHub;
 use conduit_events::SinkMetricsSnapshot;
 use prometheus::{Encoder, IntCounterVec, Opts, Registry, TextEncoder};
 
+/// All metric families (built-in, user, event-sink) for scrape or OTLP conversion.
+pub fn gather_prometheus_families(
+    hub: &MetricsHub,
+    event_sinks: &[SinkMetricsSnapshot],
+) -> Vec<prometheus::proto::MetricFamily> {
+    let mut families = hub.builtin.gather();
+    families.extend(hub.user.gather());
+    families.extend(event_sink_families(event_sinks));
+    families
+}
+
 pub fn render_prometheus(hub: &MetricsHub, event_sinks: &[SinkMetricsSnapshot]) -> String {
-    [
-        encode_builtin(hub.builtin.gather()),
-        encode_families(hub.user.gather()),
-        encode_event_sinks(event_sinks),
-    ]
-    .join("\n")
+    encode_families(gather_prometheus_families(hub, event_sinks))
 }
 
 fn encode_families(families: Vec<prometheus::proto::MetricFamily>) -> String {
+    if families.is_empty() {
+        return String::new();
+    }
     let encoder = TextEncoder::new();
     let mut buf = Vec::new();
     encoder.encode(&families, &mut buf).expect("encode");
     String::from_utf8(buf).expect("utf8")
 }
 
-fn encode_event_sinks(snapshots: &[SinkMetricsSnapshot]) -> String {
+fn event_sink_families(snapshots: &[SinkMetricsSnapshot]) -> Vec<prometheus::proto::MetricFamily> {
     if snapshots.is_empty() {
-        return String::new();
+        return Vec::new();
     }
     let registry = Registry::new();
     let enqueued_query = IntCounterVec::new(
@@ -83,5 +91,5 @@ fn encode_event_sinks(snapshots: &[SinkMetricsSnapshot]) -> String {
             .inc_by(s.queue_dropped);
         delivered.with_label_values(&[sink]).inc_by(s.delivered);
     }
-    encode_families(registry.gather())
+    registry.gather()
 }

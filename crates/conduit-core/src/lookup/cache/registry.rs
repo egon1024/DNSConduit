@@ -12,6 +12,7 @@ use conduit_config::lookup::CompiledCacheInstance;
 use conduit_metrics::MetricsHub;
 use parking_lot::RwLock;
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -95,11 +96,19 @@ impl CacheInstanceRuntime {
             inflight: InFlightTable::new(),
         }
     }
+
+    pub fn apply_max_entries(&self, max_entries: u64) {
+        self.backend.set_max_entries(max_entries);
+    }
+
+    pub fn max_entries(&self) -> u64 {
+        self.backend.max_entries()
+    }
 }
 
 pub struct LookupCacheRegistry {
     instances: RwLock<HashMap<String, Arc<CacheInstanceRuntime>>>,
-    async_coalesce: bool,
+    async_coalesce: AtomicBool,
     wake: RwLock<Option<CacheWaitWake>>,
     metrics: RwLock<Option<Arc<MetricsHub>>>,
 }
@@ -115,7 +124,7 @@ impl LookupCacheRegistry {
         }
         Self {
             instances: RwLock::new(map),
-            async_coalesce: false,
+            async_coalesce: AtomicBool::new(false),
             wake: RwLock::new(None),
             metrics: RwLock::new(None),
         }
@@ -125,17 +134,33 @@ impl LookupCacheRegistry {
         *self.metrics.write() = Some(metrics);
     }
 
-    pub fn reconcile(&self, instances: &HashMap<String, CompiledCacheInstance>) {
+    /// Reconcile named cache instances after a snapshot swap: add new instances and
+    /// apply live `max_entries` updates to existing backends without rebuilding shards.
+    pub fn reconcile(
+        &self,
+        prev: &HashMap<String, CompiledCacheInstance>,
+        new: &HashMap<String, CompiledCacheInstance>,
+    ) {
         let mut guard = self.instances.write();
-        for (name, cfg) in instances {
-            guard
-                .entry(name.clone())
-                .or_insert_with(|| Arc::new(CacheInstanceRuntime::new(cfg.clone())));
+        for (name, cfg) in new {
+            match guard.get(name) {
+                Some(inst) => {
+                    if prev.get(name).map(|p| p.max_entries) != Some(cfg.max_entries) {
+                        inst.apply_max_entries(cfg.max_entries);
+                    }
+                }
+                None => {
+                    guard.insert(
+                        name.clone(),
+                        Arc::new(CacheInstanceRuntime::new(cfg.clone())),
+                    );
+                }
+            }
         }
     }
 
-    pub fn set_async_coalesce(&mut self, enabled: bool) {
-        self.async_coalesce = enabled;
+    pub fn set_async_coalesce(&self, enabled: bool) {
+        self.async_coalesce.store(enabled, Ordering::Relaxed);
     }
 
     pub fn set_wake_handler(&self, wake: CacheWaitWake) {
@@ -186,10 +211,11 @@ impl LookupCacheRegistry {
         }
 
         let gate = inst.inflight.gate_for(&key);
-        let role = gate.register(txn.id, self.async_coalesce);
+        let async_coalesce = self.async_coalesce.load(Ordering::Relaxed);
+        let role = gate.register(txn.id, async_coalesce);
         match role {
             InFlightRole::Leader => CacheLookupOutcome::Miss { key, gate },
-            InFlightRole::Follower if self.async_coalesce => CacheLookupOutcome::WaitAsync { key },
+            InFlightRole::Follower if async_coalesce => CacheLookupOutcome::WaitAsync { key },
             InFlightRole::Follower => {
                 let _wire = gate.wait_for_result(Duration::from_secs(30));
                 inst.inflight.remove(&key);
@@ -421,6 +447,10 @@ impl LookupCacheRegistry {
         self.instance(cache_name)
             .map(|i| i.backend.entry_count())
             .unwrap_or(0)
+    }
+
+    pub fn max_entries(&self, cache_name: &str) -> Option<u64> {
+        self.instance(cache_name).map(|i| i.max_entries())
     }
 
     pub fn all_entry_counts(&self) -> Vec<(String, u64)> {
@@ -690,5 +720,58 @@ mod tests {
             CacheLookupOutcome::Miss { .. } => {}
             _other => panic!("expected cache miss when knob off, got unexpected outcome"),
         }
+    }
+
+    #[test]
+    fn reconcile_lowers_max_entries_and_trims_existing_backend() {
+        let mut prev_map = HashMap::new();
+        let mut cfg = test_cache_instance(true);
+        cfg.max_entries = 0;
+        prev_map.insert("global".into(), cfg);
+        let registry = LookupCacheRegistry::from_snapshot(&prev_map);
+
+        for i in 0..5 {
+            let qname = format!("reconcile-max-{i}.example.");
+            let txn = txn_for(&qname, i + 1);
+            let key = build_query_key(&txn).unwrap();
+            let gate = registry.instance_gate("global", &key).unwrap();
+            registry.fill_from_forward("global", &key, &gate, nxdomain_wire(&qname), &txn);
+        }
+        assert_eq!(registry.entry_count("global"), 5);
+
+        let mut new_map = prev_map.clone();
+        new_map.get_mut("global").unwrap().max_entries = 2;
+        registry.reconcile(&prev_map, &new_map);
+
+        assert_eq!(registry.max_entries("global"), Some(2));
+        assert_eq!(registry.entry_count("global"), 2);
+    }
+
+    #[test]
+    fn reconcile_adds_new_instance_without_dropping_existing() {
+        let mut prev_map = HashMap::new();
+        prev_map.insert("global".into(), test_cache_instance(true));
+        let registry = LookupCacheRegistry::from_snapshot(&prev_map);
+
+        let txn = txn_for("new-instance.example.", 1);
+        let key = build_query_key(&txn).unwrap();
+        let gate = registry.instance_gate("global", &key).unwrap();
+        registry.fill_from_forward(
+            "global",
+            &key,
+            &gate,
+            nxdomain_wire("new-instance.example."),
+            &txn,
+        );
+        assert_eq!(registry.entry_count("global"), 1);
+
+        let mut new_map = prev_map.clone();
+        let mut other = test_cache_instance(true);
+        other.name = "regional".into();
+        new_map.insert("regional".into(), other);
+        registry.reconcile(&prev_map, &new_map);
+
+        assert_eq!(registry.entry_count("global"), 1);
+        assert_eq!(registry.entry_count("regional"), 0);
     }
 }

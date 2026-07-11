@@ -308,7 +308,33 @@ pub fn log_config_applied(
 ) {
     tracing::info!(generation, %source, "config applied");
     log_runtime_diff(&prev.config, &new.config);
-    log_pending_reconcile(&prev.config, &new.config);
+    log_pending_reconcile(prev, new);
+}
+
+fn log_pending_reconcile(prev: &RuntimeSnapshot, new: &RuntimeSnapshot) {
+    let listeners_changed = prev.config.listeners != new.config.listeners;
+    let forward_changed = prev.config.forward != new.config.forward;
+    if listeners_changed {
+        tracing::info!(
+            "listeners: pending (restart required) — snapshot updated, sockets not rebound"
+        );
+    }
+    if forward_changed {
+        tracing::info!(
+            "forward egress: pending (restart required) — snapshot updated, sockets not rebound"
+        );
+    }
+    for (name, new_inst) in &new.lookup.cache_instances {
+        let Some(prev_inst) = prev.lookup.cache_instances.get(name) else {
+            continue;
+        };
+        if prev_inst.memory.shard_count != new_inst.memory.shard_count {
+            tracing::info!(
+                cache = %name,
+                "cache memory.shard_count: pending (restart required) — snapshot updated, shard layout unchanged"
+            );
+        }
+    }
 }
 
 fn log_runtime_diff(prev: &Config, new: &Config) {
@@ -335,21 +361,6 @@ fn log_runtime_diff(prev: &Config, new: &Config) {
     let new_rules = new.rules.as_ref().map(|r| r.rules.len()).unwrap_or(0);
     if prev_rules != new_rules {
         tracing::info!(prev_rules, new_rules, "rules: count changed");
-    }
-}
-
-fn log_pending_reconcile(prev: &Config, new: &Config) {
-    let listeners_changed = prev.listeners != new.listeners;
-    let forward_changed = prev.forward != new.forward;
-    if listeners_changed {
-        tracing::info!(
-            "listeners: pending (restart required) — snapshot updated, sockets not rebound"
-        );
-    }
-    if forward_changed {
-        tracing::info!(
-            "forward egress: pending (restart required) — snapshot updated, sockets not rebound"
-        );
     }
 }
 

@@ -5,6 +5,7 @@ use super::key::CacheKey;
 use conduit_config::lookup::{CompiledCacheInstance, EvictionMode};
 use parking_lot::RwLock;
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -12,7 +13,7 @@ pub struct MemoryCacheBackend {
     shard_count: usize,
     #[allow(dead_code)]
     eviction: EvictionMode,
-    max_entries: u64,
+    max_entries: AtomicU64,
     shards: Vec<RwLock<Shard>>,
 }
 
@@ -39,8 +40,34 @@ impl MemoryCacheBackend {
         Self {
             shard_count,
             eviction: cfg.memory.eviction,
-            max_entries: cfg.max_entries,
+            max_entries: AtomicU64::new(cfg.max_entries),
             shards,
+        }
+    }
+
+    pub fn max_entries(&self) -> u64 {
+        self.max_entries.load(Ordering::Relaxed)
+    }
+
+    /// Update the live entry cap without rebuilding shard maps. When the cap is lowered,
+    /// evicts entries until the cache is at or under the new limit.
+    pub fn set_max_entries(&self, max_entries: u64) {
+        let prev = self.max_entries.swap(max_entries, Ordering::Relaxed);
+        if max_entries > 0 && (prev > max_entries || prev == 0) && self.entry_count() > max_entries
+        {
+            self.trim_to_max(Instant::now());
+        }
+    }
+
+    pub fn trim_to_max(&self, now: Instant) {
+        let max = self.max_entries.load(Ordering::Relaxed);
+        if max == 0 {
+            return;
+        }
+        while self.entry_count() > max {
+            if !self.evict_one(now) {
+                break;
+            }
         }
     }
 
@@ -89,14 +116,15 @@ impl MemoryCacheBackend {
         {
             guard.entries.remove(&key);
         }
-        if self.max_entries > 0 {
+        if self.max_entries.load(Ordering::Relaxed) > 0 {
             self.evict_if_needed(&mut guard, idx, now);
         }
         guard.entries.insert(key, entry);
     }
 
     fn evict_if_needed(&self, shard: &mut Shard, shard_idx: usize, now: Instant) {
-        if self.max_entries == 0 {
+        let max_entries = self.max_entries.load(Ordering::Relaxed);
+        if max_entries == 0 {
             return;
         }
         shard.entries.retain(|_, e| e.is_fresh(now));
@@ -107,10 +135,24 @@ impl MemoryCacheBackend {
             }
             total += s.read().entries.len() as u64;
         }
-        if total < self.max_entries {
+        if total < max_entries {
             return;
         }
-        // Passive evict-on-insert: drop one expired or arbitrary entry in this shard.
+        Self::evict_one_in_shard(shard, now);
+    }
+
+    /// Remove one entry from any shard (stale first). Returns false when the cache is empty.
+    fn evict_one(&self, now: Instant) -> bool {
+        for shard in &self.shards {
+            let mut guard = shard.write();
+            if Self::evict_one_in_shard(&mut guard, now) {
+                return true;
+            }
+        }
+        false
+    }
+
+    fn evict_one_in_shard(shard: &mut Shard, now: Instant) -> bool {
         if let Some(stale_key) = shard
             .entries
             .iter()
@@ -118,11 +160,13 @@ impl MemoryCacheBackend {
             .map(|(k, _)| k.clone())
         {
             shard.entries.remove(&stale_key);
-            return;
+            return true;
         }
         if let Some(first) = shard.entries.keys().next().cloned() {
             shard.entries.remove(&first);
+            return true;
         }
+        false
     }
 
     pub fn entry_count(&self) -> u64 {
@@ -341,6 +385,43 @@ mod tests {
         backend.insert(key.clone(), entry, now);
         assert_eq!(backend.get_result(&key, now), CacheGetResult::Hit);
         assert_eq!(backend.entry_count(), 1);
+    }
+
+    #[test]
+    fn set_max_entries_lowers_cap_and_trims_live_entries() {
+        let backend = MemoryCacheBackend::from_config(&test_instance(0));
+        let now = Instant::now();
+        for i in 0..5 {
+            let key = CacheKey(format!("key-{i}").into_bytes());
+            backend.insert(
+                key,
+                entry_from_wire(sample_wire(), true, 10, now).unwrap(),
+                now,
+            );
+        }
+        assert_eq!(backend.entry_count(), 5);
+
+        backend.set_max_entries(2);
+        assert_eq!(backend.max_entries(), 2);
+        assert_eq!(backend.entry_count(), 2);
+    }
+
+    #[test]
+    fn set_max_entries_raise_does_not_evict() {
+        let backend = MemoryCacheBackend::from_config(&test_instance(2));
+        let now = Instant::now();
+        for i in 0..2 {
+            let key = CacheKey(format!("key-{i}").into_bytes());
+            backend.insert(
+                key,
+                entry_from_wire(sample_wire(), true, 10, now).unwrap(),
+                now,
+            );
+        }
+        assert_eq!(backend.entry_count(), 2);
+
+        backend.set_max_entries(100);
+        assert_eq!(backend.entry_count(), 2);
     }
 
     #[test]

@@ -1,6 +1,7 @@
 //! Immutable runtime configuration snapshot and atomic swap (spec §4.4).
 
 use crate::health::HealthRegistry;
+use crate::lookup::LookupCacheRegistry;
 use crate::rules::CompiledRules;
 use arc_swap::ArcSwap;
 use conduit_config::forward::{CompiledForward, CompiledPoolForward};
@@ -241,15 +242,22 @@ pub struct SnapshotStore {
     /// identity), never blanket-reset. The dataplane reads this same registry for
     /// the probe loop and at Route.
     health: Arc<HealthRegistry>,
+    /// Runtime DNS answer cache (outside snapshot). Entry storage survives snapshot
+    /// swaps; `max_entries` and new instance names are reconciled on each swap.
+    cache: Arc<LookupCacheRegistry>,
 }
 
 impl SnapshotStore {
     pub fn new(snapshot: RuntimeSnapshot) -> Self {
         let health = Arc::new(HealthRegistry::from_compiled(&snapshot.health));
+        let cache = Arc::new(LookupCacheRegistry::from_snapshot(
+            &snapshot.lookup.cache_instances,
+        ));
         Self {
             current: ArcSwap::from_pointee(snapshot),
             generation: AtomicU64::new(0),
             health,
+            cache,
         }
     }
 
@@ -260,6 +268,11 @@ impl SnapshotStore {
     /// Shared handle to the runtime health side-table (probe loop + Route).
     pub fn health(&self) -> Arc<HealthRegistry> {
         self.health.clone()
+    }
+
+    /// Shared handle to the runtime DNS answer cache registry.
+    pub fn cache(&self) -> Arc<LookupCacheRegistry> {
+        self.cache.clone()
     }
 
     pub fn generation(&self) -> u64 {
@@ -274,6 +287,8 @@ impl SnapshotStore {
         let new = Arc::new(snapshot);
         let prev = self.current.swap(new.clone());
         self.health.reconcile(&prev.health, &new.health);
+        self.cache
+            .reconcile(&prev.lookup.cache_instances, &new.lookup.cache_instances);
         self.generation.fetch_add(1, Ordering::Relaxed);
         prev
     }
@@ -402,6 +417,58 @@ mod tests {
         let compiled = CompiledLookup::compile_from_config(&cache_enabled).unwrap();
         assert!(compiled.cache_enabled());
         assert!(compiled.cache_instances.contains_key("global"));
+    }
+
+    #[test]
+    fn swap_reconciles_cache_max_entries() {
+        use crate::lookup::cache::build_query_key;
+        use hickory_proto::op::{Message, MessageType, Query, ResponseCode};
+        use hickory_proto::rr::{Name, RecordType};
+        use hickory_proto::serialize::binary::{BinEncodable, BinEncoder};
+
+        let yaml = include_str!("../../../tests/fixtures/config/lookup-cache-enabled.yaml");
+        let mut cfg = load_yaml(yaml).unwrap();
+        cfg.caches[0].max_entries = Some(0);
+        let store = SnapshotStore::new(RuntimeSnapshot::from_config(cfg.clone()));
+
+        let cache = store.cache();
+        for i in 0..4 {
+            let qname = format!("swap-max-{i}.example.");
+            let mut txn = crate::transaction::Transaction::new(
+                i + 1,
+                "127.0.0.1:53".parse().unwrap(),
+                crate::transaction::ClientProtocol::Udp,
+            );
+            txn.qname = Some(qname.clone());
+            txn.qtype = Some(1);
+            txn.qclass = Some(1);
+            let name = Name::from_utf8(&qname).unwrap();
+            let mut qmsg = Message::new();
+            qmsg.add_query(Query::query(name.clone(), RecordType::A));
+            let mut qbuf = Vec::new();
+            let mut qenc = BinEncoder::new(&mut qbuf);
+            qmsg.emit(&mut qenc).unwrap();
+            txn.query_wire = qbuf;
+            txn.dns_id = 0x1234;
+            let key = build_query_key(&txn).unwrap();
+            let gate = cache.instance_gate("global", &key).unwrap();
+            let mut msg = Message::new();
+            msg.set_message_type(MessageType::Response);
+            msg.set_response_code(ResponseCode::NXDomain);
+            msg.add_query(Query::query(name, RecordType::A));
+            let mut buf = Vec::new();
+            let mut enc = BinEncoder::new(&mut buf);
+            msg.emit(&mut enc).unwrap();
+            let wire: Arc<[u8]> = buf.into();
+            cache.fill_from_forward("global", &key, &gate, wire, &txn);
+        }
+        assert_eq!(cache.entry_count("global"), 4);
+
+        cfg.caches[0].max_entries = Some(2);
+        store.swap(RuntimeSnapshot::from_config(cfg));
+
+        assert_eq!(cache.max_entries("global"), Some(2));
+        assert_eq!(cache.entry_count("global"), 2);
     }
 
     #[test]
