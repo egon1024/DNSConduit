@@ -701,11 +701,7 @@ mod tests {
             RData::A(A::new(192, 0, 2, 10)),
         ));
         msg.add_name_server(Record::from_rdata(zone, 600, RData::NS(NS(ns.clone()))));
-        msg.add_additional(Record::from_rdata(
-            ns,
-            600,
-            RData::A(A::new(192, 0, 2, 53)),
-        ));
+        msg.add_additional(Record::from_rdata(ns, 600, RData::A(A::new(192, 0, 2, 53))));
         let mut buf = Vec::new();
         let mut enc = BinEncoder::new(&mut buf);
         msg.emit(&mut enc).unwrap();
@@ -758,7 +754,10 @@ mod tests {
 
         // Stored slab bytes must still include all sections (serve path clones, does not mutate).
         let inst = registry.instance("global").unwrap();
-        let entry = inst.backend.get(&key, Instant::now()).expect("stored entry");
+        let entry = inst
+            .backend
+            .get(&key, Instant::now())
+            .expect("stored entry");
         let stored = Message::from_vec(&entry.wire).unwrap();
         assert_eq!(stored.name_servers().len(), 1);
         assert_eq!(stored.additionals().len(), 1);
