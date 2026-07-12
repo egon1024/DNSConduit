@@ -1,6 +1,6 @@
 # Rhai policy
 
-End-to-end lab for **Rhai for rules** — two request-hook patterns where scripts add value over built-in actions alone. Each example uses self-contained YAML, a `.rhai` script, and `dig` checks. API detail lives on [Host API overview](/rhai/host-api.md), [Rhai for rules](/rhai/rule-rhai.md), and [Hooks and phases](/rhai/hooks-and-phases.md).
+End-to-end lab for **Rhai for rules** — two request-hook patterns where scripts add value over built-in actions alone. Each example uses self-contained YAML, a `.rhai` script, and `dig` checks. API detail is described in [Host API overview](/rhai/host-api.md), [Rhai for rules](/rhai/rule-rhai.md), and [Hooks and phases](/rhai/hooks-and-phases.md).
 
 **Prerequisites:** Conduit on your `PATH` ([Install and run](/getting-started/install-and-run.md)); **`dig`**; optional **`dnsmasq`** as a loopback upstream mock ([First query](/getting-started/first-query.md)). Read [Rules and actions](/policy-routing/rules-and-actions.md) for selectors and built-in actions first.
 
@@ -17,13 +17,13 @@ Use a working directory per example (for example `~/conduit-lab/blocklist/` and 
 
 ## Example 1 — Blocklist drop (request hook)
 
-Lookup table on the **request hook**: match qname against a CSV, increment a **custom user metric** on blocks, then **drop** before [Forward](/concepts/architecture-and-packet-path.md#forward). The client gets no DNS reply. [Event export](/observability/event-export.md) still emits a **`query`** dnstap frame after request rules when sinks match — use **`tag_required`** or filters to scope blocked traffic, or rely on a [user metric](/rhai/user-metrics.md) for block counters.
+Lookup table on the **request hook**: match qname against a CSV, increment a **custom user metric** on blocks, then **drop** before [Lookup](/concepts/architecture-and-packet-path.md#lookup). The client gets no DNS reply. [Event export](/observability/event-export.md) still emits a **`query`** dnstap frame after request rules when sinks match — use **`tag_required`** or filters to scope blocked traffic, or rely on a [user metric](/rhai/user-metrics.md) for block counters.
 
 ```mermaid
 flowchart LR
   Q[Client query] --> Req[Request rules]
   Req -->|blocklist match + drop| Drop[Drop — no reply]
-  Req -->|allow| Route[Route → Forward]
+  Req -->|allow| Lookup[Lookup]
 ```
 
 ### 1. Layout

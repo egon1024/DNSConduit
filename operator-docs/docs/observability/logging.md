@@ -12,6 +12,8 @@ Configure **`logging:`** to set process log severity and whether lines go to **s
 
 ## Configuration
 
+Field reference: [Config schema: logging](/reference/config-schema/logging.md).
+
 When the **`logging:`** block is **omitted**, Conduit uses **`info`** level and writes to **stderr**.
 
 ```yaml
@@ -81,7 +83,7 @@ DEBUG … query complete txn_id=1 dns_id=… qname=example.com. rcode=NOERROR po
 
 The **`backend`** field is the backend **label** — the configured backend `name` when set, otherwise the `ip:port` address — matching the identity used in [metrics](/observability/built-in-metrics.md), [traces](/observability/tracing.md), and [event sinks](/observability/event-export.md).
 
-Policy **drops** (no reply sent) log at **`debug`** as **`query dropped`**:
+Policy **drops** (no reply sent) log at **`debug`** as **`query dropped`** and increment [`conduit_queries_dropped_total`](/observability/built-in-metrics.md#conduit_queries_dropped_total):
 
 ```text
 DEBUG … query dropped txn_id=2 dns_id=… qname=blocked.example.
@@ -162,6 +164,7 @@ The log subscriber is initialized **once at process start**. Changing **`level`*
 
 ## Related topics
 
+- [Config schema: logging](/reference/config-schema/logging.md) — field table, defaults, restart semantics
 - [Config file — `logging`](/control-plane/config-file.md) — top-level block overview
 - [Tracing](/observability/tracing.md) — pipeline traces and optional JSON trace logs
 - [Metrics](/observability/metrics.md) — Prometheus scrape and OTEL metrics push

@@ -93,8 +93,8 @@ Conduit does not terminate DNS-over-TLS or DNS-over-HTTPS on these listeners —
 
 Listener sockets are opened at **process start** from the config present when `conduit` starts.
 
-| Change | Snapshot after reload/apply? | On-the-wire effect |
-|--------|----------------------------|--------------------|
+| Change | Stored in new snapshot? | On-the-wire effect |
+|--------|-------------------------|--------------------|
 | `pools`, `rules`, `orchestrator`, … | Yes — hot for new queries | N/A (not listener fields) |
 | **`listeners`** (addresses, `threads`, `reuse_port`, `rcvbuf`, `name`, per-listener overrides, entries) | Yes — stored in new snapshot | **Restart required** — existing sockets keep serving until restart |
 

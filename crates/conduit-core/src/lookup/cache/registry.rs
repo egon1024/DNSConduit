@@ -43,14 +43,13 @@ fn try_ancestor_nxdomain_hit(
         return None;
     }
     let qname = txn.qname.as_deref().unwrap_or(".");
-    let transport = TransportKey::from_client(txn.protocol);
     for ancestor in ancestor_qnames(qname) {
         let key = build_key_from_parts(
             &ancestor,
             txn.qtype.unwrap_or(0),
             txn.qclass.unwrap_or(1),
             &txn.query_wire,
-            transport,
+            TransportKey::Complete,
         )
         .ok()?;
         let entry = inst.backend.get(&key, now)?;
@@ -194,17 +193,19 @@ impl LookupCacheRegistry {
             }
         };
 
-        if let Some(entry) = self.try_read_hit(&inst, &key, txn, now, None) {
+        if let Some(entry) = self.try_read_hit(&inst, &key, txn, now) {
             return entry;
         }
 
         if let Some(entry) = try_ancestor_nxdomain_hit(&inst, txn, now) {
-            return self.hit_from_entry(&inst, &entry, txn, now, Some(&txn.query_wire));
+            return self.hit_from_entry(&inst, &entry, txn, now);
         }
 
-        if inst.config.truncated_udp.enabled {
+        if inst.config.truncated_udp.enabled
+            && txn.protocol == crate::transaction::ClientProtocol::Udp
+        {
             if let Ok(tc_key) = build_truncated_udp_key(txn) {
-                if let Some(hit) = self.try_read_hit(&inst, &tc_key, txn, now, None) {
+                if let Some(hit) = self.try_read_hit(&inst, &tc_key, txn, now) {
                     return hit;
                 }
             }
@@ -222,7 +223,7 @@ impl LookupCacheRegistry {
                 let now = Instant::now();
                 if let Some(entry) = inst.backend.get(&key, now) {
                     self.record_singleflight_coalesced(cache_name, txn);
-                    return self.hit_from_entry(&inst, &entry, txn, now, None);
+                    return self.hit_from_entry(&inst, &entry, txn, now);
                 }
                 if let Some(w) = _wire {
                     self.record_singleflight_coalesced(cache_name, txn);
@@ -240,10 +241,9 @@ impl LookupCacheRegistry {
         key: &CacheKey,
         txn: &crate::transaction::Transaction,
         now: Instant,
-        client_query_wire: Option<&[u8]>,
     ) -> Option<CacheLookupOutcome> {
         let entry = inst.backend.get(key, now)?;
-        Some(self.hit_from_entry(inst, &entry, txn, now, client_query_wire))
+        Some(self.hit_from_entry(inst, &entry, txn, now))
     }
 
     fn hit_from_stored(
@@ -260,7 +260,7 @@ impl LookupCacheRegistry {
             inst.config.rotate_rrset_on_serve,
             now,
             now,
-            None,
+            Some(&txn.query_wire),
         ) {
             Ok(w) => w,
             Err(e) => {
@@ -288,7 +288,6 @@ impl LookupCacheRegistry {
         entry: &CacheEntry,
         txn: &crate::transaction::Transaction,
         now: Instant,
-        client_query_wire: Option<&[u8]>,
     ) -> CacheLookupOutcome {
         let wire = match prepare_served_arc(
             &entry.wire,
@@ -296,7 +295,7 @@ impl LookupCacheRegistry {
             inst.config.rotate_rrset_on_serve,
             entry.filled_at,
             now,
-            client_query_wire,
+            Some(&txn.query_wire),
         ) {
             Ok(w) => w,
             Err(e) => {
@@ -353,6 +352,7 @@ impl LookupCacheRegistry {
             return;
         }
 
+        let storing_truncated = store_key.is_some();
         let (insert_key, override_ttl) = if let Some((k, ttl)) = store_key {
             (k, Some(ttl))
         } else {
@@ -381,7 +381,19 @@ impl LookupCacheRegistry {
             entry.expires_at = super::entry::expires_at_from_ttl(now, ttl);
         }
 
+        // Insert the complete answer first so lookups (which prefer the complete
+        // key) never see a gap. Then drop any truncated-UDP sibling.
         inst.backend.insert(insert_key, entry, now);
+        if !storing_truncated {
+            if let Ok(tc_key) = build_truncated_udp_key(txn) {
+                if inst.backend.remove(&tc_key) {
+                    tracing::debug!(
+                        cache = cache_name,
+                        "removed truncated UDP sibling after complete cache fill"
+                    );
+                }
+            }
+        }
         self.record_cache_fill(cache_name, txn);
         let waiters = gate.complete(Some(wire));
         inst.inflight.remove(key);
@@ -424,7 +436,7 @@ impl LookupCacheRegistry {
         if let Some(entry) = inst.backend.get(key, now) {
             inst.inflight.remove(key);
             self.record_singleflight_coalesced(cache_name, txn);
-            return self.hit_from_entry(&inst, &entry, txn, now, None);
+            return self.hit_from_entry(&inst, &entry, txn, now);
         }
         if let Some(wire) = gate.result() {
             inst.inflight.remove(key);
@@ -563,7 +575,8 @@ mod tests {
     }
 
     fn nxdomain_wire(qname: &str) -> Arc<[u8]> {
-        let name = Name::from_utf8(qname).unwrap();
+        // from_ascii preserves label case (needed for 0x20 echo tests).
+        let name = Name::from_ascii(qname).unwrap();
         let mut msg = Message::new();
         msg.set_message_type(MessageType::Response);
         msg.set_response_code(ResponseCode::NXDomain);
@@ -575,7 +588,8 @@ mod tests {
     }
 
     fn client_query(qname: &str) -> Vec<u8> {
-        let name = Name::from_utf8(qname).unwrap();
+        // from_ascii preserves label case so mixed-case 0x20 queries survive encode/decode.
+        let name = Name::from_ascii(qname).unwrap();
         let mut msg = Message::new();
         msg.add_query(Query::query(name, RecordType::A));
         let mut buf = Vec::new();
@@ -584,9 +598,29 @@ mod tests {
         buf
     }
 
+    fn positive_a_wire(qname: &str) -> Arc<[u8]> {
+        use hickory_proto::rr::{RData, Record};
+        let name = Name::from_ascii(qname).unwrap();
+        let mut msg = Message::new();
+        msg.set_message_type(MessageType::Response);
+        msg.set_response_code(ResponseCode::NoError);
+        msg.add_query(Query::query(name.clone(), RecordType::A));
+        msg.add_answer(Record::from_rdata(
+            name,
+            300,
+            RData::A(hickory_proto::rr::rdata::A(std::net::Ipv4Addr::new(
+                192, 0, 2, 10,
+            ))),
+        ));
+        let mut buf = Vec::new();
+        let mut enc = BinEncoder::new(&mut buf);
+        msg.emit(&mut enc).unwrap();
+        buf.into()
+    }
+
     fn truncated_positive_wire(qname: &str) -> Arc<[u8]> {
         use hickory_proto::rr::{RData, Record};
-        let name = Name::from_utf8(qname).unwrap();
+        let name = Name::from_ascii(qname).unwrap();
         let mut msg = Message::new();
         msg.set_message_type(MessageType::Response);
         msg.set_truncated(true);
@@ -653,16 +687,249 @@ mod tests {
         ));
     }
 
+    #[test]
+    fn complete_answer_filled_over_udp_hits_for_tcp_client() {
+        let mut instances = HashMap::new();
+        instances.insert("global".into(), test_cache_instance(true));
+        let registry = LookupCacheRegistry::from_snapshot(&instances);
+
+        let udp_txn = txn_for("shared.policy-lab.test.example.", 20);
+        let key = build_query_key(&udp_txn).unwrap();
+        let gate = registry.instance_gate("global", &key).unwrap();
+        registry.fill_from_forward(
+            "global",
+            &key,
+            &gate,
+            nxdomain_wire("shared.policy-lab.test.example."),
+            &udp_txn,
+        );
+
+        let tcp_txn = txn_for_protocol("shared.policy-lab.test.example.", 21, ClientProtocol::Tcp);
+        assert!(matches!(
+            registry.lookup("global", &tcp_txn, Instant::now()),
+            CacheLookupOutcome::Hit { .. }
+        ));
+    }
+
+    #[test]
+    fn truncated_udp_entry_not_served_to_tcp_client() {
+        let mut instances = HashMap::new();
+        instances.insert(
+            "global".into(),
+            test_cache_instance_with_truncated(true, true),
+        );
+        let registry = LookupCacheRegistry::from_snapshot(&instances);
+        let udp_txn = txn_for("tc.tcp-skip.policy-lab.test.example.", 30);
+        let key = build_query_key(&udp_txn).unwrap();
+        let gate = registry.instance_gate("global", &key).unwrap();
+        registry.fill_from_forward(
+            "global",
+            &key,
+            &gate,
+            truncated_positive_wire("tc.tcp-skip.policy-lab.test.example."),
+            &udp_txn,
+        );
+
+        assert!(matches!(
+            registry.lookup("global", &udp_txn, Instant::now()),
+            CacheLookupOutcome::Hit { .. }
+        ));
+
+        let tcp_txn = txn_for_protocol(
+            "tc.tcp-skip.policy-lab.test.example.",
+            31,
+            ClientProtocol::Tcp,
+        );
+        assert!(matches!(
+            registry.lookup("global", &tcp_txn, Instant::now()),
+            CacheLookupOutcome::Miss { .. }
+        ));
+    }
+
+    #[test]
+    fn complete_fill_removes_truncated_udp_sibling() {
+        let mut instances = HashMap::new();
+        instances.insert(
+            "global".into(),
+            test_cache_instance_with_truncated(true, true),
+        );
+        let registry = LookupCacheRegistry::from_snapshot(&instances);
+        let qname = "replace-tc.policy-lab.test.example.";
+
+        let udp_txn = txn_for(qname, 40);
+        let complete_key = build_query_key(&udp_txn).unwrap();
+        let tc_key = build_truncated_udp_key(&udp_txn).unwrap();
+        let gate = registry.instance_gate("global", &complete_key).unwrap();
+        registry.fill_from_forward(
+            "global",
+            &complete_key,
+            &gate,
+            truncated_positive_wire(qname),
+            &udp_txn,
+        );
+        assert_eq!(registry.entry_count("global"), 1);
+        match registry.lookup("global", &udp_txn, Instant::now()) {
+            CacheLookupOutcome::Hit { wire, .. } => {
+                let msg = Message::from_vec(&wire).unwrap();
+                assert!(msg.truncated(), "precondition: UDP hit is the TC stub");
+            }
+            _other => panic!("expected truncated UDP hit before complete fill"),
+        }
+
+        let tcp_txn = txn_for_protocol(qname, 41, ClientProtocol::Tcp);
+        let tcp_gate = registry.instance_gate("global", &complete_key).unwrap();
+        registry.fill_from_forward(
+            "global",
+            &complete_key,
+            &tcp_gate,
+            positive_a_wire(qname),
+            &tcp_txn,
+        );
+
+        assert_eq!(
+            registry.entry_count("global"),
+            1,
+            "complete fill must replace the truncated sibling, not leave two entries"
+        );
+        // Truncated key must be gone (lookup via backend through a fresh get path).
+        let inst = registry.instance("global").expect("cache instance");
+        assert!(
+            inst.backend.get(&tc_key, Instant::now()).is_none(),
+            "truncated UDP sibling key must be removed"
+        );
+
+        match registry.lookup("global", &udp_txn, Instant::now()) {
+            CacheLookupOutcome::Hit { wire, .. } => {
+                let msg = Message::from_vec(&wire).unwrap();
+                assert!(
+                    !msg.truncated(),
+                    "UDP should now be served the complete cached answer"
+                );
+                assert_eq!(msg.answers().len(), 1);
+            }
+            _other => panic!("expected complete cache hit for UDP after TCP fill"),
+        }
+    }
+
     fn txn_for(qname: &str, id: u64) -> Transaction {
+        txn_for_protocol(qname, id, ClientProtocol::Udp)
+    }
+
+    fn txn_for_protocol(qname: &str, id: u64, protocol: ClientProtocol) -> Transaction {
         let addr: SocketAddr = "127.0.0.1:53".parse().unwrap();
         let wire = client_query(qname);
-        let mut txn = Transaction::new(id, addr, ClientProtocol::Udp);
+        let mut txn = Transaction::new(id, addr, protocol);
         txn.qname = Some(qname.into());
         txn.qtype = Some(1);
         txn.qclass = Some(1);
         txn.query_wire = wire;
         txn.dns_id = 0x1234;
         txn
+    }
+
+    #[test]
+    fn exact_hit_echoes_client_question_case_0x20() {
+        let mut instances = HashMap::new();
+        instances.insert("global".into(), test_cache_instance(true));
+        let registry = LookupCacheRegistry::from_snapshot(&instances);
+
+        // Fill with a lowercase question in the stored wire.
+        let fill_txn = txn_for("www.0x20-echo.example.", 100);
+        let key = build_query_key(&fill_txn).unwrap();
+        let gate = registry.instance_gate("global", &key).unwrap();
+        registry.fill_from_forward(
+            "global",
+            &key,
+            &gate,
+            positive_a_wire("www.0x20-echo.example."),
+            &fill_txn,
+        );
+
+        // Later client uses mixed-case QNAME (0x20 encoding); cache key matches case-insensitively.
+        let mut hit_txn = txn_for("WwW.0X20-eChO.eXaMpLe.", 101);
+        hit_txn.dns_id = 0xbeef;
+        match registry.lookup("global", &hit_txn, Instant::now()) {
+            CacheLookupOutcome::Hit { wire, .. } => {
+                let msg = Message::from_vec(&wire).unwrap();
+                assert_eq!(msg.id(), 0xbeef);
+                assert_eq!(
+                    msg.queries()[0].name().to_utf8(),
+                    "WwW.0X20-eChO.eXaMpLe.",
+                    "cache hit must echo the client's 0x20 question encoding"
+                );
+                assert_eq!(msg.response_code(), ResponseCode::NoError);
+                assert_eq!(msg.answers().len(), 1);
+            }
+            _other => panic!("expected exact cache hit, got unexpected outcome"),
+        }
+    }
+
+    #[test]
+    fn truncated_udp_hit_echoes_client_question_case_0x20() {
+        let mut instances = HashMap::new();
+        instances.insert(
+            "global".into(),
+            test_cache_instance_with_truncated(true, true),
+        );
+        let registry = LookupCacheRegistry::from_snapshot(&instances);
+
+        let fill_txn = txn_for("tc.0x20-echo.example.", 110);
+        let key = build_query_key(&fill_txn).unwrap();
+        let gate = registry.instance_gate("global", &key).unwrap();
+        registry.fill_from_forward(
+            "global",
+            &key,
+            &gate,
+            truncated_positive_wire("tc.0x20-echo.example."),
+            &fill_txn,
+        );
+
+        let hit_txn = txn_for("Tc.0X20-eChO.eXaMpLe.", 111);
+        match registry.lookup("global", &hit_txn, Instant::now()) {
+            CacheLookupOutcome::Hit { wire, .. } => {
+                let msg = Message::from_vec(&wire).unwrap();
+                assert!(msg.truncated());
+                assert_eq!(
+                    msg.queries()[0].name().to_utf8(),
+                    "Tc.0X20-eChO.eXaMpLe.",
+                    "truncated UDP cache hit must echo the client's 0x20 question encoding"
+                );
+            }
+            _other => panic!("expected truncated UDP cache hit, got unexpected outcome"),
+        }
+    }
+
+    #[test]
+    fn ancestor_nxdomain_echoes_descendant_question_case_0x20() {
+        let mut instances = HashMap::new();
+        instances.insert("global".into(), test_cache_instance(true));
+        let registry = LookupCacheRegistry::from_snapshot(&instances);
+        let now = Instant::now();
+
+        let parent_txn = txn_for("8020.0x20-echo.example.", 120);
+        let parent_key = build_query_key(&parent_txn).unwrap();
+        let gate = registry.instance_gate("global", &parent_key).unwrap();
+        registry.fill_from_forward(
+            "global",
+            &parent_key,
+            &gate,
+            nxdomain_wire("8020.0x20-echo.example."),
+            &parent_txn,
+        );
+
+        let child_txn = txn_for("ChIlD.8020.0x20-eChO.eXaMpLe.", 121);
+        match registry.lookup("global", &child_txn, now) {
+            CacheLookupOutcome::Hit { wire, .. } => {
+                let msg = Message::from_vec(&wire).unwrap();
+                assert_eq!(msg.response_code(), ResponseCode::NXDomain);
+                assert_eq!(
+                    msg.queries()[0].name().to_utf8(),
+                    "ChIlD.8020.0x20-eChO.eXaMpLe.",
+                    "ancestor NXDOMAIN hit must echo the descendant's 0x20 question encoding"
+                );
+            }
+            _other => panic!("expected ancestor cache hit, got unexpected outcome"),
+        }
     }
 
     #[test]

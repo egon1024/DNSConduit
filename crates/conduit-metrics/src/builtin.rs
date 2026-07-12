@@ -116,6 +116,11 @@ enum ResponsesTruncatedTotal {
     Full(IntCounterVec),
 }
 
+enum QueriesDroppedTotal {
+    Minimal(IntCounterVec),
+    Full(IntCounterVec),
+}
+
 enum ResponseDuration {
     Full(HistogramVec),
 }
@@ -127,6 +132,7 @@ pub struct BuiltinRegistry {
     queries_total: QueriesTotal,
     responses_total: Option<ResponsesTotal>,
     responses_truncated_total: Option<ResponsesTruncatedTotal>,
+    queries_dropped_total: Option<QueriesDroppedTotal>,
     response_duration: Option<ResponseDuration>,
     lookup_provider_outcomes: Option<IntCounterVec>,
     cache_lookups: Option<IntCounterVec>,
@@ -250,6 +256,34 @@ impl BuiltinRegistry {
                 .expect("metric");
                 registry.register(Box::new(v.clone())).expect("register");
                 Some(ResponsesTruncatedTotal::Minimal(v))
+            }
+        } else {
+            None
+        };
+
+        let queries_dropped_total = if effective {
+            if is_full {
+                let v = IntCounterVec::new(
+                    Opts::new(
+                        "conduit_queries_dropped_total",
+                        "Queries ended with no DNS reply after successful parse (policy drop)",
+                    ),
+                    &["listener", "protocol", "reason", "ip_family"],
+                )
+                .expect("metric");
+                registry.register(Box::new(v.clone())).expect("register");
+                Some(QueriesDroppedTotal::Full(v))
+            } else {
+                let v = IntCounterVec::new(
+                    Opts::new(
+                        "conduit_queries_dropped_total",
+                        "Queries ended with no DNS reply after successful parse (policy drop)",
+                    ),
+                    &["listener", "protocol", "reason"],
+                )
+                .expect("metric");
+                registry.register(Box::new(v.clone())).expect("register");
+                Some(QueriesDroppedTotal::Minimal(v))
             }
         } else {
             None
@@ -748,6 +782,7 @@ impl BuiltinRegistry {
             queries_total,
             responses_total,
             responses_truncated_total,
+            queries_dropped_total,
             response_duration,
             lookup_provider_outcomes,
             cache_lookups,
@@ -837,6 +872,31 @@ impl BuiltinRegistry {
         }
         if let Some(ref c) = self.parse_rejected_total {
             c.with_label_values(&[reason]).inc();
+        }
+    }
+
+    /// Policy drop after successful parse (`reason`: `request_rules` or `response_rules`).
+    pub fn record_query_dropped(
+        &self,
+        listener: &str,
+        protocol: &str,
+        reason: &str,
+        client_addr: &std::net::SocketAddr,
+    ) {
+        if !self.enabled {
+            return;
+        }
+        if let Some(ref dropped) = self.queries_dropped_total {
+            match dropped {
+                QueriesDroppedTotal::Minimal(c) => {
+                    c.with_label_values(&[listener, protocol, reason]).inc();
+                }
+                QueriesDroppedTotal::Full(c) => {
+                    let ip_family = ip_family_label(client_addr);
+                    c.with_label_values(&[listener, protocol, reason, ip_family])
+                        .inc();
+                }
+            }
         }
     }
 
@@ -1316,12 +1376,14 @@ mod tests {
     fn failure_counters_recorded_on_minimal_and_full() {
         for profile in [BuiltinProfile::Minimal, BuiltinProfile::Full] {
             let reg = BuiltinRegistry::new(true, profile);
+            let addr: std::net::SocketAddr = "127.0.0.1:15353".parse().unwrap();
             reg.record_script_error(
                 crate::SCRIPT_ERROR_LOOKUP_UNKNOWN_TABLE,
                 "scripts/blocklist.rhai",
                 "typo_table",
             );
             reg.record_parse_rejected("wire_error");
+            reg.record_query_dropped("ln", "udp", "request_rules", &addr);
             reg.record_forward_error("default", "127.0.0.1:5300", "timeout");
             reg.record_retry("default");
             let body = encode_builtin(reg.gather());
@@ -1335,6 +1397,14 @@ mod tests {
             );
             assert!(
                 body.contains("conduit_parse_rejected_total"),
+                "{profile:?} body:\n{body}"
+            );
+            assert!(
+                body.contains("conduit_queries_dropped_total"),
+                "{profile:?} body:\n{body}"
+            );
+            assert!(
+                body.contains(r#"reason="request_rules""#),
                 "{profile:?} body:\n{body}"
             );
             assert!(
@@ -1578,6 +1648,34 @@ mod tests {
             body.contains(r#"ip_family="v4""#),
             "full truncated responses include ip_family, body:\n{body}"
         );
+    }
+
+    #[test]
+    fn queries_dropped_joinable_labels_and_reason() {
+        let addr: std::net::SocketAddr = "127.0.0.1:15353".parse().unwrap();
+        let reg = BuiltinRegistry::new(true, BuiltinProfile::Minimal);
+        reg.record_query_dropped("ln", "udp", "request_rules", &addr);
+        reg.record_query_dropped("ln", "udp", "response_rules", &addr);
+        let body = encode_builtin(reg.gather());
+        assert!(
+            body.contains("conduit_queries_dropped_total"),
+            "body:\n{body}"
+        );
+        assert!(body.contains(r#"reason="request_rules""#), "body:\n{body}");
+        assert!(body.contains(r#"reason="response_rules""#), "body:\n{body}");
+        assert!(
+            !body.contains("ip_family="),
+            "minimal policy drops omit ip_family, body:\n{body}"
+        );
+
+        let reg = BuiltinRegistry::new(true, BuiltinProfile::Full);
+        reg.record_query_dropped("ln", "udp", "request_rules", &addr);
+        let body = encode_builtin(reg.gather());
+        assert!(
+            body.contains(r#"ip_family="v4""#),
+            "full policy drops include ip_family, body:\n{body}"
+        );
+        assert!(body.contains(r#"reason="request_rules""#), "body:\n{body}");
     }
 
     #[test]

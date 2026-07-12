@@ -1,10 +1,10 @@
 # Runtime and concurrency
 
-This page describes how DNS Conduit spreads the per-query [pipeline](/concepts/architecture-and-packet-path.md#pipeline-phases) across OS threads: the **dataplane runtime model** (`sync` vs `split_io`), the worker pools and limits that bound concurrency, the shared [transaction](/glossary/index.md#transaction) slot pool, and how Conduit **drains** in-flight work on shutdown. The [pipeline phases](/concepts/architecture-and-packet-path.md#pipeline-phases) themselves — what each query does, in order — live on [Architecture and packet path](/concepts/architecture-and-packet-path.md).
+This page describes how DNS Conduit spreads the per-query [defined pipeline](/concepts/architecture-and-packet-path.md#pipeline-phases) across OS threads: the **dataplane runtime model** (`sync` vs `split_io`), the worker pools and limits that bound concurrency, the shared [transaction](/glossary/index.md#transaction) slot pool, and how Conduit **drains** in-flight work on shutdown. The [pipeline phases](/concepts/architecture-and-packet-path.md#pipeline-phases) themselves — what each query does — are described in [Architecture and packet path](/concepts/architecture-and-packet-path.md).
 
 ## Runtime models
 
-Conduit chooses a **dataplane runtime model** once at process startup with **`dataplane.runtime`**. The runtime decides *how* the work in the [pipeline](/concepts/architecture-and-packet-path.md#pipeline-phases) is spread across OS threads — it does **not** change the [pipeline phases](/concepts/architecture-and-packet-path.md#pipeline-phases) themselves. Every query still walks the same phases in the same order regardless of runtime. The model is fixed for the life of the process: changing `dataplane.runtime` or its worker counts takes effect only after a **restart**, not on [reload](/glossary/index.md#reload-from-disk).
+Conduit chooses a **dataplane runtime model** once at process startup with **`dataplane.runtime`**. The runtime decides *how* the work in the [defined pipeline](/concepts/architecture-and-packet-path.md#pipeline-phases) is spread across OS threads — it does **not** change the pipeline phases themselves. Every query still follows that pipeline regardless of runtime. The runtime model is fixed for the life of the process: changing `dataplane.runtime` or its worker counts takes effect only after a **restart**, not on [reload](/glossary/index.md#reload-from-disk).
 
 Two runtime models ship today:
 
@@ -17,7 +17,7 @@ Omitting the `dataplane:` block uses `sync`.
 
 ## Sync runtime (default)
 
-In the **`sync`** model, each **ingress worker** accepts a client query, runs the full [pipeline](/concepts/architecture-and-packet-path.md#pipeline-phases) on that OS thread — **including the blocking upstream wait** at [Forward](/concepts/architecture-and-packet-path.md#forward) / [Wait for response](/concepts/architecture-and-packet-path.md#wait-for-response) — then sends the reply before taking the next query on that thread. There is no separate policy or I/O worker pool.
+In the **`sync`** model, each **ingress worker** accepts a client query, runs the full [pipeline](/concepts/architecture-and-packet-path.md#pipeline-phases) on that OS thread — **including the blocking upstream wait** inside [Lookup](/concepts/architecture-and-packet-path.md#lookup)'s [forward provider](/concepts/architecture-and-packet-path.md#forward-provider-internals) ([Forward](/concepts/architecture-and-packet-path.md#forward) / [Wait for response](/concepts/architecture-and-packet-path.md#wait-for-response)) — then sends the reply before taking the next query on that thread. There is no separate policy or I/O worker pool.
 
 ```mermaid
 flowchart LR
@@ -36,10 +36,10 @@ Under load or slow upstreams, a busy ingress worker cannot accept another client
 Setting **`dataplane.runtime: split_io`** splits the work into three worker roles so that waiting on a slow upstream does not tie up the thread that accepts client traffic:
 
 - **Ingress workers** — accept the client message (UDP or TCP), do the structural [Parse](/concepts/architecture-and-packet-path.md#parse) check (valid DNS, single question), take a [transaction](/glossary/index.md#transaction) slot, and hand it off. They do **not** block on upstream replies. Count comes from **`listeners.threads`** (per listener, with optional per-listener override).
-- **Policy workers** — run the orchestrator phases — [Request rules](/concepts/architecture-and-packet-path.md#request-rules), [Route](/concepts/architecture-and-packet-path.md#route), the [Forward](/concepts/architecture-and-packet-path.md#forward) submit — and finish the [transaction](/glossary/index.md#transaction) at [Response rules](/concepts/architecture-and-packet-path.md#response-rules) / [Send](/concepts/architecture-and-packet-path.md#send) once a reply is in. Count comes from **`dataplane.policy_workers`**.
-- **I/O workers** — own the upstream sockets: they match incoming upstream replies to parked transactions, enforce `forward.timeout_ms`, and resume each transaction at [Wait for response](/concepts/architecture-and-packet-path.md#wait-for-response). Count comes from **`dataplane.io_workers`**.
+- **Policy workers** — run the orchestrator phases — [Request rules](/concepts/architecture-and-packet-path.md#request-rules), [Lookup](/concepts/architecture-and-packet-path.md#lookup) (including forward-provider submit), and finish the [transaction](/glossary/index.md#transaction) at [Response rules](/concepts/architecture-and-packet-path.md#response-rules) / [Send](/concepts/architecture-and-packet-path.md#send) once a reply is in. Count comes from **`dataplane.policy_workers`**.
+- **I/O workers** — own the upstream sockets: they match incoming upstream replies to parked transactions, enforce `forward.timeout_ms`, and resume each transaction at [Wait for response](/concepts/architecture-and-packet-path.md#wait-for-response) inside the forward provider. Count comes from **`dataplane.io_workers`**.
 
-The difference from `sync` is at [Forward](/concepts/architecture-and-packet-path.md#forward) → [Wait for response](/concepts/architecture-and-packet-path.md#wait-for-response): instead of blocking, Forward **submits** the upstream query and **parks** the transaction; an I/O worker later resumes it on reply, timeout, or error. Ingress and policy workers stay free to handle other queries in the meantime.
+The difference from `sync` is at [Forward](/concepts/architecture-and-packet-path.md#forward) → [Wait for response](/concepts/architecture-and-packet-path.md#wait-for-response) inside Lookup: instead of blocking, Forward **submits** the upstream query and **parks** the transaction; an I/O worker later resumes it on reply, timeout, or error. Ingress and policy workers stay free to handle other queries in the meantime.
 
 ```mermaid
 flowchart LR

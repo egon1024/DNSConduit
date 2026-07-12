@@ -122,7 +122,7 @@ What to look for:
 - [`conduit_forward_outstanding`](/observability/built-in-metrics.md#conduit_forward_outstanding) — concurrent upstream waits per backend. Under `split_io`, a sustained high value against a slow upstream is the **expected** concurrency signal (parked waits), not busy-worker backlog.
 - [`conduit_slots_in_use`](/observability/built-in-metrics.md#conduit_slots_in_use) vs [`conduit_slots_capacity`](/observability/built-in-metrics.md#conduit_slots_capacity) — slot-pool utilization. Sustained `in_use` near `capacity` precedes exhaustion; raise `orchestrator.txn_table_capacity`.
 - [`conduit_slot_pool_exhausted_total`](/observability/built-in-metrics.md#conduit_slot_pool_exhausted_total) — any non-zero rate means the slot pool is the bottleneck (shed queries).
-- [`conduit_phase_duration_seconds`](/observability/built-in-metrics.md#conduit_phase_duration_seconds) — high `request_rules` / `response_rules` time points at policy CPU (raise `policy_workers`); high `wait_response` time is upstream latency (a forwarding/upstream problem, not a worker-count one).
+- [`conduit_phase_duration_seconds`](/observability/built-in-metrics.md#conduit_phase_duration_seconds) — high `request_rules` / `response_rules` time points at policy CPU (raise `policy_workers`); high **`lookup`** time is often upstream latency inside the forward provider (a forwarding/upstream problem, not a worker-count one). Use [`conduit_forward_outstanding`](/observability/built-in-metrics.md#conduit_forward_outstanding) for concurrent parked waits.
 
 Useful PromQL:
 
@@ -130,7 +130,7 @@ Useful PromQL:
 sum(conduit_forward_outstanding) by (pool, backend)
 conduit_slots_in_use / conduit_slots_capacity
 sum(rate(conduit_slot_pool_exhausted_total[5m]))
-histogram_quantile(0.99, sum(rate(conduit_phase_duration_seconds_bucket{phase="wait_response"}[5m])) by (le))
+histogram_quantile(0.99, sum(rate(conduit_phase_duration_seconds_bucket{phase="lookup"}[5m])) by (le))
 ```
 
 ## Symptom → knob

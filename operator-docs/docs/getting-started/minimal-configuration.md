@@ -4,7 +4,7 @@ This page shows the smallest [config file](/control-plane/config-file.md) that c
 
 The [control plane](/glossary/index.md#control-plane) (gRPC and `conduitctl`) is **opt-in**: it is **not** started unless you add an explicit `control:` block. The minimal example below does not enable it.
 
-**Minimal** means the fewest blocks you must author. Conduit fills in safe defaults for everything else at load time. This page covers only the three required blocks; field-level reference and tuning live in [Reference: config schema](/reference/config-schema/index.md) and the linked topic pages below.
+**Minimal** means the fewest blocks you must author. Conduit fills in safe defaults for everything else at load time. This page covers only the three required blocks; field-level reference and tuning are described in [Reference: config schema](/reference/config-schema/index.md) and the linked topic pages below.
 
 ## Minimal example
 
@@ -75,7 +75,7 @@ control:
 
 Changing or adding `control:` via reload requires a **process restart** today; see [Reload and export](/control-plane/reload-and-export.md).
 
-For the full query path (listen → policy → route → forward), see [Architecture and packet path](/concepts/architecture-and-packet-path.md).
+For the full query path (listen → policy → Lookup → send), see [Architecture and packet path](/concepts/architecture-and-packet-path.md).
 
 ## Validate and run
 

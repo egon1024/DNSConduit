@@ -53,7 +53,7 @@ YAML serialization of the **[effective config](/glossary/index.md#effective-conf
 
 ### Runtime snapshot
 
-The validated settings bundle the [dataplane](/glossary/index.md#dataplane) uses to answer queries at a given moment — effective config (listeners, pools, forward behavior, health probe settings), loaded rules and scripts, and observability filters. All listener workers share the same snapshot until you reload or apply new settings. [Backend health](/policy-routing/backend-health.md) **runtime** state (observed/applied liveness, freeze/drain) lives outside the snapshot.
+The validated **configuration** settings bundle the [dataplane](/glossary/index.md#dataplane) uses to answer queries at a given moment — [effective config](/glossary/index.md#effective-config) (listeners, pools, forward behavior, health probe settings), loaded rules and scripts, and observability filters. All listener workers share the same snapshot until you reload or apply new settings. [Backend health](/policy-routing/backend-health.md) **runtime** state (observed/applied liveness, freeze/drain) lives outside the snapshot.
 
 → [Architecture and packet path](/concepts/architecture-and-packet-path.md), [Configuration model](/control-plane/configuration-model.md#runtime-snapshot)
 
@@ -71,7 +71,7 @@ Snapshot updated after a reload or apply, but `listeners` or `forward` socket st
 
 ### Runtime model
 
-The [dataplane](/glossary/index.md#dataplane) execution model chosen **once at process startup** with **`dataplane.runtime`** — **`sync`** (default) or **`split_io`** — deciding *how* the per-query [pipeline](/concepts/architecture-and-packet-path.md#pipeline-phases) is spread across OS threads. It does not change the pipeline phases; changing it (or its worker counts) requires a **restart**.
+The [dataplane](/glossary/index.md#dataplane) execution model chosen **once at process startup** with **`dataplane.runtime`** — **`sync`** (default) or **`split_io`** — deciding *how* the per-query [defined pipeline](/concepts/architecture-and-packet-path.md#pipeline-phases) is spread across OS threads. It does not change the pipeline phases; changing it (or its worker counts) requires a **restart**.
 
 → [Runtime and concurrency](/concepts/runtime-and-concurrency.md#runtime-models)
 
@@ -83,7 +83,7 @@ OS thread that accepts a client DNS message on a [listener](/glossary/index.md#l
 
 ### Policy worker
 
-Under **`split_io`**, a thread (count from **`dataplane.policy_workers`**) that runs the orchestrator phases — [Request rules](/concepts/architecture-and-packet-path.md#request-rules), [Route](/concepts/architecture-and-packet-path.md#route), the [Forward](/concepts/architecture-and-packet-path.md#forward) submit — and finishes each [transaction](/glossary/index.md#transaction) at [Response rules](/concepts/architecture-and-packet-path.md#response-rules) / [Send](/concepts/architecture-and-packet-path.md#send) once a reply is in.
+Under **`split_io`**, a thread (count from **`dataplane.policy_workers`**) that runs the orchestrator phases — [Request rules](/concepts/architecture-and-packet-path.md#request-rules), [Lookup](/concepts/architecture-and-packet-path.md#lookup) (including forward provider submit), and finishes each [transaction](/glossary/index.md#transaction) at [Response rules](/concepts/architecture-and-packet-path.md#response-rules) / [Send](/concepts/architecture-and-packet-path.md#send) once a reply is in.
 
 → [Runtime and concurrency](/concepts/runtime-and-concurrency.md#split-io-runtime)
 
@@ -100,6 +100,33 @@ Preallocated arena of [transaction](/glossary/index.md#transaction) slots, share
 → [Runtime and concurrency](/concepts/runtime-and-concurrency.md#transaction-slot-pool)
 
 ## Datapath
+
+### Lookup (pipeline phase)
+
+Top-level [pipeline phase](/concepts/architecture-and-packet-path.md#pipeline-phases) after [Request rules](/concepts/architecture-and-packet-path.md#request-rules) where Conduit runs ordered **lookup providers** (cache, forward) to produce the wire answer. Distinct from Rhai **`lookup(table, key)`** — see [Lookup vs lookup(table, key)](#lookup-vs-lookuptable-key).
+
+→ [Architecture and packet path — Lookup](/concepts/architecture-and-packet-path.md#lookup)
+
+### Lookup vs lookup(table, key) { #lookup-vs-lookuptable-key }
+
+| Name | What it is |
+|------|------------|
+| **Lookup** (phase) | Pipeline step — cache and forward providers produce DNS answers |
+| **`lookup(table, key)`** | Rhai function — reads a **`data_sources:`** policy table by key; returns a string or **`""`** on miss |
+
+→ [Data sources and lookups](/rhai/data-sources-and-lookups.md), [Architecture — Lookup](/concepts/architecture-and-packet-path.md#lookup)
+
+### Answer source
+
+How the lookup spine produced the client answer: **`cache`** or **`forward`**. Exposed on built-in response metrics (`answer_source` label), event export selectors, and **`txn.answer_source()`** on the response hook.
+
+→ [Built-in metrics — conduit_responses_total](/observability/built-in-metrics.md#conduit_responses_total), [Transaction API — Answer provenance](/rhai/txn-api.md#answer-provenance)
+
+### 0x20 encoding
+
+Mixed-case QNAME bit encoding some recursive clients use as an anti-spoofing check: they expect the response **Question** to echo the same letter casing they sent. Cache hits rewrite the Question (and EDNS) from the current client query so those clients accept cached answers.
+
+→ [DNS answer cache — Serve rewriting](/guides/dns-answer-cache.md#serve-rewriting)
 
 ### Dataplane
 
@@ -127,7 +154,7 @@ Runtime key/value annotations on a [transaction](/glossary/index.md#transaction)
 
 ### Retry
 
-Another [Route](/concepts/architecture-and-packet-path.md#route) → [Forward](/concepts/architecture-and-packet-path.md#forward) cycle for the same client [transaction](/glossary/index.md#transaction), triggered from [Response rules](/concepts/architecture-and-packet-path.md#response-rules) via the `retry` or `retry_now` [action](/glossary/index.md#action) (or [Rhai](/glossary/index.md#rhai)); capped by `orchestrator.max_attempts`, `orchestrator.max_txn_duration_ms`, and pool exhaustion when every [backend](/glossary/index.md#backend) in the target [pool](/glossary/index.md#pool) was already tried.
+Another [Lookup](/concepts/architecture-and-packet-path.md#lookup) cycle for the same client [transaction](/glossary/index.md#transaction), triggered from [Response rules](/concepts/architecture-and-packet-path.md#response-rules) via the `retry` or `retry_now` [action](/glossary/index.md#action) (or [Rhai](/glossary/index.md#rhai)); capped by `orchestrator.max_attempts`, `orchestrator.max_txn_duration_ms`, and pool exhaustion when every [backend](/glossary/index.md#backend) in the target [pool](/glossary/index.md#pool) was already tried.
 
 → [Retries and transactions](/policy-routing/retries-and-transactions.md)
 

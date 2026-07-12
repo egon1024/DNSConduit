@@ -2,7 +2,7 @@
 
 Conduit embeds the [Rhai](https://rhai.rs/) scripting language for **rule policy** — [Rule Rhai](/glossary/index.md#rule-rhai), referenced from `rules:`. Scripts run on the request and response hooks against five host scope objects: **`txn`**, **`runtime`**, **`lookup`**, **`metrics`**, and **`log`**.
 
-This section is the **language-first reference** for writing Rhai in Conduit. Feature behavior and YAML wiring live in [Policy & routing](/policy-routing/index.md).
+This section is the **language-first reference** for writing Rhai in Conduit. Feature behavior and YAML wiring are described in [Policy & routing](/policy-routing/index.md).
 
 ## Host API architecture
 

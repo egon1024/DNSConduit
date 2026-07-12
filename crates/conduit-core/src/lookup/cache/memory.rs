@@ -122,6 +122,13 @@ impl MemoryCacheBackend {
         guard.entries.insert(key, entry);
     }
 
+    /// Remove an entry by key if present. Returns `true` when an entry was removed.
+    pub fn remove(&self, key: &CacheKey) -> bool {
+        let idx = self.shard_index(key);
+        let mut guard = self.shards[idx].write();
+        guard.entries.remove(key).is_some()
+    }
+
     fn evict_if_needed(&self, shard: &mut Shard, shard_idx: usize, now: Instant) {
         let max_entries = self.max_entries.load(Ordering::Relaxed);
         if max_entries == 0 {
@@ -311,6 +318,10 @@ mod tests {
         backend.insert(key.clone(), entry, now);
         assert_eq!(backend.get_result(&key, now), CacheGetResult::Hit);
         assert_eq!(backend.get(&key, now).unwrap().wire, wire);
+
+        assert!(backend.remove(&key));
+        assert_eq!(backend.get_result(&key, now), CacheGetResult::Miss);
+        assert!(!backend.remove(&key));
     }
 
     #[test]

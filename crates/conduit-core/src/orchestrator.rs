@@ -260,9 +260,33 @@ impl Orchestrator {
             match outcome {
                 StageOutcome::Drop => {
                     if let Some(hub) = metrics {
-                        if hub.metrics_enabled() && phase == Phase::Parse {
-                            if let Some(reason) = txn.parse_reject_reason {
-                                hub.builtin.record_parse_rejected(reason.as_str());
+                        if hub.metrics_enabled() {
+                            match phase {
+                                Phase::Parse => {
+                                    if let Some(reason) = txn.parse_reject_reason {
+                                        hub.builtin.record_parse_rejected(reason.as_str());
+                                    }
+                                }
+                                Phase::RequestRules | Phase::ResponseRules => {
+                                    let protocol = match txn.protocol {
+                                        crate::transaction::ClientProtocol::Udp => "udp",
+                                        crate::transaction::ClientProtocol::Tcp => "tcp",
+                                    };
+                                    let listener =
+                                        txn.listener_label.as_deref().unwrap_or("unknown");
+                                    let reason = match phase {
+                                        Phase::RequestRules => "request_rules",
+                                        Phase::ResponseRules => "response_rules",
+                                        _ => unreachable!(),
+                                    };
+                                    hub.builtin.record_query_dropped(
+                                        listener,
+                                        protocol,
+                                        reason,
+                                        &txn.client_addr,
+                                    );
+                                }
+                                _ => {}
                             }
                         }
                     }

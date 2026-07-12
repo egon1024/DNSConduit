@@ -79,6 +79,18 @@ Recording does not require an export listener — counters accumulate in memory.
 | `block-hits.rhai` | `with-rhai-block-hits-minimal-export.yaml` | `block_hits` opted into **`minimal`** |
 | `slow-login-alert.rhai` | `with-rhai-slow-login.yaml` | `slow_login` when `txn.last_forward_ms() > 500` |
 
+## Cache hits and on_hit skip { #cache-hits-and-on_hit-skip }
+
+Response-hook **`metrics.inc`** runs only when [Response rules](/concepts/architecture-and-packet-path.md#response-rules) run. On a **cache hit** with **`on_hit.response_rules: skip`**, the response hook is **not** invoked — custom counters on that hook will not increment.
+
+Options:
+
+- Keep default **`on_hit.response_rules: run`** so response rules and metrics run on hits
+- Use built-in [`conduit_responses_total`](/observability/built-in-metrics.md#conduit_responses_total) with **`answer_source`**
+- Record metrics on the **request** hook when classification is enough
+
+See [DNS answer cache — on_hit tradeoff](/guides/dns-answer-cache.md#on_hit-response_rules).
+
 ## Related topics
 
 - [Built-in metrics — User metrics](/observability/built-in-metrics.md#user-metrics-rhai)

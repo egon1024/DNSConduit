@@ -1,6 +1,6 @@
 # Guides
 
-End-to-end walkthroughs for common operator tasks. Each guide is self-contained: concrete YAML, commands, and what to verify. Conceptual detail and field reference live in [Control plane](/control-plane/index.md), [Policy & routing](/policy-routing/index.md), and [Observability](/observability/index.md).
+End-to-end walkthroughs for common operator tasks. Each guide is self-contained: concrete YAML, commands, and what to verify. Conceptual detail and field reference are described in [Control plane](/control-plane/index.md), [Policy & routing](/policy-routing/index.md), and [Observability](/observability/index.md).
 
 **Prerequisites for most guides:** Conduit installed ([Install and run](/getting-started/install-and-run.md)), a runnable baseline config ([Minimal configuration](/getting-started/minimal-configuration.md)), and — where noted — the [control plane](/glossary/index.md#control-plane) enabled with `control.listen_address`.
 
@@ -8,6 +8,7 @@ End-to-end walkthroughs for common operator tasks. Each guide is self-contained:
 |-------|-------------------|
 | [Rhai policy](/guides/rhai-policy.md) | CSV blocklist drop with custom user metric; CSV-driven pool routing |
 | [Backend health](/guides/backend-health.md) | Enable probes, watch a dead backend go down, practice `conduitctl health` drain/resume |
+| [DNS answer cache](/guides/dns-answer-cache.md) | Enable in-memory caching, hit/miss path, `on_hit` and metrics tradeoffs |
 | [Dual-stack forwarding](/guides/dual-stack-forwarding.md) | Global and per-pool egress sources, rules, and Rhai overrides |
 | [Dataplane runtime tuning](/guides/dataplane-runtime-tuning.md) | Choosing `sync` vs `split_io`, sizing ingress/policy/I/O workers, the slot pool, and `reuse_port` |
 | [Control plane workflows](/guides/control-plane-workflows.md) | Reload from disk, temporary `conduitctl apply` overlays, export, and when to restart |

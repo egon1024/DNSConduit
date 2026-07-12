@@ -6,7 +6,7 @@ toc_depth: 3
 
 Every [Rule Rhai](/glossary/index.md#rule-rhai) hook invocation receives a **fixed set of host scope objects**. Each object belongs to one **mutability class** — per-query policy, read-only process state, read-only tables, or write-only observability side effects.
 
-This page is the **architecture map**. Method-level reference lives on the linked pages below.
+This page is the **architecture map**. Method-level reference is described on the linked pages below.
 
 ## How to read method reference pages { #how-to-read-method-reference-pages }
 
@@ -44,7 +44,7 @@ flowchart LR
   end
   txn --> Route
   runtime --> Route
-  lookup --> snapshot["Runtime snapshot"]
+  lookup --> snapshot["Config runtime snapshot"]
   metrics --> prom["Prometheus export"]
   log --> tracing["Tracing / logs"]
 ```
@@ -70,7 +70,7 @@ Each host surface captures data at a different moment. This matters when you mix
 |---------|------------------------|
 | **`txn`** | You can change per-query policy during the script; effects apply when the script finishes successfully |
 | **`runtime.routing()`** | One snapshot when **this hook phase begins** (request or response rules) on this worker — health and routing fields fixed for the whole script; each method call reuses the same snapshot |
-| **`lookup()`** | [Runtime snapshot](/glossary/index.md#runtime-snapshot) generation from when the [transaction](/glossary/index.md#transaction) started |
+| **`lookup()`** | Configuration [runtime snapshot](/glossary/index.md#runtime-snapshot) generation from when the [transaction](/glossary/index.md#transaction) started |
 | **`metrics`** | Counter increments apply after a successful script run (export follows your metrics profile) |
 | **`log`** | Each call writes immediately (rate-limited) |
 

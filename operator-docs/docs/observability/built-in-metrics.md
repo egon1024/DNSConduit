@@ -1,3 +1,8 @@
+---
+toc_depth: 3
+toc_collapsible: true
+---
+
 # Built-in metrics
 
 Catalog of **built-in** Prometheus series exported by Conduit (not Rhai `conduit_user_*` metrics). For enabling scrape, profiles, and OTEL push, see [Metrics](/observability/metrics.md). For how metrics map to the query path, see [Architecture and packet path](/concepts/architecture-and-packet-path.md).
@@ -22,7 +27,7 @@ Both profiles record metrics **while handling queries** on listener workers (the
 - [`conduit_queries_by_pool_total`](#conduit_queries_by_pool_total) per `pool`
 - [`conduit_responses_total`](#conduit_responses_total) with coarse `rcode` buckets
 - [`conduit_responses_truncated_total`](#conduit_responses_truncated_total) — UDP send-path truncation (joinable with responses)
-- Failure counters: [`conduit_parse_rejected_total`](#conduit_parse_rejected_total), [`conduit_forward_errors_total`](#conduit_forward_errors_total), [`conduit_retries_total`](#conduit_retries_total), [`conduit_script_errors_total`](#conduit_script_errors_total)
+- Failure counters: [`conduit_parse_rejected_total`](#conduit_parse_rejected_total), [`conduit_queries_dropped_total`](#conduit_queries_dropped_total), [`conduit_forward_errors_total`](#conduit_forward_errors_total), [`conduit_retries_total`](#conduit_retries_total), [`conduit_script_errors_total`](#conduit_script_errors_total)
 
 Use **`minimal`** when you want query volume, pool mix, response mix, and alertable failure signals without per-qtype detail, forward latency histograms, or per-phase timing on the hot path.
 
@@ -43,13 +48,16 @@ Use **`full`** for day-two operations, SLO dashboards, and debugging upstream or
 |--------|-------------------|-----------------|-------------|
 | [`conduit_queries_total`](#conduit_queries_total) | `listener`, `protocol` | + `qtype`, `qclass`, `ip_family` | — |
 | [`conduit_queries_by_pool_total`](#conduit_queries_by_pool_total) | yes (`pool`) | yes | — |
+| [`conduit_queries_dropped_total`](#conduit_queries_dropped_total) | yes (`listener`, `protocol`, `reason`) | yes (+ `ip_family`) | — |
 | [`conduit_parse_rejected_total`](#conduit_parse_rejected_total) | yes (`reason`) | yes | — |
 | [`conduit_responses_total`](#conduit_responses_total) | yes (`listener`, `protocol`, coarse `rcode`, `answer_source`) | yes (+ fine `rcode`, `ip_family`) | — |
 | [`conduit_responses_truncated_total`](#conduit_responses_truncated_total) | yes (`listener`, `protocol`, `answer_source`) | yes (+ `ip_family`) | — |
 | [`conduit_forward_errors_total`](#conduit_forward_errors_total) | yes (`pool`, `backend`, `reason`) | yes | — |
 | [`conduit_retries_total`](#conduit_retries_total) | yes (`pool`) | yes | — |
 | [`conduit_script_errors_total`](#conduit_script_errors_total) | yes (`reason`, `script`, `table`) | yes | — |
-| Phase / forward-attempt / forward-duration histograms below | no | yes | — |
+| Phase / forward-attempt / forward-duration / lookup-cache histograms below | no | yes | — |
+| [`conduit_lookup_provider_outcomes_total`](#conduit_lookup_provider_outcomes_total), [`conduit_cache_lookups_total`](#conduit_cache_lookups_total) | yes | yes | — |
+| [`conduit_cache_fills_total`](#conduit_cache_fills_total), [`conduit_cache_singleflight_coalesced_total`](#conduit_cache_singleflight_coalesced_total), lookup/cache duration histograms | no | yes | — |
 | [`conduit_probe_results_total`](#conduit_probe_results_total) | no | yes (`full` only) | — |
 | [`conduit_forward_outstanding`](#conduit_forward_outstanding) | — | — | yes |
 | [`conduit_pool_backends_configured`](#conduit_pool_backends_configured) | — | — | yes |
@@ -75,7 +83,9 @@ Config schema: [Metrics and tracing](/reference/config-schema/metrics-and-tracin
 | **Labels (`minimal`)** | `listener`, `protocol` (`udp` / `tcp`) |
 | **Labels (`full`)** | above + `qtype`, `qclass`, `ip_family` (`v4` / `v6`) |
 | **When** | After a successful [Parse](/concepts/architecture-and-packet-path.md#parse), before [Request rules](/concepts/architecture-and-packet-path.md#request-rules) |
-| **Not counted** | [Parse](/concepts/architecture-and-packet-path.md#parse) drops; [policy drops](#policy-drops-no-built-in-counter) |
+| **Not counted** | [Parse](/concepts/architecture-and-packet-path.md#parse) drops |
+
+Policy [drops](#conduit_queries_dropped_total) still increment this counter (the query was parsed); they do **not** increment [`conduit_responses_total`](#conduit_responses_total).
 
 ### conduit_parse_rejected_total { #conduit_parse_rejected_total }
 
@@ -102,9 +112,9 @@ Config schema: [Metrics and tracing](/reference/config-schema/metrics-and-tracin
 |--|--|
 | **Type** | Counter |
 | **Labels** | `pool` |
-| **When** | After [Route](/concepts/architecture-and-packet-path.md#route) selects a pool and the pipeline continues to [Forward](/concepts/architecture-and-packet-path.md#forward) |
+| **When** | After [Route](/concepts/architecture-and-packet-path.md#route) selects a pool inside the forward provider and upstream send proceeds |
 
-Includes each [retry](/glossary/index.md#retry) attempt that reaches [Route](/concepts/architecture-and-packet-path.md#route) → [Forward](/concepts/architecture-and-packet-path.md#forward).
+Includes each [retry](/glossary/index.md#retry) attempt whose forward provider reaches pool selection. **Not** incremented on cache hit short-circuit.
 
 ### conduit_phase_duration_seconds { #conduit_phase_duration_seconds }
 
@@ -113,9 +123,11 @@ Includes each [retry](/glossary/index.md#retry) attempt that reaches [Route](/co
 | **Type** | Histogram |
 | **Labels** | `phase` |
 | **Profile** | `full` only (not incremented on `minimal`) |
-| **When** | Each registered [pipeline phase](/concepts/architecture-and-packet-path.md#pipeline-phases) stage completes |
+| **When** | Each registered top-level [pipeline phase](/concepts/architecture-and-packet-path.md#pipeline-phases) stage completes |
 
-`phase` values: `receive`, `parse`, `request_rules`, `route`, `forward`, `wait_response`, `response_rules`, `send`.
+`phase` values: `receive`, `parse`, `request_rules`, `lookup`, `response_rules`, `send`.
+
+Route, forward, and wait-for-response run **inside** the forward lookup provider; they do **not** appear as separate top-level `phase` label values. Use nested trace events or [`conduit_lookup_duration_seconds`](#conduit_lookup_duration_seconds) for provider-level timing.
 
 Bucket upper bounds (seconds, cumulative): 100 µs, 1 ms, 10 ms, 50 ms, 100 ms, 500 ms, 1 s, 5 s, 10 s. Use `histogram_quantile()` in PromQL for percentiles.
 
@@ -126,7 +138,9 @@ Bucket upper bounds (seconds, cumulative): 100 µs, 1 ms, 10 ms, 50 ms, 100 ms, 
 | **Type** | Counter |
 | **Labels** | `pool`, `backend`, `outcome` |
 | **Profile** | `full` only (not incremented on `minimal`) |
-| **When** | Each upstream forward attempt completes ([Forward](/concepts/architecture-and-packet-path.md#forward) / [Wait for response](/concepts/architecture-and-packet-path.md#wait-for-response)) |
+| **When** | Each upstream forward attempt completes inside the forward lookup provider |
+
+**Not** incremented when a cache provider answers without running forward.
 
 `outcome`: `success` or `error`.
 
@@ -169,7 +183,7 @@ Bucket upper bounds (seconds): 1 ms, 10 ms, 50 ms, 100 ms, 500 ms, 1 s, 5 s, 10 
 | **Type** | Counter |
 | **Labels** | `pool` |
 | **Profile** | `minimal` and `full` |
-| **When** | [Response rules](/concepts/architecture-and-packet-path.md#response-rules) send the pipeline back to [Route](/concepts/architecture-and-packet-path.md#route) for a [retry](/glossary/index.md#retry) |
+| **When** | [Response rules](/concepts/architecture-and-packet-path.md#response-rules) send the pipeline back to [Lookup](/concepts/architecture-and-packet-path.md#lookup) for a [retry](/glossary/index.md#retry) |
 | **Label `pool`** | Target [pool](/glossary/index.md#pool) for the next attempt (`retry_pool` from **`set_retry_pool`** when set, otherwise the current pool) |
 
 ### conduit_responses_total { #conduit_responses_total }
@@ -200,9 +214,9 @@ Both profiles use the label name **`rcode`**, but bucketing differs:
 | **Labels (`minimal`)** | `listener`, `protocol`, `answer_source` |
 | **Labels (`full`)** | above + `ip_family` (`v4` / `v6`) |
 | **Profile** | `minimal` and `full` |
-| **When** | [Send](/concepts/architecture-and-packet-path.md#send) clips outbound **UDP** wire to the client's payload size (EDNS bufsize or 512-byte default) and sets the **TC** bit |
+| **When** | [Send](/concepts/architecture-and-packet-path.md#send) fits outbound **UDP** responses to the client's payload size (EDNS bufsize or 512-byte default) on RR boundaries and sets the **TC** bit when required data cannot fit |
 
-Incremented at most once per transaction, alongside [`conduit_responses_total`](#conduit_responses_total). Labels align so you can compare truncation rate by listener, protocol, and how the answer was produced (`cache` vs `forward`). Truncation is **egress** behavior — it can happen for cache hits when the stored wire exceeds the client's bufsize, not only on forward paths.
+Incremented at most once per transaction, alongside [`conduit_responses_total`](#conduit_responses_total). Labels align so you can compare truncation rate by listener, protocol, and how the answer was produced (`cache` vs `forward`). Truncation is **egress** behavior — it can happen for cache hits when the stored wire answer exceeds the client's bufsize, not only on forward paths.
 
 PromQL example (truncation share of responses):
 
@@ -213,9 +227,33 @@ sum(rate(conduit_responses_truncated_total[5m])) by (listener, answer_source)
 
 Enable **`debug`** logging to see per-transaction truncation detail (`wire_len_before`, `wire_len_after`, `client_udp_payload_size`).
 
-### Policy drops (no built-in counter) { #policy-drops-no-built-in-counter }
+### conduit_queries_dropped_total { #conduit_queries_dropped_total }
 
-[Request rules](/concepts/architecture-and-packet-path.md#request-rules) or [Response rules](/concepts/architecture-and-packet-path.md#response-rules) **drop** actions, and Rhai **drop** on those hooks, end the [transaction](/glossary/index.md#transaction) with **no DNS reply**. There is no dedicated drop counter; use [event export](/observability/event-export.md) or logs if you need visibility.
+| | |
+|--|--|
+| **Type** | Counter |
+| **Labels (`minimal`)** | `listener`, `protocol`, `reason` |
+| **Labels (`full`)** | above + `ip_family` (`v4` / `v6`) |
+| **Profile** | `minimal` and `full` |
+| **When** | [Request rules](/concepts/architecture-and-packet-path.md#request-rules) or [Response rules](/concepts/architecture-and-packet-path.md#response-rules) **drop** (built-in action or Rhai) ends the [transaction](/glossary/index.md#transaction) with **no DNS reply** |
+
+`reason` values:
+
+| `reason` | Meaning |
+|----------|---------|
+| `request_rules` | Policy drop on the request hook (before [Lookup](/concepts/architecture-and-packet-path.md#lookup)) |
+| `response_rules` | Policy drop on the response hook (after an answer was produced, before [Send](/concepts/architecture-and-packet-path.md#send)) |
+
+Parse-stage silent rejects use [`conduit_parse_rejected_total`](#conduit_parse_rejected_total), not this series. Upstream timeouts and other forward failures still produce a client reply (typically SERVFAIL) and appear on [`conduit_forward_errors_total`](#conduit_forward_errors_total) / [`conduit_responses_total`](#conduit_responses_total) — they are **not** policy drops.
+
+Labels align with [`conduit_queries_total`](#conduit_queries_total) so you can compare drop rate by listener and protocol. For qname-level detail, use [event export](/observability/event-export.md) or [logs](/observability/logging.md); for custom categories (for example blocklist hits), use [Rhai user metrics](/rhai/user-metrics.md).
+
+PromQL example (request-hook drop share of parsed queries):
+
+```promql
+sum(rate(conduit_queries_dropped_total{reason="request_rules"}[5m])) by (listener)
+  / sum(rate(conduit_queries_total[5m])) by (listener)
+```
 
 ### conduit_script_errors_total { #conduit_script_errors_total }
 
@@ -246,6 +284,93 @@ sum(rate(conduit_script_errors_total{reason="lookup_unknown_table"}[5m])) by (sc
 ```
 
 See [Data sources and lookups — lookup behavior](/rhai/data-sources-and-lookups.md#lookup-behavior) for compile-time literal checks vs runtime unknown-table behavior.
+
+---
+
+## Lookup and cache { #lookup-and-cache }
+
+Series for the [Lookup](/concepts/architecture-and-packet-path.md#lookup) phase and optional DNS answer cache. Guide: [DNS answer cache](/guides/dns-answer-cache.md).
+
+### conduit_lookup_provider_outcomes_total { #conduit_lookup_provider_outcomes_total }
+
+| | |
+|--|--|
+| **Type** | Counter |
+| **Labels** | `profile`, `provider`, `outcome` |
+| **Profile** | `minimal` and `full` |
+| **When** | A lookup provider reaches a terminal outcome for an attempt |
+
+`provider`: `cache` or `forward`. Common `outcome` values: `answered`, `miss`, `bypass`, `pending`.
+
+### conduit_cache_lookups_total { #conduit_cache_lookups_total }
+
+| | |
+|--|--|
+| **Type** | Counter |
+| **Labels** | `cache`, `profile`, `result` |
+| **Profile** | `minimal` and `full` |
+| **When** | Cache provider read path |
+
+`result`: `hit`, `miss`, or `bypass`.
+
+### conduit_cache_fills_total { #conduit_cache_fills_total }
+
+| | |
+|--|--|
+| **Type** | Counter |
+| **Labels** | `cache`, `profile` |
+| **Profile** | `full` only |
+| **When** | Successful cache store after an upstream answer |
+
+### conduit_cache_singleflight_coalesced_total { #conduit_cache_singleflight_coalesced_total }
+
+| | |
+|--|--|
+| **Type** | Counter |
+| **Labels** | `cache`, `profile` |
+| **Profile** | `full` only |
+| **When** | A parallel identical cache miss joins an in-progress fill and is answered when that fill completes |
+
+On a cache miss, identical queries **single-flight**: one query fetches upstream and fills the cache; others wait and then take that shared answer instead of starting their own forward. This counter increments once per waiting query that is served that way — not for the query that performed the fill. See [DNS answer cache — Hit and miss path](/guides/dns-answer-cache.md#hit-and-miss-path).
+
+### conduit_lookup_duration_seconds { #conduit_lookup_duration_seconds }
+
+| | |
+|--|--|
+| **Type** | Histogram |
+| **Labels** | `profile`, `provider` |
+| **Profile** | `full` only |
+| **When** | Wall time in one lookup provider attempt |
+
+Same bucket layout as [`conduit_phase_duration_seconds`](#conduit_phase_duration_seconds).
+
+### conduit_cache_lookup_duration_seconds { #conduit_cache_lookup_duration_seconds }
+
+| | |
+|--|--|
+| **Type** | Histogram |
+| **Labels** | `cache`, `profile` |
+| **Profile** | `full` only |
+| **When** | Cache read path latency |
+
+### conduit_response_duration_seconds { #conduit_response_duration_seconds }
+
+| | |
+|--|--|
+| **Type** | Histogram |
+| **Labels** | `answer_source`, `listener`, `protocol` |
+| **Profile** | `full` only |
+| **When** | [Send](/concepts/architecture-and-packet-path.md#send) completes |
+
+End-to-end client response time split by how the answer was produced (`cache` or `forward`).
+
+PromQL examples (cache vs forward):
+
+```promql
+sum(rate(conduit_responses_total[5m])) by (listener, answer_source)
+sum(rate(conduit_cache_lookups_total[5m])) by (cache, result)
+histogram_quantile(0.99, sum(rate(conduit_lookup_duration_seconds_bucket[5m])) by (le, provider))
+```
 
 ---
 
@@ -524,10 +649,15 @@ Scripts can call `metric_inc` / `metric_inc_labels` from [Rhai](/rhai/index.md) 
 ```promql
 sum(rate(conduit_queries_total[5m])) by (listener, protocol)
 sum(rate(conduit_queries_by_pool_total[5m])) by (pool)
+sum(rate(conduit_queries_dropped_total[5m])) by (reason)
 sum(rate(conduit_parse_rejected_total[5m])) by (reason)
 sum(rate(conduit_responses_total[5m])) by (rcode)
 sum(rate(conduit_responses_total[5m])) by (rcode, ip_family)   # full profile only
 sum(rate(conduit_responses_truncated_total[5m])) by (listener, answer_source)
+sum(rate(conduit_responses_total[5m])) by (listener, answer_source)
+sum(rate(conduit_lookup_provider_outcomes_total[5m])) by (profile, provider, outcome)
+sum(rate(conduit_cache_lookups_total[5m])) by (cache, result)
+histogram_quantile(0.99, sum(rate(conduit_lookup_duration_seconds_bucket[5m])) by (le, provider))
 sum(rate(conduit_forward_errors_total[5m])) by (pool, backend, reason)
 sum(rate(conduit_script_errors_total[5m])) by (reason)
 histogram_quantile(0.99, sum(rate(conduit_forward_duration_seconds_bucket[5m])) by (le, pool))
@@ -540,4 +670,4 @@ conduit_backend_health_applied{pool="default"}
 conduit_build_info{revision="abc1234", dirty="false", profile="release"}
 ```
 
-Prometheus scrape and OTEL push both consume the same metric families from `render_prometheus()`. Histogram `_bucket` series are available on Prometheus scrape; OTLP carries counter, gauge, and histogram summaries for built-ins.
+Prometheus scrape and OTEL push both consume the same metric families. Scrape exposes the Prometheus text form (including histogram `_bucket` / `_sum` / `_count` series). OTLP push maps each family to an equivalent OTLP instrument — same names and label sets, HELP as description, units derived from name suffixes, and histograms with matching sum, count, and explicit bucket counts.

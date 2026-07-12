@@ -320,3 +320,56 @@ fn rhai_user_metric_skipped_on_minimal_without_export_override() {
         "default full-tier user metrics must not record on minimal, body:\n{body}"
     );
 }
+
+#[test]
+fn policy_drop_request_rules_increments_queries_dropped() {
+    let yaml = include_str!("../../../tests/fixtures/config/with-metrics-policy-drop.yaml");
+    let cfg = load_yaml(yaml).unwrap();
+    assert!(validate(&cfg).ok);
+    let hub = Arc::new(MetricsHub::from_config(&cfg));
+    let snap = Arc::new(RuntimeSnapshot::from_config(cfg));
+    let orch = orchestrator_with_mock_forward(hub.clone());
+
+    let mut txn = Transaction::new(30, "127.0.0.1:15353".parse().unwrap(), ClientProtocol::Udp)
+        .with_listener_label("127.0.0.1:15353")
+        .with_query_wire(query_for("x.drop-req.example."));
+    assert!(matches!(
+        orch.run(&mut txn, &snap, &SystemClock, None),
+        RunOutcome::Dropped
+    ));
+
+    let body = render_prometheus(hub.as_ref(), &[]);
+    assert!(
+        body.contains("conduit_queries_dropped_total"),
+        "body:\n{body}"
+    );
+    assert!(body.contains(r#"reason="request_rules""#), "body:\n{body}");
+    assert!(
+        !body.contains(r#"reason="response_rules""#),
+        "request drop must not count as response_rules, body:\n{body}"
+    );
+}
+
+#[test]
+fn policy_drop_response_rules_increments_queries_dropped() {
+    let yaml = include_str!("../../../tests/fixtures/config/with-metrics-policy-drop.yaml");
+    let cfg = load_yaml(yaml).unwrap();
+    let hub = Arc::new(MetricsHub::from_config(&cfg));
+    let snap = Arc::new(RuntimeSnapshot::from_config(cfg));
+    let orch = orchestrator_with_mock_forward(hub.clone());
+
+    let mut txn = Transaction::new(31, "127.0.0.1:15353".parse().unwrap(), ClientProtocol::Udp)
+        .with_listener_label("127.0.0.1:15353")
+        .with_query_wire(query_for("x.drop-res.example."));
+    assert!(matches!(
+        orch.run(&mut txn, &snap, &SystemClock, None),
+        RunOutcome::Dropped
+    ));
+
+    let body = render_prometheus(hub.as_ref(), &[]);
+    assert!(
+        body.contains("conduit_queries_dropped_total"),
+        "body:\n{body}"
+    );
+    assert!(body.contains(r#"reason="response_rules""#), "body:\n{body}");
+}

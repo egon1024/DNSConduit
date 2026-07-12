@@ -1,4 +1,4 @@
-//! Prepare cached wire for client response (ID rewrite, TTL decay, optional RRset rotation).
+//! Prepare cached wire for client response (ID rewrite, question/EDNS echo, TTL decay, optional RRset rotation).
 
 use hickory_proto::error::ProtoError;
 use hickory_proto::op::Message;
@@ -28,8 +28,9 @@ fn next_serve_rand() -> u64 {
 
 /// Clone stored wire, set response ID, decay RR TTLs by cache age, optionally rotate answer RRsets.
 /// When rotation is enabled, each serve picks a random cyclic offset per RRset (stored wire unchanged).
-/// When `client_query_wire` is set, replace the question (and EDNS) from the client query — used
-/// for RFC 8020 ancestor NXDOMAIN hits where the stored wire names the parent qname.
+/// When `client_query_wire` is set, replace the question (and EDNS) from the client query so the
+/// response echoes the client's QNAME encoding (including 0x20 mixed case) and OPT. Required for
+/// exact hits, truncated UDP hits, and RFC 8020 ancestor NXDOMAIN hits.
 pub fn prepare_served_wire(
     stored: &[u8],
     query_id: u16,
@@ -260,5 +261,87 @@ mod tests {
         let _ = prepare_served_wire(&stored, 1, false, filled_at, now, None).unwrap();
         let msg = Message::from_vec(&stored).unwrap();
         assert_eq!(msg.answers()[0].ttl(), 3600);
+    }
+
+    fn encode_named_response(qname: &str, answers: Vec<(u32, std::net::Ipv4Addr)>) -> Arc<[u8]> {
+        let name = Name::from_ascii(qname).unwrap();
+        let mut msg = Message::new();
+        msg.add_query(Query::query(name.clone(), RecordType::A));
+        for (ttl, addr) in answers {
+            msg.add_answer(Record::from_rdata(
+                name.clone(),
+                ttl,
+                RData::A(hickory_proto::rr::rdata::A(addr)),
+            ));
+        }
+        let mut buf = Vec::new();
+        let mut enc = BinEncoder::new(&mut buf);
+        msg.emit(&mut enc).unwrap();
+        buf.into()
+    }
+
+    fn client_query_wire(qname: &str) -> Vec<u8> {
+        let name = Name::from_ascii(qname).unwrap();
+        let mut msg = Message::new();
+        msg.add_query(Query::query(name, RecordType::A));
+        let mut buf = Vec::new();
+        let mut enc = BinEncoder::new(&mut buf);
+        msg.emit(&mut enc).unwrap();
+        buf
+    }
+
+    #[test]
+    fn echoes_client_question_case_0x20() {
+        let stored = encode_named_response(
+            "www.example.com.",
+            vec![(60, std::net::Ipv4Addr::new(1, 1, 1, 1))],
+        );
+        let client = client_query_wire("WwW.eXaMpLe.CoM.");
+        let now = Instant::now();
+        let out = prepare_served_wire(&stored, 0x1111, false, now, now, Some(&client)).unwrap();
+        let msg = Message::from_vec(&out).unwrap();
+        assert_eq!(msg.id(), 0x1111);
+        assert_eq!(msg.queries()[0].name().to_utf8(), "WwW.eXaMpLe.CoM.");
+        assert_eq!(msg.answers().len(), 1);
+    }
+
+    #[test]
+    fn without_client_query_keeps_stored_question_case() {
+        let stored = encode_named_response(
+            "www.example.com.",
+            vec![(60, std::net::Ipv4Addr::new(1, 1, 1, 1))],
+        );
+        let now = Instant::now();
+        let out = prepare_served_wire(&stored, 1, false, now, now, None).unwrap();
+        let msg = Message::from_vec(&out).unwrap();
+        assert_eq!(msg.queries()[0].name().to_utf8(), "www.example.com.");
+    }
+
+    #[test]
+    fn apply_client_query_replaces_edns_from_client() {
+        use hickory_proto::op::Edns;
+        let stored = encode_named_response(
+            "www.example.com.",
+            vec![(60, std::net::Ipv4Addr::new(1, 1, 1, 1))],
+        );
+        let name = Name::from_ascii("WwW.eXaMpLe.CoM.").unwrap();
+        let mut client_msg = Message::new();
+        client_msg.add_query(Query::query(name, RecordType::A));
+        let mut edns = Edns::new();
+        edns.set_max_payload(1232);
+        client_msg.set_edns(edns);
+        let mut client = Vec::new();
+        let mut enc = BinEncoder::new(&mut client);
+        client_msg.emit(&mut enc).unwrap();
+
+        let now = Instant::now();
+        let out = prepare_served_wire(&stored, 2, false, now, now, Some(&client)).unwrap();
+        let msg = Message::from_vec(&out).unwrap();
+        assert_eq!(msg.queries()[0].name().to_utf8(), "WwW.eXaMpLe.CoM.");
+        let edns = msg
+            .extensions()
+            .as_ref()
+            .expect("client EDNS should be copied onto served wire");
+        assert_eq!(edns.max_payload(), 1232);
     }
 }

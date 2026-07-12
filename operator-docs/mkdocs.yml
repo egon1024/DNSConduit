@@ -118,6 +118,7 @@ nav:
       - Overview: guides/index.md
       - Rhai policy: guides/rhai-policy.md
       - Backend health: guides/backend-health.md
+      - DNS answer cache: guides/dns-answer-cache.md
       - Dual-stack forwarding: guides/dual-stack-forwarding.md
       - Dataplane runtime tuning: guides/dataplane-runtime-tuning.md
       - Control plane workflows: guides/control-plane-workflows.md
@@ -138,16 +139,21 @@ nav:
       - Config schema:
           - Overview: reference/config-schema/index.md
           - Listeners: reference/config-schema/listeners.md
+          - Rules: reference/config-schema/rules.md
+          - Rhai: reference/config-schema/rhai.md
+          - Data sources: reference/config-schema/data-sources.md
+          - Lookup: reference/config-schema/lookup.md
+          - Caches: reference/config-schema/caches.md
           - Pools: reference/config-schema/pools.md
           - Health: reference/config-schema/health.md
           - Forward: reference/config-schema/forward.md
           - Orchestrator: reference/config-schema/orchestrator.md
           - Dataplane: reference/config-schema/dataplane.md
           - Shutdown: reference/config-schema/shutdown.md
-          - Rules: reference/config-schema/rules.md
           - Control: reference/config-schema/control.md
-          - Events: reference/config-schema/events.md
+          - Logging: reference/config-schema/logging.md
           - Metrics and tracing: reference/config-schema/metrics-and-tracing.md
+          - Events: reference/config-schema/events.md
       - gRPC and CLI: reference/grpc-and-cli.md
   - Versions: https://egon1024.github.io/DNSConduit/versions/
   - Contributing: contributing.md
