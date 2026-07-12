@@ -10,6 +10,6 @@ DNS Conduit is licensed under the [Apache License, Version 2.0](license.md).
 
 !!! note "AI-assisted development"
     This project was built with extensive assistance from AI tools. Some operators
-    and contributors prefer software written without that involvement — a view I
-    respect. I am not seeking to change how DNS Conduit was developed, and I will
-    not engage in arguments about that decision here.
+    and contributors prefer software written without that involvement — a view I can 
+    respect. That said, I am not seeking to change how DNS Conduit is developed, and I will
+    not be engaging in arguments about that decision.
