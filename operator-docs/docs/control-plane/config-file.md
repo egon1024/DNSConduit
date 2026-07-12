@@ -31,24 +31,28 @@ The **same** parse and validation steps run on startup and on reload. If validat
 
 ### Top-level blocks
 
-Each block maps to a section in the canonical config model. Behavioral detail lives on topic pages; field lists live under [Reference: config schema](/reference/config-schema/index.md).
+Each block maps to a section in the canonical config model. The table below follows the same order as [Reference: config schema](/reference/config-schema/index.md) in the nav — ingress, policy, answer path, upstream, process, control, then observability. Behavioral detail is on topic pages; field lists are in the Reference pages.
 
 | Block {: .column-no-wrap } | Role | Learn more |
 |-------|------|------------|
 | `schema_version` | Config schema version (**`1`**) | This page |
 | `listeners` | [Dataplane](/glossary/index.md#dataplane) ingress (client DNS) | [Reference: listeners](/reference/config-schema/listeners.md) |
+| `rules` | Declarative policy | [Rules and actions](/policy-routing/rules-and-actions.md), [Reference: rules](/reference/config-schema/rules.md) |
+| `rhai` | Script sandbox limits (scripts come from `rules`) | [Sandbox limits](/rhai/sandbox-limits.md), [Reference: rhai](/reference/config-schema/rhai.md) |
+| `data_sources` | Lookup tables for [Rhai](/rhai/index.md) | [Data sources and lookups](/rhai/data-sources-and-lookups.md), [Reference: data sources](/reference/config-schema/data-sources.md) |
+| `data_source_limits` | Load-safety caps for `data_sources` tables | [Load-safety limits](/rhai/data-sources-and-lookups.md#load-safety-limits), [Reference: data sources](/reference/config-schema/data-sources.md) |
+| `lookup` | Answer-path profiles and ordered providers | [Architecture — Lookup](/concepts/architecture-and-packet-path.md#lookup), [Reference: lookup](/reference/config-schema/lookup.md) |
+| `caches` | Named DNS answer cache instances for lookup cache providers | [DNS answer cache](/guides/dns-answer-cache.md), [Reference: caches](/reference/config-schema/caches.md) |
 | `pools` | Upstream [pools](/glossary/index.md#pool) and [backends](/glossary/index.md#backend); optional per-pool `health:` | [Pools and backends](/policy-routing/pools-and-backends.md), [Backend health](/policy-routing/backend-health.md), [Reference: pools](/reference/config-schema/pools.md), [Reference: health](/reference/config-schema/health.md) |
 | `forward` | Upstream timeout, egress sources, transport | [Reference: forward](/reference/config-schema/forward.md), [Dual-stack forwarding](/guides/dual-stack-forwarding.md) |
 | `orchestrator` | [Retry](/glossary/index.md#retry) and [transaction](/glossary/index.md#transaction) limits | [Reference: orchestrator](/reference/config-schema/orchestrator.md), [Retries and transactions](/policy-routing/retries-and-transactions.md) |
-| `rules` | Declarative policy | [Rules and actions](/policy-routing/rules-and-actions.md), [Reference: rules](/reference/config-schema/rules.md) |
-| `rhai` | Script sandbox limits (scripts come from `rules`) | [Rhai](/rhai/index.md) |
-| `data_sources` | Lookup tables for [Rhai](/rhai/index.md) | [Data sources and lookups](/rhai/data-sources-and-lookups.md) |
-| `data_source_limits` | Load-safety caps for `data_sources` tables | [Load-safety limits](/rhai/data-sources-and-lookups.md#load-safety-limits) |
-| `events` | Event export queue and sinks | [Event export](/observability/event-export.md), [Reference: events](/reference/config-schema/events.md) |
+| `dataplane` | Dataplane runtime model (worker threads) | [Runtime and concurrency](/concepts/runtime-and-concurrency.md), [Reference: dataplane](/reference/config-schema/dataplane.md) |
+| `shutdown` | Graceful drain of in-flight transactions on stop | [Runtime and concurrency — Graceful drain](/concepts/runtime-and-concurrency.md#graceful-drain-on-shutdown), [Reference: shutdown](/reference/config-schema/shutdown.md) |
+| `control` | [Control plane](/glossary/index.md#control-plane) gRPC listen address | [gRPC and conduitctl](/control-plane/grpc-and-conduitctl.md), [Reference: control](/reference/config-schema/control.md) |
+| `logging` | Process log level and output | [Logging](/observability/logging.md), [Reference: logging](/reference/config-schema/logging.md) |
 | `metrics` | Built-in Prometheus / OTEL export | [Metrics](/observability/metrics.md), [Reference: metrics and tracing](/reference/config-schema/metrics-and-tracing.md) |
 | `tracing` | Per-query pipeline traces | [Tracing](/observability/tracing.md), [Reference: metrics and tracing](/reference/config-schema/metrics-and-tracing.md) |
-| `control` | [Control plane](/glossary/index.md#control-plane) gRPC listen address | [gRPC and conduitctl](/control-plane/grpc-and-conduitctl.md), [Reference: control](/reference/config-schema/control.md) |
-| `logging` | Process log level and output | [Logging](/observability/logging.md) |
+| `events` | Event export queue and sinks | [Event export](/observability/event-export.md), [Reference: events](/reference/config-schema/events.md) |
 
 ## Sparse files and defaults
 

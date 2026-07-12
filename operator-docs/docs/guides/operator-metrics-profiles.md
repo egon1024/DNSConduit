@@ -8,7 +8,7 @@ Hands-on comparison of **`metrics.profile: minimal`** vs **`full`** on the same 
 
 | Profile | Hot-path emphasis | After a few `A` queries you should see… |
 |---------|-------------------|----------------------------------------|
-| **`minimal`** | Volume + failure counters | [`conduit_queries_total`](/observability/built-in-metrics.md#conduit_queries_total) with **`listener`** + **`protocol`** only; [`conduit_parse_rejected_total`](/observability/built-in-metrics.md#conduit_parse_rejected_total) and [`conduit_forward_errors_total`](/observability/built-in-metrics.md#conduit_forward_errors_total) when failures occur; **no** `conduit_phase_duration_seconds` |
+| **`minimal`** | Volume + failure counters | [`conduit_queries_total`](/observability/built-in-metrics.md#conduit_queries_total) with **`listener`** + **`protocol`** only; [`conduit_parse_rejected_total`](/observability/built-in-metrics.md#conduit_parse_rejected_total), [`conduit_queries_dropped_total`](/observability/built-in-metrics.md#conduit_queries_dropped_total), and [`conduit_forward_errors_total`](/observability/built-in-metrics.md#conduit_forward_errors_total) when failures or policy drops occur; **no** `conduit_phase_duration_seconds` |
 | **`full`** | Rich labels + timing | `conduit_queries_total` with **`qtype`**, **`qclass`**, **`ip_family`**; phase and forward histograms/counters |
 
 Both profiles expose the same scrape-time gauges except Linux process memory/FD gauges (**`full`** only).

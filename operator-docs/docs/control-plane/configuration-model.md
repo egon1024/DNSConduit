@@ -11,7 +11,7 @@ Conduit keeps configuration in **layers**:
 | **[File layer](/glossary/index.md#file-layer)** | YAML at the path you pass when starting `conduit` | Edit on disk; reload with **SIGHUP** (Unix) or `conduitctl reload` |
 | **[Overlay](/glossary/index.md#overlay)** | In-memory patch applied through the [control plane](/glossary/index.md#control-plane) | `conduitctl apply` (default **merge** into accumulated overlay) |
 | **[Effective config](/glossary/index.md#effective-config)** | File layer merged with overlay (if any), then validated | Result of merge + validation before compile |
-| **[Runtime snapshot](/glossary/index.md#runtime-snapshot)** | Compiled bundle the [dataplane](/glossary/index.md#dataplane) uses (rules, scripts, forward tables, observability filters) | Built from effective config on each successful apply or reload |
+| **[Runtime snapshot](/glossary/index.md#runtime-snapshot)** | Compiled configuration bundle the [dataplane](/glossary/index.md#dataplane) uses (rules, scripts, forward tables, observability filters) | Built from effective config on each successful apply or reload |
 
 ```mermaid
 flowchart LR
@@ -149,7 +149,7 @@ pools:
 
 ## Runtime snapshot
 
-The **[runtime snapshot](/glossary/index.md#runtime-snapshot)** is what the [dataplane](/glossary/index.md#dataplane) actually uses: validated effective config plus compiled artifacts — [rules](/policy-routing/rules-and-actions.md), [Rhai](/rhai/index.md) scripts, event sinks, forward source tables, and observability filters. All listener workers share one snapshot until the next successful reload or apply.
+The **[runtime snapshot](/glossary/index.md#runtime-snapshot)** is the configuration bundle the [dataplane](/glossary/index.md#dataplane) actually uses: validated [effective config](/glossary/index.md#effective-config) plus compiled artifacts — [rules](/policy-routing/rules-and-actions.md), [Rhai](/rhai/index.md) scripts, event sinks, forward source tables, and observability filters. All listener workers share one snapshot until the next successful reload or apply.
 
 **[Backend health](/policy-routing/backend-health.md)** probe **configuration** (`pools[].health` and per-backend probe overrides) is part of the snapshot and hot-reloads with it. Health **runtime state** — observed/applied liveness, freeze/drain scope, and probe counters — lives **outside** the snapshot. On reload or overlay apply, Conduit **preserves** that state for backends whose identity and probe semantics are unchanged, and **resets** it when a backend is new, its address changes, or probe semantics change. Operator [freeze](/glossary/index.md#freeze)/[drain](/glossary/index.md#drain) therefore survives a normal reload. Details: [Backend health — Reload and health state](/policy-routing/backend-health.md#reload-and-health-state).
 
@@ -177,6 +177,8 @@ In-flight [transactions](/glossary/index.md#transaction) still finish on the sna
 ### Pending reconcile (restart required)
 
 Some sections affect OS sockets Conduit opened at process start. When **`listeners`** or **`forward`** changes between the old and new effective config, Conduit still updates the snapshot (so export and validation reflect the new intent) but logs **pending (restart required)** — listener bind addresses, worker counts, and forward egress sockets are **not** rebound until you restart the `conduit` process.
+
+When **`caches[].memory.shard_count`** changes for an existing instance name, Conduit logs **`cache memory.shard_count: pending (restart required)`** — the snapshot updates but the live shard layout is unchanged until restart. Other cache fields such as **`max_entries`** take effect on the running cache immediately when **apply** or **reload** succeeds (no restart) — see [Reference: caches — Reload and apply](/reference/config-schema/caches.md#reload-and-apply).
 
 Changing or adding the **`control:`** block also requires a **process restart** today to start or rebind the gRPC listener.
 

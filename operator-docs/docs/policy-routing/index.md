@@ -2,7 +2,7 @@
 
 How Conduit decides **where** each client query goes upstream, **what** to change on the way out, and **when** to try again. This section covers declarative `rules:`, upstream `pools:` and [backends](/glossary/index.md#backend), and [retry](/glossary/index.md#retry) limits on the [dataplane](/glossary/index.md#dataplane).
 
-Read [Architecture and packet path](/concepts/architecture-and-packet-path.md) first for pipeline phases and hook placement; YAML field lists live on the topic pages below and in [Reference](/reference/config-schema/rules.md).
+Read [Architecture and packet path](/concepts/architecture-and-packet-path.md) first for pipeline phases and hook placement; YAML field lists are described on the topic pages below and in [Reference](/reference/config-schema/rules.md).
 
 ## How the pieces fit
 
@@ -60,7 +60,7 @@ flowchart TD
 | `orchestrator:` | [Reference: orchestrator](/reference/config-schema/orchestrator.md), [Retries and transactions — Global limits](/policy-routing/retries-and-transactions.md#global-limits-orchestrator) |
 | `forward:` | [Reference: forward](/reference/config-schema/forward.md), [Dual-stack forwarding](/guides/dual-stack-forwarding.md) |
 
-Rule and pool changes load into the [runtime snapshot](/glossary/index.md#runtime-snapshot) on reload or apply for **new** queries; in-flight [transactions](/glossary/index.md#transaction) keep the policy they started with. See [Configuration model](/control-plane/configuration-model.md) and [When changes to rules take effect](/policy-routing/rules-and-actions.md#when-changes-to-rules-take-effect).
+Rule and pool changes load into the configuration [runtime snapshot](/glossary/index.md#runtime-snapshot) on reload or apply for **new** queries; in-flight [transactions](/glossary/index.md#transaction) keep the policy they started with. See [Configuration model](/control-plane/configuration-model.md) and [When changes to rules take effect](/policy-routing/rules-and-actions.md#when-changes-to-rules-take-effect).
 
 ## Related
 

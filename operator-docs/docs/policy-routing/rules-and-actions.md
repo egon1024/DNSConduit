@@ -16,7 +16,7 @@ When **no** rule matches on the request hook, Conduit continues to [Route](/conc
 
 ## Request and response hooks
 
-Every query walks the [pipeline phases](/concepts/architecture-and-packet-path.md#pipeline-phases) in order. **Rules** (built-in actions and optional [Rhai](/rhai/index.md) scripts) run only at **Request rules** and **Response rules** — the rule’s `hook:` must match that phase.
+Every query runs through a [defined pipeline](/concepts/architecture-and-packet-path.md#pipeline-phases) of phases. **Rules** (built-in actions and optional [Rhai](/rhai/index.md) scripts) run only at **Request rules** and **Response rules** — the rule’s `hook:` must match that phase.
 
 | Hook | Pipeline phase | When it runs | Runs again on retry? |
 |------|----------------|--------------|----------------------|
@@ -38,7 +38,7 @@ Every query walks the [pipeline phases](/concepts/architecture-and-packet-path.m
 
 ### Outcomes after each hook
 
-Both hooks can **drop** the query (`drop` action or Rhai `txn.drop_query()` — no DNS reply). There is no separate **accept** action: when policy does not drop, Conduit continues the pipeline.
+Both hooks can **drop** the query (`drop` action or Rhai `txn.drop_query()` — no DNS reply). Completed policy drops increment [`conduit_queries_dropped_total`](/observability/built-in-metrics.md#conduit_queries_dropped_total) (`reason` = `request_rules` or `response_rules`). There is no separate **accept** action: when policy does not drop, Conduit continues the pipeline.
 
 | Hook | Drop? | If not dropped, continue to… | Retry? |
 |------|-------|------------------------------|--------|
@@ -93,9 +93,9 @@ Every field on `rules:`, selectors, and actions: [Reference: rules](/reference/c
 
 ## When changes to rules take effect { #when-changes-to-rules-take-effect }
 
-When you reload or apply configuration (**SIGHUP**, `conduitctl reload`, or `conduitctl apply`), Conduit validates the file (including rules and script paths) and loads the result into the active [runtime snapshot](/glossary/index.md#runtime-snapshot) for **later** queries.
+When you reload or apply configuration (**SIGHUP**, `conduitctl reload`, or `conduitctl apply`), Conduit validates the file (including rules and script paths) and loads the result into the active configuration [runtime snapshot](/glossary/index.md#runtime-snapshot) for **later** queries.
 
-Queries already in progress keep the rules they started with — they do not switch mid-query to a half-applied config. If validation fails, Conduit keeps the previous working snapshot and DNS keeps flowing. See [Configuration model](/control-plane/configuration-model.md).
+Queries already in progress keep the rules they started with — they do not switch mid-query to a half-applied config. If validation fails, Conduit keeps the [last-good snapshot](/glossary/index.md#last-good-snapshot) and DNS keeps flowing. See [Configuration model](/control-plane/configuration-model.md).
 
 ## Selectors { #selectors }
 

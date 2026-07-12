@@ -82,11 +82,11 @@ The **`emit`** list selects which observation points produce frames for a sink:
 |-------|---------------|---------------------|
 | **`query`** | After [Request rules](/concepts/architecture-and-packet-path.md#request-rules) finish — including when policy **drops** the query on the request hook (qname and tags from that pass are visible to sink filters) | Client query |
 | **`response`** | When the [transaction](/glossary/index.md#transaction) completes at [Send](/concepts/architecture-and-packet-path.md#send) | Client response |
-| **`retry`** | On each additional attempt after the first (before re-entering [Route](/concepts/architecture-and-packet-path.md#route)) | Client query (same wire as the original query) |
+| **`retry`** | On each additional attempt after the first (before re-entering [Lookup](/concepts/architecture-and-packet-path.md#lookup)) | Client query (same wire as the original query) |
 
 If **`emit`** is omitted or empty, Conduit exports **`query`** and **`response`** (not **`retry`**).
 
-**`query`** events carry the client query wire and client socket metadata. **`response`** events carry the answer wire (upstream copy or synthesized error). Request-hook **drops** still emit **`query`** frames when the sink’s filters pass; there is **no** **`response`** frame because the client receives no DNS reply. **`retry`** helps correlate [retries](/policy-routing/retries-and-transactions.md) in the tap without enabling full query+response on every attempt.
+**`query`** events carry the client wire query and client socket metadata. **`response`** events carry the wire answer (upstream copy or synthesized error). Request-hook **drops** still emit **`query`** frames when the sink’s filters pass; there is **no** **`response`** frame because the client receives no DNS reply. **`retry`** helps correlate [retries](/policy-routing/retries-and-transactions.md) in the tap without enabling full query+response on every attempt.
 
 ## Filters
 
@@ -117,7 +117,9 @@ Per-sink **`filters`** limit which transactions reach that sink. All configured 
 | **`pool`** | **`response`** and **`retry`** only | Selected pool name must match |
 | **`backend`** | **`response`** and **`retry`** only | Selected backend **label** must match: the configured backend `name` when set, otherwise the `ip:port` address. Same name-when-set identity used in metrics, logs, and traces |
 
-**`pool`** and **`backend`** filters do not apply to **`query`** frames (pool/backend are not chosen until [Route](/concepts/architecture-and-packet-path.md#route)).
+**`pool`** and **`backend`** filters do not apply to **`query`** frames (pool/backend are not chosen until the forward provider runs inside [Lookup](/concepts/architecture-and-packet-path.md#lookup)).
+
+Additional response selectors: **`answer_source`** (`cache` | `forward`) and **`cache_instance`** (exact cache name from **`caches:`**).
 
 Example: tag queries for audit, then export only matching responses:
 

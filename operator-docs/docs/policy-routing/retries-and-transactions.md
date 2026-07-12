@@ -1,23 +1,21 @@
 # Retries and transactions
 
-This page explains how Conduit handles **retries** — sending the same client [transaction](/glossary/index.md#transaction) through [Route](/concepts/architecture-and-packet-path.md#route) and [Forward](/concepts/architecture-and-packet-path.md#forward) again after an upstream answer or timeout — and the **global limits** that stop further attempts. For declarative actions, see [Rules and actions](/policy-routing/rules-and-actions.md). For the full query path, see [Architecture and packet path](/concepts/architecture-and-packet-path.md).
+This page explains how Conduit handles **retries** — sending the same client [transaction](/glossary/index.md#transaction) through [Lookup](/concepts/architecture-and-packet-path.md#lookup) again after an upstream answer or timeout — and the **global limits** that stop further attempts. For declarative actions, see [Rules and actions](/policy-routing/rules-and-actions.md). For the full query path, see [Architecture and packet path](/concepts/architecture-and-packet-path.md).
 
 ## Overview
 
 A [transaction](/glossary/index.md#transaction) is everything Conduit remembers for one client query from [Receive](/concepts/architecture-and-packet-path.md#receive) through [Send](/concepts/architecture-and-packet-path.md#send) or drop. Retries reuse that same transaction: the original question, client address, [tags](/glossary/index.md#tags), and request-side [pool](/glossary/index.md#pool) choice stay in place unless policy changes them on a later hook.
 
-**Only [Response rules](/concepts/architecture-and-packet-path.md#response-rules)** (built-in actions or [Rhai](/rhai/index.md) on the response hook) can trigger a retry. [Request rules](/concepts/architecture-and-packet-path.md#request-rules) run **once** at the start of the transaction; they do not run again when Conduit re-enters at [Route](/concepts/architecture-and-packet-path.md#route).
+**Only [Response rules](/concepts/architecture-and-packet-path.md#response-rules)** (built-in actions or [Rhai](/rhai/index.md) on the response hook) can trigger a retry. [Request rules](/concepts/architecture-and-packet-path.md#request-rules) run **once** at the start of the transaction; they do not run again when Conduit re-enters at [Lookup](/concepts/architecture-and-packet-path.md#lookup).
 
-When policy requests a retry, Conduit jumps from [Response rules](/concepts/architecture-and-packet-path.md#response-rules) back to [Route](/concepts/architecture-and-packet-path.md#route), picks an **eligible** [backend](/glossary/index.md#backend) in the target [pool](/glossary/index.md#pool) (see [Backend selection on retries](#backend-selection-on-retries)), and forwards again. When limits are reached, every eligible [backend](/glossary/index.md#backend) in the target pool was already tried, or policy accepts the outcome, Conduit continues to [Send](/concepts/architecture-and-packet-path.md#send) and replies to the client.
+When policy requests a retry, Conduit jumps from [Response rules](/concepts/architecture-and-packet-path.md#response-rules) back to [Lookup](/concepts/architecture-and-packet-path.md#lookup), runs the **full provider chain** again (subject to [cache eligibility](/guides/dns-answer-cache.md#cache-eligibility)), picks an **eligible** [backend](/glossary/index.md#backend) in the target [pool](/glossary/index.md#pool) (see [Backend selection on retries](#backend-selection-on-retries)), and forwards again when the forward provider runs. When limits are reached, every eligible [backend](/glossary/index.md#backend) in the target pool was already tried, or policy accepts the outcome, Conduit continues to [Send](/concepts/architecture-and-packet-path.md#send) and replies to the client.
 
 ```mermaid
 stateDiagram-v2
-  [*] --> Route: first attempt
-  Route --> Forward
-  Forward --> WaitResponse
-  WaitResponse --> ResponseRules
+  [*] --> Lookup: first attempt
+  Lookup --> ResponseRules
   ResponseRules --> Send: accept / no retry
-  ResponseRules --> Route: retry allowed
+  ResponseRules --> Lookup: retry allowed
   ResponseRules --> Drop: drop
   Send --> Reply: to client
 ```
@@ -28,14 +26,14 @@ stateDiagram-v2
 
 | Mechanism | Pool for the next attempt |
 |-----------|---------------------------|
-| **`retry`** or **`retry_now`** action (response) | Uses **`selected_pool`** on the next retry [Route](/concepts/architecture-and-packet-path.md#route) — the pool from the last Route on this transaction (see [Pool selection lifecycle](#pool-selection-lifecycle)) |
-| **`set_retry_pool`** + **`retry`** or **`retry_now`** (either hook for `set_retry_pool`; response for retry) | Uses `retry_pool` on the next retry [Route](/concepts/architecture-and-packet-path.md#route) if retry occurs |
+| **`retry`** or **`retry_now`** action (response) | Uses **`selected_pool`** on the next retry Lookup — the pool from the last forward attempt on this transaction (see [Pool selection lifecycle](#pool-selection-lifecycle)) |
+| **`set_retry_pool`** + **`retry`** or **`retry_now`** (either hook for `set_retry_pool`; response for retry) | Uses `retry_pool` on the next retry Lookup if retry occurs |
 | **`txn.request_retry()`** or **`txn.request_retry_now()`** in Rhai (response) | Same as **`retry`** / **`retry_now`** — stay in the current pool |
-| **`txn.set_retry_pool("name")`** in Rhai | Pool for retry Route if retry occurs; first Route ignores (both hooks) — pair with **`txn.request_retry()`** on the response hook to fail over |
+| **`txn.set_retry_pool("name")`** in Rhai | Pool for retry Lookup if retry occurs; first forward ignores (both hooks) — pair with **`txn.request_retry()`** on the response hook to fail over |
 | **`set_retry_source_v4`** / **`set_retry_source_v6`** + **`retry`** (request or response for source; response for retry) | One-shot egress bind on the **next retry forward** only — see [Source selection lifecycle](#source-selection-lifecycle) |
 | **`txn.set_retry_source_v4(addr)`** / **`txn.set_retry_source_v6(addr)`** in Rhai | Same as **`set_retry_source_*`** — does not trigger retry; pair with **`txn.request_retry()`** on the response hook |
 
-At [Route](/concepts/architecture-and-packet-path.md#route), when `attempt_count > 0` (retry re-entry), Conduit uses `retry_pool` if set (then clears it), then falls back to `selected_pool`, then the default pool. On the **first** forward (`attempt_count == 0`), `retry_pool` is ignored. Full lifecycle: [Pool selection lifecycle](#pool-selection-lifecycle).
+At forward **route** inside Lookup, when `attempt_count > 0` (retry re-entry), Conduit uses `retry_pool` if set (then clears it), then falls back to `selected_pool`, then the default pool. On the **first** forward (`attempt_count == 0`), `retry_pool` is ignored. Full lifecycle: [Pool selection lifecycle](#pool-selection-lifecycle).
 
 [Response rules](/concepts/architecture-and-packet-path.md#response-rules) run after an upstream answer **or** after a forward **timeout** (still with no stored answer). That lets you retry on **SERVFAIL**, **NXDOMAIN**, slow upstreams, and other conditions you express with [selectors](/glossary/index.md#selector) such as `rcode`.
 
@@ -100,7 +98,7 @@ rules:
         - type: retry
 ```
 
-On **SERVFAIL**, Conduit re-enters at [Route](/concepts/architecture-and-packet-path.md#route). With **`set_retry_pool`** + **`retry`**, the next forward uses that pool’s [backends](/glossary/index.md#backend). With **`retry`** alone, Conduit keeps the pool from the first attempt and selects a different backend there when more than one is configured.
+On **SERVFAIL**, Conduit re-enters at [Lookup](/concepts/architecture-and-packet-path.md#lookup). With **`set_retry_pool`** + **`retry`**, the next forward uses that pool’s [backends](/glossary/index.md#backend). With **`retry`** alone, Conduit keeps the pool from the first attempt and selects a different backend there when more than one is configured.
 
 ### Rhai
 
@@ -108,19 +106,19 @@ On the response hook:
 
 - **`txn.request_retry()`** — soft retry in the current pool (same as **`retry`** in YAML).
 - **`txn.request_retry_now()`** — hard retry in the current pool (same as **`retry_now`** in YAML).
-- **`txn.set_retry_pool("pool-name")`** — pool for retry Route if retry occurs; first Route ignores. Add **`txn.request_retry()`** or **`txn.request_retry_now()`** to trigger failover.
+- **`txn.set_retry_pool("pool-name")`** — pool for retry Lookup if retry occurs; first forward [Route](/concepts/architecture-and-packet-path.md#route) ignores. Add **`txn.request_retry()`** or **`txn.request_retry_now()`** to trigger failover.
 
 See [Transaction API — Outcomes](/rhai/txn-api.md#outcomes) (`request_retry`, `request_retry_now`) and [Routing](/rhai/txn-api.md#routing) (`set_retry_pool`).
 
 ## What happens on each attempt
 
-Each time Conduit enters [Route](/concepts/architecture-and-packet-path.md#route):
+When the forward provider reaches [Route](/concepts/architecture-and-packet-path.md#route) inside [Lookup](/concepts/architecture-and-packet-path.md#lookup):
 
 1. **Pool selection** — see [Pool selection lifecycle](#pool-selection-lifecycle) below.
 2. **Backend selection** — see [Backend selection on retries](#backend-selection-on-retries).
 3. **Attempt counter** — Conduit increments the attempt count for this transaction before [Forward](/concepts/architecture-and-packet-path.md#forward).
 
-[`conduit_queries_by_pool_total`](/observability/built-in-metrics.md#conduit_queries_by_pool_total) increments for **each** attempt that reaches [Route](/concepts/architecture-and-packet-path.md#route) → [Forward](/concepts/architecture-and-packet-path.md#forward), including retries.
+[`conduit_queries_by_pool_total`](/observability/built-in-metrics.md#conduit_queries_by_pool_total) increments for **each** attempt that reaches [Route](/concepts/architecture-and-packet-path.md#route) → [Forward](/concepts/architecture-and-packet-path.md#forward) inside Lookup, including retries.
 
 [Tags](/glossary/index.md#tags) set on [request rules](/concepts/architecture-and-packet-path.md#request-rules) or earlier [response rules](/concepts/architecture-and-packet-path.md#response-rules) **persist** across retries unless a script clears them. You can branch later rules on tags (for example “already retried”).
 
@@ -219,15 +217,15 @@ A pool with only one [backend](/glossary/index.md#backend) cannot offer an alter
 
 ## Global limits (`orchestrator`) { #global-limits-orchestrator }
 
-The top-level **`orchestrator:`** block caps how long a transaction may loop and how many [Route](/concepts/architecture-and-packet-path.md#route) attempts are allowed. Field reference: [Reference: orchestrator](/reference/config-schema/orchestrator.md). When omitted, Conduit uses the same defaults as in [Minimal configuration](/getting-started/minimal-configuration.md).
+The top-level **`orchestrator:`** block caps how long a transaction may loop and how many [Lookup](/concepts/architecture-and-packet-path.md#lookup) forward attempts are allowed. Field reference: [Reference: orchestrator](/reference/config-schema/orchestrator.md). When omitted, Conduit uses the same defaults as in [Minimal configuration](/getting-started/minimal-configuration.md).
 
 | Field | Default | Meaning |
 |-------|---------|---------|
-| `max_attempts` | **3** | Maximum [Route](/concepts/architecture-and-packet-path.md#route) → [Forward](/concepts/architecture-and-packet-path.md#forward) cycles for one client query |
+| `max_attempts` | **3** | Maximum forward-provider [Route](/concepts/architecture-and-packet-path.md#route) → [Forward](/concepts/architecture-and-packet-path.md#forward) cycles inside Lookup for one client query |
 | `max_txn_duration_ms` | **5000** | Wall-clock limit for the whole transaction from start to [Send](/concepts/architecture-and-packet-path.md#send) or drop |
 | `txn_table_capacity` | **1024** | Capacity for tracking in-flight transactions on the [dataplane](/glossary/index.md#dataplane) (not per-query retry count) |
 
-Conduit checks **`max_txn_duration_ms`** and **`max_attempts`** before each [Route](/concepts/architecture-and-packet-path.md#route). When either limit is exceeded, Conduit sets **SERVFAIL** on the transaction and moves to [Send](/concepts/architecture-and-packet-path.md#send) instead of forwarding again.
+Conduit checks **`max_txn_duration_ms`** and **`max_attempts`** before each forward attempt inside [Lookup](/concepts/architecture-and-packet-path.md#lookup). When either limit is exceeded, Conduit sets **SERVFAIL** on the transaction and moves to [Send](/concepts/architecture-and-packet-path.md#send) instead of forwarding again.
 
 A retry stops when any of these occurs:
 
@@ -240,7 +238,7 @@ Validation: `max_attempts` must be **≥ 1**.
 
 ### What the client sees when limits hit
 
-When retries are exhausted, the pool is exhausted, or the transaction runs too long, the client receives a **synthesized SERVFAIL** (unless an upstream wire was already stored and policy sends the pipeline to [Send](/concepts/architecture-and-packet-path.md#send) without another retry). Synthesized errors echo the question section from the original query. Details: [Send](/concepts/architecture-and-packet-path.md#send) in [Architecture and packet path](/concepts/architecture-and-packet-path.md).
+When retries are exhausted, the pool is exhausted, or the transaction runs too long, the client receives a **synthesized SERVFAIL** (unless an upstream wire answer was already stored and policy sends the pipeline to [Send](/concepts/architecture-and-packet-path.md#send) without another retry). Synthesized errors echo the question section from the original query. Details: [Send](/concepts/architecture-and-packet-path.md#send) in [Architecture and packet path](/concepts/architecture-and-packet-path.md).
 
 You can adjust response metadata before [Send](/concepts/architecture-and-packet-path.md#send) with the **`set_rcode`** action on [response rules](/policy-routing/rules-and-actions.md) when policy accepts the answer instead of retrying.
 
@@ -248,7 +246,7 @@ You can adjust response metadata before [Send](/concepts/architecture-and-packet
 
 | Signal | When |
 |--------|------|
-| [`conduit_retries_total{pool}`](/observability/built-in-metrics.md#conduit_retries_total) | [Response rules](/concepts/architecture-and-packet-path.md#response-rules) send the pipeline back to [Route](/concepts/architecture-and-packet-path.md#route); `pool` is the **target** pool for the next attempt |
+| [`conduit_retries_total{pool}`](/observability/built-in-metrics.md#conduit_retries_total) | [Response rules](/concepts/architecture-and-packet-path.md#response-rules) send the pipeline back to [Lookup](/concepts/architecture-and-packet-path.md#lookup); `pool` is the **target** pool for the next attempt |
 | [`conduit_queries_by_pool_total{pool}`](/observability/built-in-metrics.md#conduit_queries_by_pool_total) | Each attempt that reaches [Forward](/concepts/architecture-and-packet-path.md#forward), including retries |
 | Event export **`retry`** frames | When sinks are configured with retry emission — see [Event export](/observability/event-export.md) |
 

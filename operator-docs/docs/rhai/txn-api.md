@@ -559,14 +559,14 @@ No arguments. Returns **`i64`** — milliseconds elapsed since the transaction s
 
 <p class="txn-api-summary" markdown="1">
 
-**Summary:** Wall-clock milliseconds since the transaction started — includes request rules, Route, Forward, wait, and any prior response-rule passes. Not upstream RTT alone.
+**Summary:** Wall-clock milliseconds since the transaction started — includes request rules, Lookup (and forward-provider work), and any prior response-rule passes. Not upstream RTT alone.
 
 </p>
 
 #### Behavior
 
 - Measures **wall-clock time** from transaction creation (when Conduit accepted the client query) through the current hook invocation.
-- Includes time spent in earlier pipeline phases on this transaction: [request rules](/concepts/architecture-and-packet-path.md#request-rules), [Route](/concepts/architecture-and-packet-path.md#route), [Forward](/concepts/architecture-and-packet-path.md#forward), [Wait for response](/concepts/architecture-and-packet-path.md#wait-for-response), and any prior [response rules](/concepts/architecture-and-packet-path.md#response-rules) passes on [retries](/glossary/index.md#retry).
+- Includes time spent in earlier pipeline phases on this transaction: [request rules](/concepts/architecture-and-packet-path.md#request-rules), [Lookup](/concepts/architecture-and-packet-path.md#lookup) (including [forward-provider](/concepts/architecture-and-packet-path.md#forward-provider-internals) route / forward / wait when upstream runs), and any prior [response rules](/concepts/architecture-and-packet-path.md#response-rules) passes on [retries](/glossary/index.md#retry).
 - **Not** upstream RTT alone — use [`txn.last_forward_ms()`](#txnlast_forward_ms) for the most recent forward attempt’s upstream wait.
 - On the [request hook](/rhai/hooks-and-phases.md#request-hook), elapsed time is usually small (rules only, no upstream wait yet).
 - On the [response hook](/rhai/hooks-and-phases.md#response-hook), elapsed time includes the wait for the current forward attempt’s answer or timeout.
@@ -601,7 +601,7 @@ if txn.has_tag("suspicious") && txn.last_forward_ms() > 500 {
 
 Request + response hook · no args · returns `i64` (latest upstream RTT; `0` on request hook)
 
-Returns upstream RTT in ms for the latest forward attempt (`0` on request hook).
+Returns upstream RTT in ms for the latest forward attempt (`0` when no forward ran, including cache hits).
 
 </div>
 
@@ -617,16 +617,17 @@ No arguments. Returns **`i64`** — milliseconds for the **most recent** upstrea
 
 <p class="txn-api-summary" markdown="1">
 
-**Summary:** Upstream send→answer-or-timeout time for the most recent forward attempt. Always `0` on the request hook; overwritten on each retry attempt on the response hook.
+**Summary:** Upstream send→answer-or-timeout time for the most recent forward attempt. Always **`0`** on the request hook and when **no forward attempt ran** (for example a **cache hit**). Use [`txn.answer_source()`](#txnanswer_source) or built-in metrics to distinguish cache from forward.
 
 </p>
 
 #### Behavior
 
-- Measures upstream **send → answer or timeout** time for the latest [Forward](/concepts/architecture-and-packet-path.md#forward) attempt — the same interval recorded in [`conduit_forward_duration_seconds`](/observability/built-in-metrics.md#conduit_forward_duration_seconds) when metrics are enabled.
+- Measures upstream **send → answer or timeout** time for the latest forward attempt inside the forward lookup provider — the same interval recorded in [`conduit_forward_duration_seconds`](/observability/built-in-metrics.md#conduit_forward_duration_seconds) when metrics are enabled.
 - **Not** end-to-end transaction time — use [`txn.elapsed_ms()`](#txnelapsed_ms) for wall-clock time since the client query arrived (includes request rules, prior retries, and response-rule passes).
 - **Request hook:** always **`0`** — no forward attempt has completed yet.
-- **Response hook:** set after the current attempt’s forward completes (success, timeout, or forward error that still runs response rules). On [retry](/glossary/index.md#retry), each new attempt **overwrites** the value with that attempt’s RTT.
+- **Cache hit:** **`0`** — forward did not run; do **not** use RTT alone to detect cache hits.
+- **Response hook after forward:** set after the current attempt’s forward completes (success, timeout, or forward error that still runs response rules). On [retry](/glossary/index.md#retry), each new attempt **overwrites** the value with that attempt’s RTT.
 - Includes TCP fallback time when UDP returns **TC** and Conduit retries over TCP on the same attempt.
 - Timeout attempts record approximately **`forward.timeout_ms`** (see [Forward](/concepts/architecture-and-packet-path.md#forward)).
 - Hard forward failures that skip [Response rules](/concepts/architecture-and-packet-path.md#response-rules) (for example immediate **SERVFAIL** to [Send](/concepts/architecture-and-packet-path.md#send)) still set the value on the transaction, but response-hook scripts do not run for that pass.
@@ -817,6 +818,179 @@ Config [snapshot generation](/control-plane/configuration-model.md) active when 
 
 - Matches [`conduit_config_generation`](/observability/built-in-metrics.md#conduit_config_generation) for the snapshot this query runs under.
 - Useful for canary rules after reload — branch policy when generation crosses a threshold.
+
+</div>
+
+</div>
+
+---
+
+## Answer provenance { #answer-provenance }
+
+Inspect where [Lookup](/concepts/architecture-and-packet-path.md#lookup) got this attempt's wire answer — **cache** vs **forward** — and which named cache, pool, or backend produced it. On the request hook, optionally bypass the cache for this query. Distinct from Rhai **`lookup(table, key)`** — see [Glossary — Lookup vs lookup(table, key)](/glossary/index.md#lookup-vs-lookuptable-key).
+
+On the response hook, branch on source then read the matching identity:
+
+```rhai
+if txn.answer_source() == "cache" {
+    log.info(`served from cache=${txn.cache_instance()}`);
+} else if txn.answer_source() == "forward" {
+    log.info(`served from pool=${txn.selected_pool()} backend=${txn.selected_backend_name()}`);
+}
+```
+
+[`txn.selected_pool()`](#txnselected_pool) is also routing intent on the request hook (see [Routing](#routing)). On a pure cache hit, backend fields are usually empty because forward did not run.
+
+<p class="txn-api-index" markdown="1">
+
+**Methods:** [`txn.answer_source()`](#txnanswer_source) · [`txn.cache_instance()`](#txncache_instance) · [`txn.selected_backend()`](#txnselected_backend) · [`txn.selected_backend_name()`](#txnselected_backend_name) · [`txn.selected_pool()`](#txnselected_pool) · [`txn.set_cache_lookup_eligible(bool)`](#txnset_cache_lookup_eligiblebool)
+
+</p>
+
+<div class="txn-api-entry" markdown="1">
+
+### `txn.answer_source()` {#txnanswer_source}
+
+<div class="txn-api-brief" markdown="1">
+
+Response hook · no args · returns `string`
+
+Which [Lookup](/concepts/architecture-and-packet-path.md#lookup) provider produced this attempt's wire answer — **`cache`**, **`forward`**, or empty before an answer exists.
+
+</div>
+
+<div class="txn-api-reference-panel" markdown="1" hidden>
+
+#### Hooks
+
+[Response hook](/rhai/hooks-and-phases.md#response-hook) — always empty on the request hook.
+
+#### Behavior
+
+- Answers: did Lookup serve this attempt's answer from the **cache** provider or from the **forward** provider?
+- **`cache`** — a cache provider served the wire answer; use [`txn.cache_instance()`](#txncache_instance) for which **`caches[].name`**.
+- **`forward`** — the forward provider produced the answer; use [`txn.selected_pool()`](#txnselected_pool) / [`txn.selected_backend()`](#txnselected_backend) / [`txn.selected_backend_name()`](#txnselected_backend_name) for which pool and backend.
+- Empty string — no answer yet or unknown source (for example some synthesized errors).
+
+</div>
+
+</div>
+
+<div class="txn-api-entry" markdown="1">
+
+### `txn.cache_instance()` {#txncache_instance}
+
+<div class="txn-api-brief" markdown="1">
+
+Response hook · no args · returns `string`
+
+Named cache instance on cache hits; empty otherwise.
+
+</div>
+
+<div class="txn-api-reference-panel" markdown="1" hidden>
+
+#### Behavior
+
+- Set when **`txn.answer_source()`** is **`cache`** — matches the **`caches[].name`** that served the hit.
+- Empty on forward-produced answers and on the request hook.
+
+</div>
+
+</div>
+
+<div class="txn-api-entry" markdown="1">
+
+### `txn.selected_backend()` {#txnselected_backend}
+
+<div class="txn-api-brief" markdown="1">
+
+Request + response hook · no args · returns `string`
+
+Upstream backend **socket address** for the current forward attempt (empty when unset).
+
+</div>
+
+<div class="txn-api-reference-panel" markdown="1" hidden>
+
+#### Behavior
+
+- Identity for the forward half of answer provenance — pair with [`txn.answer_source()`](#txnanswer_source) **`forward`**.
+- Usually empty on a pure cache hit (forward did not run). Also available as **`backend`** on [`txn.response()`](#txnresponse).
+
+</div>
+
+</div>
+
+<div class="txn-api-entry" markdown="1">
+
+### `txn.selected_backend_name()` {#txnselected_backend_name}
+
+<div class="txn-api-brief" markdown="1">
+
+Request + response hook · no args · returns `string`
+
+Upstream backend **logical label** for the current forward attempt: the configured backend `name` when set, otherwise the socket address. This is the same name-when-set identity used in [metrics](/observability/built-in-metrics.md), logs, traces, and event-sink `backend` filters. Empty when no backend is selected.
+
+</div>
+
+<div class="txn-api-reference-panel" markdown="1" hidden>
+
+#### Behavior
+
+- Identity for the forward half of answer provenance — pair with [`txn.answer_source()`](#txnanswer_source) **`forward`**.
+- Usually empty on a pure cache hit (forward did not run). Also available as **`backend_name`** on [`txn.response()`](#txnresponse).
+
+</div>
+
+</div>
+
+<div class="txn-api-entry" markdown="1">
+
+### `txn.selected_pool()` {#txnselected_pool}
+
+<div class="txn-api-brief" markdown="1">
+
+Request + response hook · no args · returns `string`
+
+Pool name selected for the current forward attempt (empty when unset).
+
+</div>
+
+<div class="txn-api-reference-panel" markdown="1" hidden>
+
+#### Behavior
+
+- On the response hook after a forward answer, the pool that served this attempt — pair with [`txn.answer_source()`](#txnanswer_source) **`forward`**.
+- On the request hook (and before Route), reflects routing intent from [`txn.set_pool`](#txnset_pool) / rules; may be set even when a later cache hit never forwards. Also available as **`pool`** on [`txn.response()`](#txnresponse).
+
+</div>
+
+</div>
+
+<div class="txn-api-entry" markdown="1">
+
+### `txn.set_cache_lookup_eligible` {#txnset_cache_lookup_eligiblebool}
+
+<div class="txn-api-brief" markdown="1">
+
+Request hook only · `eligible`: bool · no return
+
+When **`false`**, the cache provider bypasses this query for the current Lookup attempt.
+
+</div>
+
+<div class="txn-api-reference-panel" markdown="1" hidden>
+
+#### Hooks
+
+[Request hook](/rhai/hooks-and-phases.md#request-hook) only — ignored on the response hook.
+
+#### Behavior
+
+- Default eligibility is **`true`** when the script does not call this method.
+- Before upstream I/O, the forward provider sets eligibility **`false`**. A Response-rules retry re-enters Lookup with that flag still **`false`**, so the cache is skipped. Request rules do not run again on retry, and this method is ignored on the response hook — nothing restores eligibility on the same transaction.
+- See [DNS answer cache — Cache eligibility](/guides/dns-answer-cache.md#cache-eligibility).
 
 </div>
 
@@ -1029,7 +1203,7 @@ if txn.response_rcode() == Rcode::SERVFAIL {
 
 Response hook only · no args · no return; no effect on request hook
 
-Soft retry — resolved at end of rule; re-enters Route when still set.
+Soft retry — resolved at end of rule; re-enters Lookup when still set.
 
 </div>
 
@@ -1050,14 +1224,14 @@ On the [request hook](/rhai/hooks-and-phases.md#request-hook), calls are ignored
 
 <p class="txn-api-summary" markdown="1">
 
-**Summary:** Soft retry — re-enter [Route](/concepts/architecture-and-packet-path.md#route) after this rule if retry intent is still set and the query is not dropped. Does not stop the script immediately.
+**Summary:** Soft retry — re-enter [Lookup](/concepts/architecture-and-packet-path.md#lookup) after this rule if retry intent is still set and the query is not dropped. Does not stop the script immediately.
 
 </p>
 
 #### Behavior
 
 - Sets **soft-retry** intent (same as built-in **`retry`**). Conduit resolves it **after** the rest of the script and any later built-in actions on the rule.
-- Re-enters [Route](/concepts/architecture-and-packet-path.md#route) for another [Forward](/concepts/architecture-and-packet-path.md#forward) attempt when retry wins at end of rule — subject to orchestrator caps ([Retries and transactions](/policy-routing/retries-and-transactions.md)).
+- Re-enters [Lookup](/concepts/architecture-and-packet-path.md#lookup) (full provider chain; forward provider may [Route](/concepts/architecture-and-packet-path.md#route) / [Forward](/concepts/architecture-and-packet-path.md#forward) again) when retry wins at end of rule — subject to orchestrator caps ([Retries and transactions](/policy-routing/retries-and-transactions.md)).
 - Does **not** pick a pool by itself — uses **`selected_pool`** unless **`retry_pool`** is set ([Pool selection lifecycle](/policy-routing/retries-and-transactions.md#pool-selection-lifecycle)). Pair with **`txn.set_retry_pool`** when failover should use a different pool.
 - Blocked when soft drop is still set at end of rule — drop wins. Does **not** clear soft drop.
 - **`txn.request_retry_now()`** stops the script immediately instead; use when no further script lines should run.
@@ -1100,7 +1274,7 @@ When **`retry_pool`** is already stashed on the request hook, the response scrip
 
 Response hook only · no args · no return; no effect on request hook
 
-Hard retry — stops the script immediately and re-enters Route (unless soft drop blocks).
+Hard retry — stops the script immediately and re-enters Lookup (unless soft drop blocks).
 
 </div>
 
@@ -1293,7 +1467,7 @@ On the **request hook**, only the question is meaningful — upstream has not an
 
 <p class="txn-api-index" markdown="1">
 
-**Methods:** [`txn.question()`](#txnquestion) · [`txn.response()`](#txnresponse) · [`txn.response_rcode()`](#txnresponse_rcode) · [`txn.selected_pool()`](#txnselected_pool) · [`txn.selected_backend()`](#txnselected_backend) · [`txn.selected_backend_name()`](#txnselected_backend_name) · [`txn.response_truncated()`](#txnresponse_truncated) · [`txn.response_answer_count()`](#txnresponse_answer_count) · **Types:** [`RecordType`](#recordtype) · [`Rcode`](#rcode) · [`QueryClass`](#queryclass) · [`DnsOpcode`](#dnsopcode) · [`EdnsOptionCode`](#ednsoptioncode)
+**Methods:** [`txn.question()`](#txnquestion) · [`txn.response()`](#txnresponse) · [`txn.response_rcode()`](#txnresponse_rcode) · [`txn.response_truncated()`](#txnresponse_truncated) · [`txn.response_answer_count()`](#txnresponse_answer_count) · **Types:** [`RecordType`](#recordtype) · [`Rcode`](#rcode) · [`QueryClass`](#queryclass) · [`DnsOpcode`](#dnsopcode) · [`EdnsOptionCode`](#ednsoptioncode)
 
 </p>
 
@@ -1628,48 +1802,6 @@ if resp.rcode == Rcode::SERVFAIL && txn.get_attempt_count() == 1 {
 
 <div class="txn-api-entry" markdown="1">
 
-### `txn.selected_pool()` {#txnselected_pool}
-
-<div class="txn-api-brief" markdown="1">
-
-Request + response hook · no args · returns `string`
-
-Pool name selected for the current forward attempt (empty when unset).
-
-</div>
-
-</div>
-
-<div class="txn-api-entry" markdown="1">
-
-### `txn.selected_backend()` {#txnselected_backend}
-
-<div class="txn-api-brief" markdown="1">
-
-Request + response hook · no args · returns `string`
-
-Upstream backend **socket address** for the current forward attempt (empty when unset).
-
-</div>
-
-</div>
-
-<div class="txn-api-entry" markdown="1">
-
-### `txn.selected_backend_name()` {#txnselected_backend_name}
-
-<div class="txn-api-brief" markdown="1">
-
-Request + response hook · no args · returns `string`
-
-Upstream backend **logical label** for the current forward attempt: the configured backend `name` when set, otherwise the socket address. This is the same name-when-set identity used in [metrics](/observability/built-in-metrics.md), logs, traces, and event-sink `backend` filters. Empty when no backend is selected.
-
-</div>
-
-</div>
-
-<div class="txn-api-entry" markdown="1">
-
 ### `txn.response_truncated()` {#txnresponse_truncated}
 
 <div class="txn-api-brief" markdown="1">
@@ -1690,7 +1822,7 @@ Whether upstream response had **TC=1** (requires compile-time wire-meta gating).
 
 Response hook · no args · returns `i64`
 
-Answer section count from upstream wire, or **`-1`** when wire metadata was not parsed.
+Answer section count from the upstream wire answer, or **`-1`** when wire metadata was not parsed.
 
 </div>
 

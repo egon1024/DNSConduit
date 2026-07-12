@@ -1,6 +1,6 @@
 # Hooks and phases
 
-**Rhai for rules** ([Rule Rhai](/rhai/rule-rhai.md)) runs at two fixed points in the query [pipeline](/concepts/architecture-and-packet-path.md#pipeline-phases): the [request hook](#request-hook) and the [response hook](#response-hook). This page explains those hooks from a **script author’s** perspective — how they differ, which host APIs each hook allows, and how request and response scripts work on the same [transaction](/glossary/index.md#transaction).
+**Rhai for rules** ([Rule Rhai](/rhai/rule-rhai.md)) runs at two defined points in the query [pipeline](/concepts/architecture-and-packet-path.md#pipeline-phases): the [request hook](#request-hook) and the [response hook](#response-hook). This page explains those hooks from a **script author’s** perspective — how they differ, which host APIs each hook allows, and how request and response scripts work on the same [transaction](/glossary/index.md#transaction).
 
 For hook timing, pipeline placement, first-match evaluation, built-in actions, and YAML wiring, see [Rules and actions — Request and response hooks](/policy-routing/rules-and-actions.md#request-and-response-hooks).
 
@@ -10,21 +10,21 @@ For hook timing, pipeline placement, first-match evaluation, built-in actions, a
 
 | | [Request hook](#request-hook) | [Response hook](#response-hook) |
 |---|---|---|
-| **When your script runs** | Before [Route](/concepts/architecture-and-packet-path.md#route) and [Forward](/concepts/architecture-and-packet-path.md#forward) | After [Wait for response](/concepts/architecture-and-packet-path.md#wait-for-response) (answer or timeout) |
-| **Runs again on retry?** | No — once per transaction | Yes — once per forward attempt |
-| **Upstream answer / rcode** | Not available yet | Available (`txn.response()`, `txn.response_rcode()`) |
-| **Retry / failover** | `txn.set_retry_pool` sets pool for retry Route if retry occurs; first Route ignores; `txn.request_retry()` / `request_retry_now()` have no effect | `txn.set_retry_pool` sets pool for retry Route if retry occurs; first Route ignores; `txn.request_retry()` soft-retry; `txn.request_retry_now()` hard-retry |
+| **When your script runs** | Before [Lookup](/concepts/architecture-and-packet-path.md#lookup) (cache and forward providers) | After Lookup produced a wire answer (cache hit or forward), before [Send](/concepts/architecture-and-packet-path.md#send) — or after forward timeout |
+| **Runs again on retry?** | No — once per transaction | Yes — once per Lookup attempt that reaches Response rules |
+| **Upstream answer / rcode** | Not available yet | Available (`txn.response()`, `txn.response_rcode()`, `txn.answer_source()`) |
+| **Retry / failover** | `txn.set_retry_pool` sets pool for retry Lookup if retry occurs; first forward ignores; `txn.request_retry()` / `request_retry_now()` have no effect | `txn.set_retry_pool` sets pool for retry Lookup if retry occurs; first forward ignores; `txn.request_retry()` soft-retry; `txn.request_retry_now()` hard-retry |
 | **Egress override** | Yes (`txn.set_source_v4` / `set_source_v6`) | Standing source: phase error. Retry source: yes (`txn.set_retry_source_v4` / `v6`, `clear_retry_source_*`) |
 | **`runtime.routing()`** | Yes — snapshot at hook phase start | Yes — new snapshot each attempt |
 | **Typical use** | Classify, route, tag, block before upstream | Act on rcode, timeout, latency; retry or metric |
 
 ### Request hook { #request-hook }
 
-Runs once per [transaction](/glossary/index.md#transaction) at [Request rules](/concepts/architecture-and-packet-path.md#request-rules) — after [Parse](/concepts/architecture-and-packet-path.md#parse), before [Route](/concepts/architecture-and-packet-path.md#route). Your script sees the client question only; upstream answers are not available yet. On [retry](/glossary/index.md#retry), the request hook does **not** run again — tags and pool choice from the first pass stay on the transaction unless response policy changes them. In config, use `hook: request` on the rule. See [Rules and actions — Request and response hooks](/policy-routing/rules-and-actions.md#request-and-response-hooks).
+Runs once per [transaction](/glossary/index.md#transaction) at [Request rules](/concepts/architecture-and-packet-path.md#request-rules) — after [Parse](/concepts/architecture-and-packet-path.md#parse), before [Lookup](/concepts/architecture-and-packet-path.md#lookup). Your script sees the client question only; upstream answers are not available yet. On [retry](/glossary/index.md#retry), the request hook does **not** run again — tags and pool choice from the first pass stay on the transaction unless response policy changes them. In config, use `hook: request` on the rule. See [Rules and actions — Request and response hooks](/policy-routing/rules-and-actions.md#request-and-response-hooks).
 
 ### Response hook { #response-hook }
 
-Runs at [Response rules](/concepts/architecture-and-packet-path.md#response-rules) — after [Wait for response](/concepts/architecture-and-packet-path.md#wait-for-response), before [Send](/concepts/architecture-and-packet-path.md#send) or another [Route](/concepts/architecture-and-packet-path.md#route) when policy retries. Runs **once per forward attempt**, so it may run multiple times on a retried query. Upstream answers and rcodes are available (`txn.response()`, `txn.response_rcode()`). Tags and pool choice from the request hook remain unless this hook changes them. In config, use `hook: response` on the rule. See [Rules and actions — Request and response hooks](/policy-routing/rules-and-actions.md#request-and-response-hooks) and [Retries and transactions](/policy-routing/retries-and-transactions.md).
+Runs at [Response rules](/concepts/architecture-and-packet-path.md#response-rules) — after [Lookup](/concepts/architecture-and-packet-path.md#lookup) stored an answer or a forward timeout occurred, before [Send](/concepts/architecture-and-packet-path.md#send) or another [Lookup](/concepts/architecture-and-packet-path.md#lookup) when policy retries. Runs **once per Lookup attempt** that reaches Response rules (skipped on cache hit when **`on_hit.response_rules: skip`**). Upstream answers and rcodes are available (`txn.response()`, `txn.response_rcode()`, `txn.answer_source()`). Tags and pool choice from the request hook remain unless this hook changes them. In config, use `hook: response` on the rule. See [Rules and actions — Request and response hooks](/policy-routing/rules-and-actions.md#request-and-response-hooks) and [Retries and transactions](/policy-routing/retries-and-transactions.md).
 
 ## Phase guards
 
@@ -38,6 +38,8 @@ Shared scopes (**`lookup`**, **`metrics`**, **`log`**, **`runtime`**) are availa
 |-----|--------------|---------------|
 | `txn.question()` | Yes | Yes (same question) |
 | `txn.response()`, `txn.response_rcode()` | Error / empty | Yes |
+| `txn.set_cache_lookup_eligible(bool)` | Yes | Ignored (request hook only) |
+| `txn.answer_source()`, `txn.cache_instance()` | Empty on request hook | Yes when answer exists |
 | `txn.clear_tag`, `txn.has_tag`, `txn.set_pool`, `txn.clear_pool`, `txn.set_tag` | Yes | Yes |
 | `txn.set_source_v4`, `txn.set_source_v6` | Yes | Phase error |
 | `txn.set_retry_source_v4`, `txn.set_retry_source_v6` | Stash for retry forward if retry occurs; first forward ignores | Stash for retry forward if retry occurs; first forward ignores |

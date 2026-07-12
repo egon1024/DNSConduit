@@ -575,6 +575,7 @@ mod tests {
         reg.record_query("ln", "udp", Some(1), Some(1), &addr);
         reg.record_query_by_pool("default");
         reg.record_parse_rejected("wire_error");
+        reg.record_query_dropped("ln", "udp", "request_rules", &addr);
         reg.record_response("ln", "udp", Some(0), &addr, Some("forward"));
         let families = reg.gather();
 
@@ -590,6 +591,7 @@ mod tests {
         for family in [
             "conduit_queries_total",
             "conduit_queries_by_pool_total",
+            "conduit_queries_dropped_total",
             "conduit_parse_rejected_total",
             "conduit_responses_total",
             "conduit_build_info",

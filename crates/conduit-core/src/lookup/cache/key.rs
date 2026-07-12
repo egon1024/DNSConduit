@@ -1,6 +1,6 @@
 //! DNS cache key construction (full-key equality; hash routes shard only).
 
-use crate::transaction::{ClientProtocol, Transaction};
+use crate::transaction::Transaction;
 use hickory_proto::error::ProtoError;
 use hickory_proto::op::Message;
 use hickory_proto::rr::Name;
@@ -8,24 +8,24 @@ use hickory_proto::serialize::binary::{BinEncodable, BinEncoder};
 
 const KEY_VERSION: u8 = 1;
 
-/// Transport dimension in the cache key.
+/// Answer-shape dimension in the cache key (not client transport).
+///
+/// Complete answers are shared across UDP and TCP clients. Truncated UDP
+/// stubs (`truncated_udp`) use a distinct key and are never served to TCP.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum TransportKey {
-    Udp = 0,
-    Tcp = 1,
+    /// Complete (TC=0) answer — shared by UDP and TCP clients.
+    /// Byte value `0` matches the former UDP-only complete key so live
+    /// in-memory UDP entries remain hittable after upgrade without restart.
+    Complete = 0,
     /// Stored TC=1 UDP answers when `truncated_udp.enabled` is true.
+    /// Kept at `2` so leftover pre-unification TCP keys (`1`) are not
+    /// mistaken for truncated stubs.
     UdpTruncated = 2,
 }
 
 impl TransportKey {
-    pub fn from_client(protocol: ClientProtocol) -> Self {
-        match protocol {
-            ClientProtocol::Udp => Self::Udp,
-            ClientProtocol::Tcp => Self::Tcp,
-        }
-    }
-
     pub fn as_byte(self) -> u8 {
         self as u8
     }
@@ -41,14 +41,18 @@ impl CacheKey {
     }
 }
 
-/// Build the lookup key for a client query.
+/// Build the lookup key for a complete (non-truncated) cached answer.
+///
+/// Client transport (UDP vs TCP) is not part of the key — both share this
+/// shape. UDP Send still truncates oversized wire to the client's EDNS
+/// payload size (or 512) when serving.
 pub fn build_query_key(txn: &Transaction) -> Result<CacheKey, ProtoError> {
     build_key_from_parts(
         txn.qname.as_deref().unwrap_or("."),
         txn.qtype.unwrap_or(0),
         txn.qclass.unwrap_or(1),
         &txn.query_wire,
-        TransportKey::from_client(txn.protocol),
+        TransportKey::Complete,
     )
 }
 
@@ -192,6 +196,46 @@ mod tests {
         assert_eq!(
             build_query_key(&lower).unwrap(),
             build_query_key(&upper).unwrap()
+        );
+    }
+
+    #[test]
+    fn udp_and_tcp_clients_share_complete_answer_key() {
+        let addr: SocketAddr = "127.0.0.1:53".parse().unwrap();
+        let wire = example_query();
+
+        let mut udp = Transaction::new(1, addr, ClientProtocol::Udp);
+        udp.qname = Some("www.example.com.".into());
+        udp.qtype = Some(1);
+        udp.qclass = Some(1);
+        udp.query_wire = wire.clone();
+
+        let mut tcp = Transaction::new(2, addr, ClientProtocol::Tcp);
+        tcp.qname = Some("www.example.com.".into());
+        tcp.qtype = Some(1);
+        tcp.qclass = Some(1);
+        tcp.query_wire = wire;
+
+        assert_eq!(
+            build_query_key(&udp).unwrap(),
+            build_query_key(&tcp).unwrap()
+        );
+    }
+
+    #[test]
+    fn truncated_udp_key_differs_from_complete_key() {
+        let addr: SocketAddr = "127.0.0.1:53".parse().unwrap();
+        let wire = example_query();
+
+        let mut txn = Transaction::new(1, addr, ClientProtocol::Udp);
+        txn.qname = Some("www.example.com.".into());
+        txn.qtype = Some(1);
+        txn.qclass = Some(1);
+        txn.query_wire = wire;
+
+        assert_ne!(
+            build_query_key(&txn).unwrap(),
+            build_truncated_udp_key(&txn).unwrap()
         );
     }
 }

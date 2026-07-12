@@ -6,7 +6,7 @@ toc_depth: 3
 
 Lookup tables declared under **`data_sources:`** in config supply read-only data for **`lookup(table, key)`** in [Rhai for rules](/rhai/rule-rhai.md) scripts. Conduit loads tables into the [runtime snapshot](/glossary/index.md#runtime-snapshot) at compile/reload time; scripts cannot open arbitrary files.
 
-**`lookup`** is a global function — not a method on **`txn`**. See [Host API overview](/rhai/host-api.md). Hook availability: [Hooks and phases — phase guards](/rhai/hooks-and-phases.md#phase-guards).
+**`lookup(table, key)`** is a global function — not a method on **`txn`**. It reads **`data_sources:`** policy tables, **not** the [Lookup](/concepts/architecture-and-packet-path.md#lookup) pipeline phase. See [Glossary — Lookup vs lookup(table, key)](/glossary/index.md#lookup-vs-lookuptable-key). Hook availability: [Hooks and phases — phase guards](/rhai/hooks-and-phases.md#phase-guards).
 
 ## Overview
 
@@ -19,6 +19,8 @@ Lookup tables declared under **`data_sources:`** in config supply read-only data
 **Grant model:** only **`name`** values you list under **`data_sources:`** are visible to scripts. There is no path-based or implicit discovery.
 
 ## Config schema
+
+Field reference: [Config schema: data sources](/reference/config-schema/data-sources.md) (`data_sources:` and `data_source_limits:`).
 
 Each entry in **`data_sources:`**:
 
@@ -233,6 +235,7 @@ List **`set_pool`** before **`rhai`** on the same rule when the script only refi
 
 ## Related topics
 
+- [Config schema: data sources](/reference/config-schema/data-sources.md) — field tables for `data_sources:` and `data_source_limits:`
 - [Host API overview](/rhai/host-api.md) — lookups live on the **`lookup`** scope — `lookup` card
 - [Rhai for rules](/rhai/rule-rhai.md) — when to use scripts vs built-in selectors
 - [Config file](/control-plane/config-file.md) — top-level blocks and path resolution

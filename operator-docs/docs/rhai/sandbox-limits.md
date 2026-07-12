@@ -20,6 +20,8 @@ When a script hits a limit, throws, or calls an API on the wrong hook, Conduit r
 
 ## Config: `rhai:` block
 
+Field reference: [Config schema: rhai](/reference/config-schema/rhai.md).
+
 | Field {: .column-no-wrap } | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
 | `max_operations` | integer | no | **10000** | Rhai operations budget per script invocation. Must be **≥ 1** if set explicitly in YAML ( **`0` fails validation** ). |
@@ -98,7 +100,7 @@ Every **host call** from Rhai into Conduit counts against the same **`max_operat
 
 ### Routing snapshot build (hook entry)
 
-Before your script's first line runs, Conduit builds the **routing runtime snapshot** once for this hook phase: it walks configured pools and backends to compute **`eligible_count`**, pool aggregates ([EWMA](/glossary/index.md#ewma) min, max outstanding), and per-backend health fields.
+Before your script's first line runs, Conduit builds the **routing runtime snapshot** once for this hook phase (pool and backend health for **`runtime.routing()`** — not the configuration [runtime snapshot](/glossary/index.md#runtime-snapshot)): it walks configured pools and backends to compute **`eligible_count`**, pool aggregates ([EWMA](/glossary/index.md#ewma) min, max outstanding), and per-backend health fields.
 
 | Aspect | Detail |
 |--------|--------|
@@ -187,6 +189,7 @@ Rule Rhai adds interpreted cost versus built-ins alone — see [Rule Rhai overvi
 
 ## Related topics
 
+- [Config schema: rhai](/reference/config-schema/rhai.md) — field table, defaults, validation
 - [Rule Rhai overview](/rhai/rule-rhai.md) — when to use scripts
 - [Host API overview](/rhai/host-api.md) — five scope objects
 - [Hooks and phases](/rhai/hooks-and-phases.md) — request vs response, phase guards, script errors on a hook

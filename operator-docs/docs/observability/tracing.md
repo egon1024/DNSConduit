@@ -51,7 +51,7 @@ sequenceDiagram
   O->>S: store trace by txn_id
 ```
 
-1. The query walks the normal pipeline ([Parse](/concepts/architecture-and-packet-path.md#parse) through [Send](/concepts/architecture-and-packet-path.md#send)).
+1. The query runs through the defined pipeline ([Parse](/concepts/architecture-and-packet-path.md#parse) through [Send](/concepts/architecture-and-packet-path.md#send)).
 2. After **[Request rules](/concepts/architecture-and-packet-path.md#request-rules)** complete, Conduit evaluates **activation** once per [transaction](/glossary/index.md#transaction). Matching queries allocate an in-memory trace buffer.
 3. Each completed pipeline phase appends a **trace event** (phase name, elapsed microseconds since transaction start, optional pool/backend).
 4. At transaction completion, the trace is inserted into a bounded in-memory **TraceStore** (1000 entries, 5 minute TTL). Optionally, **`log_json`** writes the same events to stderr/stdout.
@@ -102,7 +102,7 @@ rules:
 ```
 
 !!! tip "Selectors at activation time"
-    Activation runs after Request rules, before [Route](/concepts/architecture-and-packet-path.md#route). Selectors that depend on **`rcode`** or final pool/backend usually will not match at activation — prefer **`qname`**, **`qtype`**, and **tags** for trace gating.
+    Activation runs after Request rules, before [Lookup](/concepts/architecture-and-packet-path.md#lookup). Selectors that depend on **`rcode`** or final pool/backend usually will not match at activation — prefer **`qname`**, **`qtype`**, and **tags** for trace gating.
 
 ## Trace events
 
@@ -110,13 +110,13 @@ Each event in a stored trace has:
 
 | Field {: .column-no-wrap } | Meaning |
 |-------|---------|
-| **`phase`** | Pipeline phase name — for example `parse`, `request_rules`, `route`, `forward`, `wait_response`, `response_rules`, `send` |
+| **`phase`** | Top-level pipeline phase — for example `parse`, `request_rules`, **`lookup`**, `response_rules`, `send`. Route, forward, and wait appear as **nested** events inside **`lookup`** when the forward provider runs |
 | **`elapsed_us`** | Microseconds since the transaction **started** (cumulative, not per-phase delta) |
 | **`pool`** | Selected pool at that phase, when applicable |
 | **`backend`** | Selected backend at that phase, when applicable — configured backend `name` when set, else the `ip:port` address (same name-when-set identity as metrics/logs/events) |
 | **`message`** | Optional detail string (reserved for future use) |
 
-Retries re-enter the pipeline; you will see additional **`route`** / **`forward`** / **`response_rules`** events on the same transaction trace.
+Retries re-enter at **Lookup**; you will see additional **`lookup`** (with nested forward events when applicable) and **`response_rules`** events on the same transaction trace.
 
 ## Fetching traces
 
@@ -180,7 +180,7 @@ Tracing activation rules and **`log_json`** are compiled into the process at **s
 3. Send a matching query: `dig @127.0.0.1 -p 15353 +time=3 test.example.com A`.
 4. Run **`conduitctl trace 1`** (or **`GetTrace`** via grpcurl). If unsure of the id, set **`logging.level: debug`** and read **`txn_id`** from a **`query complete`** line.
 
-Expect phases such as **`route`**, **`forward`**, and **`send`**.
+Expect top-level phase **`lookup`** (with nested route/forward events when upstream runs) and **`send`**.
 
 ## Related topics
 

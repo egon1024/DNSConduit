@@ -2,7 +2,7 @@
 
 Field reference for the top-level **`forward:`** block — upstream transport, timeouts, concurrency limits, and global egress source addresses. For behavior — how Conduit binds when forwarding, transport fallback, and rule overrides — see [Architecture and packet path — Forward](/concepts/architecture-and-packet-path.md#forward) and [Dual-stack forwarding](/guides/dual-stack-forwarding.md).
 
-Per-pool egress overrides live on [Reference: pools](/reference/config-schema/pools.md) (`sources_v4` / `sources_v6`).
+Per-pool egress overrides are described in [Reference: pools](/reference/config-schema/pools.md) (`sources_v4` / `sources_v6`).
 
 ## `forward`
 
@@ -63,8 +63,8 @@ Errors use the `forward.sources_v4[…]` / `forward.sources_v6[…]` prefix when
 
 ## Reload and restart
 
-| Change | Snapshot after reload/apply? | On-the-wire effect |
-|--------|----------------------------|--------------------|
+| Change | Stored in new snapshot? | On-the-wire effect |
+|--------|-------------------------|--------------------|
 | `timeout_ms`, `outstanding_per_backend`, `sources_*`, transport fields | Yes — stored in new snapshot | **Restart required** — egress sockets and forward runtime state bind at process start |
 | Overlay patch including **`forward:`** | Replaces entire file-layer **`forward:`** section when present | Same — restart to apply on wire |
 
