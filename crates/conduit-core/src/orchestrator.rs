@@ -1024,6 +1024,22 @@ mod tests {
         }
     }
 
+    struct CountingResponseRules {
+        calls: Arc<AtomicU32>,
+    }
+
+    impl PipelineStage for CountingResponseRules {
+        fn name(&self) -> &'static str {
+            "counting_response_rules"
+        }
+
+        fn handle(&self, txn: &mut Transaction, _snapshot: &Arc<RuntimeSnapshot>) -> StageOutcome {
+            let _ = txn;
+            self.calls.fetch_add(1, Ordering::Relaxed);
+            StageOutcome::Continue(Phase::Send)
+        }
+    }
+
     struct ServfailForward {
         calls: Arc<AtomicU32>,
     }
@@ -1073,6 +1089,24 @@ mod tests {
         cfg.rules = rules_cfg.rules;
         cfg.pools = rules_cfg.pools;
         cfg.orchestrator = rules_cfg.orchestrator;
+        assert!(conduit_config::validate(&cfg).ok);
+        Arc::new(RuntimeSnapshot::from_config_with_base(
+            cfg,
+            Some(&fixtures_config_base()),
+        ))
+    }
+
+    fn snapshot_cache_on_hit_skip() -> Arc<RuntimeSnapshot> {
+        use conduit_proto::config::CacheOnHitConfig;
+        let mut cfg = load_yaml(include_str!(
+            "../../../tests/fixtures/config/lookup-cache-enabled.yaml"
+        ))
+        .unwrap();
+        for cache in &mut cfg.caches {
+            cache.on_hit = Some(CacheOnHitConfig {
+                response_rules: "skip".into(),
+            });
+        }
         assert!(conduit_config::validate(&cfg).ok);
         Arc::new(RuntimeSnapshot::from_config_with_base(
             cfg,
@@ -1258,5 +1292,56 @@ mod tests {
         );
         assert_eq!(warm.answer_source, Some(AnswerSource::Cache));
         assert_eq!(warm.rcode(), Some(0));
+    }
+
+    #[test]
+    fn cache_hit_on_hit_skip_bypasses_response_rules() {
+        let forward_calls = Arc::new(AtomicU32::new(0));
+        let response_calls = Arc::new(AtomicU32::new(0));
+        let snap = snapshot_cache_on_hit_skip();
+        assert_eq!(
+            snap.lookup.cache_instances["global"].on_hit_response_rules,
+            conduit_config::OnHitResponseRules::Skip
+        );
+        let cache = Arc::new(LookupCacheRegistry::from_snapshot(
+            &snap.lookup.cache_instances,
+        ));
+        let mut orch = Orchestrator::with_default_stages();
+        orch.registry.register(
+            Phase::ResponseRules,
+            Arc::new(CountingResponseRules {
+                calls: response_calls.clone(),
+            }),
+        );
+        register_lookup_stage(
+            &mut orch,
+            Arc::new(CountingForward {
+                calls: forward_calls.clone(),
+            }),
+            Some(cache),
+        );
+
+        let mut cold = Transaction::new(1, "127.0.0.1:15353".parse().unwrap(), ClientProtocol::Udp)
+            .with_query_wire(example_query());
+        let _ = orch.run(&mut cold, &snap, &SystemClock, None);
+        assert_eq!(forward_calls.load(Ordering::Relaxed), 1);
+        assert_eq!(
+            response_calls.load(Ordering::Relaxed),
+            1,
+            "forward answer still runs response rules when on_hit is skip"
+        );
+        assert_eq!(cold.answer_source, Some(AnswerSource::Forward));
+
+        let mut warm = Transaction::new(2, "127.0.0.1:15353".parse().unwrap(), ClientProtocol::Udp)
+            .with_query_wire(example_query());
+        let _ = orch.run(&mut warm, &snap, &SystemClock, None);
+        assert_eq!(forward_calls.load(Ordering::Relaxed), 1);
+        assert_eq!(
+            response_calls.load(Ordering::Relaxed),
+            1,
+            "cache hit with on_hit.response_rules=skip must not enter ResponseRules"
+        );
+        assert_eq!(warm.answer_source, Some(AnswerSource::Cache));
+        assert_eq!(warm.cache_instance.as_deref(), Some("global"));
     }
 }

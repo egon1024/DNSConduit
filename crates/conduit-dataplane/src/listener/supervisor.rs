@@ -123,17 +123,20 @@ pub fn start(
     // and Route reads it lock-free.
     let health_registry = store.health();
     let cache_registry = store.cache();
+    cache_registry.set_metrics(metrics.clone());
     let probe_handle = crate::probe::spawn_probe_loop(
         &snap,
         health_registry.clone(),
         metrics.clone(),
         shutdown.clone(),
     );
+    let reaper_handle =
+        crate::cache_reaper::spawn_cache_reaper(cache_registry.clone(), shutdown.clone());
 
     let Some(listeners) = listeners else {
         return Ok(DataplaneHandle::new(
             shutdown,
-            probe_handle.into_iter().collect(),
+            probe_handle.into_iter().chain(reaper_handle).collect(),
             events_hub,
             table,
             txn_store,
@@ -146,6 +149,9 @@ pub fn start(
 
     let mut thread_handles = Vec::new();
     if let Some(h) = probe_handle {
+        thread_handles.push(h);
+    }
+    if let Some(h) = reaper_handle {
         thread_handles.push(h);
     }
     for ln in &listeners.listeners {

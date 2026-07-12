@@ -76,6 +76,7 @@ pub fn start_split_io(
     // and Route reads it lock-free.
     let health_registry = store.health();
     let cache_registry = store.cache();
+    cache_registry.set_metrics(metrics.clone());
     cache_registry.set_async_coalesce(true);
     let cache_wake_queue = policy_queue.clone();
     cache_registry.set_wake_handler(Arc::new(move |txn_id| {
@@ -94,7 +95,7 @@ pub fn start_split_io(
         Some(io_backend_for_orchestrator),
         Some(inflight.clone()),
         health_registry.clone(),
-        Some(cache_registry),
+        Some(cache_registry.clone()),
     )?;
 
     let mut thread_handles = Vec::new();
@@ -105,6 +106,9 @@ pub fn start_split_io(
         metrics.clone(),
         shutdown.clone(),
     ) {
+        thread_handles.push(h);
+    }
+    if let Some(h) = crate::cache_reaper::spawn_cache_reaper(cache_registry, shutdown.clone()) {
         thread_handles.push(h);
     }
 

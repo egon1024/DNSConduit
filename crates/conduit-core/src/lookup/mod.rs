@@ -4,6 +4,6 @@ pub mod cache;
 mod outcome;
 mod stage;
 
-pub use cache::LookupCacheRegistry;
+pub use cache::{LookupCacheRegistry, ReapBudget};
 pub use outcome::{AnswerSource, LookupOutcome};
 pub use stage::{LookupForwardStep, LookupStage};
