@@ -2,17 +2,57 @@
 
 use super::entry::{expires_at_from_ttl, CacheEntry, EntryKind};
 use super::key::CacheKey;
-use conduit_config::lookup::{CompiledCacheInstance, EvictionMode};
+use conduit_config::lookup::CompiledCacheInstance;
 use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
+
+/// Bounds for one write-lock acquisition during active eviction reaping.
+///
+/// Defaults are fixed today; a future OpenSpec may map operator knobs onto this
+/// struct (e.g. `memory.reap_max_lock_hold_ms`, `memory.reap_max_keys_per_lock`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ReapBudget {
+    /// Maximum wall time to hold a single shard write lock.
+    pub max_lock_hold: Duration,
+    /// Maximum expired entries removed under one shard write lock.
+    pub max_keys_per_lock: usize,
+}
+
+impl ReapBudget {
+    /// Production defaults for the active reaper (not operator-configurable yet).
+    pub const DEFAULT: Self = Self {
+        max_lock_hold: Duration::from_millis(1),
+        // Cap expired removals per lock; scan may examine more fresh keys until max_lock_hold.
+        max_keys_per_lock: 1024,
+    };
+
+    /// Effectively unbounded — used by tests that need a full pass in one call.
+    pub const UNBOUNDED: Self = Self {
+        max_lock_hold: Duration::from_secs(3600),
+        max_keys_per_lock: usize::MAX,
+    };
+}
+
+/// Round-robin resume point across shards between reaper ticks.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ReapCursor {
+    pub next_shard: usize,
+}
+
+/// Result of one budgeted reap pass over the backend.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ReapOutcome {
+    pub removed: u64,
+    /// True when a shard lock budget was exhausted before finishing that shard
+    /// (caller should resume the same `cursor.next_shard` on the next tick).
+    pub incomplete: bool,
+}
 
 pub struct MemoryCacheBackend {
     shard_count: usize,
-    #[allow(dead_code)]
-    eviction: EvictionMode,
     max_entries: AtomicU64,
     shards: Vec<RwLock<Shard>>,
 }
@@ -39,7 +79,6 @@ impl MemoryCacheBackend {
         }
         Self {
             shard_count,
-            eviction: cfg.memory.eviction,
             max_entries: AtomicU64::new(cfg.max_entries),
             shards,
         }
@@ -181,6 +220,93 @@ impl MemoryCacheBackend {
             .iter()
             .map(|s| s.read().entries.len() as u64)
             .sum()
+    }
+
+    pub fn shard_count(&self) -> usize {
+        self.shard_count
+    }
+
+    /// Drop expired entries across all shards with an unbounded budget.
+    pub fn reap_expired(&self, now: Instant) -> u64 {
+        let mut cursor = ReapCursor::default();
+        self.reap_expired_budgeted(now, ReapBudget::UNBOUNDED, &mut cursor)
+            .removed
+    }
+
+    /// Reap expired entries under per-lock time/key budgets, round-robin from `cursor`.
+    ///
+    /// Each shard gets at most one write-lock acquisition per call. If that
+    /// acquisition hits `max_lock_hold` or `max_keys_per_lock` before the shard
+    /// is fully scanned, the call stops and leaves `cursor.next_shard` on that
+    /// shard so the next tick resumes there. Otherwise the cursor advances to
+    /// the next shard after each completed shard; a full ring restores the
+    /// starting shard index.
+    pub fn reap_expired_budgeted(
+        &self,
+        now: Instant,
+        budget: ReapBudget,
+        cursor: &mut ReapCursor,
+    ) -> ReapOutcome {
+        let n = self.shard_count;
+        if n == 0 {
+            return ReapOutcome {
+                removed: 0,
+                incomplete: false,
+            };
+        }
+        let start = cursor.next_shard % n;
+        let mut removed = 0u64;
+        for offset in 0..n {
+            let idx = (start + offset) % n;
+            let (shard_removed, finished) = self.reap_shard_budgeted(idx, now, budget);
+            removed += shard_removed;
+            if !finished {
+                cursor.next_shard = idx;
+                return ReapOutcome {
+                    removed,
+                    incomplete: true,
+                };
+            }
+            cursor.next_shard = (idx + 1) % n;
+        }
+        ReapOutcome {
+            removed,
+            incomplete: false,
+        }
+    }
+
+    /// Returns `(removed, finished_shard)`.
+    fn reap_shard_budgeted(
+        &self,
+        shard_idx: usize,
+        now: Instant,
+        budget: ReapBudget,
+    ) -> (u64, bool) {
+        let lock_deadline = Instant::now() + budget.max_lock_hold;
+        let mut guard = self.shards[shard_idx].write();
+        let mut to_remove = Vec::new();
+        let mut finished = true;
+
+        for (examined, (key, entry)) in guard.entries.iter().enumerate() {
+            // Sample the clock periodically to keep the hot loop cheap.
+            if examined & 63 == 0 && Instant::now() >= lock_deadline {
+                finished = false;
+                break;
+            }
+            if !entry.is_fresh(now) {
+                to_remove.push(key.clone());
+                if to_remove.len() >= budget.max_keys_per_lock {
+                    finished = false;
+                    break;
+                }
+            }
+        }
+
+        let removed = to_remove.len() as u64;
+        for key in to_remove {
+            guard.entries.remove(&key);
+        }
+        (removed, finished)
     }
 }
 
@@ -363,6 +489,110 @@ mod tests {
         };
         backend.insert(key.clone(), entry, now);
         assert_eq!(backend.get_result(&key, now), CacheGetResult::Miss);
+    }
+
+    #[test]
+    fn reap_expired_removes_stale_leaves_fresh() {
+        let backend = MemoryCacheBackend::from_config(&test_instance(0));
+        let now = Instant::now();
+        let fresh_key = CacheKey(b"fresh".to_vec());
+        let stale_key = CacheKey(b"stale".to_vec());
+        backend.insert(
+            fresh_key.clone(),
+            entry_from_wire(sample_wire(), true, 10, now).unwrap(),
+            now,
+        );
+        backend.insert(
+            stale_key.clone(),
+            CacheEntry {
+                kind: EntryKind::Positive,
+                wire: sample_wire(),
+                filled_at: now - std::time::Duration::from_secs(60),
+                expires_at: now - std::time::Duration::from_secs(1),
+            },
+            now,
+        );
+        assert_eq!(backend.entry_count(), 2);
+
+        let removed = backend.reap_expired(now);
+        assert_eq!(removed, 1);
+        assert_eq!(backend.entry_count(), 1);
+        assert_eq!(backend.get_result(&fresh_key, now), CacheGetResult::Hit);
+        assert_eq!(backend.get_result(&stale_key, now), CacheGetResult::Miss);
+    }
+
+    fn test_instance_shards(max_entries: u64, shard_count: u32) -> CompiledCacheInstance {
+        let mut cfg = test_instance(max_entries);
+        cfg.memory.shard_count = shard_count;
+        cfg
+    }
+
+    fn stale_entry(now: Instant) -> CacheEntry {
+        CacheEntry {
+            kind: EntryKind::Positive,
+            wire: sample_wire(),
+            filled_at: now - std::time::Duration::from_secs(60),
+            expires_at: now - std::time::Duration::from_secs(1),
+        }
+    }
+
+    #[test]
+    fn reap_budget_limits_removals_per_lock_and_resumes_same_shard() {
+        let backend = MemoryCacheBackend::from_config(&test_instance_shards(0, 1));
+        let now = Instant::now();
+        for i in 0..5 {
+            backend.insert(
+                CacheKey(format!("stale-{i}").into_bytes()),
+                stale_entry(now),
+                now,
+            );
+        }
+        assert_eq!(backend.entry_count(), 5);
+
+        let budget = ReapBudget {
+            max_lock_hold: Duration::from_secs(60),
+            max_keys_per_lock: 2,
+        };
+        let mut cursor = ReapCursor::default();
+        let first = backend.reap_expired_budgeted(now, budget, &mut cursor);
+        assert_eq!(first.removed, 2);
+        assert!(first.incomplete);
+        assert_eq!(cursor.next_shard, 0);
+        assert_eq!(backend.entry_count(), 3);
+
+        let second = backend.reap_expired_budgeted(now, budget, &mut cursor);
+        assert_eq!(second.removed, 2);
+        assert!(second.incomplete);
+        assert_eq!(backend.entry_count(), 1);
+
+        let third = backend.reap_expired_budgeted(now, budget, &mut cursor);
+        assert_eq!(third.removed, 1);
+        assert!(!third.incomplete);
+        assert_eq!(backend.entry_count(), 0);
+    }
+
+    #[test]
+    fn reap_budget_advances_cursor_across_shards() {
+        let backend = MemoryCacheBackend::from_config(&test_instance_shards(0, 2));
+        let now = Instant::now();
+        // Insert enough keys that both shards are likely non-empty.
+        for i in 0..32 {
+            backend.insert(
+                CacheKey(format!("stale-{i}").into_bytes()),
+                stale_entry(now),
+                now,
+            );
+        }
+        let before = backend.entry_count();
+        assert!(before > 0);
+
+        let budget = ReapBudget::UNBOUNDED;
+        let mut cursor = ReapCursor { next_shard: 0 };
+        let outcome = backend.reap_expired_budgeted(now, budget, &mut cursor);
+        assert!(!outcome.incomplete);
+        assert_eq!(outcome.removed, before);
+        assert_eq!(backend.entry_count(), 0);
+        assert_eq!(cursor.next_shard, 0, "full ring restores start shard");
     }
 
     #[test]

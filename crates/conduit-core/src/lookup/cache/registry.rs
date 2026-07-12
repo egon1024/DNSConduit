@@ -6,13 +6,13 @@ use super::key::{
     build_key_from_parts, build_query_key, build_truncated_udp_key, CacheKey, TransportKey,
 };
 use super::memory::entry_from_wire;
-use super::memory::MemoryCacheBackend;
+use super::memory::{MemoryCacheBackend, ReapBudget, ReapCursor};
 use super::serve::prepare_served_arc;
 use conduit_config::lookup::CompiledCacheInstance;
 use conduit_metrics::MetricsHub;
 use parking_lot::RwLock;
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -84,6 +84,8 @@ pub struct CacheInstanceRuntime {
     pub config: CompiledCacheInstance,
     backend: MemoryCacheBackend,
     inflight: InFlightTable,
+    /// Round-robin shard index for the next active-reaper pass.
+    next_reap_shard: AtomicUsize,
 }
 
 impl CacheInstanceRuntime {
@@ -93,6 +95,7 @@ impl CacheInstanceRuntime {
             config,
             backend,
             inflight: InFlightTable::new(),
+            next_reap_shard: AtomicUsize::new(0),
         }
     }
 
@@ -473,6 +476,54 @@ impl LookupCacheRegistry {
             .collect()
     }
 
+    /// Whether any instance is configured for active (background) eviction.
+    pub fn has_active_eviction(&self) -> bool {
+        self.instances.read().values().any(|inst| {
+            matches!(
+                inst.config.memory.eviction,
+                conduit_config::lookup::EvictionMode::Active
+            )
+        })
+    }
+
+    /// Reap expired entries for instances with `memory.eviction: active`.
+    ///
+    /// Uses [`ReapBudget::DEFAULT`] (fixed until operator knobs land). Returns the
+    /// total number of entries removed. Records
+    /// `conduit_cache_evictions_total{reason="active_reaper"}` when metrics are attached.
+    pub fn reap_active_expired(&self, now: Instant) -> u64 {
+        self.reap_active_expired_with_budget(now, ReapBudget::DEFAULT)
+    }
+
+    pub fn reap_active_expired_with_budget(&self, now: Instant, budget: ReapBudget) -> u64 {
+        let instances: Vec<(String, Arc<CacheInstanceRuntime>)> = self
+            .instances
+            .read()
+            .iter()
+            .filter(|(_, inst)| {
+                matches!(
+                    inst.config.memory.eviction,
+                    conduit_config::lookup::EvictionMode::Active
+                )
+            })
+            .map(|(name, inst)| (name.clone(), Arc::clone(inst)))
+            .collect();
+
+        let mut total = 0u64;
+        for (name, inst) in instances {
+            let start = inst.next_reap_shard.load(Ordering::Relaxed);
+            let mut cursor = ReapCursor { next_shard: start };
+            let outcome = inst.backend.reap_expired_budgeted(now, budget, &mut cursor);
+            inst.next_reap_shard
+                .store(cursor.next_shard, Ordering::Relaxed);
+            if outcome.removed > 0 {
+                self.record_cache_evictions(&name, "active_reaper", outcome.removed);
+                total += outcome.removed;
+            }
+        }
+        total
+    }
+
     fn record_cache_fill(&self, cache_name: &str, txn: &crate::transaction::Transaction) {
         let hub = self.metrics.read();
         let Some(hub) = hub.as_ref() else {
@@ -506,6 +557,21 @@ impl LookupCacheRegistry {
             .unwrap_or(conduit_config::lookup::DEFAULT_LOOKUP_PROFILE);
         hub.builtin
             .record_cache_singleflight_coalesced(cache_name, profile);
+    }
+
+    fn record_cache_evictions(&self, cache_name: &str, reason: &str, count: u64) {
+        if count == 0 {
+            return;
+        }
+        let hub = self.metrics.read();
+        let Some(hub) = hub.as_ref() else {
+            return;
+        };
+        if !hub.metrics_enabled() {
+            return;
+        }
+        hub.builtin
+            .record_cache_evictions(cache_name, reason, count);
     }
 }
 
@@ -616,6 +682,86 @@ mod tests {
         let mut enc = BinEncoder::new(&mut buf);
         msg.emit(&mut enc).unwrap();
         buf.into()
+    }
+
+    /// Positive answer with authority NS and glue in additional (sections must survive fill+serve).
+    fn multi_section_positive_wire(qname: &str) -> Arc<[u8]> {
+        use hickory_proto::rr::rdata::{A, NS};
+        use hickory_proto::rr::{RData, Record};
+        let name = Name::from_ascii(qname).unwrap();
+        let zone = Name::from_ascii("example.").unwrap();
+        let ns = Name::from_ascii("ns.example.").unwrap();
+        let mut msg = Message::new();
+        msg.set_message_type(MessageType::Response);
+        msg.set_response_code(ResponseCode::NoError);
+        msg.add_query(Query::query(name.clone(), RecordType::A));
+        msg.add_answer(Record::from_rdata(
+            name,
+            300,
+            RData::A(A::new(192, 0, 2, 10)),
+        ));
+        msg.add_name_server(Record::from_rdata(zone, 600, RData::NS(NS(ns.clone()))));
+        msg.add_additional(Record::from_rdata(
+            ns,
+            600,
+            RData::A(A::new(192, 0, 2, 53)),
+        ));
+        let mut buf = Vec::new();
+        let mut enc = BinEncoder::new(&mut buf);
+        msg.emit(&mut enc).unwrap();
+        buf.into()
+    }
+
+    #[test]
+    fn fill_preserves_authority_and_additional_sections() {
+        let mut instances = HashMap::new();
+        instances.insert("global".into(), test_cache_instance(true));
+        let registry = LookupCacheRegistry::from_snapshot(&instances);
+
+        let qname = "sections.policy-lab.test.example.";
+        let txn = txn_for(qname, 40);
+        let key = build_query_key(&txn).unwrap();
+        let gate = registry.instance_gate("global", &key).unwrap();
+        let filled = multi_section_positive_wire(qname);
+        let filled_msg = Message::from_vec(&filled).unwrap();
+        assert_eq!(filled_msg.name_servers().len(), 1);
+        assert_eq!(filled_msg.additionals().len(), 1);
+
+        registry.fill_from_forward("global", &key, &gate, filled.clone(), &txn);
+
+        let hit_txn = txn_for(qname, 41);
+        match registry.lookup("global", &hit_txn, Instant::now()) {
+            CacheLookupOutcome::Hit { wire, .. } => {
+                let served = Message::from_vec(&wire).unwrap();
+                assert_eq!(served.answers().len(), 1, "answer section present");
+                assert_eq!(
+                    served.name_servers().len(),
+                    1,
+                    "authority NS must survive fill+serve"
+                );
+                assert_eq!(
+                    served.additionals().len(),
+                    1,
+                    "additional glue must survive fill+serve"
+                );
+                assert_eq!(
+                    served.name_servers()[0].data(),
+                    filled_msg.name_servers()[0].data()
+                );
+                assert_eq!(
+                    served.additionals()[0].data(),
+                    filled_msg.additionals()[0].data()
+                );
+            }
+            _ => panic!("expected Hit, got non-Hit outcome"),
+        }
+
+        // Stored slab bytes must still include all sections (serve path clones, does not mutate).
+        let inst = registry.instance("global").unwrap();
+        let entry = inst.backend.get(&key, Instant::now()).expect("stored entry");
+        let stored = Message::from_vec(&entry.wire).unwrap();
+        assert_eq!(stored.name_servers().len(), 1);
+        assert_eq!(stored.additionals().len(), 1);
     }
 
     fn truncated_positive_wire(qname: &str) -> Arc<[u8]> {
@@ -987,6 +1133,80 @@ mod tests {
             CacheLookupOutcome::Miss { .. } => {}
             _other => panic!("expected cache miss when knob off, got unexpected outcome"),
         }
+    }
+
+    #[test]
+    fn reap_active_expired_only_touches_active_instances() {
+        let mut active_cfg = test_cache_instance(true);
+        active_cfg.name = "active".into();
+        active_cfg.memory.eviction = EvictionMode::Active;
+        let mut passive_cfg = test_cache_instance(true);
+        passive_cfg.name = "passive".into();
+        passive_cfg.memory.eviction = EvictionMode::Passive;
+
+        let mut instances = HashMap::new();
+        instances.insert("active".into(), active_cfg);
+        instances.insert("passive".into(), passive_cfg);
+        let registry = LookupCacheRegistry::from_snapshot(&instances);
+
+        let now = Instant::now();
+        let stale = CacheEntry {
+            kind: EntryKind::Positive,
+            wire: nxdomain_wire("stale.example."),
+            filled_at: now - std::time::Duration::from_secs(60),
+            expires_at: now - std::time::Duration::from_secs(1),
+        };
+        let fresh = CacheEntry {
+            kind: EntryKind::Positive,
+            wire: nxdomain_wire("fresh.example."),
+            filled_at: now,
+            expires_at: now + std::time::Duration::from_secs(120),
+        };
+
+        let active = registry.instance("active").unwrap();
+        active
+            .backend
+            .insert(CacheKey(b"a-stale".to_vec()), stale.clone(), now);
+        active
+            .backend
+            .insert(CacheKey(b"a-fresh".to_vec()), fresh.clone(), now);
+        let passive = registry.instance("passive").unwrap();
+        passive
+            .backend
+            .insert(CacheKey(b"p-stale".to_vec()), stale, now);
+        passive
+            .backend
+            .insert(CacheKey(b"p-fresh".to_vec()), fresh, now);
+
+        assert_eq!(registry.entry_count("active"), 2);
+        assert_eq!(registry.entry_count("passive"), 2);
+
+        let removed = registry.reap_active_expired(now);
+        assert_eq!(
+            removed, 1,
+            "only the active instance's stale entry is reaped"
+        );
+        assert_eq!(registry.entry_count("active"), 1);
+        assert_eq!(
+            registry.entry_count("passive"),
+            2,
+            "passive must leave expired entries until insert pressure"
+        );
+    }
+
+    #[test]
+    fn has_active_eviction_reflects_instance_modes() {
+        let mut passive_only = HashMap::new();
+        passive_only.insert("p".into(), test_cache_instance(true));
+        let passive_reg = LookupCacheRegistry::from_snapshot(&passive_only);
+        assert!(!passive_reg.has_active_eviction());
+
+        let mut with_active = HashMap::new();
+        let mut cfg = test_cache_instance(true);
+        cfg.memory.eviction = EvictionMode::Active;
+        with_active.insert("a".into(), cfg);
+        let active_reg = LookupCacheRegistry::from_snapshot(&with_active);
+        assert!(active_reg.has_active_eviction());
     }
 
     #[test]

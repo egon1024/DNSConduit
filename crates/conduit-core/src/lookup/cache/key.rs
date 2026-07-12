@@ -238,4 +238,50 @@ mod tests {
             build_truncated_udp_key(&txn).unwrap()
         );
     }
+
+    fn query_with_dnssec_flags(cd: bool, do_bit: bool) -> Vec<u8> {
+        use hickory_proto::op::Edns;
+        let name = Name::from_utf8("www.example.com.").unwrap();
+        let mut msg = Message::new();
+        msg.add_query(Query::query(name, RecordType::A));
+        msg.set_checking_disabled(cd);
+        let mut edns = Edns::new();
+        edns.set_max_payload(1232);
+        edns.set_dnssec_ok(do_bit);
+        msg.set_edns(edns);
+        let mut buf = Vec::new();
+        let mut enc = BinEncoder::new(&mut buf);
+        msg.emit(&mut enc).unwrap();
+        buf
+    }
+
+    fn txn_with_wire(id: u64, wire: Vec<u8>) -> Transaction {
+        let addr: SocketAddr = "127.0.0.1:53".parse().unwrap();
+        let mut txn = Transaction::new(id, addr, ClientProtocol::Udp);
+        txn.qname = Some("www.example.com.".into());
+        txn.qtype = Some(1);
+        txn.qclass = Some(1);
+        txn.query_wire = wire;
+        txn
+    }
+
+    #[test]
+    fn cd_and_do_bits_produce_distinct_keys() {
+        let neither = txn_with_wire(1, query_with_dnssec_flags(false, false));
+        let cd_only = txn_with_wire(2, query_with_dnssec_flags(true, false));
+        let do_only = txn_with_wire(3, query_with_dnssec_flags(false, true));
+        let both = txn_with_wire(4, query_with_dnssec_flags(true, true));
+
+        let k_neither = build_query_key(&neither).unwrap();
+        let k_cd = build_query_key(&cd_only).unwrap();
+        let k_do = build_query_key(&do_only).unwrap();
+        let k_both = build_query_key(&both).unwrap();
+
+        assert_ne!(k_neither, k_cd, "CD bit must change the cache key");
+        assert_ne!(k_neither, k_do, "DO bit must change the cache key");
+        assert_ne!(k_cd, k_do, "CD-only and DO-only keys must differ");
+        assert_ne!(k_both, k_cd);
+        assert_ne!(k_both, k_do);
+        assert_ne!(k_both, k_neither);
+    }
 }

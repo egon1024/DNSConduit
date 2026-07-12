@@ -1035,11 +1035,15 @@ impl BuiltinRegistry {
     }
 
     pub fn record_cache_eviction(&self, cache: &str, reason: &str) {
-        if !self.enabled || self.profile != BuiltinProfile::Full {
+        self.record_cache_evictions(cache, reason, 1);
+    }
+
+    pub fn record_cache_evictions(&self, cache: &str, reason: &str, count: u64) {
+        if count == 0 || !self.enabled || self.profile != BuiltinProfile::Full {
             return;
         }
         if let Some(c) = self.cache_evictions.as_ref() {
-            c.with_label_values(&[cache, reason]).inc();
+            c.with_label_values(&[cache, reason]).inc_by(count);
         }
     }
 
@@ -1728,6 +1732,7 @@ mod tests {
             reg.record_cache_lookup("global", "default", "miss");
             reg.record_cache_fill("global", "default");
             reg.record_cache_singleflight_coalesced("global", "default");
+            reg.record_cache_evictions("global", "active_reaper", 3);
             reg.observe_lookup_duration("default", "cache", 0.001);
             reg.observe_cache_lookup_duration("global", "default", 0.0005);
             reg.record_response("ln", "udp", Some(0), &addr, Some("cache"));
@@ -1755,6 +1760,11 @@ mod tests {
                     "body:\n{body}"
                 );
                 assert!(
+                    body.contains("conduit_cache_evictions_total")
+                        && body.contains(r#"reason="active_reaper""#),
+                    "body:\n{body}"
+                );
+                assert!(
                     body.contains("conduit_lookup_duration_seconds"),
                     "body:\n{body}"
                 );
@@ -1762,6 +1772,10 @@ mod tests {
                 assert!(
                     !body.contains("conduit_cache_fills_total"),
                     "minimal must omit full-only series, body:\n{body}"
+                );
+                assert!(
+                    !body.contains("conduit_cache_evictions_total"),
+                    "minimal must omit eviction series, body:\n{body}"
                 );
             }
         }

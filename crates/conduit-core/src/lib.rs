@@ -34,7 +34,7 @@ pub use health::{
     HealthRegistry, HealthTable, ProbeOutcome, ProbeSpec,
 };
 pub use lookup::{
-    AnswerSource, LookupCacheRegistry, LookupForwardStep, LookupOutcome, LookupStage,
+    AnswerSource, LookupCacheRegistry, LookupForwardStep, LookupOutcome, LookupStage, ReapBudget,
 };
 pub use orchestrator::{Orchestrator, OrchestratorRun, RunOutcome, StageRegistry};
 pub use parse_reject::ParseRejectReason;
