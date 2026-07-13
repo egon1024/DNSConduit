@@ -7,6 +7,7 @@ Operator-facing changes by release. For the full list of merged pull requests, s
 
 | Version | Released | Summary |
 | --- | --- | --- |
+| [0.19.0](0.19.0.md) | 2026-07-13 | Breaking changes — Lookup spine { #breaking-changes--lookup-spine } |
 | [0.18.0](0.18.0.md) | 2026-07-04 | Breaking changes — Rule Rhai host API { #breaking-changes--rule-rhai-host-api } |
 | [0.17.0](0.17.0.md) | 2026-06-29 | Improvements |
 | [0.16.0](0.16.0.md) | 2026-06-29 | New features |
