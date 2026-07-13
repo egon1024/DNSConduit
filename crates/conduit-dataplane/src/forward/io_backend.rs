@@ -234,7 +234,10 @@ impl IoBackend {
     }
 
     #[cfg(test)]
-    fn spawn_poll_thread_for_test(self, io_stop: Arc<AtomicBool>) -> std::thread::JoinHandle<()> {
+    pub(crate) fn spawn_poll_thread_for_test(
+        self,
+        io_stop: Arc<AtomicBool>,
+    ) -> std::thread::JoinHandle<()> {
         std::thread::spawn(move || {
             if let Err(e) = self.run_loop(&io_stop) {
                 tracing::error!(error = %e, "I/O backend poll loop exited (test)");

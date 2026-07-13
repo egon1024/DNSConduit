@@ -320,19 +320,23 @@ impl ForwardTransport {
         };
         let socket = self.egress.udp_socket_for(&sel);
 
+        let Some(io) = self.io_backend.as_ref() else {
+            self.release_pool_inflight(txn);
+            return self.servfail(txn, snapshot, Some(key), "no_io_backend", started);
+        };
+
+        // Register the pending reply BEFORE sending. With a zero-latency upstream
+        // the reply can arrive and be drained by the I/O poll thread before
+        // `track_pending` runs; an unregistered reply is dropped as unmatched, so
+        // the forward would then park until its timeout instead of resuming.
+        let slot_id = SlotId::from_index(txn.id as u32);
+        io.track_pending(key, slot_id);
+
         if socket.send_to(&upstream_wire, backend).is_err() {
             self.release_pool_inflight(txn);
             return self.servfail(txn, snapshot, Some(key), "send_error", started);
         }
 
-        let Some(io) = self.io_backend.as_ref() else {
-            self.table.remove(key);
-            self.release_pool_inflight(txn);
-            return self.servfail(txn, snapshot, Some(key), "no_io_backend", started);
-        };
-
-        let slot_id = SlotId::from_index(txn.id as u32);
-        io.track_pending(key, slot_id);
         let _ = parse_wire_meta;
         StageOutcome::Suspend(Phase::WaitResponse)
     }
@@ -511,9 +515,13 @@ pub type UdpForwardStage = ForwardTransport;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::forward::egress::WorkerForwardEgress;
+    use crate::forward::io_backend::WaitCompletion;
     use conduit_config::forward::{CompiledForward, UpstreamTransport};
     use conduit_core::snapshot::RuntimeSnapshot;
     use std::net::{Ipv4Addr, UdpSocket};
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::time::Duration;
 
     fn compiled_forward() -> CompiledForward {
         CompiledForward {
@@ -585,5 +593,78 @@ mod tests {
             })
             .is_some());
         let _ = upstream.join();
+    }
+
+    /// Regression: with a zero-latency upstream, the reply can race the I/O poll
+    /// thread. `handle_submit` must call `track_pending` *before* `send_to`, or
+    /// the poller drains an unmatched reply and the forward parks until timeout.
+    #[test]
+    fn submit_registers_pending_before_send_so_fast_reply_resumes() {
+        let table = Arc::new(TxnTable::new(64, 16));
+        let compiled = compiled_forward();
+        let egress =
+            WorkerForwardEgress::new(&compiled, &[Ipv4Addr::UNSPECIFIED], &[], 2000).unwrap();
+        let (io, resume_rx) =
+            IoBackend::new(egress.all_udp_sockets(), table.clone(), 2000).unwrap();
+        let stop = Arc::new(AtomicBool::new(false));
+        let poll = io.clone().spawn_poll_thread_for_test(stop.clone());
+
+        let forward = ForwardTransport::new_with_mode_and_egress(
+            egress,
+            table.clone(),
+            &compiled,
+            2000,
+            None,
+            ForwardMode::Submit,
+            Some(Arc::new(io)),
+            None,
+            None,
+        )
+        .unwrap();
+
+        // Bind first so the kernel buffers the forwarded query even if the
+        // responder has not yet entered recv_from (same pattern as split_io tests).
+        let sock = UdpSocket::bind("127.0.0.1:0").unwrap();
+        let backend = sock.local_addr().unwrap();
+        let upstream = std::thread::spawn(move || {
+            let mut buf = [0u8; 512];
+            let (len, peer) = sock.recv_from(&mut buf).unwrap();
+            let mut resp = buf[..len].to_vec();
+            if resp.len() >= 4 {
+                resp[2] = 0x81;
+                resp[3] = 0x80;
+            }
+            let _ = sock.send_to(&resp, peer);
+        });
+
+        let mut txn = Transaction::new(1, "127.0.0.1:53".parse().unwrap(), ClientProtocol::Udp)
+            .with_query_wire(vec![
+                0x12, 0x34, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x77,
+                0x77, 0x77, 0x07, 0x65, 0x78, 0x61, 0x6d, 0x70, 0x6c, 0x65, 0x03, 0x63, 0x6f, 0x6d,
+                0x00, 0x00, 0x01, 0x00, 0x01,
+            ]);
+        txn.selected_backend = Some(backend);
+        txn.dns_id = 0x1234;
+
+        let snap = minimal_snapshot();
+        let outcome = forward.handle(&mut txn, &snap);
+        assert!(matches!(
+            outcome,
+            StageOutcome::Suspend(Phase::WaitResponse)
+        ));
+
+        let resume = resume_rx
+            .recv_timeout(Duration::from_millis(500))
+            .expect("fast upstream reply must resume without parking until forward timeout");
+        assert_eq!(resume.slot_id, SlotId::from_index(1));
+        assert!(
+            matches!(resume.completion, WaitCompletion::Response { .. }),
+            "expected Response resume, got {:?}",
+            resume.completion
+        );
+
+        stop.store(true, Ordering::Relaxed);
+        let _ = upstream.join();
+        let _ = poll.join();
     }
 }
