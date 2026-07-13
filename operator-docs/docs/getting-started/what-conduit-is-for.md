@@ -12,6 +12,7 @@ Conduit is a **forwarder**, not an authoritative nameserver and not a recursive 
 | Declarative policy and optional [Rhai](/rhai/index.md) scripts on request/response hooks | [Policy & routing](/policy-routing/index.md) |
 | Pool load balancing, retries, and failover | [Pools and backends](/policy-routing/pools-and-backends.md), [Retries and transactions](/policy-routing/retries-and-transactions.md) |
 | Optional per-pool [backend health](/policy-routing/backend-health.md) (active probes and passive fast-trip) | [Backend health](/policy-routing/backend-health.md), [Reference: health](/reference/config-schema/health.md) |
+| Optional in-memory [DNS answer cache](/guides/dns-answer-cache.md) on the [Lookup](/concepts/architecture-and-packet-path.md#lookup) spine | [DNS answer cache](/guides/dns-answer-cache.md), [Reference: lookup](/reference/config-schema/lookup.md), [Reference: caches](/reference/config-schema/caches.md) |
 | Per-query tags, filters, and export to collectors | [Event export](/observability/event-export.md), [Built-in metrics](/observability/built-in-metrics.md) |
 | Hot config reload and optional `conduitctl` overlays | [Control plane](/control-plane/index.md) |
 
@@ -74,7 +75,6 @@ A minimal file — `schema_version`, `listeners`, and one `pools` entry — is e
 | Authoritative DNS for your zones | Out of scope — configure upstream resolvers in `pools:` |
 | A recursive resolver on its own | Conduit forwards to the [backends](/glossary/index.md#backend) you configure |
 | Required gRPC or `conduitctl` for every change | Optional — file edit + **SIGHUP** or reload works without `control:` |
-| A response/packet cache | Conduit forwards every query to a [backend](/glossary/index.md#backend) — there is no built-in response or packet cache |
 | A bundled dashboard or TUI | Operate Conduit via the [config file](/control-plane/config-file.md), **`conduitctl`**, and the [gRPC API](/reference/grpc-and-cli.md); no built-in TUI or web console |
 
 ## Where to go next
