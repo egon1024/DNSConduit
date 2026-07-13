@@ -159,7 +159,3 @@ Canonical operator pages for Lookup, cache, metrics, and Rhai in this release:
 ### Observability — OTLP metrics fidelity
 
 OTLP metrics push now maps Prometheus metric **families** directly (same source as scrape) instead of re-parsing scrape text. Histogram **sum**, **count**, and **bucket** counts match scrape; HELP text is exported as the OTLP description; units are derived from name suffixes (`_seconds` → `s`, `_bytes` → `By`, and similar). Metric **names** are unchanged (still Prometheus-style `conduit_*`). See [Metrics](/observability/metrics.md).
-
----
-
-_Draft — review before tagging._
