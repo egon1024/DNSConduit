@@ -1,0 +1,13 @@
+schema_version: 1
+id: lab-forward-parity-smoke
+suites: [smoke, full]
+intent: |
+  Graduated from the pluggable-lookup forward-parity manual lab workshop scenario:
+  confirm Conduit returns NOERROR with an answer for a simple A query on the
+  forward-only profile (contract counterpart to the lab happy path).
+applicability:
+  roles: [stub, auth, recursive]
+  profiles: [forward-only]
+oracles:
+  - kind: property
+    checks: [rcode-noerror, has-answer]
