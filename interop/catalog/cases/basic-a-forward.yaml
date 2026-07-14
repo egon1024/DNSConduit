@@ -1,0 +1,14 @@
+schema_version: 1
+id: basic-a-forward
+suites: [smoke, full]
+intent: |
+  Forward a simple A query through Conduit to the peer and confirm a successful
+  NOERROR answer is returned to the client. Covers the minimal proxy path.
+applicability:
+  roles: [stub, auth, recursive]
+  profiles: [forward-only]
+oracles:
+  - kind: property
+    checks: [rcode-noerror, has-answer]
+  - kind: parity
+    compare: [rcode, ancount]
