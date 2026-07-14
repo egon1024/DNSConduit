@@ -103,23 +103,22 @@ jobs:
           PAGE_DIR="operator-docs/site-root/versions"
           PAGE_SRC="${PAGE_DIR}/index.html"
           DATES_SRC="${PAGE_DIR}/release-dates.json"
-          # The page is identical across versions (it reads live data). When deploying a
-          # tag from before the global page existed, take it from the default branch so
-          # the root page always reflects the current template.
+          # HTML template: prefer the tag tree; fall back to main for tags that
+          # predate the global versions page. Dates always come from main so
+          # release finalize / backfills publish without retagging.
+          git fetch origin main --depth=1
+          mkdir -p /tmp/global-versions
           if [[ -f "${PAGE_SRC}" ]]; then
             SRC_FILE="${PAGE_SRC}"
-            DATES_FILE="${DATES_SRC}"
           else
-            git fetch origin main --depth=1
-            mkdir -p /tmp/global-versions
             git show origin/main:"${PAGE_SRC}" > /tmp/global-versions/index.html
             SRC_FILE="/tmp/global-versions/index.html"
-            if git cat-file -e "origin/main:${DATES_SRC}" 2>/dev/null; then
-              git show origin/main:"${DATES_SRC}" > /tmp/global-versions/release-dates.json
-              DATES_FILE="/tmp/global-versions/release-dates.json"
-            else
-              DATES_FILE=""
-            fi
+          fi
+          if git cat-file -e "origin/main:${DATES_SRC}" 2>/dev/null; then
+            git show origin/main:"${DATES_SRC}" > /tmp/global-versions/release-dates.json
+            DATES_FILE="/tmp/global-versions/release-dates.json"
+          else
+            DATES_FILE=""
           fi
 
           # Run after mike's pushes; rebase on the freshest gh-pages so we never race.

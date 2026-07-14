@@ -13,6 +13,13 @@
 
 <!-- If skipping docs intentionally: -->
 
+## Interop matrix
+
+- [ ] Refreshed **`interop/results/latest.json`** (and regenerated matrix) when interop-relevant paths changed
+- [ ] Or added **`#no-interop-matrix`** below with a short reason
+
+<!-- If skipping interop matrix intentionally: -->
+
 ## Release notes
 
 - [ ] Added bullet(s) under **`operator-docs/docs/release-notes/unreleased.md`** for operator-visible changes
@@ -24,3 +31,4 @@
 
 - [ ] `make test`
 - [ ] `make docs-build` (when operator-docs/ or surfaced code changed)
+- [ ] Interop matrix refreshed or `#no-interop-matrix` (when interop-relevant paths changed)

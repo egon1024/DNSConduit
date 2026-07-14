@@ -133,10 +133,24 @@ nav:
   - Troubleshooting: troubleshooting/index.md
   - Interop:
       - Overview: interop/index.md
+      - Conduit behavior: interop/conduit-behavior.md
       - Cases:
           - basic-a-forward: interop/cases/basic-a-forward.md
+          - cache-forward-a: interop/cases/cache-forward-a.md
+          - cache-miss-then-hit-a: interop/cases/cache-miss-then-hit-a.md
+          - cache-nxdomain-miss-then-hit: interop/cases/cache-nxdomain-miss-then-hit.md
+          - cache-rotate-rrset: interop/cases/cache-rotate-rrset.md
+          - dataplane-split-io-forward: interop/cases/dataplane-split-io-forward.md
           - fixture-auth-a: interop/cases/fixture-auth-a.md
-          - lab-forward-parity-smoke: interop/cases/lab-forward-parity-smoke.md
+          - fixture-auth-aaaa: interop/cases/fixture-auth-aaaa.md
+          - fixture-auth-api-a: interop/cases/fixture-auth-api-a.md
+          - fixture-auth-nxdomain: interop/cases/fixture-auth-nxdomain.md
+          - forward-parity-smoke: interop/cases/forward-parity-smoke.md
+          - rhai-soft-drop: interop/cases/rhai-soft-drop.md
+          - rules-clear-drop: interop/cases/rules-clear-drop.md
+          - rules-drop-now: interop/cases/rules-drop-now.md
+          - rules-qname-forward: interop/cases/rules-qname-forward.md
+          - rules-soft-drop: interop/cases/rules-soft-drop.md
       - By publisher:
           - CZ.NIC: interop/publishers/cz-nic.md
           - ISC: interop/publishers/isc.md

@@ -1,0 +1,56 @@
+schema_version: 1
+id: rules-qname-forward
+suites: [full]
+intent: |
+  ## Purpose
+
+  Confirm that a **request rule** whose **qname suffix** selector matches can still
+  forward to the peer and return a successful **A** answer. Matching rules that
+  set the pool must not break the forward contract for allowed names.
+
+  ## How it works
+
+  1. The peer answers `allow.rules-lab.test` → `192.0.2.20`.
+  2. Conduit runs with a qname-suffix rule on `.rules-lab.test.` that sets the
+     default pool (before the catch-all).
+  3. A client queries Conduit for that name.
+  4. Checks require **NOERROR** and at least one answer RR.
+
+  ## Outcomes
+
+  | Outcome | Meaning for operators |
+  |---|---|
+  | <span class="interop-outcome interop-outcome--pass">pass</span> | The selector-matched request rule still produced a successful forward A answer. |
+  | <span class="interop-outcome interop-outcome--fail">fail</span> | Unexpected: rule matching broke or blocked a name that should forward. |
+  | <span class="interop-outcome interop-outcome--skip">skip</span> | This peer/profile combination is out of scope. |
+  | <span class="interop-outcome interop-outcome--characterized">characterized</span> | Not used for this case today. |
+applicability:
+  roles: [stub, auth, recursive]
+  profiles: [forward-only]
+peer_setup:
+  local_rr:
+    - name: allow.rules-lab.test.
+      type: A
+      rdata: "192.0.2.20"
+      ttl: 300
+conduit_delta:
+  rules:
+    match_mode: first_match
+    rules:
+      - name: allow-suffix-set-pool
+        hook: request
+        selectors:
+          - type: qname_suffix
+            value: ".rules-lab.test."
+        actions:
+          - type: set_pool
+            value: default
+      - name: default-pool
+        hook: request
+        selectors: []
+        actions:
+          - type: set_pool
+            value: default
+oracles:
+  - kind: property
+    checks: [rcode-noerror, has-answer]

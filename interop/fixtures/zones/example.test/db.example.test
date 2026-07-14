@@ -1,7 +1,7 @@
 ; Harness-owned zone for authoritative peers (not copied from any peer project).
 $TTL 3600
 @   IN SOA ns1.example.test. hostmaster.example.test. (
-        2026071301 ; serial
+        2026071401 ; serial
         3600       ; refresh
         600        ; retry
         86400      ; expire
@@ -9,3 +9,5 @@ $TTL 3600
     IN NS  ns1.example.test.
 ns1 IN A   192.0.2.53
 www IN A   192.0.2.10
+www IN AAAA 2001:db8::10
+api IN A   192.0.2.11

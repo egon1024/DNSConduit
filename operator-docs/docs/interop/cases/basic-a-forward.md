@@ -28,6 +28,8 @@ peer role (stub, authoritative, and recursive).
 | <span class="interop-outcome interop-outcome--skip">skip</span> | This peer/profile combination is out of scope for the case (not applicable). |
 | <span class="interop-outcome interop-outcome--characterized">characterized</span> | Not used for this case today. If it appeared, it would mean a documented peer-specific quirk rather than a Conduit regression. |
 
+**Matrix:** peer (by publisher)
+
 **Suites:** smoke, full
 
 **Oracles:** property, parity

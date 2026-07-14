@@ -3,21 +3,18 @@
 ## Purpose
 
 Confirm that when Conduit forwards to an **authoritative** peer serving a
-harness-owned zone, the A answer clients see matches the **committed fixture**
-RRset — not merely “some” successful answer. This guards zone loading and
-end-to-end authoritative data fidelity through Conduit.
+published fixture zone, the **A** answer clients see matches the committed
+fixture RRset — not merely “some” successful answer. This guards zone loading
+and end-to-end authoritative data fidelity through Conduit.
 
 Applies only to peers in the **auth** role (recursive and stub peers skip).
 
 ## How it works
 
-1. For this run, the authoritative peer loads the harness zone `example.test`
-   (fixture files owned by the interop tree, not copied from peer upstream
-   projects).
-2. A client queries Conduit for an A name in that zone; Conduit forwards to
-   the peer.
-3. The returned answer RRset must match the committed expected records in the
-   fixture (oracle: **fixture**).
+1. The authoritative peer loads fixture zone `example.test`.
+2. A client queries Conduit for an A name in that zone; Conduit forwards to the
+   peer.
+3. The returned answer RRset must match the committed expected records.
 
 ## Outcomes
 
@@ -26,7 +23,9 @@ Applies only to peers in the **auth** role (recursive and stub peers skip).
 | <span class="interop-outcome interop-outcome--pass">pass</span> | The A answer through Conduit matches the published fixture RRset for `example.test`. |
 | <span class="interop-outcome interop-outcome--fail">fail</span> | Unexpected: wrong, missing, or empty answer relative to the fixture — zone not loaded as intended on the peer, Conduit altered or failed the answer, or peer/auth behavior changed. |
 | <span class="interop-outcome interop-outcome--skip">skip</span> | Peer is not authoritative for this matrix (or profile out of scope). Expected for recursive/stub columns. |
-| <span class="interop-outcome interop-outcome--characterized">characterized</span> | Not used for this case today. If it appeared, it would mean a documented peer-specific deviation from the fixture rather than a silent Conduit bug. |
+| <span class="interop-outcome interop-outcome--characterized">characterized</span> | Not used for this case today. |
+
+**Matrix:** peer (by publisher)
 
 **Suites:** full
 

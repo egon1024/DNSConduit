@@ -1,0 +1,46 @@
+schema_version: 1
+id: cache-forward-a
+matrix: conduit
+suites: [full]
+intent: |
+  ## Purpose
+
+  Confirm that with a **cache → forward** lookup chain enabled, Conduit still
+  returns a successful **A** answer on the first query for a local smoke name
+  (cache miss, then forward fill).
+
+  Results appear on the **Conduit behavior** matrix (one stub peer), because this
+  asserts Conduit’s cache path, not peer-product interoperability.
+
+  This does **not** prove that a later warm hit skips the peer — see
+  [`cache-miss-then-hit-a`](cache-miss-then-hit-a.md) for a second successful query
+  only (still without an upstream-skip proof).
+
+  ## How it works
+
+  1. The stub peer answers a local smoke name (`www.smoke.test` → `192.0.2.20`).
+  2. Conduit uses the **cache-forward** profile (in-memory cache in front of forward).
+  3. A client queries Conduit for that A name once.
+  4. Checks require **NOERROR** and at least one answer RR.
+
+  ## Outcomes
+
+  | Outcome | Meaning for operators |
+  |---|---|
+  | <span class="interop-outcome interop-outcome--pass">pass</span> | Cache-enabled forward path returned a successful A answer for the smoke name. |
+  | <span class="interop-outcome interop-outcome--fail">fail</span> | Unexpected: no successful answer — investigate cache/lookup config, forwarding, or peer readiness. |
+  | <span class="interop-outcome interop-outcome--skip">skip</span> | This profile or peer is out of scope (cache-forward on the Conduit-behavior stub only). |
+  | <span class="interop-outcome interop-outcome--characterized">characterized</span> | Not used for this case today. |
+applicability:
+  roles: [stub, auth, recursive]
+  profiles: [cache-forward]
+  peers: [thekelleys-dnsmasq-2.90]
+peer_setup:
+  local_rr:
+    - name: www.smoke.test.
+      type: A
+      rdata: "192.0.2.20"
+      ttl: 300
+oracles:
+  - kind: property
+    checks: [rcode-noerror, has-answer]

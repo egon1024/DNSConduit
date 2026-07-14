@@ -14,7 +14,7 @@ from typing import Any
 from .catalog import Peer
 from .conduit_merge import merge_conduit_profile
 from .oracles import QueryResult
-from .paths import COMPOSE_CELL, PROFILES, ROOT
+from .paths import COMPOSE_CELL, FIXTURES, INTEROP, PROFILES, ROOT
 from .peer_packs import materialize_peer_config
 from .setup_ir import SetupIR
 
@@ -139,6 +139,7 @@ class CellStack:
         profile_id: str,
         setup_ir: SetupIR,
         conduit_delta: dict[str, Any] | None = None,
+        conduit_assets: list[dict[str, str]] | None = None,
         host_port: int = 15553,
         project: str = "conduit-interop",
     ):
@@ -147,6 +148,7 @@ class CellStack:
         self.profile_id = profile_id
         self.setup_ir = setup_ir
         self.conduit_delta = conduit_delta or {}
+        self.conduit_assets = list(conduit_assets or [])
         self.host_port = host_port
         self.peer_host_port = host_port + 1
         self.project = project
@@ -171,6 +173,7 @@ class CellStack:
                 "PEER_IMAGE": self.peer.image,
                 "CONDUIT_IMAGE": self.conduit_image,
                 "CONDUIT_CONFIG": str((tmp / "conduit.yaml").resolve()),
+                "CONDUIT_ASSETS_DIR": str((tmp / "assets").resolve()),
                 "CONDUIT_HOST_PORT": str(self.host_port),
                 "PEER_CONFIG_DIR": str((tmp / "peer").resolve()),
                 "PEER_HOST_PORT": str(self.peer_host_port),
@@ -186,6 +189,9 @@ class CellStack:
             raise FileNotFoundError(profile)
         self._tmpdir = tempfile.TemporaryDirectory(prefix="conduit-interop-")
         tmp = Path(self._tmpdir.name)
+        assets_dir = tmp / "assets"
+        assets_dir.mkdir(parents=True, exist_ok=True)
+        self._materialize_conduit_assets(assets_dir)
         merge_conduit_profile(profile, self.conduit_delta, tmp / "conduit.yaml")
         self._override = materialize_peer_config(
             family=self.peer.family,
@@ -212,6 +218,26 @@ class CellStack:
                 f"(project {self.project}): exit {exc.returncode}"
             ) from exc
         self._wait_for_peer_ready()
+
+    def _materialize_conduit_assets(self, assets_dir: Path) -> None:
+        """Copy case-declared files into the cell assets dir (mounted at /etc/conduit/assets)."""
+        for item in self.conduit_assets:
+            src_rel = item.get("src", "")
+            dest_rel = item.get("dest", "")
+            if not src_rel or not dest_rel:
+                raise ValueError("conduit_assets entries require src and dest")
+            src = INTEROP / src_rel
+            if not src.is_file():
+                # Allow interop/fixtures/... or fixtures/... interchangeably.
+                alt = FIXTURES / src_rel.removeprefix("fixtures/")
+                src = alt if alt.is_file() else src
+            if not src.is_file():
+                raise FileNotFoundError(f"conduit asset missing: {src_rel}")
+            dest = assets_dir / dest_rel
+            if dest.resolve() != assets_dir.resolve() and assets_dir.resolve() not in dest.resolve().parents:
+                raise ValueError(f"conduit asset dest escapes assets dir: {dest_rel}")
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dest)
 
     def _readiness_qname(self) -> tuple[str, bool]:
         """Return (probe qname, expect_answer).

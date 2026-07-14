@@ -14,6 +14,7 @@ Each stable release publishes:
 | `conduit-dbg_<version>_amd64.deb` | Debug Debian package (unstripped) |
 | `SHA256SUMS` | Checksums for the files above |
 | `conduit-<version>.spdx.json` | Software bill of materials (SBOM) |
+| `conduit-<version>.image-digest.txt` | Container image reference and content digest (GHCR) |
 
 Every tarball and package includes three binaries:
 
@@ -30,6 +31,32 @@ sha256sum -c SHA256SUMS
 ```
 
 If a rebuild is published, delete old assets from the release page before maintainers re-run the artifact workflow (uploads fail when assets already exist).
+
+## Container image
+
+Each stable release also publishes a server image to GitHub Container Registry:
+
+```bash
+VERSION=0.19.0   # replace with the release you want
+# Image path uses the lowercase GitHub owner, e.g. ghcr.io/egon1024/dnsconduit
+docker pull "ghcr.io/<owner>/dnsconduit:${VERSION}"
+```
+
+Pin by digest for reproducible interop or production rolls. The release asset `conduit-<version>.image-digest.txt` records the image reference and digest. Example run:
+
+```bash
+docker run --rm -p 53:53/udp -p 53:53/tcp \
+  -v "$PWD/conduit.yaml:/etc/conduit/conduit.yaml:ro" \
+  "ghcr.io/<owner>/dnsconduit:${VERSION}"
+```
+
+Local development builds (no registry required):
+
+```bash
+docker build -t conduit:local -f Dockerfile .
+```
+
+The interop correctness harness pins this image; see [Interop correctness matrix](/interop/correctness-matrix.md).
 
 ## Install from tarball
 

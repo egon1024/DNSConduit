@@ -1,8 +1,9 @@
 """Generate operator-docs interop matrix markdown from results + cases.
 
 Layout (publisher breakout):
-  interop/index.md                 — hub: provenance, outcomes, summary, publisher links
-  interop/publishers/<slug>.md     — one page per publisher (A–Z)
+  interop/index.md                 — hub: last tested, outcomes, summary, publisher links
+  interop/conduit-behavior.md      — Conduit-behavior cases (single stub peer)
+  interop/publishers/<slug>.md     — one page per publisher (A–Z); peer-matrix cases only
   interop/cases/<id>.md            — case intent
   interop/correctness-matrix.md    — short redirect stub for old links
 """
@@ -19,10 +20,14 @@ from .paths import RESULTS_FILE, ROOT, load_json
 
 OUT_DIR = ROOT / "operator-docs" / "docs" / "interop"
 OUT_HUB = OUT_DIR / "index.md"
+OUT_CONDUIT = OUT_DIR / "conduit-behavior.md"
 OUT_MATRIX_STUB = OUT_DIR / "correctness-matrix.md"
 OUT_PUBLISHERS = OUT_DIR / "publishers"
 OUT_INTENTS = OUT_DIR / "cases"
 MKDOCS_YML = ROOT / "operator-docs" / "mkdocs.yml"
+
+# Representative peer for matrix: conduit cases (must match case applicability.peers).
+CONDUIT_BEHAVIOR_PEER_ID = "thekelleys-dnsmasq-2.90"
 
 
 def publisher_slug(publisher: str) -> str:
@@ -67,35 +72,60 @@ def _write_intent_pages(cases: dict[str, Case]) -> None:
     OUT_INTENTS.mkdir(parents=True, exist_ok=True)
     for case in cases.values():
         intent_path = OUT_INTENTS / f"{case.id}.md"
+        matrix_label = (
+            "conduit ([Conduit behavior](/interop/conduit-behavior.md))"
+            if case.is_conduit_matrix
+            else "peer (by publisher)"
+        )
         intent_path.write_text(
             f"# {case.id}\n\n{case.intent}\n\n"
+            f"**Matrix:** {matrix_label}\n\n"
             f"**Suites:** {', '.join(case.suites)}\n\n"
             f"**Oracles:** {', '.join(o.get('kind', '?') for o in case.oracles)}\n",
             encoding="utf-8",
         )
 
 
-def _provenance_table(generated_at: str, provenance: dict, fp: str) -> list[str]:
-    return [
-        "## Last tested",
-        "",
-        "| Field | Value |",
-        "|-------|-------|",
-        f"| Generated at | `{generated_at}` |",
-        f"| Conduit version | `{provenance.get('conduit_version', 'unknown')}` |",
-        f"| Conduit image | `{provenance.get('conduit_image', 'unknown')}` |",
-        # Lab build digest of the Conduit image used for this run — not a GitHub
-        # Release asset digest. Useful to reproduce a lab blob; omit confusion by
-        # labeling it explicitly.
-        f"| Conduit image digest (lab) | `{provenance.get('conduit_image_digest', 'unknown')}` |",
-        f"| Inputs fingerprint | `{fp}` |",
-        "",
-        "The **inputs fingerprint** is a sha256 over harness inputs "
-        "(`interop/catalog`, fixtures, compose, runner, results schema). "
-        "CI uses it to detect when committed matrix results are stale relative "
-        "to those inputs. It is not a product version.",
-        "",
-    ]
+def _format_tested_at(generated_at: str) -> str:
+    """Prefer calendar date for operators; keep raw value if not ISO-shaped."""
+    raw = (generated_at or "").strip()
+    if len(raw) >= 10 and raw[4] == "-" and raw[7] == "-":
+        return raw[:10]
+    return raw or "unknown"
+
+
+def executed_status_phrase(cells: list[dict]) -> str:
+    """Summarize non-skip outcomes for a page-scoped cell set."""
+    executed = [c for c in cells if c.get("outcome") not in (None, "skip")]
+    if not executed:
+        return "No executed cases (all out of scope)"
+    fails = sum(1 for c in executed if c.get("outcome") == "fail")
+    chars = sum(1 for c in executed if c.get("outcome") == "characterized")
+    if fails:
+        return f"Failures present ({fails} fail)"
+    if chars:
+        return f"No failures; {chars} characterized"
+    return "All executed cases passed"
+
+
+def profile_block_all_skips(outcomes: list[str | None]) -> bool:
+    """True when a profile table has cells and every cell outcome is skip.
+
+    Missing cells (None) prevent collapse so gaps stay visible as tables.
+    """
+    if not outcomes:
+        return False
+    return all(o == "skip" for o in outcomes)
+
+
+def _last_tested_line(generated_at: str, status: str | None = None) -> list[str]:
+    """Operator-facing provenance: date (+ optional executed-status summary)."""
+    date = _format_tested_at(generated_at)
+    if status:
+        line = f"*Last tested {date} · {status}*"
+    else:
+        line = f"*Last tested {date}*"
+    return [line, ""]
 
 
 def _outcomes_legend() -> list[str]:
@@ -115,6 +145,59 @@ def _outcomes_legend() -> list[str]:
     ]
 
 
+def _running_locally() -> list[str]:
+    """Operator-facing how-to; mirrors root Makefile `interop-*` targets."""
+    return [
+        "## Running these tests locally",
+        "",
+        "The matrices on this site are from a committed lab run. You can reproduce "
+        "or explore the same harness on a machine with **Docker**, **Docker Compose**, "
+        "and **Python 3** (with PyYAML). GitHub Actions does **not** execute the Docker "
+        "suite; CI only checks that committed results stay fresh when harness inputs change.",
+        "",
+        "From a checkout of the DNSConduit repository:",
+        "",
+        "1. **Build a Conduit image** used as the system under test:",
+        "",
+        "    ```zsh",
+        "    make interop-image",
+        "    ```",
+        "",
+        "    This builds `conduit:local` via the repo `Dockerfile`. Override with "
+        "`CONDUIT_IMAGE=…` if you already have an image tag.",
+        "",
+        "2. **Run the smoke suite** (all peers the smoke cases apply to). Peer images "
+        "are pulled as needed; the first run can take a while:",
+        "",
+        "    ```zsh",
+        "    make interop-smoke",
+        "    ```",
+        "",
+        "3. **Optional — authoritative fixture case** (auth peers only):",
+        "",
+        "    ```zsh",
+        "    make interop-auth",
+        "    ```",
+        "",
+        "Those targets **print** pass/fail/skip lines; they do **not** rewrite "
+        "`interop/results/latest.json` or regenerate this site. Named [cases](/interop/cases/basic-a-forward.md) "
+        "document purpose, how each test works, and outcome implications.",
+        "",
+        "Useful extras:",
+        "",
+        "| Command | What it does |",
+        "|---------|--------------|",
+        "| `make interop-unit` | Fast harness unit tests (no Docker cells) |",
+        "| `make interop-docs` | Rebuild these matrix pages from the committed `latest.json` |",
+        "| `make interop-refresh` | Rebuild image, re-run smoke + auth, **write** results and regenerate docs (maintainers) |",
+        "",
+        "Filters (peer, case, profile) and pack layout: see `interop/README.md` in the "
+        "repository. Override the image for any run target with "
+        "`make interop-smoke CONDUIT_IMAGE=registry.example/conduit:1.2.3`.",
+        "",
+    ]
+
+
 def _write_publisher_page(
     *,
     publisher: str,
@@ -124,20 +207,27 @@ def _write_publisher_page(
     profiles: list[str],
     index: dict[tuple[str, str, str], dict],
     generated_at: str,
-    provenance: dict,
-    fp: str,
 ) -> Path:
     slug = publisher_slug(publisher)
     path = OUT_PUBLISHERS / f"{slug}.md"
+    page_cells: list[dict] = []
+    for case_id in case_ids:
+        for peer in peers:
+            for profile in profiles:
+                cell = index.get((case_id, peer.id, profile))
+                if cell is not None:
+                    page_cells.append(cell)
+    status = executed_status_phrase(page_cells)
+
     lines: list[str] = [
         f"# {publisher}",
         "",
         f"{publisher} products under test for DNSConduit correctness. "
         "No peer is preferred or recommended. See the "
-        "[interop overview](/interop/index.md) for provenance shared across publishers.",
+        "[interop overview](/interop/index.md).",
         "",
     ]
-    lines.extend(_provenance_table(generated_at, provenance, fp))
+    lines.extend(_last_tested_line(generated_at, status))
 
     for product, product_peers in _group_by_product(peers):
         lines.append(f"## {product}")
@@ -146,7 +236,17 @@ def _write_publisher_page(
         lines.append(f"**Role:** {', '.join(roles)}")
         lines.append("")
 
+        out_of_scope_profiles: list[str] = []
         for profile in profiles:
+            outcomes: list[str | None] = []
+            for case_id in case_ids:
+                for peer in product_peers:
+                    cell = index.get((case_id, peer.id, profile))
+                    outcomes.append(None if cell is None else cell.get("outcome"))
+            if profile_block_all_skips(outcomes):
+                out_of_scope_profiles.append(profile)
+                continue
+
             lines.append(f"### Profile: `{profile}`")
             lines.append("")
             header = ["Test"] + [p.version for p in product_peers]
@@ -169,6 +269,14 @@ def _write_publisher_page(
                 lines.append("| " + " | ".join(row) + " |")
             lines.append("")
 
+        if out_of_scope_profiles:
+            listed = ", ".join(f"`{p}`" for p in out_of_scope_profiles)
+            lines.append(
+                f"Profiles with no in-scope peer-contract cases for this product: "
+                f"{listed} (out of scope — not failures)."
+            )
+            lines.append("")
+
         lines.append("| Version | Peer id | Image |")
         lines.append("|---------|---------|-------|")
         for peer in product_peers:
@@ -178,6 +286,83 @@ def _write_publisher_page(
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return path
+
+
+def _write_conduit_behavior_page(
+    *,
+    cases: dict[str, Case],
+    conduit_case_ids: list[str],
+    profiles: list[str],
+    index: dict[tuple[str, str, str], dict],
+    peers_by_id: dict[str, Peer],
+    generated_at: str,
+) -> Path:
+    """Case × profile table for Conduit-behavior cases (single stub peer)."""
+    peer = peers_by_id.get(CONDUIT_BEHAVIOR_PEER_ID)
+    peer_label = (
+        f"`{CONDUIT_BEHAVIOR_PEER_ID}` ({peer.product} {peer.version})"
+        if peer
+        else f"`{CONDUIT_BEHAVIOR_PEER_ID}`"
+    )
+    lines: list[str] = [
+        "# Conduit behavior",
+        "",
+        "These cases exercise **Conduit** (lookup/cache path, request rules, dataplane "
+        "runtime) rather than peer-product interoperability. They run against a "
+        f"**single stub peer** ({peer_label}) so results are not spread across every "
+        "publisher column. Peer contract cases remain under "
+        "[By publisher](/interop/publishers/thekelleys.md).",
+        "",
+    ]
+    conduit_cells: list[dict] = []
+    for case_id in conduit_case_ids:
+        for profile in profiles:
+            cell = index.get((case_id, CONDUIT_BEHAVIOR_PEER_ID, profile))
+            if cell is not None:
+                conduit_cells.append(cell)
+    lines.extend(
+        _last_tested_line(generated_at, executed_status_phrase(conduit_cells))
+    )
+
+    # Profiles that appear for at least one conduit cell (or case applicability).
+    profile_cols: list[str] = []
+    for profile in profiles:
+        if any(index.get((cid, CONDUIT_BEHAVIOR_PEER_ID, profile)) for cid in conduit_case_ids):
+            profile_cols.append(profile)
+    if not profile_cols:
+        profile_cols = sorted(
+            {
+                p
+                for cid in conduit_case_ids
+                for p in (cases[cid].applicability.get("profiles") or [])
+            }
+        ) or ["forward-only"]
+
+    lines.append("## Results")
+    lines.append("")
+    header = ["Test"] + [f"`{p}`" for p in profile_cols]
+    lines.append("| " + " | ".join(header) + " |")
+    lines.append("| " + " | ".join(["---"] * len(header)) + " |")
+    for case_id in conduit_case_ids:
+        label = f"[`{case_id}`](/interop/cases/{case_id}.md)"
+        row = [label]
+        for profile in profile_cols:
+            cell = index.get((case_id, CONDUIT_BEHAVIOR_PEER_ID, profile))
+            if cell is None:
+                row.append("—")
+            else:
+                row.append(outcome_cell(cell["outcome"]))
+        lines.append("| " + " | ".join(row) + " |")
+    lines.append("")
+    lines.append(
+        f"Stub peer id: `{CONDUIT_BEHAVIOR_PEER_ID}`. "
+        "Cases declare `matrix: conduit` and pin this peer in `applicability.peers`."
+    )
+    lines.append("")
+
+    OUT_CONDUIT.parent.mkdir(parents=True, exist_ok=True)
+    OUT_CONDUIT.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return OUT_CONDUIT
 
 
 def _summary_lines(
@@ -246,7 +431,7 @@ def _summary_lines(
 
 
 def _update_mkdocs_nav(publisher_names: list[str], case_ids: list[str]) -> None:
-    """Replace the Interop nav block with hub, Cases, and publisher pages."""
+    """Replace the Interop nav block with hub, Conduit behavior, Cases, publishers."""
     text = MKDOCS_YML.read_text(encoding="utf-8")
     start = text.find("  - Interop:\n")
     if start < 0:
@@ -272,6 +457,7 @@ def _update_mkdocs_nav(publisher_names: list[str], case_ids: list[str]) -> None:
     block = (
         "  - Interop:\n"
         "      - Overview: interop/index.md\n"
+        "      - Conduit behavior: interop/conduit-behavior.md\n"
         + "\n".join(case_lines)
         + "\n"
         + "\n".join(pub_lines)
@@ -293,9 +479,7 @@ def generate_matrix(
     if not results_path.is_file():
         raise FileNotFoundError(f"missing results: {results_path}")
     results = load_json(results_path)
-    provenance = results.get("provenance", {})
     generated_at = results.get("generated_at", "unknown")
-    fp = results.get("inputs_fingerprint", "unknown")
     cells: list[dict] = list(results.get("cells", []))
 
     index: dict[tuple[str, str, str], dict] = {}
@@ -304,7 +488,11 @@ def generate_matrix(
         index[key] = cell
 
     profiles = sorted({c["profile_id"] for c in cells}) or ["forward-only"]
-    case_ids = sorted({c["case_id"] for c in cells}) or sorted(cases)
+    case_ids = sorted({c["case_id"] for c in cells} | set(cases))
+    peer_case_ids = sorted(
+        cid for cid in case_ids if cid in cases and not cases[cid].is_conduit_matrix
+    )
+    conduit_case_ids = sorted(cid for cid, case in cases.items() if case.is_conduit_matrix)
     peers_by_id = {p.id: p for p in peers}
     publisher_groups = _group_peers_by_publisher(peers)
 
@@ -322,20 +510,33 @@ def generate_matrix(
             publisher=publisher,
             peers=pub_peers,
             cases=cases,
-            case_ids=case_ids,
+            case_ids=peer_case_ids,
             profiles=profiles,
             index=index,
             generated_at=generated_at,
-            provenance=provenance,
-            fp=fp,
         )
+
+    _write_conduit_behavior_page(
+        cases=cases,
+        conduit_case_ids=conduit_case_ids,
+        profiles=profiles,
+        index=index,
+        peers_by_id=peers_by_id,
+        generated_at=generated_at,
+    )
 
     hub: list[str] = [
         "# Interop",
         "",
         "Published correctness results for DNSConduit against peer DNS software "
-        "under test. Results are split **by publisher** (alphabetical) so version "
-        "and product matrices stay readable. No peer is preferred or recommended.",
+        "under test. **Peer contract** cases are split **by publisher** (alphabetical). "
+        "**Conduit behavior** cases (cache path, rules, dataplane runtime) use a single "
+        "stub peer — see [Conduit behavior](/interop/conduit-behavior.md). "
+        "No peer is preferred or recommended.",
+        "",
+        "## Matrices",
+        "",
+        "- [Conduit behavior](/interop/conduit-behavior.md) — Conduit-focused cases (stub peer)",
         "",
         "## Publishers",
         "",
@@ -347,8 +548,9 @@ def generate_matrix(
         )
         hub.append(f"- [{publisher}](/interop/publishers/{slug}.md) — {products}")
     hub.append("")
-    hub.extend(_provenance_table(generated_at, provenance, fp))
+    hub.extend(_last_tested_line(generated_at, executed_status_phrase(cells)))
     hub.extend(_outcomes_legend())
+    hub.extend(_running_locally())
     hub.extend(_summary_lines(cells, peers_by_id))
 
     hub.extend(
@@ -374,8 +576,9 @@ def generate_matrix(
 
     stub = (
         "# Correctness matrix\n\n"
-        "The interop matrix is split **by publisher**. Start at the "
-        "[interop overview](/interop/index.md).\n"
+        "The interop matrix is split **by publisher**, plus a "
+        "[Conduit behavior](/interop/conduit-behavior.md) page for Conduit-focused cases. "
+        "Start at the [interop overview](/interop/index.md).\n"
     )
     OUT_MATRIX_STUB.write_text(stub, encoding="utf-8")
 

@@ -152,7 +152,9 @@ jobs:
             exit 1
           fi
 
-          git add Cargo.toml Cargo.lock operator-docs/docs/release-notes/
+          git add Cargo.toml Cargo.lock \
+            operator-docs/docs/release-notes/ \
+            operator-docs/site-root/versions/release-dates.json
           if git diff --cached --quiet; then
             echo "committed=false" >>"$GITHUB_OUTPUT"
             echo "Release preparation already on main for ${NEXT_VERSION}; skipping commit."
@@ -222,11 +224,16 @@ jobs:
             echo "::error::Cargo.lock on main pins conduit ${lock_ver:-unknown}; expected ${NEXT_VERSION}"
             exit 1
           fi
+          dates_path="operator-docs/site-root/versions/release-dates.json"
+          if ! git show "origin/main:${dates_path}" | grep -q "\"${NEXT_VERSION}\""; then
+            echo "::error::${dates_path} on main is missing ${NEXT_VERSION}"
+            exit 1
+          fi
           if git rev-parse "refs/tags/${NEXT_VERSION}" >/dev/null 2>&1; then
             echo "::error::Tag ${NEXT_VERSION} already exists locally; refusing to create release"
             exit 1
           fi
-          echo "Verified ${notes_path}, Cargo.toml, and Cargo.lock ${NEXT_VERSION} on origin/main."
+          echo "Verified ${notes_path}, Cargo.toml, Cargo.lock, and ${dates_path} ${NEXT_VERSION} on origin/main."
 
       - name: Create GitHub Release
         if: steps.exists.outputs.skip != 'true'

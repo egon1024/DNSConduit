@@ -6,7 +6,25 @@ import unittest
 
 from interop.runner.catalog import Peer, sorted_peers
 from interop.runner.fingerprint import compute_inputs_fingerprint
-from interop.runner.generate_matrix import outcome_cell, publisher_slug
+from interop.runner.generate_matrix import (
+    executed_status_phrase,
+    outcome_cell,
+    profile_block_all_skips,
+    publisher_slug,
+)
+
+
+class CaseMatrixFieldTests(unittest.TestCase):
+    def test_conduit_cases_tagged(self):
+        from interop.runner.cases import load_cases
+
+        by_id = {c.id: c for c in load_cases()}
+        self.assertEqual(by_id["basic-a-forward"].matrix, "peer")
+        self.assertTrue(by_id["dataplane-split-io-forward"].is_conduit_matrix)
+        self.assertIn(
+            "thekelleys-dnsmasq-2.90",
+            by_id["dataplane-split-io-forward"].applicability.get("peers", []),
+        )
 
 
 class CatalogSortTests(unittest.TestCase):
@@ -37,6 +55,52 @@ class OutcomeCellTests(unittest.TestCase):
 
     def test_unknown_outcome_passthrough(self):
         self.assertEqual(outcome_cell("weird"), "weird")
+
+
+class ExecutedStatusPhraseTests(unittest.TestCase):
+    def test_all_pass(self):
+        cells = [
+            {"outcome": "pass"},
+            {"outcome": "skip"},
+            {"outcome": "pass"},
+        ]
+        self.assertEqual(executed_status_phrase(cells), "All executed cases passed")
+
+    def test_failures(self):
+        cells = [{"outcome": "pass"}, {"outcome": "fail"}, {"outcome": "skip"}]
+        self.assertEqual(
+            executed_status_phrase(cells),
+            "Failures present (1 fail)",
+        )
+
+    def test_characterized_without_fail(self):
+        cells = [{"outcome": "pass"}, {"outcome": "characterized"}, {"outcome": "skip"}]
+        self.assertEqual(
+            executed_status_phrase(cells),
+            "No failures; 1 characterized",
+        )
+
+    def test_only_skips(self):
+        self.assertEqual(
+            executed_status_phrase([{"outcome": "skip"}]),
+            "No executed cases (all out of scope)",
+        )
+
+
+class ProfileBlockAllSkipsTests(unittest.TestCase):
+    def test_all_skips(self):
+        outcomes = ["skip", "skip", "skip"]
+        self.assertTrue(profile_block_all_skips(outcomes))
+
+    def test_has_pass(self):
+        self.assertFalse(profile_block_all_skips(["skip", "pass"]))
+
+    def test_empty_not_all_skips(self):
+        # No cells → don't treat as collapse-worthy skip plane.
+        self.assertFalse(profile_block_all_skips([]))
+
+    def test_emdash_prevents_collapse(self):
+        self.assertFalse(profile_block_all_skips(["skip", None]))
 
 
 class FingerprintTests(unittest.TestCase):

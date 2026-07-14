@@ -185,14 +185,25 @@ def _run_cell(
     host_port: int,
     qname: str,
 ) -> tuple[str, str]:
-    # Prefer fixture qname when present
+    default_qname = qname.rstrip(".")
+    default_qtype = "A"
     for oracle in case.oracles:
         if oracle.get("kind") == "fixture":
             from .paths import INTEROP, load_json
 
             path = INTEROP / oracle["path"]
             if path.is_file():
-                qname = load_json(path).get("qname", qname).rstrip(".")
+                expected = load_json(path)
+                default_qname = expected.get("qname", default_qname).rstrip(".")
+                default_qtype = str(expected.get("qtype") or default_qtype)
+                break
+    else:
+        local_rr = case.peer_setup.get("local_rr") or []
+        if local_rr and isinstance(local_rr[0], dict) and local_rr[0].get("name"):
+            # Prefer the case's first local_rr over the CLI default smoke name.
+            default_qname = str(local_rr[0]["name"]).rstrip(".")
+            if local_rr[0].get("type"):
+                default_qtype = str(local_rr[0]["type"])
 
     setup_ir = parse_peer_setup(case.peer_setup)
     stack = CellStack(
@@ -201,23 +212,34 @@ def _run_cell(
         profile_id=profile_id,
         setup_ir=setup_ir,
         conduit_delta=case.conduit_delta,
+        conduit_assets=case.conduit_assets,
         host_port=host_port,
         project=_compose_project(case.id, peer.id),
     )
     try:
         stack.start()
-        via = dig_query("127.0.0.1", host_port, qname)
-        direct = None
+        steps = case.queries or [{"qname": default_qname}]
         needs_parity = any(o.get("kind") == "parity" for o in case.oracles)
-        if needs_parity:
-            direct_host, direct_port = stack.peer_query_addr
-            direct = dig_query(direct_host, direct_port, qname)
-        return evaluate_oracles(
+        via_steps: list = []
+        direct = None
+        for idx, step in enumerate(steps):
+            step_q = str(step.get("qname", default_qname)).rstrip(".")
+            step_t = str(step.get("qtype") or default_qtype or "A")
+            via = dig_query("127.0.0.1", host_port, step_q, qtype=step_t)
+            via_steps.append(via)
+            if needs_parity:
+                direct_host, direct_port = stack.peer_query_addr
+                direct = dig_query(direct_host, direct_port, step_q, qtype=step_t)
+        outcome, detail = evaluate_oracles(
             case.oracles,
-            via_conduit=via,
+            via_conduit=via_steps[-1] if via_steps else None,
+            via_steps=via_steps,
             direct=direct,
             peer_id=peer.id,
         )
+        if outcome != "pass":
+            return outcome, detail
+        return "pass", f"{len(via_steps)} step(s): {detail}"
     finally:
         stack.stop()
 

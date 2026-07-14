@@ -6,24 +6,32 @@ Results are committed and published as the operator-docs interop matrix.
 **Workshop vs contract:** Manual labs prove features while building; this tree is the
 committed contract. See `docs/superpowers/process/e2e-interop-testing.md`.
 
+GitHub Actions does **not** run the Docker suite (the PR check only verifies results
+freshness). Use the Makefile targets below for local execution.
+
 ## Quick start
 
 ```zsh
 cd ~/git_repos/DNSConduit
 
-# Fingerprint only (what the PR gate checks)
-python3 -m interop.runner fingerprint
+make interop-image          # build conduit:local
+make interop-smoke          # smoke suite (prints outcomes; does not rewrite results)
+make interop-auth           # fixture-auth-a on auth peers
+make interop-docs           # regenerate operator-docs from interop/results/latest.json
+make interop-fingerprint    # inputs fingerprint (PR freshness)
+make interop-unit           # harness unit tests (no Docker cells)
 
-# Smoke suite against a stub peer (requires Docker + a Conduit image)
-docker build -t conduit:local -f Dockerfile .
-python3 -m interop.runner run --suite smoke --conduit-image conduit:local
-
-# Regenerate operator-docs pages from results (hub + one page per publisher)
-python3 -m interop.runner generate-matrix
+# Maintainers refreshing the published matrix:
+make interop-refresh        # rebuild image, smoke + auth, write results + docs
 ```
 
-Published docs: **Interop** overview plus **By publisher** pages (alphabetical). Each
-publisher page matrices products/versions for that publisher only.
+Override the SUT image: `make interop-smoke CONDUIT_IMAGE=registry.example/conduit:1.2.3`.
+
+Equivalent Python entry points remain available (`python3 -m interop.runner …`); prefer
+`make interop-*` for stable names.
+
+Published docs: **Interop** overview (includes local run steps) plus **By publisher**
+pages (alphabetical) and **Cases**.
 
 
 ## Filters
@@ -81,7 +89,8 @@ then version. Do not imply preference for any peer.
 1. Pull the desired tag: `docker pull <image>:<tag>`
 2. Record digest: `docker image inspect --format '{{index .RepoDigests 0}}' <image>:<tag>`
 3. Update `catalog/peers.yaml` `image:` to `repo@sha256:…` (or keep tag + note digest in comments).
-4. Re-run the suite and commit `results/latest.json` plus regenerated matrix docs.
+4. Re-run with `make interop-refresh` (or filtered `python3 -m interop.runner run …`) and
+   commit `results/latest.json` plus regenerated matrix docs.
 5. Prefer two minors per family (current + previous) on the published matrix; keep extras offline.
 
 Known image naming quirks (verify on Docker Hub when refreshing):
