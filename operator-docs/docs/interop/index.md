@@ -14,11 +14,11 @@ Published correctness results for DNSConduit against peer DNS software under tes
 
 | Field | Value |
 |-------|-------|
-| Generated at | `2026-07-14T12:49:03Z` |
+| Generated at | `2026-07-14T14:31:10Z` |
 | Conduit version | `dev` |
 | Conduit image | `conduit:local` |
-| Conduit image digest (lab) | `sha256:d7b438f290547e723c76f9367bb8c2a725adc5432712f9391f571b1b10a512a6` |
-| Inputs fingerprint | `sha256:4bf527f6681451be50bf8c8dd476afeaf0780faada10e488cf05f1d43d2fe994` |
+| Conduit image digest (lab) | `sha256:35197eb9c8138614c75ea7af788d6d6d543bb3ec0d74b393f4aaf9cf71dee2b3` |
+| Inputs fingerprint | `sha256:df2ce7febd8b6b71aa2a913d43e43fb20db578d93fd9c7bdfc7d8331b2044efc` |
 
 The **inputs fingerprint** is a sha256 over harness inputs (`interop/catalog`, fixtures, compose, runner, results schema). CI uses it to detect when committed matrix results are stale relative to those inputs. It is not a product version.
 
@@ -26,10 +26,12 @@ The **inputs fingerprint** is a sha256 over harness inputs (`interop/catalog`, f
 
 | Outcome | Meaning |
 |---------|---------|
-| <span class="interop-outcome interop-outcome--pass">pass</span> | Declared oracles succeeded |
-| <span class="interop-outcome interop-outcome--fail">fail</span> | Unexpected mismatch or error |
-| <span class="interop-outcome interop-outcome--skip">skip</span> | Case not applicable to this peer/profile |
-| <span class="interop-outcome interop-outcome--characterized">characterized</span> | Expected peer-specific behavior (see case intent) |
+| <span class="interop-outcome interop-outcome--pass">pass</span> | Case checks met for this peer/version — the declared contract holds |
+| <span class="interop-outcome interop-outcome--fail">fail</span> | Unexpected mismatch or error — investigate Conduit forwarding or the peer path for this cell |
+| <span class="interop-outcome interop-outcome--skip">skip</span> | Out of scope for this peer role or profile (not a failure) |
+| <span class="interop-outcome interop-outcome--characterized">characterized</span> | Documented peer-specific behavior (see the case page), not treated as a Conduit regression |
+
+Each [case page](/interop/cases/basic-a-forward.md) explains purpose, how the test runs, and what these outcomes mean for that case.
 
 ## Summary
 

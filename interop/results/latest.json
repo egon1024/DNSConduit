@@ -342,13 +342,13 @@
       "profile_id": "forward-only"
     }
   ],
-  "generated_at": "2026-07-14T12:49:03Z",
-  "inputs_fingerprint": "sha256:4bf527f6681451be50bf8c8dd476afeaf0780faada10e488cf05f1d43d2fe994",
+  "generated_at": "2026-07-14T14:31:10Z",
+  "inputs_fingerprint": "sha256:df2ce7febd8b6b71aa2a913d43e43fb20db578d93fd9c7bdfc7d8331b2044efc",
   "provenance": {
     "conduit_image": "conduit:local",
-    "conduit_image_digest": "sha256:d7b438f290547e723c76f9367bb8c2a725adc5432712f9391f571b1b10a512a6",
+    "conduit_image_digest": "sha256:35197eb9c8138614c75ea7af788d6d6d543bb3ec0d74b393f4aaf9cf71dee2b3",
     "conduit_version": "dev",
-    "git_head": "f2beb2e2778ba84d5d7b72554a7cbe657e648f70",
+    "git_head": "d6c6b4ed4ef9d2758751109c80af2f5c4c8ca9ba",
     "runner": "interop.runner/0.1.0"
   },
   "schema_version": 1

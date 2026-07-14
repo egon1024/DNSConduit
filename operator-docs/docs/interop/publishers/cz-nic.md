@@ -6,11 +6,11 @@ CZ.NIC products under test for DNSConduit correctness. No peer is preferred or r
 
 | Field | Value |
 |-------|-------|
-| Generated at | `2026-07-14T12:49:03Z` |
+| Generated at | `2026-07-14T14:31:10Z` |
 | Conduit version | `dev` |
 | Conduit image | `conduit:local` |
-| Conduit image digest (lab) | `sha256:d7b438f290547e723c76f9367bb8c2a725adc5432712f9391f571b1b10a512a6` |
-| Inputs fingerprint | `sha256:4bf527f6681451be50bf8c8dd476afeaf0780faada10e488cf05f1d43d2fe994` |
+| Conduit image digest (lab) | `sha256:35197eb9c8138614c75ea7af788d6d6d543bb3ec0d74b393f4aaf9cf71dee2b3` |
+| Inputs fingerprint | `sha256:df2ce7febd8b6b71aa2a913d43e43fb20db578d93fd9c7bdfc7d8331b2044efc` |
 
 The **inputs fingerprint** is a sha256 over harness inputs (`interop/catalog`, fixtures, compose, runner, results schema). CI uses it to detect when committed matrix results are stale relative to those inputs. It is not a product version.
 
