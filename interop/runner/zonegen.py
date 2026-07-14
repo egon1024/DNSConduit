@@ -126,6 +126,22 @@ class ZonePlanEntry:
     container_file: str
 
 
+def render_named_zone_stanzas(plan: list[ZonePlanEntry]) -> str:
+    """Render BIND-style ``zone "<name>" { type master; file "<path>"; };`` clauses.
+
+    Shared by the bind and pdns-auth (bind backend) packs so the stanza format
+    and the single point of file/name interpolation stay in one place. Returns
+    an empty string for an empty plan (valid: an auth daemon with no zones).
+    """
+    return "\n".join(
+        f'zone "{entry.zone_name}" {{\n'
+        f"    type master;\n"
+        f'    file "{entry.container_file}";\n'
+        f"}};"
+        for entry in plan
+    )
+
+
 def build_zone_plan(ir: SetupIR, out_dir: Path) -> list[ZonePlanEntry]:
     """Build the full auth zone plan: synthetic zones (from local_rr) plus fixtures.
 
