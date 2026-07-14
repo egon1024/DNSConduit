@@ -69,9 +69,26 @@ class PeerPackTests(unittest.TestCase):
         with self.assertRaises(FileNotFoundError):
             pack_dir_for_family("no-such-family")
 
-    def test_materialize_copies_marker(self):
-        # Uses dnsmasq pack templates after Task 4; for now assert materialize runs
-        pass  # replace in Task 4 with real IR render assertion
+    def test_materialize_dnsmasq_writes_run_sh_and_pack_override(self):
+        ir = SetupIR(
+            local_rr=[LocalRR(name="www.smoke.test.", type="A", rdata="192.0.2.20", ttl=300)]
+        )
+        peer = next(p for p in load_peers() if p.family == "dnsmasq")
+        with tempfile.TemporaryDirectory() as tmp:
+            out_dir = Path(tmp) / "peer"
+            override = materialize_peer_config(family="dnsmasq", ir=ir, out_dir=out_dir, peer=peer)
+            self.assertTrue(override.is_file())
+            self.assertEqual(override.name, "compose.override.yml")
+
+            run_sh = out_dir / "run.sh"
+            self.assertTrue(run_sh.is_file())
+            contents = run_sh.read_text(encoding="utf-8")
+            self.assertIn("dnsmasq", contents)
+            self.assertIn("--address=/www.smoke.test/192.0.2.20", contents)
+
+            pack_override_marker = out_dir / ".pack_override"
+            self.assertTrue(pack_override_marker.is_file())
+            self.assertEqual(pack_override_marker.read_text(encoding="utf-8"), str(override.resolve()))
 
 
 class CatalogFamilyTests(unittest.TestCase):

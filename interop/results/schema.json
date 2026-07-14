@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dnsconduit.local/interop/results.schema.json",
+  "title": "DNSConduit interop results",
+  "type": "object",
+  "required": ["schema_version", "generated_at", "provenance", "inputs_fingerprint", "cells"],
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "provenance": {
+      "type": "object",
+      "required": ["conduit_image", "conduit_image_digest", "conduit_version"],
+      "properties": {
+        "conduit_image": { "type": "string" },
+        "conduit_image_digest": { "type": "string" },
+        "conduit_version": { "type": "string" },
+        "git_head": { "type": "string" },
+        "runner": { "type": "string" }
+      }
+    },
+    "inputs_fingerprint": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "cells": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["case_id", "peer_id", "profile_id", "outcome"],
+        "properties": {
+          "case_id": { "type": "string" },
+          "peer_id": { "type": "string" },
+          "profile_id": { "type": "string" },
+          "outcome": {
+            "type": "string",
+            "enum": ["pass", "fail", "skip", "characterized"]
+          },
+          "detail": { "type": "string" },
+          "oracles": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}
