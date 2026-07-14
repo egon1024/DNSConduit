@@ -1,0 +1,11 @@
+# pdns-auth family — pdns.conf + named.conf (bind backend zone list) is
+# rendered by prepare.py from peer_setup local_rr and/or fixtures.
+services:
+  peer:
+    volumes:
+      - ${PEER_CONFIG_DIR}:/peer-config:ro
+    command:
+      - "--config-dir=/peer-config"
+    ports:
+      - "${PEER_HOST_PORT}:53/udp"
+      - "${PEER_HOST_PORT}:53/tcp"
