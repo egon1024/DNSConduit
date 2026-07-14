@@ -19,6 +19,12 @@ class Case:
     path: Path = field(repr=False)
     peer_setup: dict[str, Any] = field(default_factory=dict)
     conduit_delta: dict[str, Any] = field(default_factory=dict)
+    # Optional per-step queries; empty → single dig using CLI/default or fixture qname.
+    queries: list[dict[str, Any]] = field(default_factory=list)
+    # Files copied into the cell's /etc/conduit/assets/ (src relative to interop/).
+    conduit_assets: list[dict[str, str]] = field(default_factory=list)
+    # "peer" (default): publisher matrices. "conduit": Conduit-behavior page; one stub peer.
+    matrix: str = "peer"
 
     def applies_to(self, *, role: str, profile_id: str, peer_id: str) -> bool:
         roles = self.applicability.get("roles")
@@ -32,11 +38,18 @@ class Case:
             return False
         return True
 
+    @property
+    def is_conduit_matrix(self) -> bool:
+        return self.matrix == "conduit"
+
 
 def load_cases(directory: Path = CASES) -> list[Case]:
     cases: list[Case] = []
     for path in sorted(directory.glob("*.yaml")):
         raw = load_yaml(path)
+        matrix = str(raw.get("matrix") or "peer").strip().lower()
+        if matrix not in ("peer", "conduit"):
+            raise ValueError(f"{path}: matrix must be 'peer' or 'conduit', got {matrix!r}")
         cases.append(
             Case(
                 id=raw["id"],
@@ -46,6 +59,12 @@ def load_cases(directory: Path = CASES) -> list[Case]:
                 oracles=list(raw.get("oracles", [])),
                 peer_setup=dict(raw.get("peer_setup") or {}),
                 conduit_delta=dict(raw.get("conduit_delta") or {}),
+                queries=list(raw.get("queries") or []),
+                conduit_assets=[
+                    {"src": str(a["src"]), "dest": str(a["dest"])}
+                    for a in (raw.get("conduit_assets") or [])
+                ],
+                matrix=matrix,
                 path=path,
             )
         )

@@ -13,6 +13,7 @@ services:
         ipv4_address: 172.30.97.20
     volumes:
       - ${CONDUIT_CONFIG}:/etc/conduit/conduit.yaml:ro
+      - ${CONDUIT_ASSETS_DIR}:/etc/conduit/assets:ro
     command: ["/etc/conduit/conduit.yaml"]
     ports:
       - "${CONDUIT_HOST_PORT}:5353/udp"

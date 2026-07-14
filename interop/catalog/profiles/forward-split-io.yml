@@ -1,0 +1,43 @@
+schema_version: 1
+# Forward-only with split_io dataplane (graduated dataplane runtime smoke).
+dataplane:
+  runtime: split_io
+  policy_workers: 2
+  io_workers: 1
+listeners:
+  threads: 1
+  reuse_port: false
+  listeners:
+    - address: "0.0.0.0:5353"
+      protocol: udp
+    - address: "0.0.0.0:5353"
+      protocol: tcp
+forward:
+  outstanding_per_backend: 50
+  timeout_ms: 2000
+orchestrator:
+  max_attempts: 3
+  max_txn_duration_ms: 5000
+  txn_table_capacity: 1024
+events:
+  queue_depth: 4096
+  drop_policy: drop_oldest
+rhai:
+  max_operations: 10000
+  max_call_depth: 32
+pools:
+  - name: default
+    backends:
+      - address: "172.30.97.10:53"
+        weight: 100
+rules:
+  match_mode: first_match
+  rules:
+    - name: default-pool
+      hook: request
+      selectors: []
+      actions:
+        - type: set_pool
+          value: default
+logging:
+  level: warn

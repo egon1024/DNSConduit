@@ -1,0 +1,8 @@
+{
+  "qname": "api.example.test.",
+  "qtype": "A",
+  "rcode": "NOERROR",
+  "answers": [
+    { "name": "api.example.test.", "type": "A", "ttl": 3600, "rdata": "192.0.2.11" }
+  ]
+}

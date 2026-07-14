@@ -1,0 +1,6 @@
+{
+  "qname": "missing.example.test.",
+  "qtype": "A",
+  "rcode": "NXDOMAIN",
+  "answers": []
+}

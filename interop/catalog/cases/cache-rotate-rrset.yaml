@@ -1,0 +1,71 @@
+schema_version: 1
+id: cache-rotate-rrset
+matrix: conduit
+suites: [full]
+intent: |
+  ## Purpose
+
+  Confirm **`rotate_rrset_on_serve`**: when a multi-A RRset is cached, warm answers
+  keep the same address membership while **answer order may change** across queries.
+
+  Results appear on the **Conduit behavior** matrix (one stub peer).
+
+  ## How it works
+
+  1. The stub peer answers `rotate.smoke.test` with three A records.
+  2. Conduit uses **cache-forward** with `rotate_rrset_on_serve` enabled.
+  3. The harness queries the name several times (cold fill, then warm serves).
+  4. Each answer must be NOERROR with the expected address **set**; across the run,
+     answer **order must vary** at least once.
+
+  ## Outcomes
+
+  | Outcome | Meaning for operators |
+  |---|---|
+  | <span class="interop-outcome interop-outcome--pass">pass</span> | RRset membership held and at least two distinct answer orders were observed. |
+  | <span class="interop-outcome interop-outcome--fail">fail</span> | Membership was wrong, or order never varied — investigate rotate_on_serve or the peer RRset. |
+  | <span class="interop-outcome interop-outcome--skip">skip</span> | This profile or peer is out of scope. |
+  | <span class="interop-outcome interop-outcome--characterized">characterized</span> | Not used for this case today. |
+applicability:
+  roles: [stub, auth, recursive]
+  profiles: [cache-forward]
+  peers: [thekelleys-dnsmasq-2.90]
+peer_setup:
+  local_rr:
+    - name: rotate.smoke.test.
+      type: A
+      rdata: "192.0.2.81"
+      ttl: 300
+    - name: rotate.smoke.test.
+      type: A
+      rdata: "192.0.2.82"
+      ttl: 300
+    - name: rotate.smoke.test.
+      type: A
+      rdata: "192.0.2.83"
+      ttl: 300
+conduit_delta:
+  caches:
+    - name: global
+      type: memory
+      max_entries: 10000
+      rotate_rrset_on_serve: true
+      negative_cache:
+        enabled: true
+        nxdomain_covers_descendants: true
+        servfail_ttl_secs: 10
+queries:
+  - qname: rotate.smoke.test.
+  - qname: rotate.smoke.test.
+  - qname: rotate.smoke.test.
+  - qname: rotate.smoke.test.
+  - qname: rotate.smoke.test.
+  - qname: rotate.smoke.test.
+  - qname: rotate.smoke.test.
+  - qname: rotate.smoke.test.
+oracles:
+  - kind: property
+    checks: [rcode-noerror, answer-rdata-set]
+    answer_rdata: ["192.0.2.81", "192.0.2.82", "192.0.2.83"]
+  - kind: sequence
+    checks: [answer-order-varies]

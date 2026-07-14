@@ -1,3 +1,2 @@
-# Unreleased
-
-_No unreleased operator-facing changes._
+- Interop correctness results published under [Interop](/interop/index.md), split **by publisher** (alphabetical product/version matrices; peer software under test; last-tested provenance). Local reproduction via `make interop-image` / `make interop-smoke` (and related targets); documented on the Interop overview. Docker suite is **not** run by GitHub Actions. Graduated lab slices include cache-forward, ordered-rules allow/soft-drop, auth NXDOMAIN, and split_io forward smoke.
+- Container image published to GHCR on release; see [Install and run](/getting-started/install-and-run.md#container-image). Digest recorded in `conduit-<version>.image-digest.txt`.

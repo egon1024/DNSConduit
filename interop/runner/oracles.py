@@ -1,4 +1,4 @@
-"""Oracle evaluation helpers (parity / fixture / property / differential)."""
+"""Oracle evaluation helpers (parity / fixture / property / differential / sequence)."""
 
 from __future__ import annotations
 
@@ -22,59 +22,121 @@ def evaluate_oracles(
     via_conduit: QueryResult | None,
     direct: QueryResult | None,
     peer_id: str,
+    via_steps: list[QueryResult] | None = None,
 ) -> tuple[str, str]:
     """
     Return (outcome, detail). Outcomes: pass | fail | characterized.
     Caller handles skip before invoking.
+
+    Per-step oracles (property/parity/fixture/differential) run against each entry in
+    ``via_steps`` when provided, otherwise against ``via_conduit`` once.
+    Sequence oracles run once against the full step list.
     """
-    if via_conduit is None:
+    if via_conduit is None and not via_steps:
+        return "fail", "no response via Conduit"
+
+    steps = via_steps if via_steps is not None else ([via_conduit] if via_conduit else [])
+    if not steps or any(s is None for s in steps):
         return "fail", "no response via Conduit"
 
     details: list[str] = []
     for oracle in oracles:
         kind = oracle.get("kind")
-        if kind == "property":
-            ok, msg = _property(via_conduit, oracle.get("checks", []))
+        if kind == "sequence":
+            ok, msg = _sequence(steps, oracle.get("checks", []))
             if not ok:
                 return "fail", msg
             details.append(msg)
-        elif kind == "parity":
-            if direct is None:
-                return "fail", "parity oracle requires direct peer baseline"
-            ok, msg = _parity(via_conduit, direct, oracle.get("compare", ["rcode", "ancount"]))
-            if not ok:
+            continue
+
+        for idx, via in enumerate(steps):
+            assert via is not None
+            if kind == "property":
+                ok, msg = _property(via, oracle)
+                if not ok:
+                    return "fail", f"step {idx + 1}: {msg}"
+                details.append(msg)
+            elif kind == "parity":
+                if direct is None:
+                    return "fail", "parity oracle requires direct peer baseline"
+                # Parity compares the single conduit dig to a concurrent direct dig.
+                # When via_steps is used, parity still binds to the last/direct pair
+                # supplied by the caller (legacy single-query cells).
+                cmp_via = via if len(steps) == 1 else (via_conduit or via)
+                ok, msg = _parity(cmp_via, direct, oracle.get("compare", ["rcode", "ancount"]))
+                if not ok:
+                    return "fail", msg
+                details.append(msg)
+                break
+            elif kind == "fixture":
+                ok, msg = _fixture(via, oracle["path"])
+                if not ok:
+                    return "fail", f"step {idx + 1}: {msg}"
+                details.append(msg)
+            elif kind == "differential":
+                expected = oracle.get("expect", {})
+                peer_expect = expected.get(peer_id) or expected.get("default")
+                if peer_expect is None:
+                    return "characterized", f"no differential expectation for {peer_id}"
+                ok, msg = _match_expect(via, peer_expect)
+                if ok:
+                    return "characterized", msg
                 return "fail", msg
-            details.append(msg)
-        elif kind == "fixture":
-            ok, msg = _fixture(via_conduit, oracle["path"])
-            if not ok:
-                return "fail", msg
-            details.append(msg)
-        elif kind == "differential":
-            expected = oracle.get("expect", {})
-            peer_expect = expected.get(peer_id) or expected.get("default")
-            if peer_expect is None:
-                return "characterized", f"no differential expectation for {peer_id}"
-            ok, msg = _match_expect(via_conduit, peer_expect)
-            if ok:
-                return "characterized", msg
-            return "fail", msg
-        else:
-            return "fail", f"unknown oracle kind: {kind}"
+            else:
+                return "fail", f"unknown oracle kind: {kind}"
     return "pass", "; ".join(details) if details else "ok"
 
 
-def _property(result: QueryResult, checks: list[str]) -> tuple[bool, str]:
+def _property(result: QueryResult, oracle: dict[str, Any]) -> tuple[bool, str]:
+    checks = oracle.get("checks", [])
     for check in checks:
         if check == "rcode-noerror":
             if result.rcode.upper() != "NOERROR":
                 return False, f"expected NOERROR got {result.rcode}"
+        elif check == "rcode-nxdomain":
+            if result.rcode.upper() != "NXDOMAIN":
+                return False, f"expected NXDOMAIN got {result.rcode}"
         elif check == "has-answer":
             if result.ancount < 1 and not result.answers:
                 return False, "expected at least one answer"
+        elif check == "no-answer":
+            # Soft/hard drop: dig timeout or no usable answer (TIMEOUT/UNKNOWN/empty).
+            rcode = result.rcode.upper()
+            if result.answers or result.ancount > 0:
+                return False, f"expected no answer RRs got ancount={result.ancount}"
+            if rcode == "NOERROR":
+                return False, "expected no successful answer; got NOERROR"
+            if rcode not in ("TIMEOUT", "UNKNOWN", "SERVFAIL", "REFUSED", "FORMERR"):
+                # Still accept empty answers for other rcodes without RRs.
+                pass
+        elif check == "answer-rdata-set":
+            want = {str(x) for x in (oracle.get("answer_rdata") or [])}
+            if not want:
+                return False, "answer-rdata-set requires answer_rdata"
+            got = {str(a.get("rdata", "")) for a in result.answers}
+            if got != want:
+                return False, f"answer rdata set want {sorted(want)} got {sorted(got)}"
         else:
             return False, f"unknown property check: {check}"
     return True, "property ok"
+
+
+def _answer_order_key(result: QueryResult) -> tuple[str, ...]:
+    return tuple(str(a.get("rdata", "")) for a in result.answers)
+
+
+def _sequence(steps: list[QueryResult], checks: list[str]) -> tuple[bool, str]:
+    for check in checks:
+        if check == "answer-order-varies":
+            orders = {_answer_order_key(s) for s in steps if s.answers}
+            if len(orders) < 2:
+                return False, (
+                    f"expected answer order to vary across queries; "
+                    f"saw {len(orders)} distinct order(s)"
+                )
+        else:
+            return False, f"unknown sequence check: {check}"
+    return True, "sequence ok"
 
 
 def _parity(via: QueryResult, direct: QueryResult, fields: list[str]) -> tuple[bool, str]:

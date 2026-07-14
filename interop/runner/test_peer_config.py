@@ -31,12 +31,14 @@ class SetupIrTests(unittest.TestCase):
             "local_rr": [
                 {"name": "www.smoke.test.", "type": "A", "rdata": "192.0.2.20", "ttl": 300}
             ],
+            "local_zones": ["nxcache.test."],
         }
         ir = parse_peer_setup(raw)
         self.assertEqual(ir.fixtures, ["example.test"])
         self.assertEqual(len(ir.local_rr), 1)
         self.assertEqual(ir.local_rr[0].name, "www.smoke.test.")
         self.assertEqual(ir.local_rr[0].rdata, "192.0.2.20")
+        self.assertEqual(ir.local_zones, ["nxcache.test."])
 
     def test_empty_peer_setup(self):
         ir = parse_peer_setup(None)
@@ -93,7 +95,9 @@ class PeerPackTests(unittest.TestCase):
             self.assertTrue(run_sh.is_file())
             contents = run_sh.read_text(encoding="utf-8")
             self.assertIn("dnsmasq", contents)
-            self.assertIn("--address=/www.smoke.test/192.0.2.20", contents)
+            self.assertIn("--addn-hosts=/peer-config/hosts", contents)
+            hosts = (out_dir / "hosts").read_text(encoding="utf-8")
+            self.assertIn("192.0.2.20 www.smoke.test", hosts)
 
             pack_override_marker = out_dir / ".pack_override"
             self.assertTrue(pack_override_marker.is_file())
@@ -118,6 +122,31 @@ class DnsmasqPrepareTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             with self.assertRaises(ValueError):
                 mod.prepare(out_dir=Path(tmp), ir=ir, peer=None)
+
+    def test_prepare_writes_local_zones(self):
+        mod = self._load_prepare()
+        ir = SetupIR(local_zones=["nxcache.test."])
+        with tempfile.TemporaryDirectory() as tmp:
+            out_dir = Path(tmp)
+            mod.prepare(out_dir=out_dir, ir=ir, peer=None)
+            contents = (out_dir / "run.sh").read_text(encoding="utf-8")
+            self.assertIn("--local=/nxcache.test/", contents)
+
+    def test_prepare_multi_a_via_hosts(self):
+        mod = self._load_prepare()
+        ir = SetupIR(
+            local_rr=[
+                LocalRR(name="rotate.smoke.test.", type="A", rdata="192.0.2.81"),
+                LocalRR(name="rotate.smoke.test.", type="A", rdata="192.0.2.82"),
+                LocalRR(name="rotate.smoke.test.", type="A", rdata="192.0.2.83"),
+            ]
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            out_dir = Path(tmp)
+            mod.prepare(out_dir=out_dir, ir=ir, peer=None)
+            hosts = (out_dir / "hosts").read_text(encoding="utf-8")
+            self.assertEqual(hosts.count("rotate.smoke.test"), 3)
+            self.assertIn("--addn-hosts=/peer-config/hosts", (out_dir / "run.sh").read_text())
 
 
 class UnboundPrepareTests(unittest.TestCase):

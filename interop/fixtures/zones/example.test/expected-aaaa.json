@@ -1,0 +1,8 @@
+{
+  "qname": "www.example.test.",
+  "qtype": "AAAA",
+  "rcode": "NOERROR",
+  "answers": [
+    { "name": "www.example.test.", "type": "AAAA", "ttl": 3600, "rdata": "2001:db8::10" }
+  ]
+}

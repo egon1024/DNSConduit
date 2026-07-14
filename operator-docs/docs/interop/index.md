@@ -1,6 +1,10 @@
 # Interop
 
-Published correctness results for DNSConduit against peer DNS software under test. Results are split **by publisher** (alphabetical) so version and product matrices stay readable. No peer is preferred or recommended.
+Published correctness results for DNSConduit against peer DNS software under test. **Peer contract** cases are split **by publisher** (alphabetical). **Conduit behavior** cases (cache path, rules, dataplane runtime) use a single stub peer — see [Conduit behavior](/interop/conduit-behavior.md). No peer is preferred or recommended.
+
+## Matrices
+
+- [Conduit behavior](/interop/conduit-behavior.md) — Conduit-focused cases (stub peer)
 
 ## Publishers
 
@@ -10,17 +14,7 @@ Published correctness results for DNSConduit against peer DNS software under tes
 - [PowerDNS](/interop/publishers/powerdns.md) — Authoritative Server, Recursor
 - [thekelleys](/interop/publishers/thekelleys.md) — dnsmasq
 
-## Last tested
-
-| Field | Value |
-|-------|-------|
-| Generated at | `2026-07-14T14:31:10Z` |
-| Conduit version | `dev` |
-| Conduit image | `conduit:local` |
-| Conduit image digest (lab) | `sha256:35197eb9c8138614c75ea7af788d6d6d543bb3ec0d74b393f4aaf9cf71dee2b3` |
-| Inputs fingerprint | `sha256:df2ce7febd8b6b71aa2a913d43e43fb20db578d93fd9c7bdfc7d8331b2044efc` |
-
-The **inputs fingerprint** is a sha256 over harness inputs (`interop/catalog`, fixtures, compose, runner, results schema). CI uses it to detect when committed matrix results are stale relative to those inputs. It is not a product version.
+*Last tested 2026-07-14 · All executed cases passed*
 
 ## Outcomes
 
@@ -32,6 +26,44 @@ The **inputs fingerprint** is a sha256 over harness inputs (`interop/catalog`, f
 | <span class="interop-outcome interop-outcome--characterized">characterized</span> | Documented peer-specific behavior (see the case page), not treated as a Conduit regression |
 
 Each [case page](/interop/cases/basic-a-forward.md) explains purpose, how the test runs, and what these outcomes mean for that case.
+
+## Running these tests locally
+
+The matrices on this site are from a committed lab run. You can reproduce or explore the same harness on a machine with **Docker**, **Docker Compose**, and **Python 3** (with PyYAML). GitHub Actions does **not** execute the Docker suite; CI only checks that committed results stay fresh when harness inputs change.
+
+From a checkout of the DNSConduit repository:
+
+1. **Build a Conduit image** used as the system under test:
+
+    ```zsh
+    make interop-image
+    ```
+
+    This builds `conduit:local` via the repo `Dockerfile`. Override with `CONDUIT_IMAGE=…` if you already have an image tag.
+
+2. **Run the smoke suite** (all peers the smoke cases apply to). Peer images are pulled as needed; the first run can take a while:
+
+    ```zsh
+    make interop-smoke
+    ```
+
+3. **Optional — authoritative fixture case** (auth peers only):
+
+    ```zsh
+    make interop-auth
+    ```
+
+Those targets **print** pass/fail/skip lines; they do **not** rewrite `interop/results/latest.json` or regenerate this site. Named [cases](/interop/cases/basic-a-forward.md) document purpose, how each test works, and outcome implications.
+
+Useful extras:
+
+| Command | What it does |
+|---------|--------------|
+| `make interop-unit` | Fast harness unit tests (no Docker cells) |
+| `make interop-docs` | Rebuild these matrix pages from the committed `latest.json` |
+| `make interop-refresh` | Rebuild image, re-run smoke + auth, **write** results and regenerate docs (maintainers) |
+
+Filters (peer, case, profile) and pack layout: see `interop/README.md` in the repository. Override the image for any run target with `make interop-smoke CONDUIT_IMAGE=registry.example/conduit:1.2.3`.
 
 ## Summary
 

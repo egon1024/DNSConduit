@@ -21,6 +21,9 @@ class LocalRR:
 class SetupIR:
     fixtures: list[str] = field(default_factory=list)
     local_rr: list[LocalRR] = field(default_factory=list)
+    # Domains handled locally by the stub (dnsmasq --local=/zone/) → NXDOMAIN when
+    # no matching local_rr; ignored by auth packs that load fixtures/zone files.
+    local_zones: list[str] = field(default_factory=list)
 
 
 def parse_peer_setup(raw: dict[str, Any] | None) -> SetupIR:
@@ -36,9 +39,11 @@ def parse_peer_setup(raw: dict[str, Any] | None) -> SetupIR:
                 ttl=int(item.get("ttl", 300)),
             )
         )
+    zones = [str(z) for z in (raw.get("local_zones") or [])]
     return SetupIR(
         fixtures=[str(x) for x in (raw.get("fixtures") or [])],
         local_rr=rrs,
+        local_zones=zones,
     )
 
 
