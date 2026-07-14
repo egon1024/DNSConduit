@@ -1,0 +1,18 @@
+# unbound family — unbound.conf is rendered by prepare.py from peer_setup
+# local_rr as static local-zone/local-data (no recursion to the internet).
+#
+# The upstream mvance/unbound image's own entrypoint (/unbound.sh) generates
+# a chrooted default config with forward/local-data include files we don't
+# want; we bypass it entirely and run unbound directly against our config.
+services:
+  peer:
+    volumes:
+      - ${PEER_CONFIG_DIR}:/peer-config:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        exec /opt/unbound/sbin/unbound -d -c /peer-config/unbound.conf
+    ports:
+      - "${PEER_HOST_PORT}:53/udp"
+      - "${PEER_HOST_PORT}:53/tcp"

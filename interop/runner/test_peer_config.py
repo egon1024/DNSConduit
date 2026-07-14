@@ -120,6 +120,87 @@ class DnsmasqPrepareTests(unittest.TestCase):
                 mod.prepare(out_dir=Path(tmp), ir=ir, peer=None)
 
 
+class UnboundPrepareTests(unittest.TestCase):
+    def _load_prepare(self):
+        import importlib.util
+
+        from interop.runner.paths import PEERS_PACKS
+
+        prepare_path = PEERS_PACKS / "unbound" / "prepare.py"
+        spec = importlib.util.spec_from_file_location("unbound_prepare_test", prepare_path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
+
+    def test_local_zone_conf_lines_dedupes_zone_and_lists_records(self):
+        mod = self._load_prepare()
+        rrs = [
+            LocalRR(name="www.smoke.test.", type="A", rdata="192.0.2.20", ttl=300),
+            LocalRR(name="other.smoke.test.", type="A", rdata="192.0.2.21", ttl=60),
+        ]
+        lines = mod.local_zone_conf_lines(rrs)
+        self.assertEqual(lines.count('local-zone: "smoke.test." static'), 1)
+        self.assertIn('local-data: "www.smoke.test 300 IN A 192.0.2.20"', lines)
+        self.assertIn('local-data: "other.smoke.test 60 IN A 192.0.2.21"', lines)
+
+    def test_local_zone_conf_lines_empty_for_no_rrs(self):
+        mod = self._load_prepare()
+        self.assertEqual(mod.local_zone_conf_lines([]), [])
+
+    def test_prepare_writes_unbound_conf_without_chroot_or_recursion_hints(self):
+        mod = self._load_prepare()
+        ir = SetupIR(local_rr=[LocalRR(name="www.smoke.test.", type="A", rdata="192.0.2.20", ttl=300)])
+        with tempfile.TemporaryDirectory() as tmp:
+            out_dir = Path(tmp)
+            mod.prepare(out_dir=out_dir, ir=ir, peer=None)
+            conf = (out_dir / "unbound.conf").read_text(encoding="utf-8")
+            self.assertIn('chroot: ""', conf)
+            self.assertIn('local-zone: "smoke.test." static', conf)
+            self.assertIn('local-data: "www.smoke.test 300 IN A 192.0.2.20"', conf)
+            self.assertNotIn("forward-zone", conf)
+
+    def test_prepare_handles_empty_local_rr(self):
+        mod = self._load_prepare()
+        with tempfile.TemporaryDirectory() as tmp:
+            out_dir = Path(tmp)
+            mod.prepare(out_dir=out_dir, ir=SetupIR(), peer=None)
+            conf = (out_dir / "unbound.conf").read_text(encoding="utf-8")
+            self.assertNotIn("local-zone", conf)
+
+
+class PdnsRecursorPrepareTests(unittest.TestCase):
+    def _load_prepare(self):
+        import importlib.util
+
+        from interop.runner.paths import PEERS_PACKS
+
+        prepare_path = PEERS_PACKS / "pdns-recursor" / "prepare.py"
+        spec = importlib.util.spec_from_file_location("pdns_recursor_prepare_test", prepare_path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
+
+    def test_prepare_writes_auth_zones_from_local_rr(self):
+        mod = self._load_prepare()
+        ir = SetupIR(local_rr=[LocalRR(name="www.smoke.test.", type="A", rdata="192.0.2.20", ttl=300)])
+        with tempfile.TemporaryDirectory() as tmp:
+            out_dir = Path(tmp)
+            mod.prepare(out_dir=out_dir, ir=ir, peer=None)
+            conf = (out_dir / "recursor.conf").read_text(encoding="utf-8")
+            self.assertIn("auth-zones=smoke.test=/peer-config/synth/smoke.test.zone", conf)
+            self.assertIn("allow-from=0.0.0.0/0", conf)
+            synth = (out_dir / "synth" / "smoke.test.zone").read_text(encoding="utf-8")
+            self.assertIn("www\t300\tIN A\t192.0.2.20", synth)
+
+    def test_prepare_handles_empty_local_rr(self):
+        mod = self._load_prepare()
+        with tempfile.TemporaryDirectory() as tmp:
+            out_dir = Path(tmp)
+            mod.prepare(out_dir=out_dir, ir=SetupIR(), peer=None)
+            conf = (out_dir / "recursor.conf").read_text(encoding="utf-8")
+            self.assertNotIn("auth-zones", conf)
+
+
 class AuthPackMaterializeTests(unittest.TestCase):
     def test_bind_named_conf_covers_synthetic_and_fixture_zones(self):
         ir = SetupIR(

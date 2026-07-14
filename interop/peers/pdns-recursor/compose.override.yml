@@ -1,0 +1,13 @@
+# pdns-recursor family — recursor.conf (+ synthesized zone files) is
+# rendered by prepare.py from peer_setup local_rr, served via auth-zones so
+# the recursor answers those names locally without any public recursion.
+services:
+  peer:
+    volumes:
+      - ${PEER_CONFIG_DIR}:/peer-config:ro
+    command:
+      - "--config-dir=/peer-config"
+      - "--enable-old-settings=yes"
+    ports:
+      - "${PEER_HOST_PORT}:53/udp"
+      - "${PEER_HOST_PORT}:53/tcp"
