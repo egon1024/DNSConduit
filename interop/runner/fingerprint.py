@@ -14,6 +14,7 @@ FINGERPRINT_GLOBS = (
     "interop/catalog/**",
     "interop/fixtures/**",
     "interop/compose/**",
+    "interop/peers/**",
     "interop/runner/**/*.py",
     "interop/results/schema.json",
 )
