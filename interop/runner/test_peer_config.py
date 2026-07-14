@@ -68,9 +68,32 @@ class CatalogFamilyTests(unittest.TestCase):
 class CaseHookLoadTests(unittest.TestCase):
     def test_cases_expose_peer_setup_attr(self):
         cases = {c.id: c for c in load_cases()}
-        # Until YAML is updated, peer_setup may be empty — attribute must exist
-        self.assertTrue(hasattr(cases["basic-a-forward"], "peer_setup"))
-        self.assertTrue(hasattr(cases["basic-a-forward"], "conduit_delta"))
+        case = cases["basic-a-forward"]
+        self.assertIsInstance(case.peer_setup, dict)
+        self.assertIsInstance(case.conduit_delta, dict)
+
+    def test_missing_family_includes_peer_id(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "peers.yaml"
+            path.write_text(
+                yaml.safe_dump({
+                    "schema_version": 1,
+                    "peers": [{
+                        "id": "broken-peer",
+                        "publisher": "X",
+                        "product": "Y",
+                        "version": "1",
+                        "role": "stub",
+                        "image": "img",
+                        # family intentionally omitted
+                    }],
+                }),
+                encoding="utf-8",
+            )
+            with self.assertRaises(KeyError) as ctx:
+                load_peers(path)
+            self.assertIn("broken-peer", str(ctx.exception))
+            self.assertIn("family", str(ctx.exception))
 
 
 if __name__ == "__main__":
