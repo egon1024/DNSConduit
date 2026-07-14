@@ -7,6 +7,8 @@ intent: |
 applicability:
   roles: [auth]
   profiles: [forward-only]
+peer_setup:
+  fixtures: [example.test]
 oracles:
   - kind: fixture
     path: fixtures/zones/example.test/expected-a.json

@@ -13,6 +13,14 @@ from interop.runner.catalog import load_peers
 from interop.runner.conduit_merge import merge_conduit_profile
 from interop.runner.peer_packs import materialize_peer_config, pack_dir_for_family
 from interop.runner.setup_ir import LocalRR, SetupIR, parse_peer_setup, resolve_fixture_dirs
+from interop.runner.zonegen import (
+    build_zone_plan,
+    find_fixture_zone_file,
+    group_local_rr_by_zone,
+    render_zone_file,
+    write_synthetic_zones,
+    zone_name_for_record,
+)
 
 
 class SetupIrTests(unittest.TestCase):
@@ -109,6 +117,98 @@ class DnsmasqPrepareTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             with self.assertRaises(ValueError):
                 mod.prepare(out_dir=Path(tmp), ir=ir, peer=None)
+
+
+class ZoneGenTests(unittest.TestCase):
+    def test_zone_name_derivation_strips_leftmost_label(self):
+        self.assertEqual(zone_name_for_record("www.smoke.test."), "smoke.test")
+        self.assertEqual(zone_name_for_record("smoke.test."), "test")
+
+    def test_zone_name_requires_parent(self):
+        with self.assertRaises(ValueError):
+            zone_name_for_record("test.")
+
+    def test_group_local_rr_by_zone_groups_and_sorts(self):
+        rrs = [
+            LocalRR(name="www.b.test.", type="A", rdata="192.0.2.1"),
+            LocalRR(name="a.b.test.", type="A", rdata="192.0.2.2"),
+            LocalRR(name="www.a.test.", type="A", rdata="192.0.2.3"),
+        ]
+        zones = group_local_rr_by_zone(rrs)
+        self.assertEqual([z.name for z in zones], ["a.test", "b.test"])
+        self.assertEqual(len(zones[1].records), 2)
+
+    def test_render_zone_file_has_soa_ns_and_records(self):
+        rrs = [LocalRR(name="www.smoke.test.", type="A", rdata="192.0.2.20", ttl=300)]
+        zone = group_local_rr_by_zone(rrs)[0]
+        text = render_zone_file(zone)
+        self.assertIn("SOA ns.smoke.test.", text)
+        self.assertIn("IN NS  ns.smoke.test.", text)
+        self.assertIn("www\t300\tIN A\t192.0.2.20", text)
+
+    def test_write_synthetic_zones_writes_one_file_per_zone(self):
+        rrs = [LocalRR(name="www.smoke.test.", type="A", rdata="192.0.2.20", ttl=300)]
+        with tempfile.TemporaryDirectory() as tmp:
+            out_dir = Path(tmp) / "synth"
+            written = write_synthetic_zones(rrs, out_dir)
+            self.assertEqual(len(written), 1)
+            zone, path = written[0]
+            self.assertEqual(zone.name, "smoke.test")
+            self.assertTrue(path.is_file())
+            self.assertEqual(path.name, "smoke.test.zone")
+
+    def test_write_synthetic_zones_empty_rrs_writes_nothing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out_dir = Path(tmp) / "synth"
+            written = write_synthetic_zones([], out_dir)
+            self.assertEqual(written, [])
+
+    def test_find_fixture_zone_file_conventional_name(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            zone_dir = Path(tmp) / "example.test"
+            zone_dir.mkdir()
+            (zone_dir / "db.example.test").write_text("; zone", encoding="utf-8")
+            (zone_dir / "expected-a.json").write_text("{}", encoding="utf-8")
+            found = find_fixture_zone_file(zone_dir, "example.test")
+            self.assertEqual(found.name, "db.example.test")
+
+    def test_build_zone_plan_neither_fixtures_nor_local_rr(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            plan = build_zone_plan(SetupIR(), Path(tmp))
+            self.assertEqual(plan, [])
+
+    def test_build_zone_plan_local_rr_only(self):
+        ir = SetupIR(local_rr=[LocalRR(name="www.smoke.test.", type="A", rdata="192.0.2.20")])
+        with tempfile.TemporaryDirectory() as tmp:
+            plan = build_zone_plan(ir, Path(tmp))
+            self.assertEqual(len(plan), 1)
+            self.assertEqual(plan[0].zone_name, "smoke.test")
+            self.assertEqual(plan[0].container_file, "/peer-config/synth/smoke.test.zone")
+
+    def test_build_zone_plan_fixtures_only(self):
+        ir = SetupIR(fixtures=["example.test"])
+        with tempfile.TemporaryDirectory() as tmp:
+            out_dir = Path(tmp)
+            zone_dir = out_dir / "zones" / "example.test"
+            zone_dir.mkdir(parents=True)
+            (zone_dir / "db.example.test").write_text("; zone", encoding="utf-8")
+            plan = build_zone_plan(ir, out_dir)
+            self.assertEqual(len(plan), 1)
+            self.assertEqual(plan[0].zone_name, "example.test")
+            self.assertEqual(plan[0].container_file, "/peer-config/zones/example.test/db.example.test")
+
+    def test_build_zone_plan_both_local_rr_and_fixtures(self):
+        ir = SetupIR(
+            fixtures=["example.test"],
+            local_rr=[LocalRR(name="www.smoke.test.", type="A", rdata="192.0.2.20")],
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            out_dir = Path(tmp)
+            zone_dir = out_dir / "zones" / "example.test"
+            zone_dir.mkdir(parents=True)
+            (zone_dir / "db.example.test").write_text("; zone", encoding="utf-8")
+            plan = build_zone_plan(ir, out_dir)
+            self.assertEqual({p.zone_name for p in plan}, {"smoke.test", "example.test"})
 
 
 class CatalogFamilyTests(unittest.TestCase):

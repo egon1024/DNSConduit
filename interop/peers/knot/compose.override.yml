@@ -1,0 +1,14 @@
+# knot family — knot.conf (+ zone files) is rendered by prepare.py from
+# peer_setup local_rr (synthetic zones) and/or fixtures (authoritative zones).
+services:
+  peer:
+    volumes:
+      - ${PEER_CONFIG_DIR}:/peer-config:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        exec knotd -c /peer-config/knot.conf
+    ports:
+      - "${PEER_HOST_PORT}:53/udp"
+      - "${PEER_HOST_PORT}:53/tcp"
