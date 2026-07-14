@@ -1,8 +1,34 @@
 # lab-forward-parity-smoke
 
-Graduated from the pluggable-lookup forward-parity manual lab workshop scenario:
-confirm Conduit returns NOERROR with an answer for a simple A query on the
-forward-only profile (contract counterpart to the lab happy path).
+## Purpose
+
+Contract smoke for the happy path that operators first prove in the
+forward-parity **manual lab**: Conduit on the forward-only profile returns
+**NOERROR** with an answer for a simple **A** query. Use this to confirm the
+lab scenario still holds in the committed matrix.
+
+Compared with [`basic-a-forward`](basic-a-forward.md), this case checks only
+those response **properties**. It does **not** compare the via-Conduit answer
+to a direct query at the peer (no parity oracle).
+
+## How it works
+
+1. The peer is configured with the same local smoke name as other smoke cases
+   (`www.smoke.test` → `192.0.2.20`), with no public Internet dependency.
+2. A client queries Conduit; Conduit forwards to the peer.
+3. Checks require **NOERROR** and at least one answer RR. Passing here means
+   the forward path answered successfully; it does not assert bit-for-bit or
+   field-level parity with talking to the peer alone (see `basic-a-forward`
+   for that).
+
+## Outcomes
+
+| Outcome | Meaning for operators |
+|---|---|
+| <span class="interop-outcome interop-outcome--pass">pass</span> | Conduit returned NOERROR with an answer for the smoke A query — the lab happy path still works for this peer/version. |
+| <span class="interop-outcome interop-outcome--fail">fail</span> | Unexpected: no successful answer through Conduit. Investigate forwarding, peer readiness/config for this run, or a peer version change that broke the smoke name. |
+| <span class="interop-outcome interop-outcome--skip">skip</span> | This peer/profile combination is out of scope for the case (not applicable). |
+| <span class="interop-outcome interop-outcome--characterized">characterized</span> | Not used for this case today. If it appeared, it would mean a documented peer-specific quirk rather than a Conduit regression. |
 
 **Suites:** smoke, full
 

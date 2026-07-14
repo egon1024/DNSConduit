@@ -104,10 +104,13 @@ def _outcomes_legend() -> list[str]:
         "",
         "| Outcome | Meaning |",
         "|---------|---------|",
-        f"| {outcome_cell('pass')} | Declared oracles succeeded |",
-        f"| {outcome_cell('fail')} | Unexpected mismatch or error |",
-        f"| {outcome_cell('skip')} | Case not applicable to this peer/profile |",
-        f"| {outcome_cell('characterized')} | Expected peer-specific behavior (see case intent) |",
+        f"| {outcome_cell('pass')} | Case checks met for this peer/version — the declared contract holds |",
+        f"| {outcome_cell('fail')} | Unexpected mismatch or error — investigate Conduit forwarding or the peer path for this cell |",
+        f"| {outcome_cell('skip')} | Out of scope for this peer role or profile (not a failure) |",
+        f"| {outcome_cell('characterized')} | Documented peer-specific behavior (see the case page), not treated as a Conduit regression |",
+        "",
+        "Each [case page](/interop/cases/basic-a-forward.md) explains purpose, how the "
+        "test runs, and what these outcomes mean for that case.",
         "",
     ]
 
@@ -242,8 +245,8 @@ def _summary_lines(
     return lines
 
 
-def _update_mkdocs_nav(publisher_names: list[str]) -> None:
-    """Replace the Interop nav block with hub + alphabetical publisher pages."""
+def _update_mkdocs_nav(publisher_names: list[str], case_ids: list[str]) -> None:
+    """Replace the Interop nav block with hub, Cases, and publisher pages."""
     text = MKDOCS_YML.read_text(encoding="utf-8")
     start = text.find("  - Interop:\n")
     if start < 0:
@@ -257,6 +260,10 @@ def _update_mkdocs_nav(publisher_names: list[str]) -> None:
     if end_rel == 0:
         raise RuntimeError("Could not find end of Interop nav block")
 
+    case_lines = ["      - Cases:"]
+    for case_id in sorted(case_ids):
+        case_lines.append(f"          - {case_id}: interop/cases/{case_id}.md")
+
     pub_lines = ["      - By publisher:"]
     for name in publisher_names:
         slug = publisher_slug(name)
@@ -265,6 +272,8 @@ def _update_mkdocs_nav(publisher_names: list[str]) -> None:
     block = (
         "  - Interop:\n"
         "      - Overview: interop/index.md\n"
+        + "\n".join(case_lines)
+        + "\n"
         + "\n".join(pub_lines)
         + "\n"
     )
@@ -370,6 +379,6 @@ def generate_matrix(
     )
     OUT_MATRIX_STUB.write_text(stub, encoding="utf-8")
 
-    _update_mkdocs_nav(publisher_names)
+    _update_mkdocs_nav(publisher_names, list(cases.keys()))
 
     return out_page or OUT_HUB

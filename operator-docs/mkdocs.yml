@@ -133,6 +133,10 @@ nav:
   - Troubleshooting: troubleshooting/index.md
   - Interop:
       - Overview: interop/index.md
+      - Cases:
+          - basic-a-forward: interop/cases/basic-a-forward.md
+          - fixture-auth-a: interop/cases/fixture-auth-a.md
+          - lab-forward-parity-smoke: interop/cases/lab-forward-parity-smoke.md
       - By publisher:
           - CZ.NIC: interop/publishers/cz-nic.md
           - ISC: interop/publishers/isc.md
