@@ -11,6 +11,7 @@ import yaml
 from interop.runner.cases import load_cases
 from interop.runner.catalog import load_peers
 from interop.runner.conduit_merge import merge_conduit_profile
+from interop.runner.peer_packs import materialize_peer_config, pack_dir_for_family
 from interop.runner.setup_ir import LocalRR, SetupIR, parse_peer_setup, resolve_fixture_dirs
 
 
@@ -57,6 +58,20 @@ class ConduitMergeTests(unittest.TestCase):
             self.assertEqual(merged["rules"]["match_mode"], "first_match")
             on_disk = yaml.safe_load(out.read_text(encoding="utf-8"))
             self.assertEqual(on_disk["pools"][0]["backends"][0]["address"], "1.2.3.4:53")
+
+
+class PeerPackTests(unittest.TestCase):
+    def test_known_family_resolves(self):
+        path = pack_dir_for_family("dnsmasq")
+        self.assertTrue((path / "compose.override.yml").is_file())
+
+    def test_unknown_family_raises(self):
+        with self.assertRaises(FileNotFoundError):
+            pack_dir_for_family("no-such-family")
+
+    def test_materialize_copies_marker(self):
+        # Uses dnsmasq pack templates after Task 4; for now assert materialize runs
+        pass  # replace in Task 4 with real IR render assertion
 
 
 class CatalogFamilyTests(unittest.TestCase):

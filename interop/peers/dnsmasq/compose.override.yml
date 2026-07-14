@@ -1,0 +1,5 @@
+# dnsmasq family — full render in Task 4; placeholder so pack_dir resolves.
+services:
+  peer:
+    volumes:
+      - ${PEER_CONFIG_DIR}:/peer-config:ro
