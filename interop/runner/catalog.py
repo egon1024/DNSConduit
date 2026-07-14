@@ -43,6 +43,12 @@ def load_peers(path=PEERS_FILE) -> list[Peer]:
     raw = load_yaml(path)
     peers = []
     for item in raw.get("peers", []):
+        try:
+            family = item["family"]
+        except KeyError as exc:
+            raise KeyError(
+                f"peer {item.get('id', '<unknown>')} missing required field 'family'"
+            ) from exc
         peers.append(
             Peer(
                 id=item["id"],
@@ -51,7 +57,7 @@ def load_peers(path=PEERS_FILE) -> list[Peer]:
                 version=str(item["version"]),
                 role=item["role"],
                 image=item["image"],
-                family=item["family"],
+                family=family,
                 notes=item.get("notes", ""),
             )
         )

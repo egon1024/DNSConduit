@@ -44,8 +44,8 @@ def load_cases(directory: Path = CASES) -> list[Case]:
                 suites=list(raw.get("suites", ["full"])),
                 applicability=dict(raw.get("applicability", {})),
                 oracles=list(raw.get("oracles", [])),
-                peer_setup=dict(raw.get("peer_setup", {})),
-                conduit_delta=dict(raw.get("conduit_delta", {})),
+                peer_setup=dict(raw.get("peer_setup") or {}),
+                conduit_delta=dict(raw.get("conduit_delta") or {}),
                 path=path,
             )
         )
