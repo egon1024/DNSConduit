@@ -48,23 +48,23 @@ peers:
     image: "internetsystemsconsortium/bind9:9.20"
     notes: BIND 9.20 ESV / current production branch.
 
-  - id: nlnetlabs-unbound-1.24
+  - id: nlnetlabs-unbound-1.21
     publisher: NLnet Labs
     product: Unbound
-    version: "1.24"
+    version: "1.21"
     role: recursive
     family: unbound
-    image: "mvance/unbound:1.24.0"
-    notes: Previous Unbound minor train (image tag pin; refresh digest after pull).
+    image: "mvance/unbound:1.21.1"
+    notes: Previous Unbound minor train (newest available from the pinned image publisher; refresh digest after pull).
 
-  - id: nlnetlabs-unbound-1.25
+  - id: nlnetlabs-unbound-1.22
     publisher: NLnet Labs
     product: Unbound
-    version: "1.25"
+    version: "1.22"
     role: recursive
     family: unbound
-    image: "mvance/unbound:1.25.1"
-    notes: Current Unbound release train (1.25.1+). Prefer controlled upstream config for determinism.
+    image: "mvance/unbound:1.22.0"
+    notes: Current Unbound release train available from the pinned image publisher. Prefer controlled upstream config for determinism.
 
   - id: powerdns-auth-5.0
     publisher: PowerDNS

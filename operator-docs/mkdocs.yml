@@ -52,6 +52,7 @@ extra_css:
   - assets/stylesheets/column-no-wrap.css
   - assets/stylesheets/txn-api.css
   - assets/stylesheets/toc-collapse.css
+  - assets/stylesheets/interop-outcomes.css
 
 extra_javascript:
   - assets/javascripts/doc-version.js
@@ -130,6 +131,14 @@ nav:
       - API keys: security/api-keys.md
       - mTLS: security/mtls.md
   - Troubleshooting: troubleshooting/index.md
+  - Interop:
+      - Overview: interop/index.md
+      - By publisher:
+          - CZ.NIC: interop/publishers/cz-nic.md
+          - ISC: interop/publishers/isc.md
+          - NLnet Labs: interop/publishers/nlnet-labs.md
+          - PowerDNS: interop/publishers/powerdns.md
+          - thekelleys: interop/publishers/thekelleys.md
   - Glossary: glossary/index.md
   - Release notes:
       - Overview: release-notes/index.md
