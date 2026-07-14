@@ -17,6 +17,7 @@ from interop.runner.zonegen import (
     build_zone_plan,
     find_fixture_zone_file,
     group_local_rr_by_zone,
+    render_named_zone_stanzas,
     render_zone_file,
     write_synthetic_zones,
     zone_name_for_record,
@@ -117,6 +118,38 @@ class DnsmasqPrepareTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             with self.assertRaises(ValueError):
                 mod.prepare(out_dir=Path(tmp), ir=ir, peer=None)
+
+
+class AuthPackMaterializeTests(unittest.TestCase):
+    def test_bind_named_conf_covers_synthetic_and_fixture_zones(self):
+        ir = SetupIR(
+            fixtures=["example.test"],
+            local_rr=[LocalRR(name="www.smoke.test.", type="A", rdata="192.0.2.20", ttl=300)],
+        )
+        peer = next(p for p in load_peers() if p.family == "bind")
+        with tempfile.TemporaryDirectory() as tmp:
+            out_dir = Path(tmp) / "peer"
+            materialize_peer_config(family="bind", ir=ir, out_dir=out_dir, peer=peer)
+            named = (out_dir / "named.conf").read_text(encoding="utf-8")
+            self.assertIn('zone "smoke.test"', named)
+            self.assertIn('zone "example.test"', named)
+            self.assertIn("recursion no;", named)
+            synth = (out_dir / "synth" / "smoke.test.zone").read_text(encoding="utf-8")
+            self.assertIn("www\t300\tIN A\t192.0.2.20", synth)
+
+
+class RenderNamedZoneStanzasTests(unittest.TestCase):
+    def test_empty_plan_renders_empty_string(self):
+        self.assertEqual(render_named_zone_stanzas([]), "")
+
+    def test_stanza_references_zone_name_and_file(self):
+        ir = SetupIR(local_rr=[LocalRR(name="www.smoke.test.", type="A", rdata="192.0.2.20")])
+        with tempfile.TemporaryDirectory() as tmp:
+            plan = build_zone_plan(ir, Path(tmp))
+            text = render_named_zone_stanzas(plan)
+            self.assertIn('zone "smoke.test" {', text)
+            self.assertIn("type master;", text)
+            self.assertIn("/peer-config/synth/smoke.test.zone", text)
 
 
 class ZoneGenTests(unittest.TestCase):
