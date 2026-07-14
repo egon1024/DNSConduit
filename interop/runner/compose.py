@@ -213,19 +213,42 @@ class CellStack:
             ) from exc
         self._wait_for_peer_ready()
 
-    def _readiness_qname(self) -> str:
-        if self.setup_ir.local_rr:
-            return self.setup_ir.local_rr[0].name.rstrip(".")
-        return "readiness-probe.invalid"
+    def _readiness_qname(self) -> tuple[str, bool]:
+        """Return (probe qname, expect_answer).
 
-    def _wait_for_peer_ready(self, attempts: int = 10, delay: float = 0.5) -> None:
+        When the case supplies ``local_rr`` we know a name the peer must answer,
+        so we can wait for a real ``NOERROR``. Otherwise we only probe that the
+        peer is listening (any DNS response, including NXDOMAIN/REFUSED).
+        """
+        if self.setup_ir.local_rr:
+            return self.setup_ir.local_rr[0].name.rstrip("."), True
+        return "readiness-probe.invalid", False
+
+    def _wait_for_peer_ready(self, attempts: int = 20, delay: float = 0.5) -> None:
         host, port = self.peer_query_addr
-        qname = self._readiness_qname()
+        qname, expect_answer = self._readiness_qname()
+        responded = False
+        last: QueryResult | None = None
         for _ in range(attempts):
             result = dig_query(host, port, qname)
+            last = result
             if result.rcode not in ("UNKNOWN", "TIMEOUT"):
-                return
+                responded = True
+                # If we know the peer should answer this name, keep waiting for
+                # a real answer; otherwise a response alone proves it is up.
+                if not expect_answer or (result.rcode == "NOERROR" and result.ancount >= 1):
+                    return
             time.sleep(delay)
+        if not responded:
+            # The peer never produced any DNS response — fail loudly rather than
+            # letting the oracle report a misleading UNKNOWN/TIMEOUT.
+            raise RuntimeError(
+                f"peer {self.peer.id} ({self.peer.image}) did not answer on "
+                f"{host}:{port} after {attempts} attempts "
+                f"(last rcode={last.rcode if last else 'n/a'})"
+            )
+        # Peer is listening but did not return the expected answer within the
+        # window; proceed so the oracle can record the real mismatch detail.
 
     def stop(self) -> None:
         if not docker_available():
