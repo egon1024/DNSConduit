@@ -91,6 +91,26 @@ class PeerPackTests(unittest.TestCase):
             self.assertEqual(pack_override_marker.read_text(encoding="utf-8"), str(override.resolve()))
 
 
+class DnsmasqPrepareTests(unittest.TestCase):
+    def _load_prepare(self):
+        import importlib.util
+
+        from interop.runner.paths import PEERS_PACKS
+
+        prepare_path = PEERS_PACKS / "dnsmasq" / "prepare.py"
+        spec = importlib.util.spec_from_file_location("dnsmasq_prepare_test", prepare_path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
+
+    def test_non_a_local_rr_rejected(self):
+        mod = self._load_prepare()
+        ir = SetupIR(local_rr=[LocalRR(name="www.smoke.test.", type="AAAA", rdata="2001:db8::1")])
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaises(ValueError):
+                mod.prepare(out_dir=Path(tmp), ir=ir, peer=None)
+
+
 class CatalogFamilyTests(unittest.TestCase):
     def test_every_peer_has_family(self):
         for peer in load_peers():
