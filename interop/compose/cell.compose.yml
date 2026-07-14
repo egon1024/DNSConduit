@@ -1,0 +1,26 @@
+# Generated per cell by interop.runner — do not edit by hand for production runs.
+services:
+  peer:
+    image: ${PEER_IMAGE}
+    networks:
+      interop:
+        ipv4_address: 172.30.97.10
+  conduit:
+    image: ${CONDUIT_IMAGE}
+    depends_on: [peer]
+    networks:
+      interop:
+        ipv4_address: 172.30.97.20
+    volumes:
+      - ${CONDUIT_CONFIG}:/etc/conduit/conduit.yaml:ro
+    command: ["/etc/conduit/conduit.yaml"]
+    ports:
+      - "${CONDUIT_HOST_PORT}:5353/udp"
+      - "${CONDUIT_HOST_PORT}:5353/tcp"
+
+networks:
+  interop:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.97.0/24

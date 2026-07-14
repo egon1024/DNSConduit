@@ -1,0 +1,13 @@
+# Keep image build context small
+target/
+.git/
+operator-docs/site*/
+operator-docs/site-root/
+**/.DS_Store
+**/__pycache__/
+*.deb
+release-artifacts/
+docs/
+openspec/
+.cursor/
+pdns/

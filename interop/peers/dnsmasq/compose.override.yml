@@ -1,5 +1,14 @@
-# dnsmasq family — full render in Task 4; placeholder so pack_dir resolves.
+# dnsmasq family — run.sh is rendered by prepare.py from peer_setup local_rr.
 services:
   peer:
     volumes:
       - ${PEER_CONFIG_DIR}:/peer-config:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        # shellcheck disable=SC1091
+        . /peer-config/run.sh
+    ports:
+      - "${PEER_HOST_PORT}:53/udp"
+      - "${PEER_HOST_PORT}:53/tcp"
