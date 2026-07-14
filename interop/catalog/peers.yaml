@@ -1,0 +1,112 @@
+# Peer catalog — software under test
+#
+# Sort order for published matrix: publisher (A–Z), product (A–Z), version ascending.
+# Pin images by digest when practical. Refresh playbook: interop/README.md + process doc.
+#
+# Prefer two active minors per product family (current stable + previous train).
+# Roles: auth | recursive | stub
+#
+# Version survey (2026-07-13): see branch notes / process refresh — trains below
+# match publisher-supported lines at survey time.
+
+schema_version: 1
+
+peers:
+  - id: cznic-knot-3.4
+    publisher: CZ.NIC
+    product: Knot DNS
+    version: "3.4"
+    role: auth
+    family: knot
+    image: "cznic/knot:3.4"
+    notes: Previous stable Knot DNS train (EOL Q3 2026). Authoritative peer for fixture-zone cases.
+
+  - id: cznic-knot-3.5
+    publisher: CZ.NIC
+    product: Knot DNS
+    version: "3.5"
+    role: auth
+    family: knot
+    image: "cznic/knot:3.5"
+    notes: Current stable Knot DNS train. Authoritative peer for fixture-zone cases.
+
+  - id: isc-bind-9.18
+    publisher: ISC
+    product: BIND
+    version: "9.18"
+    role: auth
+    family: bind
+    image: "internetsystemsconsortium/bind9:9.18"
+    notes: BIND 9.18 (maintenance ending mid-2026). Keep while operators still run it; prefer 9.20 for new coverage.
+
+  - id: isc-bind-9.20
+    publisher: ISC
+    product: BIND
+    version: "9.20"
+    role: auth
+    family: bind
+    image: "internetsystemsconsortium/bind9:9.20"
+    notes: BIND 9.20 ESV / current production branch.
+
+  - id: nlnetlabs-unbound-1.24
+    publisher: NLnet Labs
+    product: Unbound
+    version: "1.24"
+    role: recursive
+    family: unbound
+    image: "mvance/unbound:1.24.0"
+    notes: Previous Unbound minor train (image tag pin; refresh digest after pull).
+
+  - id: nlnetlabs-unbound-1.25
+    publisher: NLnet Labs
+    product: Unbound
+    version: "1.25"
+    role: recursive
+    family: unbound
+    image: "mvance/unbound:1.25.1"
+    notes: Current Unbound release train (1.25.1+). Prefer controlled upstream config for determinism.
+
+  - id: powerdns-auth-5.0
+    publisher: PowerDNS
+    product: Authoritative Server
+    version: "5.0"
+    role: auth
+    family: pdns-auth
+    image: "powerdns/pdns-auth-50:5.0.6"
+    notes: Authoritative peer; critical-fixes train. PowerDNS images use per-minor repos (pdns-auth-50).
+
+  - id: powerdns-auth-5.1
+    publisher: PowerDNS
+    product: Authoritative Server
+    version: "5.1"
+    role: auth
+    family: pdns-auth
+    image: "powerdns/pdns-auth-51:5.1.3"
+    notes: Authoritative peer; current stable train. PowerDNS images use per-minor repos (pdns-auth-51).
+
+  - id: powerdns-recursor-5.3
+    publisher: PowerDNS
+    product: Recursor
+    version: "5.3"
+    role: recursive
+    family: pdns-recursor
+    image: "powerdns/pdns-recursor-53:5.3.8"
+    notes: Recursive peer under test (critical-fixes train). PowerDNS images use per-minor repos (pdns-recursor-53).
+
+  - id: powerdns-recursor-5.4
+    publisher: PowerDNS
+    product: Recursor
+    version: "5.4"
+    role: recursive
+    family: pdns-recursor
+    image: "powerdns/pdns-recursor-54:5.4.1"
+    notes: Recursive peer under test; current stable train. PowerDNS images use per-minor repos (pdns-recursor-54).
+
+  - id: thekelleys-dnsmasq-2.90
+    publisher: thekelleys
+    product: dnsmasq
+    version: "2.90"
+    role: stub
+    family: dnsmasq
+    image: "strm/dnsmasq:latest"
+    notes: Stub/control peer for smoke and parity baselines with local addresses. Upstream image is tag-moving; pin digest when refreshing.

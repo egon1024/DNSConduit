@@ -8,6 +8,8 @@ from pathlib import Path
 
 import yaml
 
+from interop.runner.cases import load_cases
+from interop.runner.catalog import load_peers
 from interop.runner.conduit_merge import merge_conduit_profile
 from interop.runner.setup_ir import LocalRR, SetupIR, parse_peer_setup, resolve_fixture_dirs
 
@@ -55,6 +57,20 @@ class ConduitMergeTests(unittest.TestCase):
             self.assertEqual(merged["rules"]["match_mode"], "first_match")
             on_disk = yaml.safe_load(out.read_text(encoding="utf-8"))
             self.assertEqual(on_disk["pools"][0]["backends"][0]["address"], "1.2.3.4:53")
+
+
+class CatalogFamilyTests(unittest.TestCase):
+    def test_every_peer_has_family(self):
+        for peer in load_peers():
+            self.assertTrue(peer.family, msg=f"{peer.id} missing family")
+
+
+class CaseHookLoadTests(unittest.TestCase):
+    def test_cases_expose_peer_setup_attr(self):
+        cases = {c.id: c for c in load_cases()}
+        # Until YAML is updated, peer_setup may be empty — attribute must exist
+        self.assertTrue(hasattr(cases["basic-a-forward"], "peer_setup"))
+        self.assertTrue(hasattr(cases["basic-a-forward"], "conduit_delta"))
 
 
 if __name__ == "__main__":
