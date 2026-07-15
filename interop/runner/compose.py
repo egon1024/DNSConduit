@@ -62,15 +62,40 @@ def image_digest(image: str) -> str:
         return "unknown"
 
 
+_FLAG_NAMES = ("qr", "aa", "tc", "rd", "ra", "ad", "cd")
+
+
 def parse_dig(output: str) -> QueryResult:
     rcode = "UNKNOWN"
     answers: list[dict] = []
+    flags: dict[str, bool] = {name: False for name in _FLAG_NAMES}
+    nscount = 0
+    arcount = 0
+    edns_udp_size: int | None = None
     in_answer = False
     for line in output.splitlines():
         if "status:" in line:
             m = re.search(r"status:\s*([A-Z0-9]+)", line)
             if m:
                 rcode = m.group(1)
+        # ;; flags: qr aa rd ra; QUERY: 1, ANSWER: 1, AUTHORITY: 0, ADDITIONAL: 1
+        if "flags:" in line.lower():
+            m = re.search(r"flags:\s*([^;]+)", line, re.IGNORECASE)
+            if m:
+                present = {tok.lower() for tok in m.group(1).split()}
+                for name in _FLAG_NAMES:
+                    flags[name] = name in present
+            m_ns = re.search(r"AUTHORITY:\s*(\d+)", line, re.IGNORECASE)
+            if m_ns:
+                nscount = int(m_ns.group(1))
+            m_ar = re.search(r"ADDITIONAL:\s*(\d+)", line, re.IGNORECASE)
+            if m_ar:
+                arcount = int(m_ar.group(1))
+        # ; EDNS: version: 0, flags:; udp: 1232
+        if "EDNS:" in line.upper() or "edns:" in line.lower():
+            m = re.search(r"udp:\s*(\d+)", line, re.IGNORECASE)
+            if m:
+                edns_udp_size = int(m.group(1))
         if line.strip() == ";; ANSWER SECTION:":
             in_answer = True
             continue
@@ -93,10 +118,31 @@ def parse_dig(output: str) -> QueryResult:
     m = re.search(r"ANSWER:\s*(\d+)", output)
     if m:
         ancount = int(m.group(1))
-    return QueryResult(rcode=rcode, ancount=ancount, answers=answers, raw=output)
+    return QueryResult(
+        rcode=rcode,
+        ancount=ancount,
+        answers=answers,
+        raw=output,
+        flags=flags,
+        nscount=nscount,
+        arcount=arcount,
+        edns_udp_size=edns_udp_size,
+    )
 
 
-def dig_query(server: str, port: int, qname: str, qtype: str = "A", timeout: float = 3.0) -> QueryResult:
+def dig_query(
+    server: str,
+    port: int,
+    qname: str,
+    qtype: str = "A",
+    timeout: float = 3.0,
+    *,
+    bufsize: int | None = None,
+    dnssec: bool = False,
+    notcp: bool = False,
+    ignore_tc: bool = False,
+    norecurse: bool = False,
+) -> QueryResult:
     if not shutil.which("dig"):
         raise RuntimeError("dig is required for interop queries (install bind9-dnsutils)")
     cmd = [
@@ -111,7 +157,21 @@ def dig_query(server: str, port: int, qname: str, qtype: str = "A", timeout: flo
         "+noall",
         "+answer",
         "+comments",
+        "+additional",
     ]
+    if bufsize is not None:
+        cmd.append(f"+bufsize={int(bufsize)}")
+    if dnssec:
+        cmd.append("+dnssec")
+    if notcp:
+        # Prefer UDP only; do not open TCP for the query.
+        cmd.append("+notcp")
+    if ignore_tc:
+        # Do not retry over TCP when TC is set — observe the UDP reply as-is.
+        cmd.append("+ignore")
+    if norecurse:
+        # Clear RD in the query (dig +nord) — needed for RD=0 peer quirks.
+        cmd.append("+nord")
     try:
         out = subprocess.check_output(cmd, text=True, stderr=subprocess.STDOUT, timeout=timeout)
     except subprocess.CalledProcessError as exc:

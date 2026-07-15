@@ -4,8 +4,7 @@
 
 Confirm that when Conduit forwards to an **authoritative** peer serving a
 published fixture zone, a name that is **in zone but missing** returns the
-committed **NXDOMAIN** outcome. Complements
-[`fixture-auth-a`](fixture-auth-a.md) (positive A answers).
+committed **NXDOMAIN** outcome.
 
 Applies only to peers in the **auth** role.
 
@@ -22,7 +21,7 @@ Applies only to peers in the **auth** role.
 | <span class="interop-outcome interop-outcome--pass">pass</span> | NXDOMAIN through Conduit matches the published fixture for the missing name. |
 | <span class="interop-outcome interop-outcome--fail">fail</span> | Unexpected response code or answers — zone contents, auth peer behavior, or Conduit error handling. |
 | <span class="interop-outcome interop-outcome--skip">skip</span> | Peer is not authoritative (or profile out of scope). Expected for recursive/stub columns. |
-| <span class="interop-outcome interop-outcome--characterized">characterized</span> | Not used for this case today. |
+| <span class="interop-outcome interop-outcome--characterized">characterized</span> | Not used for this case today. If it appeared, it would mean a documented peer-specific quirk rather than a Conduit regression. |
 
 **Matrix:** peer (by publisher)
 

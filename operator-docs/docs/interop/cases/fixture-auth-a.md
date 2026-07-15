@@ -23,7 +23,7 @@ Applies only to peers in the **auth** role (recursive and stub peers skip).
 | <span class="interop-outcome interop-outcome--pass">pass</span> | The A answer through Conduit matches the published fixture RRset for `example.test`. |
 | <span class="interop-outcome interop-outcome--fail">fail</span> | Unexpected: wrong, missing, or empty answer relative to the fixture — zone not loaded as intended on the peer, Conduit altered or failed the answer, or peer/auth behavior changed. |
 | <span class="interop-outcome interop-outcome--skip">skip</span> | Peer is not authoritative for this matrix (or profile out of scope). Expected for recursive/stub columns. |
-| <span class="interop-outcome interop-outcome--characterized">characterized</span> | Not used for this case today. |
+| <span class="interop-outcome interop-outcome--characterized">characterized</span> | Not used for this case today. If it appeared, it would mean a documented peer-specific quirk rather than a Conduit regression. |
 
 **Matrix:** peer (by publisher)
 

@@ -1,7 +1,7 @@
 ; Harness-owned zone for authoritative peers (not copied from any peer project).
 $TTL 3600
 @   IN SOA ns1.example.test. hostmaster.example.test. (
-        2026071401 ; serial
+        2026071402 ; serial
         3600       ; refresh
         600        ; retry
         86400      ; expire
@@ -11,3 +11,45 @@ ns1 IN A   192.0.2.53
 www IN A   192.0.2.10
 www IN AAAA 2001:db8::10
 api IN A   192.0.2.11
+alias IN CNAME www
+; Oversized multi-A RRset for TC / truncation passthrough (Query with small EDNS bufsize).
+big IN A 192.0.2.100
+big IN A 192.0.2.101
+big IN A 192.0.2.102
+big IN A 192.0.2.103
+big IN A 192.0.2.104
+big IN A 192.0.2.105
+big IN A 192.0.2.106
+big IN A 192.0.2.107
+big IN A 192.0.2.108
+big IN A 192.0.2.109
+big IN A 192.0.2.110
+big IN A 192.0.2.111
+big IN A 192.0.2.112
+big IN A 192.0.2.113
+big IN A 192.0.2.114
+big IN A 192.0.2.115
+big IN A 192.0.2.116
+big IN A 192.0.2.117
+big IN A 192.0.2.118
+big IN A 192.0.2.119
+big IN A 192.0.2.120
+big IN A 192.0.2.121
+big IN A 192.0.2.122
+big IN A 192.0.2.123
+big IN A 192.0.2.124
+big IN A 192.0.2.125
+big IN A 192.0.2.126
+big IN A 192.0.2.127
+big IN A 192.0.2.128
+big IN A 192.0.2.129
+big IN A 192.0.2.130
+big IN A 192.0.2.131
+big IN A 192.0.2.132
+big IN A 192.0.2.133
+big IN A 192.0.2.134
+big IN A 192.0.2.135
+big IN A 192.0.2.136
+big IN A 192.0.2.137
+big IN A 192.0.2.138
+big IN A 192.0.2.139

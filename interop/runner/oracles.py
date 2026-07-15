@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from .paths import INTEROP, load_json
@@ -14,6 +14,18 @@ class QueryResult:
     ancount: int
     answers: list[dict[str, Any]]
     raw: str = ""
+    flags: dict[str, bool] = field(default_factory=dict)
+    nscount: int = 0
+    arcount: int = 0
+    edns_udp_size: int | None = None
+
+    @property
+    def answer_types(self) -> set[str]:
+        return {str(a.get("type", "")).upper() for a in self.answers if a.get("type")}
+
+    @property
+    def has_cname(self) -> bool:
+        return "CNAME" in self.answer_types
 
 
 def evaluate_oracles(
@@ -96,9 +108,21 @@ def _property(result: QueryResult, oracle: dict[str, Any]) -> tuple[bool, str]:
         elif check == "rcode-nxdomain":
             if result.rcode.upper() != "NXDOMAIN":
                 return False, f"expected NXDOMAIN got {result.rcode}"
+        elif check == "rcode-refused":
+            if result.rcode.upper() != "REFUSED":
+                return False, f"expected REFUSED got {result.rcode}"
         elif check == "has-answer":
             if result.ancount < 1 and not result.answers:
                 return False, "expected at least one answer"
+        elif check == "empty-answer":
+            # NODATA and similar: allow any rcode so long as answer section is empty.
+            if result.answers or result.ancount > 0:
+                return False, f"expected empty answer got ancount={result.ancount}"
+        elif check == "nodata":
+            if result.rcode.upper() != "NOERROR":
+                return False, f"expected NODATA (NOERROR) got {result.rcode}"
+            if result.answers or result.ancount > 0:
+                return False, f"expected NODATA empty answer got ancount={result.ancount}"
         elif check == "no-answer":
             # Soft/hard drop: dig timeout or no usable answer (TIMEOUT/UNKNOWN/empty).
             rcode = result.rcode.upper()
@@ -116,6 +140,26 @@ def _property(result: QueryResult, oracle: dict[str, Any]) -> tuple[bool, str]:
             got = {str(a.get("rdata", "")) for a in result.answers}
             if got != want:
                 return False, f"answer rdata set want {sorted(want)} got {sorted(got)}"
+        elif check == "answer-types":
+            want = {str(x).upper() for x in (oracle.get("answer_types") or [])}
+            if not want:
+                return False, "answer-types requires answer_types"
+            if result.answer_types != want:
+                return False, (
+                    f"answer types want {sorted(want)} got {sorted(result.answer_types)}"
+                )
+        elif check == "has-cname":
+            if not result.has_cname:
+                return False, "expected CNAME in answer section"
+        elif check == "flag-aa":
+            if not result.flags.get("aa"):
+                return False, "expected aa flag set"
+        elif check == "flag-tc":
+            if not result.flags.get("tc"):
+                return False, "expected tc flag set"
+        elif check == "has-edns":
+            if result.edns_udp_size is None:
+                return False, "expected EDNS in response"
         else:
             return False, f"unknown property check: {check}"
     return True, "property ok"
@@ -145,6 +189,43 @@ def _parity(via: QueryResult, direct: QueryResult, fields: list[str]) -> tuple[b
             return False, f"rcode mismatch conduit={via.rcode} direct={direct.rcode}"
         if field == "ancount" and via.ancount != direct.ancount:
             return False, f"ancount mismatch conduit={via.ancount} direct={direct.ancount}"
+        if field == "answer-rdata-set":
+            via_set = {str(a.get("rdata", "")) for a in via.answers}
+            direct_set = {str(a.get("rdata", "")) for a in direct.answers}
+            if via_set != direct_set:
+                return False, (
+                    f"answer-rdata-set mismatch conduit={sorted(via_set)} "
+                    f"direct={sorted(direct_set)}"
+                )
+        if field == "answer-types":
+            if via.answer_types != direct.answer_types:
+                return False, (
+                    f"answer-types mismatch conduit={sorted(via.answer_types)} "
+                    f"direct={sorted(direct.answer_types)}"
+                )
+        if field == "aa":
+            if bool(via.flags.get("aa")) != bool(direct.flags.get("aa")):
+                return False, (
+                    f"aa flag mismatch conduit={via.flags.get('aa')} "
+                    f"direct={direct.flags.get('aa')}"
+                )
+        if field == "tc":
+            if bool(via.flags.get("tc")) != bool(direct.flags.get("tc")):
+                return False, (
+                    f"tc flag mismatch conduit={via.flags.get('tc')} "
+                    f"direct={direct.flags.get('tc')}"
+                )
+        if field == "has-cname":
+            if via.has_cname != direct.has_cname:
+                return False, (
+                    f"has-cname mismatch conduit={via.has_cname} direct={direct.has_cname}"
+                )
+        if field == "edns":
+            # Both present or both absent is enough for passthrough smoke.
+            via_edns = via.edns_udp_size is not None
+            direct_edns = direct.edns_udp_size is not None
+            if via_edns != direct_edns:
+                return False, f"edns presence mismatch conduit={via_edns} direct={direct_edns}"
     return True, "parity ok"
 
 
@@ -174,4 +255,21 @@ def _fixture(result: QueryResult, rel_path: str) -> tuple[bool, str]:
 def _match_expect(result: QueryResult, expect: dict[str, Any]) -> tuple[bool, str]:
     if "rcode" in expect and result.rcode.upper() != str(expect["rcode"]).upper():
         return False, f"differential rcode want {expect['rcode']} got {result.rcode}"
+    if "ancount" in expect and result.ancount != int(expect["ancount"]):
+        return False, f"differential ancount want {expect['ancount']} got {result.ancount}"
+    if "answer_types" in expect:
+        want = {str(x).upper() for x in expect["answer_types"]}
+        if result.answer_types != want:
+            return False, (
+                f"differential answer_types want {sorted(want)} "
+                f"got {sorted(result.answer_types)}"
+            )
+    if "has_cname" in expect and bool(result.has_cname) != bool(expect["has_cname"]):
+        return False, f"differential has_cname want {expect['has_cname']} got {result.has_cname}"
+    if "flags" in expect:
+        want_flags = expect["flags"] or {}
+        for name, want_val in want_flags.items():
+            got_val = bool(result.flags.get(str(name).lower()))
+            if got_val != bool(want_val):
+                return False, f"differential flag {name} want {want_val} got {got_val}"
     return True, "differential match"

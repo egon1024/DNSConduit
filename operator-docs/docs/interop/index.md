@@ -2,6 +2,8 @@
 
 Published correctness results for DNSConduit against peer DNS software under test. **Peer contract** cases are split **by publisher** (alphabetical). **Conduit behavior** cases (cache path, rules, dataplane runtime) use a single stub peer — see [Conduit behavior](/interop/conduit-behavior.md). No peer is preferred or recommended.
 
+By default, Conduit’s forward path **passes peer response shapes through** (rcode, answer section, and flags such as AA/TC) so operators see the same backend quirks they would when querying the peer directly. Cases that document those quirks use parity against a direct dig; `characterized` cells record expected peer-specific shapes. Configuration that rewrites or sanitizes peer answers is covered separately when those knobs are under test.
+
 ## Matrices
 
 - [Conduit behavior](/interop/conduit-behavior.md) — Conduit-focused cases (stub peer)
@@ -9,12 +11,12 @@ Published correctness results for DNSConduit against peer DNS software under tes
 ## Publishers
 
 - [CZ.NIC](/interop/publishers/cz-nic.md) — Knot DNS
-- [ISC](/interop/publishers/isc.md) — BIND
+- [ISC](/interop/publishers/isc.md) — BIND, BIND Resolver
 - [NLnet Labs](/interop/publishers/nlnet-labs.md) — Unbound
 - [PowerDNS](/interop/publishers/powerdns.md) — Authoritative Server, Recursor
 - [thekelleys](/interop/publishers/thekelleys.md) — dnsmasq
 
-*Last tested 2026-07-14 · All executed cases passed*
+*Last tested 2026-07-15 · No failures; 8 characterized*
 
 ## Outcomes
 
@@ -67,7 +69,16 @@ Filters (peer, case, profile) and pack layout: see `interop/README.md` in the re
 
 ## Summary
 
-No `fail` or `characterized` cells in the committed results. Open a publisher page for the full matrix (including `pass` and `skip`).
+| Outcome | Test | Publisher | Product | Version | Profile |
+|---------|------|-----------|---------|---------|---------|
+| <span class="interop-outcome interop-outcome--characterized">characterized</span> | [`dnsmasq-cname-ignored-nonlocal`](/interop/cases/dnsmasq-cname-ignored-nonlocal.md) | [thekelleys](/interop/publishers/thekelleys.md) | dnsmasq | 2.90 | `forward-only` |
+| <span class="interop-outcome interop-outcome--characterized">characterized</span> | [`pdns-recursor-rd0-refused`](/interop/cases/pdns-recursor-rd0-refused.md) | [PowerDNS](/interop/publishers/powerdns.md) | Recursor | 5.3 | `forward-only` |
+| <span class="interop-outcome interop-outcome--characterized">characterized</span> | [`pdns-recursor-rd0-refused`](/interop/cases/pdns-recursor-rd0-refused.md) | [PowerDNS](/interop/publishers/powerdns.md) | Recursor | 5.4 | `forward-only` |
+| <span class="interop-outcome interop-outcome--characterized">characterized</span> | [`recursive-outside-aa-shape`](/interop/cases/recursive-outside-aa-shape.md) | [NLnet Labs](/interop/publishers/nlnet-labs.md) | Unbound | 1.21 | `forward-only` |
+| <span class="interop-outcome interop-outcome--characterized">characterized</span> | [`recursive-outside-aa-shape`](/interop/cases/recursive-outside-aa-shape.md) | [NLnet Labs](/interop/publishers/nlnet-labs.md) | Unbound | 1.22 | `forward-only` |
+| <span class="interop-outcome interop-outcome--characterized">characterized</span> | [`recursive-outside-aa-shape`](/interop/cases/recursive-outside-aa-shape.md) | [PowerDNS](/interop/publishers/powerdns.md) | Recursor | 5.3 | `forward-only` |
+| <span class="interop-outcome interop-outcome--characterized">characterized</span> | [`recursive-outside-aa-shape`](/interop/cases/recursive-outside-aa-shape.md) | [PowerDNS](/interop/publishers/powerdns.md) | Recursor | 5.4 | `forward-only` |
+| <span class="interop-outcome interop-outcome--characterized">characterized</span> | [`stub-aaaa-for-a-only`](/interop/cases/stub-aaaa-for-a-only.md) | [thekelleys](/interop/publishers/thekelleys.md) | dnsmasq | 2.90 | `forward-only` |
 
 ## Peer catalog
 
@@ -79,6 +90,8 @@ Peers are software under test. Ordering is publisher (A–Z), product (A–Z), v
 | [CZ.NIC](/interop/publishers/cz-nic.md) | Knot DNS | 3.5 | auth | `cznic-knot-3.5` |
 | [ISC](/interop/publishers/isc.md) | BIND | 9.18 | auth | `isc-bind-9.18` |
 | [ISC](/interop/publishers/isc.md) | BIND | 9.20 | auth | `isc-bind-9.20` |
+| [ISC](/interop/publishers/isc.md) | BIND Resolver | 9.18 | recursive | `isc-bind-resolver-9.18` |
+| [ISC](/interop/publishers/isc.md) | BIND Resolver | 9.20 | recursive | `isc-bind-resolver-9.20` |
 | [NLnet Labs](/interop/publishers/nlnet-labs.md) | Unbound | 1.21 | recursive | `nlnetlabs-unbound-1.21` |
 | [NLnet Labs](/interop/publishers/nlnet-labs.md) | Unbound | 1.22 | recursive | `nlnetlabs-unbound-1.22` |
 | [PowerDNS](/interop/publishers/powerdns.md) | Authoritative Server | 5.0 | auth | `powerdns-auth-5.0` |

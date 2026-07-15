@@ -2,7 +2,7 @@
 
 These cases exercise **Conduit** (lookup/cache path, request rules, dataplane runtime) rather than peer-product interoperability. They run against a **single stub peer** (`thekelleys-dnsmasq-2.90` (dnsmasq 2.90)) so results are not spread across every publisher column. Peer contract cases remain under [By publisher](/interop/publishers/thekelleys.md).
 
-*Last tested 2026-07-14 · All executed cases passed*
+*Last tested 2026-07-15 · All executed cases passed*
 
 ## Results
 

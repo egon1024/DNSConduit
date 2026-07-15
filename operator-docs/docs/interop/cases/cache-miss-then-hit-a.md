@@ -26,7 +26,7 @@ configured.
 | <span class="interop-outcome interop-outcome--pass">pass</span> | Both queries returned successful A answers with caching enabled. |
 | <span class="interop-outcome interop-outcome--fail">fail</span> | Unexpected: the first or second query failed — investigate the cache/forward path. |
 | <span class="interop-outcome interop-outcome--skip">skip</span> | This profile or peer is out of scope (cache-forward on the Conduit-behavior stub only). |
-| <span class="interop-outcome interop-outcome--characterized">characterized</span> | Not used for this case today. |
+| <span class="interop-outcome interop-outcome--characterized">characterized</span> | Not used for this case today. If it appeared, it would mean a documented peer-specific quirk rather than a Conduit regression. |
 
 **Matrix:** conduit ([Conduit behavior](/interop/conduit-behavior.md))
 

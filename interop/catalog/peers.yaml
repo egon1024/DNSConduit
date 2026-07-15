@@ -48,6 +48,24 @@ peers:
     image: "internetsystemsconsortium/bind9:9.20"
     notes: BIND 9.20 ESV / current production branch.
 
+  - id: isc-bind-resolver-9.18
+    publisher: ISC
+    product: BIND Resolver
+    version: "9.18"
+    role: recursive
+    family: bind-recursive
+    image: "internetsystemsconsortium/bind9:9.18"
+    notes: Same BIND 9.18 image as auth, configured as a recursive peer (local answers only).
+
+  - id: isc-bind-resolver-9.20
+    publisher: ISC
+    product: BIND Resolver
+    version: "9.20"
+    role: recursive
+    family: bind-recursive
+    image: "internetsystemsconsortium/bind9:9.20"
+    notes: Same BIND 9.20 image as auth, configured as a recursive peer (local answers only).
+
   - id: nlnetlabs-unbound-1.21
     publisher: NLnet Labs
     product: Unbound

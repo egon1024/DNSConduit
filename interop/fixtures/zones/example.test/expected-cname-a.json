@@ -1,0 +1,9 @@
+{
+  "qname": "alias.example.test.",
+  "qtype": "A",
+  "rcode": "NOERROR",
+  "answers": [
+    { "name": "alias.example.test.", "type": "CNAME", "ttl": 3600, "rdata": "www.example.test." },
+    { "name": "www.example.test.", "type": "A", "ttl": 3600, "rdata": "192.0.2.10" }
+  ]
+}

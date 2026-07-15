@@ -24,7 +24,7 @@ asserts Conduit policy, not peer-product interoperability.
 | <span class="interop-outcome interop-outcome--pass">pass</span> | Soft-dropped query produced no successful client answer. |
 | <span class="interop-outcome interop-outcome--fail">fail</span> | Unexpected: query still got a successful answer — drop rule not applied. |
 | <span class="interop-outcome interop-outcome--skip">skip</span> | This peer/profile combination is out of scope. |
-| <span class="interop-outcome interop-outcome--characterized">characterized</span> | Not used for this case today. |
+| <span class="interop-outcome interop-outcome--characterized">characterized</span> | Not used for this case today. If it appeared, it would mean a documented peer-specific quirk rather than a Conduit regression. |
 
 **Matrix:** conduit ([Conduit behavior](/interop/conduit-behavior.md))
 

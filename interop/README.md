@@ -59,8 +59,8 @@ python3 -m interop.runner run \
 
 ## Peer family packs
 
-Each peer in `catalog/peers.yaml` declares a `family` (e.g. `dnsmasq`, `bind`).
-The runner resolves `interop/peers/<family>/` and layers its
+Each peer in `catalog/peers.yaml` declares a `family` (e.g. `dnsmasq`, `bind`,
+`bind-recursive`). The runner resolves `interop/peers/<family>/` and layers its
 `compose.override.yml` on top of `compose/cell.compose.yml` for that cell.
 
 A case's `peer_setup` (product-neutral `fixtures` + `local_rr`) is rendered
@@ -98,7 +98,7 @@ Known image naming quirks (verify on Docker Hub when refreshing):
 - Knot DNS: `cznic/knot:<major.minor>` (not `cznic/knot-dns`)
 - PowerDNS Authoritative: `powerdns/pdns-auth-50:5.0.x`, `powerdns/pdns-auth-51:5.1.x`
 - PowerDNS Recursor: `powerdns/pdns-recursor-53:5.3.x`, `powerdns/pdns-recursor-54:5.4.x` (per-minor repos)
-- BIND: `internetsystemsconsortium/bind9:<major.minor>`
+- BIND (auth and resolver peers): `internetsystemsconsortium/bind9:<major.minor>`
 - Unbound: third-party images such as `mvance/unbound:<x.y.z>` (confirm tag exists before pin)
 
 ## Workshop graduation

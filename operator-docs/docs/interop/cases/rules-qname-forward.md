@@ -21,7 +21,7 @@ set the pool must not break the forward contract for allowed names.
 | <span class="interop-outcome interop-outcome--pass">pass</span> | The selector-matched request rule still produced a successful forward A answer. |
 | <span class="interop-outcome interop-outcome--fail">fail</span> | Unexpected: rule matching broke or blocked a name that should forward. |
 | <span class="interop-outcome interop-outcome--skip">skip</span> | This peer/profile combination is out of scope. |
-| <span class="interop-outcome interop-outcome--characterized">characterized</span> | Not used for this case today. |
+| <span class="interop-outcome interop-outcome--characterized">characterized</span> | Not used for this case today. If it appeared, it would mean a documented peer-specific quirk rather than a Conduit regression. |
 
 **Matrix:** peer (by publisher)
 

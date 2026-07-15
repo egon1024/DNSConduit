@@ -1,0 +1,28 @@
+# passthrough-aa-auth-a
+
+## Purpose
+
+Authoritative answers carry the **AA** (authoritative answer) flag. When
+Conduit forwards a successful A from an auth peer, clients should still see
+**AA set** — Conduit does not clear that bit on the default forward path.
+
+## How it works
+
+1. The peer serves fixture zone `example.test` and answers `www.example.test` A.
+2. A client queries that name through Conduit.
+3. The reply must be successful with AA set, matching a direct query to the peer.
+
+## Outcomes
+
+| Outcome | Meaning for operators |
+|---|---|
+| <span class="interop-outcome interop-outcome--pass">pass</span> | Through Conduit, the A answer is authoritative (AA) and matches querying the peer directly. |
+| <span class="interop-outcome interop-outcome--fail">fail</span> | AA was cleared or altered via Conduit, or the answer otherwise disagreed with the peer. |
+| <span class="interop-outcome interop-outcome--skip">skip</span> | Peer is not authoritative for this matrix (or profile out of scope). |
+| <span class="interop-outcome interop-outcome--characterized">characterized</span> | Not used for this case today. If it appeared, it would mean a documented peer-specific quirk rather than a Conduit regression. |
+
+**Matrix:** peer (by publisher)
+
+**Suites:** full
+
+**Oracles:** property, parity

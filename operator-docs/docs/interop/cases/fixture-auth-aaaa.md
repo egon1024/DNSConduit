@@ -4,7 +4,7 @@
 
 Confirm that when Conduit forwards to an **authoritative** peer serving a
 published fixture zone, a published **AAAA** answer matches the committed
-fixture. Complements [`fixture-auth-a`](fixture-auth-a.md) (A) for IPv6 coverage.
+fixture for `www.example.test`.
 
 Applies only to peers in the **auth** role.
 
@@ -21,7 +21,7 @@ Applies only to peers in the **auth** role.
 | <span class="interop-outcome interop-outcome--pass">pass</span> | AAAA through Conduit matches the published fixture. |
 | <span class="interop-outcome interop-outcome--fail">fail</span> | Unexpected response code or answers — zone contents, auth peer, or Conduit path. |
 | <span class="interop-outcome interop-outcome--skip">skip</span> | Peer is not authoritative (or profile out of scope). |
-| <span class="interop-outcome interop-outcome--characterized">characterized</span> | Not used for this case today. |
+| <span class="interop-outcome interop-outcome--characterized">characterized</span> | Not used for this case today. If it appeared, it would mean a documented peer-specific quirk rather than a Conduit regression. |
 
 **Matrix:** peer (by publisher)
 

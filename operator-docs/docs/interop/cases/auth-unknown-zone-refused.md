@@ -1,0 +1,28 @@
+# auth-unknown-zone-refused
+
+## Purpose
+
+Queries for names **outside** any zone the authoritative peer loads usually
+come back **REFUSED**. With Conduit in front, clients should see that same
+refusal — Conduit does not turn it into NXDOMAIN, NODATA, or a success.
+
+## How it works
+
+1. The peer loads only fixture zone `example.test`.
+2. A client asks Conduit for `no.such.zone.test` A (no matching zone).
+3. The reply must be REFUSED and match a direct query to the peer.
+
+## Outcomes
+
+| Outcome | Meaning for operators |
+|---|---|
+| <span class="interop-outcome interop-outcome--pass">pass</span> | Through Conduit, the out-of-zone query is REFUSED, matching the peer. |
+| <span class="interop-outcome interop-outcome--fail">fail</span> | Unexpected success or another rcode, or Conduit disagreed with querying the peer directly. |
+| <span class="interop-outcome interop-outcome--skip">skip</span> | Peer is not authoritative for this matrix (or profile out of scope). |
+| <span class="interop-outcome interop-outcome--characterized">characterized</span> | Not used for this case today. If it appeared, it would mean a documented peer-specific quirk rather than a Conduit regression. |
+
+**Matrix:** peer (by publisher)
+
+**Suites:** full
+
+**Oracles:** property, parity
