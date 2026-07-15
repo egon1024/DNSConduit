@@ -223,6 +223,55 @@ class PropertyOracleTests(unittest.TestCase):
         self.assertEqual(outcome, "fail")
         self.assertIn("order", detail.lower())
 
+    def test_sequence_answer_ttl_decreases(self):
+        cold = QueryResult(
+            rcode="NOERROR",
+            ancount=1,
+            answers=[{"name": "www.", "type": "A", "ttl": "60", "rdata": "192.0.2.20"}],
+        )
+        warm = QueryResult(
+            rcode="NOERROR",
+            ancount=1,
+            answers=[{"name": "www.", "type": "A", "ttl": "58", "rdata": "192.0.2.20"}],
+        )
+        outcome, detail = evaluate_oracles(
+            [{"kind": "sequence", "checks": ["answer-ttl-decreases"]}],
+            via_conduit=warm,
+            via_steps=[cold, warm],
+            direct=None,
+            peer_id="peer",
+        )
+        self.assertEqual(outcome, "pass")
+        self.assertIn("sequence", detail.lower())
+
+    def test_sequence_answer_ttl_decreases_fail_when_flat(self):
+        a = QueryResult(
+            rcode="NOERROR",
+            ancount=1,
+            answers=[{"name": "www.", "type": "A", "ttl": "60", "rdata": "192.0.2.20"}],
+        )
+        outcome, detail = evaluate_oracles(
+            [{"kind": "sequence", "checks": ["answer-ttl-decreases"]}],
+            via_conduit=a,
+            via_steps=[a, a],
+            direct=None,
+            peer_id="peer",
+        )
+        self.assertEqual(outcome, "fail")
+        self.assertIn("did not decrease", detail.lower())
+
+    def test_sequence_answer_ttl_decreases_fail_without_answers(self):
+        empty = QueryResult(rcode="NXDOMAIN", ancount=0, answers=[])
+        outcome, detail = evaluate_oracles(
+            [{"kind": "sequence", "checks": ["answer-ttl-decreases"]}],
+            via_conduit=empty,
+            via_steps=[empty, empty],
+            direct=None,
+            peer_id="peer",
+        )
+        self.assertEqual(outcome, "fail")
+        self.assertIn("no answer ttl", detail.lower())
+
 
 class ParityAndDifferentialTests(unittest.TestCase):
     def test_parity_aa_and_answer_types(self):

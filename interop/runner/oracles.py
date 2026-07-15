@@ -203,6 +203,22 @@ def _answer_order_key(result: QueryResult) -> tuple[str, ...]:
     return tuple(str(a.get("rdata", "")) for a in result.answers)
 
 
+def _max_answer_ttl(result: QueryResult) -> int | None:
+    """Largest answer-section TTL, or None when no parseable answer TTLs exist."""
+    values: list[int] = []
+    for ans in result.answers:
+        raw = ans.get("ttl")
+        if raw is None:
+            continue
+        try:
+            values.append(int(raw))
+        except (TypeError, ValueError):
+            continue
+    if not values:
+        return None
+    return max(values)
+
+
 def _sequence(steps: list[QueryResult], checks: list[str]) -> tuple[bool, str]:
     for check in checks:
         if check == "answer-order-varies":
@@ -212,6 +228,22 @@ def _sequence(steps: list[QueryResult], checks: list[str]) -> tuple[bool, str]:
                     f"expected answer order to vary across queries; "
                     f"saw {len(orders)} distinct order(s)"
                 )
+        elif check == "answer-ttl-decreases":
+            if len(steps) < 2:
+                return False, "answer-ttl-decreases requires at least 2 steps"
+            prev: int | None = None
+            for idx, step in enumerate(steps):
+                ttl = _max_answer_ttl(step)
+                if ttl is None:
+                    return False, (
+                        f"step {idx + 1}: no answer TTL for answer-ttl-decreases"
+                    )
+                if prev is not None and ttl >= prev:
+                    return False, (
+                        f"answer TTL did not decrease across steps: "
+                        f"step {idx} ttl={prev} step {idx + 1} ttl={ttl}"
+                    )
+                prev = ttl
         else:
             return False, f"unknown sequence check: {check}"
     return True, "sequence ok"
