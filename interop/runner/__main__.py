@@ -14,7 +14,7 @@ from .catalog import Peer, load_peers
 from .compose import CellStack, dig_query, docker_available, image_digest
 from .fingerprint import compute_inputs_fingerprint, fingerprint_report, git_head
 from .generate_matrix import generate_matrix
-from .oracles import evaluate_oracles
+from .oracles import evaluate_oracles, peer_query_count_key
 from .paths import RESULTS_FILE, write_json
 from .setup_ir import parse_peer_setup
 
@@ -220,6 +220,12 @@ def _run_cell(
         stack.start()
         steps = case.queries or [{"qname": default_qname}]
         needs_parity = any(o.get("kind") == "parity" for o in case.oracles)
+        pqc_specs = _peer_query_count_specs(
+            case.oracles, steps=steps, default_qname=default_qname, default_qtype=default_qtype
+        )
+        baselines: dict[tuple[str, str], int] = {}
+        for key, qname, qtype in pqc_specs:
+            baselines[key] = stack.count_peer_queries(qname, qtype)
         via_steps: list = []
         direct = None
         for idx, step in enumerate(steps):
@@ -240,18 +246,44 @@ def _run_cell(
             if needs_parity:
                 direct_host, direct_port = stack.peer_query_addr
                 direct = dig_query(direct_host, direct_port, step_q, **dig_kw)
+        deltas: dict[tuple[str, str], int] = {}
+        for key, qname, qtype in pqc_specs:
+            deltas[key] = stack.count_peer_queries(qname, qtype) - baselines[key]
         outcome, detail = evaluate_oracles(
             case.oracles,
             via_conduit=via_steps[-1] if via_steps else None,
             via_steps=via_steps,
             direct=direct,
             peer_id=peer.id,
+            peer_query_deltas=deltas if pqc_specs else None,
         )
         if outcome != "pass":
             return outcome, detail
         return "pass", f"{len(via_steps)} step(s): {detail}"
     finally:
         stack.stop()
+
+
+def _peer_query_count_specs(
+    oracles: list,
+    *,
+    steps: list,
+    default_qname: str,
+    default_qtype: str,
+) -> list[tuple[tuple[str, str], str, str]]:
+    """Return (key, qname, qtype) for each peer-query-count oracle (qname resolved)."""
+    first_q = str(steps[0].get("qname", default_qname)).rstrip(".") if steps else default_qname
+    first_t = (
+        str(steps[0].get("qtype") or default_qtype or "A") if steps else (default_qtype or "A")
+    )
+    out: list[tuple[tuple[str, str], str, str]] = []
+    for oracle in oracles:
+        if oracle.get("kind") != "peer-query-count":
+            continue
+        qname = str(oracle.get("qname") or first_q).rstrip(".")
+        qtype = str(oracle.get("qtype") or first_t or "A")
+        out.append((peer_query_count_key(qname, qtype), qname, qtype))
+    return out
 
 
 def build_parser() -> argparse.ArgumentParser:

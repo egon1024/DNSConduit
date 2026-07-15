@@ -95,6 +95,9 @@ class PeerPackTests(unittest.TestCase):
             self.assertTrue(run_sh.is_file())
             contents = run_sh.read_text(encoding="utf-8")
             self.assertIn("dnsmasq", contents)
+            self.assertIn("--log-queries", contents)
+            self.assertIn("--log-facility=-", contents)
+            self.assertIn("--local-ttl=300", contents)
             self.assertIn("--addn-hosts=/peer-config/hosts", contents)
             hosts = (out_dir / "hosts").read_text(encoding="utf-8")
             self.assertIn("192.0.2.20 www.smoke.test", hosts)
@@ -147,6 +150,21 @@ class DnsmasqPrepareTests(unittest.TestCase):
             mod.prepare(out_dir=out_dir, ir=ir, peer=None)
             contents = (out_dir / "run.sh").read_text(encoding="utf-8")
             self.assertIn("--local=/nxcache.test/", contents)
+            self.assertIn("--local-ttl=300", contents)
+
+    def test_prepare_local_ttl_uses_max_rr_ttl(self):
+        mod = self._load_prepare()
+        ir = SetupIR(
+            local_rr=[
+                LocalRR(name="short.smoke.test.", type="A", rdata="192.0.2.1", ttl=60),
+                LocalRR(name="long.smoke.test.", type="A", rdata="192.0.2.2", ttl=1200),
+            ]
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            out_dir = Path(tmp)
+            mod.prepare(out_dir=out_dir, ir=ir, peer=None)
+            contents = (out_dir / "run.sh").read_text(encoding="utf-8")
+            self.assertIn("--local-ttl=1200", contents)
 
     def test_prepare_multi_a_via_hosts(self):
         mod = self._load_prepare()

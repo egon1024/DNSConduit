@@ -301,5 +301,67 @@ class ParityAndDifferentialTests(unittest.TestCase):
         self.assertEqual(outcome, "characterized")
 
 
+class PeerQueryCountOracleTests(unittest.TestCase):
+    def test_pass_when_delta_matches_expect(self):
+        via = QueryResult(rcode="NOERROR", ancount=1, answers=[{"rdata": "192.0.2.20"}])
+        outcome, detail = evaluate_oracles(
+            [
+                {"kind": "property", "checks": ["rcode-noerror"]},
+                {
+                    "kind": "peer-query-count",
+                    "expect": 1,
+                    "qname": "www.smoke.test.",
+                    "qtype": "A",
+                },
+            ],
+            via_conduit=via,
+            via_steps=[via, via],
+            direct=None,
+            peer_id="peer",
+            peer_query_deltas={("www.smoke.test", "A"): 1},
+        )
+        self.assertEqual(outcome, "pass")
+        self.assertIn("peer-query-count", detail)
+
+    def test_fail_when_warm_path_also_hit_peer(self):
+        via = QueryResult(rcode="NOERROR", ancount=1, answers=[{"rdata": "192.0.2.20"}])
+        outcome, detail = evaluate_oracles(
+            [
+                {
+                    "kind": "peer-query-count",
+                    "expect": 1,
+                    "qname": "www.smoke.test.",
+                    "qtype": "A",
+                }
+            ],
+            via_conduit=via,
+            via_steps=[via, via],
+            direct=None,
+            peer_id="peer",
+            peer_query_deltas={("www.smoke.test", "A"): 2},
+        )
+        self.assertEqual(outcome, "fail")
+        self.assertIn("peer-query-count", detail.lower())
+        self.assertIn("want 1", detail)
+
+    def test_fail_when_delta_missing(self):
+        via = QueryResult(rcode="NXDOMAIN", ancount=0, answers=[])
+        outcome, detail = evaluate_oracles(
+            [
+                {
+                    "kind": "peer-query-count",
+                    "expect": 1,
+                    "qname": "missing.nxcache.test.",
+                    "qtype": "A",
+                }
+            ],
+            via_conduit=via,
+            direct=None,
+            peer_id="peer",
+        )
+        self.assertEqual(outcome, "fail")
+        self.assertIn("unavailable", detail.lower())
+
+
 if __name__ == "__main__":
     unittest.main()

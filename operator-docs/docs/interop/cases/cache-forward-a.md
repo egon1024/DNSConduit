@@ -7,8 +7,9 @@ local smoke A (cold miss, then forward fill) must still succeed. Results are
 on the **Conduit behavior** matrix (one stub peer): this is about Conduit’s
 cache path, not peer-product differences.
 
-A later warm query succeeding is checked separately; this case does **not**
-claim the second query skipped the upstream peer.
+A later warm-path miss→hit (including peer query-count proof) is checked by
+[cache-miss-then-hit-a](/interop/cases/cache-miss-then-hit-a.md); this case
+only covers the cold miss answer.
 
 ## How it works
 
