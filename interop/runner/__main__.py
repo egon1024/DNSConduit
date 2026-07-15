@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 from datetime import datetime, timezone
 from typing import Iterable
 
@@ -229,6 +230,9 @@ def _run_cell(
         via_steps: list = []
         direct = None
         for idx, step in enumerate(steps):
+            sleep_before = step.get("sleep_before_secs")
+            if sleep_before is not None:
+                time.sleep(float(sleep_before))
             step_q = str(step.get("qname", default_qname)).rstrip(".")
             step_t = str(step.get("qtype") or default_qtype or "A")
             bufsize = step.get("bufsize")

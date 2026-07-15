@@ -2075,10 +2075,11 @@
     },
     {
       "case_id": "cache-miss-then-hit-a",
-      "detail": "2 step(s): property ok; property ok; peer-query-count www.smoke.test/A=1",
+      "detail": "2 step(s): property ok; property ok; peer-query-count www.smoke.test/A=1; sequence ok",
       "oracles": [
         "property",
-        "peer-query-count"
+        "peer-query-count",
+        "sequence"
       ],
       "outcome": "pass",
       "peer_id": "thekelleys-dnsmasq-2.90",
@@ -12130,13 +12131,13 @@
       "profile_id": "forward-split-io"
     }
   ],
-  "generated_at": "2026-07-15T02:44:19Z",
-  "inputs_fingerprint": "sha256:0ac592489a2a72bb27efdbd81a579be3fc9fd1f4312e1f0f37f72724c8a3c48b",
+  "generated_at": "2026-07-15T02:48:15Z",
+  "inputs_fingerprint": "sha256:edf9524e977e5c7635c16e6fb522b172da369e49ce581e4dcd30ac633161a8ee",
   "provenance": {
     "conduit_image": "conduit:local",
     "conduit_image_digest": "sha256:7cf18388d034efe2ef5645561ee5522a7afb287d1078d93c6c662d2d0ff7a7b5",
     "conduit_version": "dev",
-    "git_head": "25a1e3082813d5031ca70ad23d6521d4896ce978",
+    "git_head": "f8dc7b0edf6a965546b84e556c2dded7f5a7b08c",
     "runner": "interop.runner/0.1.0"
   },
   "schema_version": 1
