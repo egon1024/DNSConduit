@@ -412,5 +412,115 @@ class PeerQueryCountOracleTests(unittest.TestCase):
         self.assertIn("unavailable", detail.lower())
 
 
+class MetricsDeltaOracleTests(unittest.TestCase):
+    def test_pass_when_cache_hit_miss_deltas_match(self):
+        from interop.runner.metrics_scrape import MetricSamples
+
+        before = MetricSamples.from_text(
+            'conduit_cache_lookups_total{result="miss"} 0\n'
+            'conduit_cache_lookups_total{result="hit"} 0\n'
+            'conduit_responses_total{answer_source="forward"} 0\n'
+            'conduit_responses_total{answer_source="cache"} 0\n'
+        )
+        after = MetricSamples.from_text(
+            'conduit_cache_lookups_total{result="miss"} 1\n'
+            'conduit_cache_lookups_total{result="hit"} 1\n'
+            'conduit_responses_total{answer_source="forward"} 1\n'
+            'conduit_responses_total{answer_source="cache"} 1\n'
+        )
+        via = QueryResult(rcode="NOERROR", ancount=1, answers=[{"rdata": "192.0.2.20"}])
+        outcome, detail = evaluate_oracles(
+            [
+                {
+                    "kind": "metrics-delta",
+                    "expect": [
+                        {
+                            "metric": "conduit_cache_lookups_total",
+                            "labels": {"result": "miss"},
+                            "delta": 1,
+                        },
+                        {
+                            "metric": "conduit_cache_lookups_total",
+                            "labels": {"result": "hit"},
+                            "delta": 1,
+                        },
+                        {
+                            "metric": "conduit_responses_total",
+                            "labels": {"answer_source": "forward"},
+                            "delta": 1,
+                        },
+                        {
+                            "metric": "conduit_responses_total",
+                            "labels": {"answer_source": "cache"},
+                            "delta": 1,
+                        },
+                    ],
+                }
+            ],
+            via_conduit=via,
+            via_steps=[via, via],
+            direct=None,
+            peer_id="peer",
+            metrics_baseline=before,
+            metrics_after=after,
+        )
+        self.assertEqual(outcome, "pass")
+        self.assertIn("metrics-delta", detail)
+
+    def test_fail_when_hit_missing(self):
+        from interop.runner.metrics_scrape import MetricSamples
+
+        before = MetricSamples.from_text('conduit_cache_lookups_total{result="miss"} 0\n')
+        after = MetricSamples.from_text(
+            'conduit_cache_lookups_total{result="miss"} 2\n'
+            'conduit_cache_lookups_total{result="hit"} 0\n'
+        )
+        via = QueryResult(rcode="NOERROR", ancount=1, answers=[{"rdata": "192.0.2.20"}])
+        outcome, detail = evaluate_oracles(
+            [
+                {
+                    "kind": "metrics-delta",
+                    "expect": [
+                        {
+                            "metric": "conduit_cache_lookups_total",
+                            "labels": {"result": "hit"},
+                            "delta": 1,
+                        }
+                    ],
+                }
+            ],
+            via_conduit=via,
+            via_steps=[via, via],
+            direct=None,
+            peer_id="peer",
+            metrics_baseline=before,
+            metrics_after=after,
+        )
+        self.assertEqual(outcome, "fail")
+        self.assertIn("metrics-delta", detail.lower())
+
+    def test_fail_when_samples_unavailable(self):
+        via = QueryResult(rcode="NOERROR", ancount=1, answers=[{"rdata": "1.2.3.4"}])
+        outcome, detail = evaluate_oracles(
+            [
+                {
+                    "kind": "metrics-delta",
+                    "expect": [
+                        {
+                            "metric": "conduit_cache_lookups_total",
+                            "labels": {"result": "hit"},
+                            "delta": 1,
+                        }
+                    ],
+                }
+            ],
+            via_conduit=via,
+            direct=None,
+            peer_id="peer",
+        )
+        self.assertEqual(outcome, "fail")
+        self.assertIn("unavailable", detail.lower())
+
+
 if __name__ == "__main__":
     unittest.main()

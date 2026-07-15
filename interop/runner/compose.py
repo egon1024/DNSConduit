@@ -17,6 +17,7 @@ from .oracles import QueryResult
 from .paths import COMPOSE_CELL, FIXTURES, INTEROP, PROFILES, ROOT
 from .peer_packs import materialize_peer_config
 from .peer_query_count import count_dnsmasq_queries
+from .metrics_scrape import MetricSamples, scrape_metrics
 from .setup_ir import SetupIR
 
 # Conduit address on the cell bridge (see compose/cell.compose.yml).
@@ -215,6 +216,7 @@ class CellStack:
         self.conduit_assets = list(conduit_assets or [])
         self.host_port = host_port
         self.peer_host_port = host_port + 1
+        self.metrics_host_port = host_port + 2
         self.project = project
         self._tmpdir: tempfile.TemporaryDirectory[str] | None = None
         self._override: Path | None = None
@@ -223,6 +225,10 @@ class CellStack:
     @property
     def peer_query_addr(self) -> tuple[str, int]:
         return ("127.0.0.1", self.peer_host_port)
+
+    @property
+    def metrics_url(self) -> str:
+        return f"http://127.0.0.1:{self.metrics_host_port}/metrics"
 
     def peer_logs(self) -> str:
         """Return ``docker compose logs`` for the peer service (query log source)."""
@@ -268,6 +274,24 @@ class CellStack:
             f"peer-query-count is not implemented for family {self.peer.family!r}"
         )
 
+    def scrape_conduit_metrics(self) -> MetricSamples:
+        """HTTP scrape Conduit's Prometheus endpoint published on the host."""
+        return scrape_metrics(self.metrics_url)
+
+    def wait_for_metrics(self, attempts: int = 20, delay: float = 0.25) -> None:
+        """Poll until /metrics responds (cache-forward profiles expose scrape)."""
+        last_err: Exception | None = None
+        for _ in range(attempts):
+            try:
+                self.scrape_conduit_metrics()
+                return
+            except RuntimeError as exc:
+                last_err = exc
+                time.sleep(delay)
+        raise RuntimeError(
+            f"metrics endpoint not ready at {self.metrics_url}: {last_err}"
+        )
+
     def _compose_files(self) -> list[str]:
         files = ["-f", str(COMPOSE_CELL)]
         if self._override is not None:
@@ -283,6 +307,7 @@ class CellStack:
                 "CONDUIT_CONFIG": str((tmp / "conduit.yaml").resolve()),
                 "CONDUIT_ASSETS_DIR": str((tmp / "assets").resolve()),
                 "CONDUIT_HOST_PORT": str(self.host_port),
+                "CONDUIT_METRICS_HOST_PORT": str(self.metrics_host_port),
                 "PEER_CONFIG_DIR": str((tmp / "peer").resolve()),
                 "PEER_HOST_PORT": str(self.peer_host_port),
             }

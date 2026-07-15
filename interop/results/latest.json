@@ -1682,7 +1682,9 @@
       "detail": "applicability",
       "oracles": [
         "property",
-        "peer-query-count"
+        "peer-query-count",
+        "sequence",
+        "metrics-delta"
       ],
       "outcome": "skip",
       "peer_id": "cznic-knot-3.4",
@@ -1691,395 +1693,466 @@
     {
       "case_id": "cache-miss-then-hit-a",
       "detail": "applicability",
-      "oracles": [
-        "property",
-        "peer-query-count"
-      ],
-      "outcome": "skip",
-      "peer_id": "cznic-knot-3.4",
-      "profile_id": "forward-only"
-    },
-    {
-      "case_id": "cache-miss-then-hit-a",
-      "detail": "applicability",
-      "oracles": [
-        "property",
-        "peer-query-count"
-      ],
-      "outcome": "skip",
-      "peer_id": "cznic-knot-3.4",
-      "profile_id": "forward-split-io"
-    },
-    {
-      "case_id": "cache-miss-then-hit-a",
-      "detail": "applicability",
-      "oracles": [
-        "property",
-        "peer-query-count"
-      ],
-      "outcome": "skip",
-      "peer_id": "cznic-knot-3.5",
-      "profile_id": "cache-forward"
-    },
-    {
-      "case_id": "cache-miss-then-hit-a",
-      "detail": "applicability",
-      "oracles": [
-        "property",
-        "peer-query-count"
-      ],
-      "outcome": "skip",
-      "peer_id": "cznic-knot-3.5",
-      "profile_id": "forward-only"
-    },
-    {
-      "case_id": "cache-miss-then-hit-a",
-      "detail": "applicability",
-      "oracles": [
-        "property",
-        "peer-query-count"
-      ],
-      "outcome": "skip",
-      "peer_id": "cznic-knot-3.5",
-      "profile_id": "forward-split-io"
-    },
-    {
-      "case_id": "cache-miss-then-hit-a",
-      "detail": "applicability",
-      "oracles": [
-        "property",
-        "peer-query-count"
-      ],
-      "outcome": "skip",
-      "peer_id": "isc-bind-9.18",
-      "profile_id": "cache-forward"
-    },
-    {
-      "case_id": "cache-miss-then-hit-a",
-      "detail": "applicability",
-      "oracles": [
-        "property",
-        "peer-query-count"
-      ],
-      "outcome": "skip",
-      "peer_id": "isc-bind-9.18",
-      "profile_id": "forward-only"
-    },
-    {
-      "case_id": "cache-miss-then-hit-a",
-      "detail": "applicability",
-      "oracles": [
-        "property",
-        "peer-query-count"
-      ],
-      "outcome": "skip",
-      "peer_id": "isc-bind-9.18",
-      "profile_id": "forward-split-io"
-    },
-    {
-      "case_id": "cache-miss-then-hit-a",
-      "detail": "applicability",
-      "oracles": [
-        "property",
-        "peer-query-count"
-      ],
-      "outcome": "skip",
-      "peer_id": "isc-bind-9.20",
-      "profile_id": "cache-forward"
-    },
-    {
-      "case_id": "cache-miss-then-hit-a",
-      "detail": "applicability",
-      "oracles": [
-        "property",
-        "peer-query-count"
-      ],
-      "outcome": "skip",
-      "peer_id": "isc-bind-9.20",
-      "profile_id": "forward-only"
-    },
-    {
-      "case_id": "cache-miss-then-hit-a",
-      "detail": "applicability",
-      "oracles": [
-        "property",
-        "peer-query-count"
-      ],
-      "outcome": "skip",
-      "peer_id": "isc-bind-9.20",
-      "profile_id": "forward-split-io"
-    },
-    {
-      "case_id": "cache-miss-then-hit-a",
-      "detail": "applicability",
-      "oracles": [
-        "property",
-        "peer-query-count"
-      ],
-      "outcome": "skip",
-      "peer_id": "isc-bind-resolver-9.18",
-      "profile_id": "cache-forward"
-    },
-    {
-      "case_id": "cache-miss-then-hit-a",
-      "detail": "applicability",
-      "oracles": [
-        "property",
-        "peer-query-count"
-      ],
-      "outcome": "skip",
-      "peer_id": "isc-bind-resolver-9.18",
-      "profile_id": "forward-only"
-    },
-    {
-      "case_id": "cache-miss-then-hit-a",
-      "detail": "applicability",
-      "oracles": [
-        "property",
-        "peer-query-count"
-      ],
-      "outcome": "skip",
-      "peer_id": "isc-bind-resolver-9.18",
-      "profile_id": "forward-split-io"
-    },
-    {
-      "case_id": "cache-miss-then-hit-a",
-      "detail": "applicability",
-      "oracles": [
-        "property",
-        "peer-query-count"
-      ],
-      "outcome": "skip",
-      "peer_id": "isc-bind-resolver-9.20",
-      "profile_id": "cache-forward"
-    },
-    {
-      "case_id": "cache-miss-then-hit-a",
-      "detail": "applicability",
-      "oracles": [
-        "property",
-        "peer-query-count"
-      ],
-      "outcome": "skip",
-      "peer_id": "isc-bind-resolver-9.20",
-      "profile_id": "forward-only"
-    },
-    {
-      "case_id": "cache-miss-then-hit-a",
-      "detail": "applicability",
-      "oracles": [
-        "property",
-        "peer-query-count"
-      ],
-      "outcome": "skip",
-      "peer_id": "isc-bind-resolver-9.20",
-      "profile_id": "forward-split-io"
-    },
-    {
-      "case_id": "cache-miss-then-hit-a",
-      "detail": "applicability",
-      "oracles": [
-        "property",
-        "peer-query-count"
-      ],
-      "outcome": "skip",
-      "peer_id": "nlnetlabs-unbound-1.21",
-      "profile_id": "cache-forward"
-    },
-    {
-      "case_id": "cache-miss-then-hit-a",
-      "detail": "applicability",
-      "oracles": [
-        "property",
-        "peer-query-count"
-      ],
-      "outcome": "skip",
-      "peer_id": "nlnetlabs-unbound-1.21",
-      "profile_id": "forward-only"
-    },
-    {
-      "case_id": "cache-miss-then-hit-a",
-      "detail": "applicability",
-      "oracles": [
-        "property",
-        "peer-query-count"
-      ],
-      "outcome": "skip",
-      "peer_id": "nlnetlabs-unbound-1.21",
-      "profile_id": "forward-split-io"
-    },
-    {
-      "case_id": "cache-miss-then-hit-a",
-      "detail": "applicability",
-      "oracles": [
-        "property",
-        "peer-query-count"
-      ],
-      "outcome": "skip",
-      "peer_id": "nlnetlabs-unbound-1.22",
-      "profile_id": "cache-forward"
-    },
-    {
-      "case_id": "cache-miss-then-hit-a",
-      "detail": "applicability",
-      "oracles": [
-        "property",
-        "peer-query-count"
-      ],
-      "outcome": "skip",
-      "peer_id": "nlnetlabs-unbound-1.22",
-      "profile_id": "forward-only"
-    },
-    {
-      "case_id": "cache-miss-then-hit-a",
-      "detail": "applicability",
-      "oracles": [
-        "property",
-        "peer-query-count"
-      ],
-      "outcome": "skip",
-      "peer_id": "nlnetlabs-unbound-1.22",
-      "profile_id": "forward-split-io"
-    },
-    {
-      "case_id": "cache-miss-then-hit-a",
-      "detail": "applicability",
-      "oracles": [
-        "property",
-        "peer-query-count"
-      ],
-      "outcome": "skip",
-      "peer_id": "powerdns-auth-5.0",
-      "profile_id": "cache-forward"
-    },
-    {
-      "case_id": "cache-miss-then-hit-a",
-      "detail": "applicability",
-      "oracles": [
-        "property",
-        "peer-query-count"
-      ],
-      "outcome": "skip",
-      "peer_id": "powerdns-auth-5.0",
-      "profile_id": "forward-only"
-    },
-    {
-      "case_id": "cache-miss-then-hit-a",
-      "detail": "applicability",
-      "oracles": [
-        "property",
-        "peer-query-count"
-      ],
-      "outcome": "skip",
-      "peer_id": "powerdns-auth-5.0",
-      "profile_id": "forward-split-io"
-    },
-    {
-      "case_id": "cache-miss-then-hit-a",
-      "detail": "applicability",
-      "oracles": [
-        "property",
-        "peer-query-count"
-      ],
-      "outcome": "skip",
-      "peer_id": "powerdns-auth-5.1",
-      "profile_id": "cache-forward"
-    },
-    {
-      "case_id": "cache-miss-then-hit-a",
-      "detail": "applicability",
-      "oracles": [
-        "property",
-        "peer-query-count"
-      ],
-      "outcome": "skip",
-      "peer_id": "powerdns-auth-5.1",
-      "profile_id": "forward-only"
-    },
-    {
-      "case_id": "cache-miss-then-hit-a",
-      "detail": "applicability",
-      "oracles": [
-        "property",
-        "peer-query-count"
-      ],
-      "outcome": "skip",
-      "peer_id": "powerdns-auth-5.1",
-      "profile_id": "forward-split-io"
-    },
-    {
-      "case_id": "cache-miss-then-hit-a",
-      "detail": "applicability",
-      "oracles": [
-        "property",
-        "peer-query-count"
-      ],
-      "outcome": "skip",
-      "peer_id": "powerdns-recursor-5.3",
-      "profile_id": "cache-forward"
-    },
-    {
-      "case_id": "cache-miss-then-hit-a",
-      "detail": "applicability",
-      "oracles": [
-        "property",
-        "peer-query-count"
-      ],
-      "outcome": "skip",
-      "peer_id": "powerdns-recursor-5.3",
-      "profile_id": "forward-only"
-    },
-    {
-      "case_id": "cache-miss-then-hit-a",
-      "detail": "applicability",
-      "oracles": [
-        "property",
-        "peer-query-count"
-      ],
-      "outcome": "skip",
-      "peer_id": "powerdns-recursor-5.3",
-      "profile_id": "forward-split-io"
-    },
-    {
-      "case_id": "cache-miss-then-hit-a",
-      "detail": "applicability",
-      "oracles": [
-        "property",
-        "peer-query-count"
-      ],
-      "outcome": "skip",
-      "peer_id": "powerdns-recursor-5.4",
-      "profile_id": "cache-forward"
-    },
-    {
-      "case_id": "cache-miss-then-hit-a",
-      "detail": "applicability",
-      "oracles": [
-        "property",
-        "peer-query-count"
-      ],
-      "outcome": "skip",
-      "peer_id": "powerdns-recursor-5.4",
-      "profile_id": "forward-only"
-    },
-    {
-      "case_id": "cache-miss-then-hit-a",
-      "detail": "applicability",
-      "oracles": [
-        "property",
-        "peer-query-count"
-      ],
-      "outcome": "skip",
-      "peer_id": "powerdns-recursor-5.4",
-      "profile_id": "forward-split-io"
-    },
-    {
-      "case_id": "cache-miss-then-hit-a",
-      "detail": "2 step(s): property ok; property ok; peer-query-count www.smoke.test/A=1; sequence ok",
       "oracles": [
         "property",
         "peer-query-count",
-        "sequence"
+        "sequence",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.4",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "cache-miss-then-hit-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "sequence",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.4",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "cache-miss-then-hit-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "sequence",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.5",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "cache-miss-then-hit-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "sequence",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.5",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "cache-miss-then-hit-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "sequence",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.5",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "cache-miss-then-hit-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "sequence",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.18",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "cache-miss-then-hit-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "sequence",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.18",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "cache-miss-then-hit-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "sequence",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.18",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "cache-miss-then-hit-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "sequence",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.20",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "cache-miss-then-hit-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "sequence",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.20",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "cache-miss-then-hit-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "sequence",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.20",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "cache-miss-then-hit-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "sequence",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "cache-miss-then-hit-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "sequence",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "cache-miss-then-hit-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "sequence",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "cache-miss-then-hit-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "sequence",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "cache-miss-then-hit-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "sequence",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "cache-miss-then-hit-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "sequence",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "cache-miss-then-hit-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "sequence",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.21",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "cache-miss-then-hit-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "sequence",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.21",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "cache-miss-then-hit-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "sequence",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.21",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "cache-miss-then-hit-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "sequence",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.22",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "cache-miss-then-hit-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "sequence",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.22",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "cache-miss-then-hit-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "sequence",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.22",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "cache-miss-then-hit-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "sequence",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.0",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "cache-miss-then-hit-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "sequence",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.0",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "cache-miss-then-hit-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "sequence",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.0",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "cache-miss-then-hit-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "sequence",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.1",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "cache-miss-then-hit-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "sequence",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.1",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "cache-miss-then-hit-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "sequence",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.1",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "cache-miss-then-hit-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "sequence",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.3",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "cache-miss-then-hit-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "sequence",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.3",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "cache-miss-then-hit-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "sequence",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.3",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "cache-miss-then-hit-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "sequence",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.4",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "cache-miss-then-hit-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "sequence",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.4",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "cache-miss-then-hit-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "sequence",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.4",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "cache-miss-then-hit-a",
+      "detail": "2 step(s): property ok; property ok; peer-query-count www.smoke.test/A=1; sequence ok; metrics-delta conduit_cache_lookups_total{result=miss}=1; conduit_cache_lookups_total{result=hit}=1; conduit_responses_total{answer_source=forward}=1; conduit_responses_total{answer_source=cache}=1",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "sequence",
+        "metrics-delta"
       ],
       "outcome": "pass",
       "peer_id": "thekelleys-dnsmasq-2.90",
@@ -2090,7 +2163,9 @@
       "detail": "applicability",
       "oracles": [
         "property",
-        "peer-query-count"
+        "peer-query-count",
+        "sequence",
+        "metrics-delta"
       ],
       "outcome": "skip",
       "peer_id": "thekelleys-dnsmasq-2.90",
@@ -2101,7 +2176,9 @@
       "detail": "applicability",
       "oracles": [
         "property",
-        "peer-query-count"
+        "peer-query-count",
+        "sequence",
+        "metrics-delta"
       ],
       "outcome": "skip",
       "peer_id": "thekelleys-dnsmasq-2.90",
@@ -2112,7 +2189,8 @@
       "detail": "applicability",
       "oracles": [
         "property",
-        "peer-query-count"
+        "peer-query-count",
+        "metrics-delta"
       ],
       "outcome": "skip",
       "peer_id": "cznic-knot-3.4",
@@ -2123,7 +2201,8 @@
       "detail": "applicability",
       "oracles": [
         "property",
-        "peer-query-count"
+        "peer-query-count",
+        "metrics-delta"
       ],
       "outcome": "skip",
       "peer_id": "cznic-knot-3.4",
@@ -2134,7 +2213,8 @@
       "detail": "applicability",
       "oracles": [
         "property",
-        "peer-query-count"
+        "peer-query-count",
+        "metrics-delta"
       ],
       "outcome": "skip",
       "peer_id": "cznic-knot-3.4",
@@ -2145,7 +2225,8 @@
       "detail": "applicability",
       "oracles": [
         "property",
-        "peer-query-count"
+        "peer-query-count",
+        "metrics-delta"
       ],
       "outcome": "skip",
       "peer_id": "cznic-knot-3.5",
@@ -2156,7 +2237,8 @@
       "detail": "applicability",
       "oracles": [
         "property",
-        "peer-query-count"
+        "peer-query-count",
+        "metrics-delta"
       ],
       "outcome": "skip",
       "peer_id": "cznic-knot-3.5",
@@ -2167,7 +2249,8 @@
       "detail": "applicability",
       "oracles": [
         "property",
-        "peer-query-count"
+        "peer-query-count",
+        "metrics-delta"
       ],
       "outcome": "skip",
       "peer_id": "cznic-knot-3.5",
@@ -2178,7 +2261,8 @@
       "detail": "applicability",
       "oracles": [
         "property",
-        "peer-query-count"
+        "peer-query-count",
+        "metrics-delta"
       ],
       "outcome": "skip",
       "peer_id": "isc-bind-9.18",
@@ -2189,7 +2273,8 @@
       "detail": "applicability",
       "oracles": [
         "property",
-        "peer-query-count"
+        "peer-query-count",
+        "metrics-delta"
       ],
       "outcome": "skip",
       "peer_id": "isc-bind-9.18",
@@ -2200,7 +2285,8 @@
       "detail": "applicability",
       "oracles": [
         "property",
-        "peer-query-count"
+        "peer-query-count",
+        "metrics-delta"
       ],
       "outcome": "skip",
       "peer_id": "isc-bind-9.18",
@@ -2211,7 +2297,8 @@
       "detail": "applicability",
       "oracles": [
         "property",
-        "peer-query-count"
+        "peer-query-count",
+        "metrics-delta"
       ],
       "outcome": "skip",
       "peer_id": "isc-bind-9.20",
@@ -2222,7 +2309,8 @@
       "detail": "applicability",
       "oracles": [
         "property",
-        "peer-query-count"
+        "peer-query-count",
+        "metrics-delta"
       ],
       "outcome": "skip",
       "peer_id": "isc-bind-9.20",
@@ -2233,7 +2321,8 @@
       "detail": "applicability",
       "oracles": [
         "property",
-        "peer-query-count"
+        "peer-query-count",
+        "metrics-delta"
       ],
       "outcome": "skip",
       "peer_id": "isc-bind-9.20",
@@ -2244,7 +2333,8 @@
       "detail": "applicability",
       "oracles": [
         "property",
-        "peer-query-count"
+        "peer-query-count",
+        "metrics-delta"
       ],
       "outcome": "skip",
       "peer_id": "isc-bind-resolver-9.18",
@@ -2255,7 +2345,8 @@
       "detail": "applicability",
       "oracles": [
         "property",
-        "peer-query-count"
+        "peer-query-count",
+        "metrics-delta"
       ],
       "outcome": "skip",
       "peer_id": "isc-bind-resolver-9.18",
@@ -2266,7 +2357,8 @@
       "detail": "applicability",
       "oracles": [
         "property",
-        "peer-query-count"
+        "peer-query-count",
+        "metrics-delta"
       ],
       "outcome": "skip",
       "peer_id": "isc-bind-resolver-9.18",
@@ -2277,7 +2369,8 @@
       "detail": "applicability",
       "oracles": [
         "property",
-        "peer-query-count"
+        "peer-query-count",
+        "metrics-delta"
       ],
       "outcome": "skip",
       "peer_id": "isc-bind-resolver-9.20",
@@ -2288,7 +2381,8 @@
       "detail": "applicability",
       "oracles": [
         "property",
-        "peer-query-count"
+        "peer-query-count",
+        "metrics-delta"
       ],
       "outcome": "skip",
       "peer_id": "isc-bind-resolver-9.20",
@@ -2299,7 +2393,8 @@
       "detail": "applicability",
       "oracles": [
         "property",
-        "peer-query-count"
+        "peer-query-count",
+        "metrics-delta"
       ],
       "outcome": "skip",
       "peer_id": "isc-bind-resolver-9.20",
@@ -2310,7 +2405,8 @@
       "detail": "applicability",
       "oracles": [
         "property",
-        "peer-query-count"
+        "peer-query-count",
+        "metrics-delta"
       ],
       "outcome": "skip",
       "peer_id": "nlnetlabs-unbound-1.21",
@@ -2321,7 +2417,8 @@
       "detail": "applicability",
       "oracles": [
         "property",
-        "peer-query-count"
+        "peer-query-count",
+        "metrics-delta"
       ],
       "outcome": "skip",
       "peer_id": "nlnetlabs-unbound-1.21",
@@ -2332,7 +2429,8 @@
       "detail": "applicability",
       "oracles": [
         "property",
-        "peer-query-count"
+        "peer-query-count",
+        "metrics-delta"
       ],
       "outcome": "skip",
       "peer_id": "nlnetlabs-unbound-1.21",
@@ -2343,7 +2441,8 @@
       "detail": "applicability",
       "oracles": [
         "property",
-        "peer-query-count"
+        "peer-query-count",
+        "metrics-delta"
       ],
       "outcome": "skip",
       "peer_id": "nlnetlabs-unbound-1.22",
@@ -2354,7 +2453,8 @@
       "detail": "applicability",
       "oracles": [
         "property",
-        "peer-query-count"
+        "peer-query-count",
+        "metrics-delta"
       ],
       "outcome": "skip",
       "peer_id": "nlnetlabs-unbound-1.22",
@@ -2365,7 +2465,8 @@
       "detail": "applicability",
       "oracles": [
         "property",
-        "peer-query-count"
+        "peer-query-count",
+        "metrics-delta"
       ],
       "outcome": "skip",
       "peer_id": "nlnetlabs-unbound-1.22",
@@ -2376,7 +2477,8 @@
       "detail": "applicability",
       "oracles": [
         "property",
-        "peer-query-count"
+        "peer-query-count",
+        "metrics-delta"
       ],
       "outcome": "skip",
       "peer_id": "powerdns-auth-5.0",
@@ -2387,7 +2489,8 @@
       "detail": "applicability",
       "oracles": [
         "property",
-        "peer-query-count"
+        "peer-query-count",
+        "metrics-delta"
       ],
       "outcome": "skip",
       "peer_id": "powerdns-auth-5.0",
@@ -2398,7 +2501,8 @@
       "detail": "applicability",
       "oracles": [
         "property",
-        "peer-query-count"
+        "peer-query-count",
+        "metrics-delta"
       ],
       "outcome": "skip",
       "peer_id": "powerdns-auth-5.0",
@@ -2409,7 +2513,8 @@
       "detail": "applicability",
       "oracles": [
         "property",
-        "peer-query-count"
+        "peer-query-count",
+        "metrics-delta"
       ],
       "outcome": "skip",
       "peer_id": "powerdns-auth-5.1",
@@ -2420,7 +2525,8 @@
       "detail": "applicability",
       "oracles": [
         "property",
-        "peer-query-count"
+        "peer-query-count",
+        "metrics-delta"
       ],
       "outcome": "skip",
       "peer_id": "powerdns-auth-5.1",
@@ -2431,7 +2537,8 @@
       "detail": "applicability",
       "oracles": [
         "property",
-        "peer-query-count"
+        "peer-query-count",
+        "metrics-delta"
       ],
       "outcome": "skip",
       "peer_id": "powerdns-auth-5.1",
@@ -2442,7 +2549,8 @@
       "detail": "applicability",
       "oracles": [
         "property",
-        "peer-query-count"
+        "peer-query-count",
+        "metrics-delta"
       ],
       "outcome": "skip",
       "peer_id": "powerdns-recursor-5.3",
@@ -2453,7 +2561,8 @@
       "detail": "applicability",
       "oracles": [
         "property",
-        "peer-query-count"
+        "peer-query-count",
+        "metrics-delta"
       ],
       "outcome": "skip",
       "peer_id": "powerdns-recursor-5.3",
@@ -2464,7 +2573,8 @@
       "detail": "applicability",
       "oracles": [
         "property",
-        "peer-query-count"
+        "peer-query-count",
+        "metrics-delta"
       ],
       "outcome": "skip",
       "peer_id": "powerdns-recursor-5.3",
@@ -2475,7 +2585,8 @@
       "detail": "applicability",
       "oracles": [
         "property",
-        "peer-query-count"
+        "peer-query-count",
+        "metrics-delta"
       ],
       "outcome": "skip",
       "peer_id": "powerdns-recursor-5.4",
@@ -2486,7 +2597,8 @@
       "detail": "applicability",
       "oracles": [
         "property",
-        "peer-query-count"
+        "peer-query-count",
+        "metrics-delta"
       ],
       "outcome": "skip",
       "peer_id": "powerdns-recursor-5.4",
@@ -2497,7 +2609,8 @@
       "detail": "applicability",
       "oracles": [
         "property",
-        "peer-query-count"
+        "peer-query-count",
+        "metrics-delta"
       ],
       "outcome": "skip",
       "peer_id": "powerdns-recursor-5.4",
@@ -2505,10 +2618,11 @@
     },
     {
       "case_id": "cache-nxdomain-miss-then-hit",
-      "detail": "2 step(s): property ok; property ok; peer-query-count missing.nxcache.test/A=1",
+      "detail": "2 step(s): property ok; property ok; peer-query-count missing.nxcache.test/A=1; metrics-delta conduit_cache_lookups_total{result=miss}=1; conduit_cache_lookups_total{result=hit}=1; conduit_responses_total{answer_source=forward}=1; conduit_responses_total{answer_source=cache}=1",
       "oracles": [
         "property",
-        "peer-query-count"
+        "peer-query-count",
+        "metrics-delta"
       ],
       "outcome": "pass",
       "peer_id": "thekelleys-dnsmasq-2.90",
@@ -2519,7 +2633,8 @@
       "detail": "applicability",
       "oracles": [
         "property",
-        "peer-query-count"
+        "peer-query-count",
+        "metrics-delta"
       ],
       "outcome": "skip",
       "peer_id": "thekelleys-dnsmasq-2.90",
@@ -2530,7 +2645,8 @@
       "detail": "applicability",
       "oracles": [
         "property",
-        "peer-query-count"
+        "peer-query-count",
+        "metrics-delta"
       ],
       "outcome": "skip",
       "peer_id": "thekelleys-dnsmasq-2.90",
@@ -12131,13 +12247,13 @@
       "profile_id": "forward-split-io"
     }
   ],
-  "generated_at": "2026-07-15T02:48:15Z",
-  "inputs_fingerprint": "sha256:edf9524e977e5c7635c16e6fb522b172da369e49ce581e4dcd30ac633161a8ee",
+  "generated_at": "2026-07-15T03:08:29Z",
+  "inputs_fingerprint": "sha256:cd08f636a535c79062869225e5c9570be84cf413a61c02a035227f59adbd19ad",
   "provenance": {
     "conduit_image": "conduit:local",
-    "conduit_image_digest": "sha256:7cf18388d034efe2ef5645561ee5522a7afb287d1078d93c6c662d2d0ff7a7b5",
+    "conduit_image_digest": "sha256:9e2bcc0275bae2da13e77a04b058e06bfbc6eebdfdc44f7bcadb202222e9a72a",
     "conduit_version": "dev",
-    "git_head": "f8dc7b0edf6a965546b84e556c2dded7f5a7b08c",
+    "git_head": "64f5ffe9da9404425cb21bd18bf2e058e31829ba",
     "runner": "interop.runner/0.1.0"
   },
   "schema_version": 1

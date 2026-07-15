@@ -221,12 +221,16 @@ def _run_cell(
         stack.start()
         steps = case.queries or [{"qname": default_qname}]
         needs_parity = any(o.get("kind") == "parity" for o in case.oracles)
+        needs_metrics = any(o.get("kind") == "metrics-delta" for o in case.oracles)
+        if needs_metrics:
+            stack.wait_for_metrics()
         pqc_specs = _peer_query_count_specs(
             case.oracles, steps=steps, default_qname=default_qname, default_qtype=default_qtype
         )
         baselines: dict[tuple[str, str], int] = {}
         for key, qname, qtype in pqc_specs:
             baselines[key] = stack.count_peer_queries(qname, qtype)
+        metrics_baseline = stack.scrape_conduit_metrics() if needs_metrics else None
         via_steps: list = []
         direct = None
         for idx, step in enumerate(steps):
@@ -253,6 +257,7 @@ def _run_cell(
         deltas: dict[tuple[str, str], int] = {}
         for key, qname, qtype in pqc_specs:
             deltas[key] = stack.count_peer_queries(qname, qtype) - baselines[key]
+        metrics_after = stack.scrape_conduit_metrics() if needs_metrics else None
         outcome, detail = evaluate_oracles(
             case.oracles,
             via_conduit=via_steps[-1] if via_steps else None,
@@ -260,6 +265,8 @@ def _run_cell(
             direct=direct,
             peer_id=peer.id,
             peer_query_deltas=deltas if pqc_specs else None,
+            metrics_baseline=metrics_baseline,
+            metrics_after=metrics_after,
         )
         if outcome != "pass":
             return outcome, detail
