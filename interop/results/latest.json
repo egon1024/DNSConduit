@@ -7645,6 +7645,942 @@
       "profile_id": "forward-split-io"
     },
     {
+      "case_id": "health-fail-open-all-down",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.4",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "health-fail-open-all-down",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.4",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "health-fail-open-all-down",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.4",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "health-fail-open-all-down",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.5",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "health-fail-open-all-down",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.5",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "health-fail-open-all-down",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.5",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "health-fail-open-all-down",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.18",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "health-fail-open-all-down",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.18",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "health-fail-open-all-down",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.18",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "health-fail-open-all-down",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.20",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "health-fail-open-all-down",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.20",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "health-fail-open-all-down",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.20",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "health-fail-open-all-down",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "health-fail-open-all-down",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "health-fail-open-all-down",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "health-fail-open-all-down",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "health-fail-open-all-down",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "health-fail-open-all-down",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "health-fail-open-all-down",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.21",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "health-fail-open-all-down",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.21",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "health-fail-open-all-down",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.21",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "health-fail-open-all-down",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.22",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "health-fail-open-all-down",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.22",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "health-fail-open-all-down",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.22",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "health-fail-open-all-down",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.0",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "health-fail-open-all-down",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.0",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "health-fail-open-all-down",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.0",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "health-fail-open-all-down",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.1",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "health-fail-open-all-down",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.1",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "health-fail-open-all-down",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.1",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "health-fail-open-all-down",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.3",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "health-fail-open-all-down",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.3",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "health-fail-open-all-down",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.3",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "health-fail-open-all-down",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.4",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "health-fail-open-all-down",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.4",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "health-fail-open-all-down",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.4",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "health-fail-open-all-down",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "thekelleys-dnsmasq-2.90",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "health-fail-open-all-down",
+      "detail": "1 step(s): property ok; peer-query-count www.smoke.test/A=0; metrics-delta conduit_forward_attempts_total{outcome=error,pool=default}=1; conduit_forward_errors_total{pool=default,reason=timeout}=1; conduit_forward_errors_total{reason=no_backend}=0",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "pass",
+      "peer_id": "thekelleys-dnsmasq-2.90",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "health-fail-open-all-down",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "thekelleys-dnsmasq-2.90",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "health-live-dead-prefer-live",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.4",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "health-live-dead-prefer-live",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.4",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "health-live-dead-prefer-live",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.4",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "health-live-dead-prefer-live",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.5",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "health-live-dead-prefer-live",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.5",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "health-live-dead-prefer-live",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.5",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "health-live-dead-prefer-live",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.18",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "health-live-dead-prefer-live",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.18",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "health-live-dead-prefer-live",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.18",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "health-live-dead-prefer-live",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.20",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "health-live-dead-prefer-live",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.20",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "health-live-dead-prefer-live",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.20",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "health-live-dead-prefer-live",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "health-live-dead-prefer-live",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "health-live-dead-prefer-live",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "health-live-dead-prefer-live",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "health-live-dead-prefer-live",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "health-live-dead-prefer-live",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "health-live-dead-prefer-live",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.21",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "health-live-dead-prefer-live",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.21",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "health-live-dead-prefer-live",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.21",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "health-live-dead-prefer-live",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.22",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "health-live-dead-prefer-live",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.22",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "health-live-dead-prefer-live",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.22",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "health-live-dead-prefer-live",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.0",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "health-live-dead-prefer-live",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.0",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "health-live-dead-prefer-live",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.0",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "health-live-dead-prefer-live",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.1",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "health-live-dead-prefer-live",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.1",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "health-live-dead-prefer-live",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.1",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "health-live-dead-prefer-live",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.3",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "health-live-dead-prefer-live",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.3",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "health-live-dead-prefer-live",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.3",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "health-live-dead-prefer-live",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.4",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "health-live-dead-prefer-live",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.4",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "health-live-dead-prefer-live",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.4",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "health-live-dead-prefer-live",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "thekelleys-dnsmasq-2.90",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "health-live-dead-prefer-live",
+      "detail": "1 step(s): property ok; peer-query-count www.smoke.test/A=1; metrics-delta conduit_forward_attempts_total{backend=live,outcome=success,pool=default}=1; conduit_forward_attempts_total{backend=dead,pool=default}=0",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "pass",
+      "peer_id": "thekelleys-dnsmasq-2.90",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "health-live-dead-prefer-live",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "peer-query-count",
+        "metrics-delta"
+      ],
+      "outcome": "skip",
+      "peer_id": "thekelleys-dnsmasq-2.90",
+      "profile_id": "forward-split-io"
+    },
+    {
       "case_id": "passthrough-aa-auth-a",
       "detail": "applicability",
       "oracles": [
@@ -12247,13 +13183,13 @@
       "profile_id": "forward-split-io"
     }
   ],
-  "generated_at": "2026-07-15T03:08:29Z",
-  "inputs_fingerprint": "sha256:cd08f636a535c79062869225e5c9570be84cf413a61c02a035227f59adbd19ad",
+  "generated_at": "2026-07-15T14:05:46Z",
+  "inputs_fingerprint": "sha256:e1169acd3de0e46037c8eeb451a5cae5fccc7dc2ead52d8f6486a5567899a9b7",
   "provenance": {
     "conduit_image": "conduit:local",
-    "conduit_image_digest": "sha256:9e2bcc0275bae2da13e77a04b058e06bfbc6eebdfdc44f7bcadb202222e9a72a",
+    "conduit_image_digest": "sha256:fc2fa1e6ae0bbca8d578f13f6cde82181d1f419dfdde29fc95afbfc25823c8cc",
     "conduit_version": "dev",
-    "git_head": "64f5ffe9da9404425cb21bd18bf2e058e31829ba",
+    "git_head": "3c138b2b861c27bf503eae0d2070e8cb9af1b7db",
     "runner": "interop.runner/0.1.0"
   },
   "schema_version": 1

@@ -1,4 +1,8 @@
-"""Oracle evaluation helpers (parity / fixture / property / differential / sequence / peer-query-count / metrics-delta)."""
+"""Oracle evaluation helpers (parity / fixture / property / differential / sequence / peer-query-count / metrics-delta).
+
+``peer-query-count`` is the stub-peer (dnsmasq) cache-hit proof oracle — see
+``peer_query_count`` / ``CellStack.count_peer_queries``.
+"""
 
 from __future__ import annotations
 
@@ -188,6 +192,9 @@ def _property(result: QueryResult, oracle: dict[str, Any]) -> tuple[bool, str]:
         elif check == "rcode-refused":
             if result.rcode.upper() != "REFUSED":
                 return False, f"expected REFUSED got {result.rcode}"
+        elif check == "rcode-servfail":
+            if result.rcode.upper() != "SERVFAIL":
+                return False, f"expected SERVFAIL got {result.rcode}"
         elif check == "has-answer":
             if result.ancount < 1 and not result.answers:
                 return False, "expected at least one answer"

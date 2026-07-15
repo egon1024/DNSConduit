@@ -82,6 +82,27 @@ class PropertyOracleTests(unittest.TestCase):
         )
         self.assertEqual(outcome, "pass")
 
+    def test_rcode_servfail(self):
+        via = QueryResult(rcode="SERVFAIL", ancount=0, answers=[])
+        outcome, _ = evaluate_oracles(
+            [{"kind": "property", "checks": ["rcode-servfail"]}],
+            via_conduit=via,
+            direct=None,
+            peer_id="peer",
+        )
+        self.assertEqual(outcome, "pass")
+
+    def test_rcode_servfail_fail(self):
+        via = QueryResult(rcode="NOERROR", ancount=0, answers=[])
+        outcome, detail = evaluate_oracles(
+            [{"kind": "property", "checks": ["rcode-servfail"]}],
+            via_conduit=via,
+            direct=None,
+            peer_id="peer",
+        )
+        self.assertEqual(outcome, "fail")
+        self.assertIn("SERVFAIL", detail)
+
     def test_has_cname_and_answer_types(self):
         via = QueryResult(
             rcode="NOERROR",
