@@ -307,10 +307,13 @@ def _write_conduit_behavior_page(
     lines: list[str] = [
         "# Conduit behavior",
         "",
-        "These cases exercise **Conduit** (lookup/cache path, request rules, dataplane "
-        "runtime) rather than peer-product interoperability. They run against a "
+        "These cases exercise **Conduit** (lookup/cache path, request rules, "
+        "dataplane runtime, backend health) rather than peer-product "
+        "interoperability. They run against a "
         f"**single stub peer** ({peer_label}) so results are not spread across every "
-        "publisher column. Peer contract cases remain under "
+        "publisher column. Cache hit proofs that use `peer-query-count` rely on "
+        "that stub’s dnsmasq query logs — not a general multi-peer count facility. "
+        "Peer contract cases remain under "
         "[By publisher](/interop/publishers/thekelleys.md).",
         "",
     ]

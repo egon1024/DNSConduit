@@ -1,4 +1,9 @@
-"""Count upstream queries from peer daemon logs (cache-hit proof)."""
+"""Count upstream queries from peer daemon logs (stub-peer cache-hit proof).
+
+This is a **dnsmasq-only** helper used by Conduit-behavior cache cases that pin
+the stub peer. It is not a general multi-family peer-count facility — other
+peer packs raise from ``CellStack.count_peer_queries``.
+"""
 
 from __future__ import annotations
 

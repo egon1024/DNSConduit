@@ -74,6 +74,10 @@ into a per-run tempdir by the family pack:
 A case's `conduit_delta` replaces top-level keys in the selected Conduit
 profile before that cell starts (e.g. swapping the `pools` backend address).
 
+**`peer-query-count` oracle:** stub-peer **cache-hit proof** only — implemented
+for the **dnsmasq** family via query logs. Conduit-behavior cache cases pin
+`thekelleys-dnsmasq-2.90`; other families raise if a case requests this oracle.
+
 Recursive/stub peers must answer from local/static data only — no public
 internet dependency in committed cases. See
 `docs/superpowers/process/e2e-interop-testing.md` (Cursor-side) for the

@@ -1,0 +1,97 @@
+schema_version: 1
+id: health-fail-open-all-down
+matrix: conduit
+suites: [full]
+intent: |
+  ## Purpose
+
+  When **every** backend in a health-enabled pool is down, Route still
+  **fails open** (re-admits backends) and Forward still runs. The client gets
+  a timeout **SERVFAIL**, not an immediate empty-pool SERVFAIL with no forward
+  attempt. The stub peer receives **no** client query for the test name
+  (pool members are unreachable addresses only).
+
+  Results appear on the **Conduit behavior** matrix (one stub peer).
+
+  ## How it works
+
+  1. The stub peer container still starts for cell readiness, but the pool lists
+     only two dead addresses (`172.30.97.98` / `.99`).
+  2. Health probes mark both down; the case sleeps before the client dig.
+  3. Conduit fails open, selects a down backend, and times out the forward
+     (`max_attempts: 1`, short `forward.timeout_ms`).
+  4. Checks require SERVFAIL, zero peer queries for the name, one forward
+     error attempt, timeout reason incremented, and **no** `no_backend` error.
+
+  ## Outcomes
+
+  | Outcome | Meaning for operators |
+  |---|---|
+  | <span class="interop-outcome interop-outcome--pass">pass</span> | All-down failed open into a forward timeout SERVFAIL (not Route empty). |
+  | <span class="interop-outcome interop-outcome--fail">fail</span> | Unexpected rcode, peer traffic, or `no_backend` instead of timeout. |
+  | <span class="interop-outcome interop-outcome--skip">skip</span> | This peer/profile combination is out of scope. |
+  | <span class="interop-outcome interop-outcome--characterized">characterized</span> | Not used for this case today. If it appeared, it would mean a documented peer-specific quirk rather than a Conduit regression. |
+applicability:
+  roles: [stub]
+  profiles: [forward-only]
+  peers: [thekelleys-dnsmasq-2.90]
+peer_setup:
+  local_rr:
+    - name: www.smoke.test.
+      type: A
+      rdata: "192.0.2.20"
+      ttl: 60
+conduit_delta:
+  forward:
+    outstanding_per_backend: 50
+    timeout_ms: 400
+  orchestrator:
+    max_attempts: 1
+    max_txn_duration_ms: 5000
+    txn_table_capacity: 1024
+  pools:
+    - name: default
+      health:
+        enabled: true
+        interval_ms: 100
+        timeout_ms: 100
+        fall: 1
+        rise: 1
+        probe_qname: "health-probe.interop."
+        probe_qtype: A
+        passive_fast_trip: false
+        min_eligible: 1
+      backends:
+        - address: "172.30.97.98:53"
+          name: dead-a
+          weight: 100
+        - address: "172.30.97.99:53"
+          name: dead-b
+          weight: 100
+  metrics:
+    enabled: true
+    profile: full
+    prometheus:
+      listen_address: "0.0.0.0:9090"
+      path: /metrics
+queries:
+  - qname: www.smoke.test.
+    sleep_before_secs: 2
+oracles:
+  - kind: property
+    checks: [rcode-servfail]
+  - kind: peer-query-count
+    expect: 0
+    qname: www.smoke.test.
+    qtype: A
+  - kind: metrics-delta
+    expect:
+      - metric: conduit_forward_attempts_total
+        labels: {pool: default, outcome: error}
+        delta: 1
+      - metric: conduit_forward_errors_total
+        labels: {pool: default, reason: timeout}
+        delta: 1
+      - metric: conduit_forward_errors_total
+        labels: {reason: no_backend}
+        delta: 0

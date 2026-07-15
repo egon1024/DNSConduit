@@ -259,7 +259,11 @@ class CellStack:
         *,
         from_conduit: bool = True,
     ) -> int:
-        """Count matching query lines in the peer log (dnsmasq ``--log-queries``).
+        """Count matching query lines in the peer log (stub-peer cache-hit proof).
+
+        Implemented only for the **dnsmasq** family (``--log-queries``). Conduit
+        behavior cache cases pin that stub peer; do not treat this as a general
+        peer-count API for other packs.
 
         When ``from_conduit`` is true (default), only count queries sourced from
         the Conduit container IP so readiness digs on the published port do not
@@ -271,7 +275,8 @@ class CellStack:
                 self.peer_logs(), qname, qtype, from_ip=from_ip
             )
         raise RuntimeError(
-            f"peer-query-count is not implemented for family {self.peer.family!r}"
+            f"peer-query-count is a dnsmasq stub-peer cache proof only; "
+            f"not implemented for family {self.peer.family!r}"
         )
 
     def scrape_conduit_metrics(self) -> MetricSamples:
