@@ -52,3 +52,9 @@ rules:
           value: default
 logging:
   level: warn
+metrics:
+  enabled: true
+  profile: minimal
+  prometheus:
+    listen_address: "0.0.0.0:9090"
+    path: /metrics

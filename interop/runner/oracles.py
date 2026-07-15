@@ -1,4 +1,4 @@
-"""Oracle evaluation helpers (parity / fixture / property / differential / sequence / peer-query-count)."""
+"""Oracle evaluation helpers (parity / fixture / property / differential / sequence / peer-query-count / metrics-delta)."""
 
 from __future__ import annotations
 
@@ -36,6 +36,8 @@ def evaluate_oracles(
     peer_id: str,
     via_steps: list[QueryResult] | None = None,
     peer_query_deltas: dict[tuple[str, str], int] | None = None,
+    metrics_baseline: Any | None = None,
+    metrics_after: Any | None = None,
 ) -> tuple[str, str]:
     """
     Return (outcome, detail). Outcomes: pass | fail | characterized.
@@ -43,8 +45,8 @@ def evaluate_oracles(
 
     Per-step oracles (property/parity/fixture/differential) run against each entry in
     ``via_steps`` when provided, otherwise against ``via_conduit`` once.
-    Sequence and peer-query-count oracles run once against the full step list /
-    measured upstream deltas (not per DNS step).
+    Sequence, peer-query-count, and metrics-delta oracles run once against the full
+    step list / measured side channels (not per DNS step).
     """
     if via_conduit is None and not via_steps:
         return "fail", "no response via Conduit"
@@ -64,6 +66,12 @@ def evaluate_oracles(
             continue
         if kind == "peer-query-count":
             ok, msg = _peer_query_count(oracle, peer_query_deltas)
+            if not ok:
+                return "fail", msg
+            details.append(msg)
+            continue
+        if kind == "metrics-delta":
+            ok, msg = _metrics_delta(oracle, metrics_baseline, metrics_after)
             if not ok:
                 return "fail", msg
             details.append(msg)
@@ -131,6 +139,41 @@ def _peer_query_count(
     if got != want:
         return False, f"peer-query-count want {want} got {got} for {key[0]}/{key[1]}"
     return True, f"peer-query-count {key[0]}/{key[1]}={got}"
+
+
+def _metrics_delta(
+    oracle: dict[str, Any],
+    baseline: Any | None,
+    after: Any | None,
+) -> tuple[bool, str]:
+    if baseline is None or after is None:
+        return False, "metrics-delta unavailable (no scrape samples)"
+    expect = oracle.get("expect")
+    if not isinstance(expect, list) or not expect:
+        return False, "metrics-delta requires a non-empty expect list"
+    parts: list[str] = []
+    for item in expect:
+        if not isinstance(item, dict):
+            return False, "metrics-delta expect entries must be objects"
+        metric = str(item.get("metric") or "")
+        if not metric:
+            return False, "metrics-delta expect entry requires metric"
+        if "delta" not in item:
+            return False, f"metrics-delta expect for {metric} requires delta"
+        labels = item.get("labels") or {}
+        if not isinstance(labels, dict):
+            return False, f"metrics-delta labels for {metric} must be a map"
+        label_map = {str(k): str(v) for k, v in labels.items()}
+        want = float(item["delta"])
+        got = float(after.sum(metric, label_map) - baseline.sum(metric, label_map))
+        if abs(got - want) > 1e-9:
+            label_s = ",".join(f"{k}={v}" for k, v in sorted(label_map.items()))
+            return False, (
+                f"metrics-delta {metric}{{{label_s}}} want {want:g} got {got:g}"
+            )
+        label_s = ",".join(f"{k}={v}" for k, v in sorted(label_map.items()))
+        parts.append(f"{metric}{{{label_s}}}={got:g}")
+    return True, "metrics-delta " + "; ".join(parts)
 
 
 def _property(result: QueryResult, oracle: dict[str, Any]) -> tuple[bool, str]:
