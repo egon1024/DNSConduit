@@ -22,7 +22,7 @@ Results appear on the **Conduit behavior** matrix (one stub peer).
 | <span class="interop-outcome interop-outcome--pass">pass</span> | RRset membership held and at least two distinct answer orders were observed. |
 | <span class="interop-outcome interop-outcome--fail">fail</span> | Membership was wrong, or order never varied — investigate rotate_on_serve or the peer RRset. |
 | <span class="interop-outcome interop-outcome--skip">skip</span> | This profile or peer is out of scope. |
-| <span class="interop-outcome interop-outcome--characterized">characterized</span> | Not used for this case today. |
+| <span class="interop-outcome interop-outcome--characterized">characterized</span> | Not used for this case today. If it appeared, it would mean a documented peer-specific quirk rather than a Conduit regression. |
 
 **Matrix:** conduit ([Conduit behavior](/interop/conduit-behavior.md))
 

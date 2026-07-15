@@ -123,6 +123,22 @@ class DnsmasqPrepareTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 mod.prepare(out_dir=Path(tmp), ir=ir, peer=None)
 
+    def test_prepare_cname_with_local_target(self):
+        mod = self._load_prepare()
+        ir = SetupIR(
+            local_rr=[
+                LocalRR(name="target.smoke.test.", type="A", rdata="192.0.2.20"),
+                LocalRR(name="alias.smoke.test.", type="CNAME", rdata="target.smoke.test."),
+            ]
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            out_dir = Path(tmp)
+            mod.prepare(out_dir=out_dir, ir=ir, peer=None)
+            contents = (out_dir / "run.sh").read_text(encoding="utf-8")
+            self.assertIn("--cname=alias.smoke.test,target.smoke.test", contents)
+            hosts = (out_dir / "hosts").read_text(encoding="utf-8")
+            self.assertIn("192.0.2.20 target.smoke.test", hosts)
+
     def test_prepare_writes_local_zones(self):
         mod = self._load_prepare()
         ir = SetupIR(local_zones=["nxcache.test."])
@@ -228,6 +244,47 @@ class PdnsRecursorPrepareTests(unittest.TestCase):
             mod.prepare(out_dir=out_dir, ir=SetupIR(), peer=None)
             conf = (out_dir / "recursor.conf").read_text(encoding="utf-8")
             self.assertNotIn("auth-zones", conf)
+
+
+class BindRecursivePrepareTests(unittest.TestCase):
+    def _load_prepare(self):
+        import importlib.util
+
+        PEERS_PACKS = Path(__file__).resolve().parents[1] / "peers"
+        prepare_path = PEERS_PACKS / "bind-recursive" / "prepare.py"
+        spec = importlib.util.spec_from_file_location("bind_recursive_prepare_test", prepare_path)
+        mod = importlib.util.module_from_spec(spec)
+        assert spec.loader is not None
+        spec.loader.exec_module(mod)
+        return mod
+
+    def test_prepare_enables_recursion_with_local_zones(self):
+        mod = self._load_prepare()
+        ir = SetupIR(local_rr=[LocalRR(name="www.smoke.test.", type="A", rdata="192.0.2.20", ttl=300)])
+        with tempfile.TemporaryDirectory() as tmp:
+            out_dir = Path(tmp)
+            mod.prepare(out_dir=out_dir, ir=ir, peer=None)
+            named = (out_dir / "named.conf").read_text(encoding="utf-8")
+            self.assertIn("recursion yes;", named)
+            self.assertIn("dnssec-validation no;", named)
+            self.assertIn('zone "smoke.test"', named)
+            self.assertNotIn("recursion no;", named)
+            synth = (out_dir / "synth" / "smoke.test.zone").read_text(encoding="utf-8")
+            self.assertIn("www\t300\tIN A\t192.0.2.20", synth)
+
+    def test_prepare_handles_empty_local_rr(self):
+        mod = self._load_prepare()
+        with tempfile.TemporaryDirectory() as tmp:
+            out_dir = Path(tmp)
+            mod.prepare(out_dir=out_dir, ir=SetupIR(), peer=None)
+            named = (out_dir / "named.conf").read_text(encoding="utf-8")
+            self.assertIn("recursion yes;", named)
+            self.assertNotIn('zone "', named)
+
+    def test_pack_dir_resolves(self):
+        path = pack_dir_for_family("bind-recursive")
+        self.assertTrue((path / "prepare.py").is_file())
+        self.assertTrue((path / "compose.override.yml").is_file())
 
 
 class AuthPackMaterializeTests(unittest.TestCase):

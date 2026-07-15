@@ -1,0 +1,56 @@
+schema_version: 1
+id: pdns-recursor-rd0-refused
+suites: [full]
+intent: |
+  ## Purpose
+
+  When Conduit forwards to **PowerDNS Recursor**, a client query with the
+  recursion-desired bit **cleared** (RD=0) can receive **REFUSED** for a name
+  the Recursor would answer successfully if RD were set — that is Recursor’s
+  default policy for non-recursive queries, not a Conduit refusal. Operators
+  should see that same **REFUSED** through Conduit (Conduit does not invent an
+  answer or rewrite the rcode).
+
+  ## How it works
+
+  1. The Recursor under test is given a local auth-zone name that answers A
+     successfully when RD=1.
+  2. The client queries that name via Conduit with RD cleared (for example
+     `dig +nord`).
+  3. The response must be REFUSED and must match a direct query to the Recursor
+     with the same flags.
+
+  ## Outcomes
+
+  | Outcome | Meaning for operators |
+  |---|---|
+  | <span class="interop-outcome interop-outcome--pass">pass</span> | Not expected for this case; a matching result is reported as characterized. |
+  | <span class="interop-outcome interop-outcome--fail">fail</span> | Through Conduit the client did not get REFUSED, or Conduit’s answer disagreed with querying the Recursor directly. |
+  | <span class="interop-outcome interop-outcome--skip">skip</span> | Peer is not PowerDNS Recursor for this matrix (or profile out of scope). |
+  | <span class="interop-outcome interop-outcome--characterized">characterized</span> | Expected: RD=0 yields REFUSED through Conduit, matching the Recursor’s own reply. |
+applicability:
+  roles: [recursive]
+  peers:
+    - powerdns-recursor-5.3
+    - powerdns-recursor-5.4
+  profiles: [forward-only]
+peer_setup:
+  local_rr:
+    - name: www.recr.test.
+      type: A
+      rdata: "192.0.2.52"
+      ttl: 300
+queries:
+  - qname: www.recr.test
+    qtype: A
+    norecurse: true
+oracles:
+  - kind: property
+    checks: [rcode-refused]
+  - kind: parity
+    compare: [rcode, ancount]
+  - kind: differential
+    expect:
+      default:
+        rcode: REFUSED
+        ancount: 0

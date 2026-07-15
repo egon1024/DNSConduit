@@ -22,7 +22,7 @@ Results appear on the **Conduit behavior** matrix (one stub peer).
 | <span class="interop-outcome interop-outcome--pass">pass</span> | Rhai soft-drop produced no successful client answer. |
 | <span class="interop-outcome interop-outcome--fail">fail</span> | Unexpected: query still answered — script loading or `drop_query` path broken. |
 | <span class="interop-outcome interop-outcome--skip">skip</span> | This peer/profile combination is out of scope. |
-| <span class="interop-outcome interop-outcome--characterized">characterized</span> | Not used for this case today. |
+| <span class="interop-outcome interop-outcome--characterized">characterized</span> | Not used for this case today. If it appeared, it would mean a documented peer-specific quirk rather than a Conduit regression. |
 
 **Matrix:** conduit ([Conduit behavior](/interop/conduit-behavior.md))
 

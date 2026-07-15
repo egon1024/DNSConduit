@@ -1,0 +1,31 @@
+# peer-tc-passthrough
+
+## Purpose
+
+When a client advertises a **small EDNS UDP buffer** and an authoritative peer
+truncates a large A RRset (**TC** set), Conduit’s default upstream transport
+(**udp_only**) must leave that **TC** bit for the client. This case does not
+cover configured TCP fallback that would fetch a full answer instead.
+
+## How it works
+
+1. The peer serves fixture zone `example.test`, including a large multi-A name.
+2. A client queries that name through Conduit with a 512-byte EDNS buffer,
+   without automatically retrying over TCP after seeing TC.
+3. The reply must carry TC (and the same rcode) as a direct query to the peer
+   with the same client limits.
+
+## Outcomes
+
+| Outcome | Meaning for operators |
+|---|---|
+| <span class="interop-outcome interop-outcome--pass">pass</span> | Truncation (TC) through Conduit matches the peer for this oversized answer. |
+| <span class="interop-outcome interop-outcome--fail">fail</span> | TC was cleared or disagreed, or the peer did not truncate as expected. |
+| <span class="interop-outcome interop-outcome--skip">skip</span> | Peer is not authoritative for this matrix (or profile out of scope). |
+| <span class="interop-outcome interop-outcome--characterized">characterized</span> | Not used for this case today. If it appeared, it would mean a documented peer-specific quirk rather than a Conduit regression. |
+
+**Matrix:** peer (by publisher)
+
+**Suites:** full
+
+**Oracles:** property, parity

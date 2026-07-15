@@ -25,7 +25,7 @@ This does **not** prove the second query skipped the peer.
 | <span class="interop-outcome interop-outcome--pass">pass</span> | Both queries returned NXDOMAIN with negative caching configured. |
 | <span class="interop-outcome interop-outcome--fail">fail</span> | Unexpected response code — investigate negative cache or forwarding. |
 | <span class="interop-outcome interop-outcome--skip">skip</span> | This profile or peer is out of scope. |
-| <span class="interop-outcome interop-outcome--characterized">characterized</span> | Not used for this case today. |
+| <span class="interop-outcome interop-outcome--characterized">characterized</span> | Not used for this case today. If it appeared, it would mean a documented peer-specific quirk rather than a Conduit regression. |
 
 **Matrix:** conduit ([Conduit behavior](/interop/conduit-behavior.md))
 

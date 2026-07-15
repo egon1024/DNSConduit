@@ -1,6 +1,864 @@
 {
   "cells": [
     {
+      "case_id": "auth-dangling-cname-nxdomain",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.4",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "auth-dangling-cname-nxdomain",
+      "detail": "1 step(s): property ok; parity ok",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "pass",
+      "peer_id": "cznic-knot-3.4",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "auth-dangling-cname-nxdomain",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.4",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "auth-dangling-cname-nxdomain",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.5",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "auth-dangling-cname-nxdomain",
+      "detail": "1 step(s): property ok; parity ok",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "pass",
+      "peer_id": "cznic-knot-3.5",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "auth-dangling-cname-nxdomain",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.5",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "auth-dangling-cname-nxdomain",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.18",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "auth-dangling-cname-nxdomain",
+      "detail": "1 step(s): property ok; parity ok",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "pass",
+      "peer_id": "isc-bind-9.18",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "auth-dangling-cname-nxdomain",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.18",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "auth-dangling-cname-nxdomain",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.20",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "auth-dangling-cname-nxdomain",
+      "detail": "1 step(s): property ok; parity ok",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "pass",
+      "peer_id": "isc-bind-9.20",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "auth-dangling-cname-nxdomain",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.20",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "auth-dangling-cname-nxdomain",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "auth-dangling-cname-nxdomain",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "auth-dangling-cname-nxdomain",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "auth-dangling-cname-nxdomain",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "auth-dangling-cname-nxdomain",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "auth-dangling-cname-nxdomain",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "auth-dangling-cname-nxdomain",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.21",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "auth-dangling-cname-nxdomain",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.21",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "auth-dangling-cname-nxdomain",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.21",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "auth-dangling-cname-nxdomain",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.22",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "auth-dangling-cname-nxdomain",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.22",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "auth-dangling-cname-nxdomain",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.22",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "auth-dangling-cname-nxdomain",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.0",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "auth-dangling-cname-nxdomain",
+      "detail": "1 step(s): property ok; parity ok",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "pass",
+      "peer_id": "powerdns-auth-5.0",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "auth-dangling-cname-nxdomain",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.0",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "auth-dangling-cname-nxdomain",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.1",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "auth-dangling-cname-nxdomain",
+      "detail": "1 step(s): property ok; parity ok",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "pass",
+      "peer_id": "powerdns-auth-5.1",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "auth-dangling-cname-nxdomain",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.1",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "auth-dangling-cname-nxdomain",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.3",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "auth-dangling-cname-nxdomain",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.3",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "auth-dangling-cname-nxdomain",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.3",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "auth-dangling-cname-nxdomain",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.4",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "auth-dangling-cname-nxdomain",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.4",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "auth-dangling-cname-nxdomain",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.4",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "auth-dangling-cname-nxdomain",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "thekelleys-dnsmasq-2.90",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "auth-dangling-cname-nxdomain",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "thekelleys-dnsmasq-2.90",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "auth-dangling-cname-nxdomain",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "thekelleys-dnsmasq-2.90",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "auth-unknown-zone-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.4",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "auth-unknown-zone-refused",
+      "detail": "1 step(s): property ok; parity ok",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "pass",
+      "peer_id": "cznic-knot-3.4",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "auth-unknown-zone-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.4",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "auth-unknown-zone-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.5",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "auth-unknown-zone-refused",
+      "detail": "1 step(s): property ok; parity ok",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "pass",
+      "peer_id": "cznic-knot-3.5",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "auth-unknown-zone-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.5",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "auth-unknown-zone-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.18",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "auth-unknown-zone-refused",
+      "detail": "1 step(s): property ok; parity ok",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "pass",
+      "peer_id": "isc-bind-9.18",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "auth-unknown-zone-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.18",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "auth-unknown-zone-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.20",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "auth-unknown-zone-refused",
+      "detail": "1 step(s): property ok; parity ok",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "pass",
+      "peer_id": "isc-bind-9.20",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "auth-unknown-zone-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.20",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "auth-unknown-zone-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "auth-unknown-zone-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "auth-unknown-zone-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "auth-unknown-zone-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "auth-unknown-zone-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "auth-unknown-zone-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "auth-unknown-zone-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.21",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "auth-unknown-zone-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.21",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "auth-unknown-zone-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.21",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "auth-unknown-zone-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.22",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "auth-unknown-zone-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.22",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "auth-unknown-zone-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.22",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "auth-unknown-zone-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.0",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "auth-unknown-zone-refused",
+      "detail": "1 step(s): property ok; parity ok",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "pass",
+      "peer_id": "powerdns-auth-5.0",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "auth-unknown-zone-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.0",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "auth-unknown-zone-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.1",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "auth-unknown-zone-refused",
+      "detail": "1 step(s): property ok; parity ok",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "pass",
+      "peer_id": "powerdns-auth-5.1",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "auth-unknown-zone-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.1",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "auth-unknown-zone-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.3",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "auth-unknown-zone-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.3",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "auth-unknown-zone-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.3",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "auth-unknown-zone-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.4",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "auth-unknown-zone-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.4",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "auth-unknown-zone-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.4",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "auth-unknown-zone-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "thekelleys-dnsmasq-2.90",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "auth-unknown-zone-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "thekelleys-dnsmasq-2.90",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "auth-unknown-zone-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "thekelleys-dnsmasq-2.90",
+      "profile_id": "forward-split-io"
+    },
+    {
       "case_id": "basic-a-forward",
       "detail": "applicability",
       "oracles": [
@@ -130,6 +988,72 @@
       ],
       "outcome": "skip",
       "peer_id": "isc-bind-9.20",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "basic-a-forward",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "basic-a-forward",
+      "detail": "1 step(s): property ok; parity ok",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "pass",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "basic-a-forward",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "basic-a-forward",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "basic-a-forward",
+      "detail": "1 step(s): property ok; parity ok",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "pass",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "basic-a-forward",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
       "profile_id": "forward-split-io"
     },
     {
@@ -481,6 +1405,66 @@
       ],
       "outcome": "skip",
       "peer_id": "isc-bind-9.20",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "cache-forward-a",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "cache-forward-a",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "cache-forward-a",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "cache-forward-a",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "cache-forward-a",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "cache-forward-a",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
       "profile_id": "forward-split-io"
     },
     {
@@ -820,6 +1804,66 @@
         "property"
       ],
       "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "cache-miss-then-hit-a",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "cache-miss-then-hit-a",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "cache-miss-then-hit-a",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "cache-miss-then-hit-a",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "cache-miss-then-hit-a",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "cache-miss-then-hit-a",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
       "peer_id": "nlnetlabs-unbound-1.21",
       "profile_id": "cache-forward"
     },
@@ -1150,6 +2194,66 @@
         "property"
       ],
       "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "cache-nxdomain-miss-then-hit",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "cache-nxdomain-miss-then-hit",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "cache-nxdomain-miss-then-hit",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "cache-nxdomain-miss-then-hit",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "cache-nxdomain-miss-then-hit",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "cache-nxdomain-miss-then-hit",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
       "peer_id": "nlnetlabs-unbound-1.21",
       "profile_id": "cache-forward"
     },
@@ -1483,6 +2587,72 @@
       ],
       "outcome": "skip",
       "peer_id": "isc-bind-9.20",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "cache-rotate-rrset",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "sequence"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "cache-rotate-rrset",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "sequence"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "cache-rotate-rrset",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "sequence"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "cache-rotate-rrset",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "sequence"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "cache-rotate-rrset",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "sequence"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "cache-rotate-rrset",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "sequence"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
       "profile_id": "forward-split-io"
     },
     {
@@ -1843,6 +3013,66 @@
         "property"
       ],
       "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "dataplane-split-io-forward",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "dataplane-split-io-forward",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "dataplane-split-io-forward",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "dataplane-split-io-forward",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "dataplane-split-io-forward",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "dataplane-split-io-forward",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
       "peer_id": "nlnetlabs-unbound-1.21",
       "profile_id": "cache-forward"
     },
@@ -2047,6 +3277,1332 @@
       "profile_id": "forward-split-io"
     },
     {
+      "case_id": "dnsmasq-cname-ignored-nonlocal",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.4",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "dnsmasq-cname-ignored-nonlocal",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.4",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "dnsmasq-cname-ignored-nonlocal",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.4",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "dnsmasq-cname-ignored-nonlocal",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.5",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "dnsmasq-cname-ignored-nonlocal",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.5",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "dnsmasq-cname-ignored-nonlocal",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.5",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "dnsmasq-cname-ignored-nonlocal",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.18",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "dnsmasq-cname-ignored-nonlocal",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.18",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "dnsmasq-cname-ignored-nonlocal",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.18",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "dnsmasq-cname-ignored-nonlocal",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.20",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "dnsmasq-cname-ignored-nonlocal",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.20",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "dnsmasq-cname-ignored-nonlocal",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.20",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "dnsmasq-cname-ignored-nonlocal",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "dnsmasq-cname-ignored-nonlocal",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "dnsmasq-cname-ignored-nonlocal",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "dnsmasq-cname-ignored-nonlocal",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "dnsmasq-cname-ignored-nonlocal",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "dnsmasq-cname-ignored-nonlocal",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "dnsmasq-cname-ignored-nonlocal",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.21",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "dnsmasq-cname-ignored-nonlocal",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.21",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "dnsmasq-cname-ignored-nonlocal",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.21",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "dnsmasq-cname-ignored-nonlocal",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.22",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "dnsmasq-cname-ignored-nonlocal",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.22",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "dnsmasq-cname-ignored-nonlocal",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.22",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "dnsmasq-cname-ignored-nonlocal",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.0",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "dnsmasq-cname-ignored-nonlocal",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.0",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "dnsmasq-cname-ignored-nonlocal",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.0",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "dnsmasq-cname-ignored-nonlocal",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.1",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "dnsmasq-cname-ignored-nonlocal",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.1",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "dnsmasq-cname-ignored-nonlocal",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.1",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "dnsmasq-cname-ignored-nonlocal",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.3",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "dnsmasq-cname-ignored-nonlocal",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.3",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "dnsmasq-cname-ignored-nonlocal",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.3",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "dnsmasq-cname-ignored-nonlocal",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.4",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "dnsmasq-cname-ignored-nonlocal",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.4",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "dnsmasq-cname-ignored-nonlocal",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.4",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "dnsmasq-cname-ignored-nonlocal",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "thekelleys-dnsmasq-2.90",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "dnsmasq-cname-ignored-nonlocal",
+      "detail": "differential match",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "characterized",
+      "peer_id": "thekelleys-dnsmasq-2.90",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "dnsmasq-cname-ignored-nonlocal",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "thekelleys-dnsmasq-2.90",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "dnsmasq-local-cname-expand",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.4",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "dnsmasq-local-cname-expand",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.4",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "dnsmasq-local-cname-expand",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.4",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "dnsmasq-local-cname-expand",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.5",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "dnsmasq-local-cname-expand",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.5",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "dnsmasq-local-cname-expand",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.5",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "dnsmasq-local-cname-expand",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.18",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "dnsmasq-local-cname-expand",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.18",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "dnsmasq-local-cname-expand",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.18",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "dnsmasq-local-cname-expand",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.20",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "dnsmasq-local-cname-expand",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.20",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "dnsmasq-local-cname-expand",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.20",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "dnsmasq-local-cname-expand",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "dnsmasq-local-cname-expand",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "dnsmasq-local-cname-expand",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "dnsmasq-local-cname-expand",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "dnsmasq-local-cname-expand",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "dnsmasq-local-cname-expand",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "dnsmasq-local-cname-expand",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.21",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "dnsmasq-local-cname-expand",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.21",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "dnsmasq-local-cname-expand",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.21",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "dnsmasq-local-cname-expand",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.22",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "dnsmasq-local-cname-expand",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.22",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "dnsmasq-local-cname-expand",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.22",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "dnsmasq-local-cname-expand",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.0",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "dnsmasq-local-cname-expand",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.0",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "dnsmasq-local-cname-expand",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.0",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "dnsmasq-local-cname-expand",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.1",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "dnsmasq-local-cname-expand",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.1",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "dnsmasq-local-cname-expand",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.1",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "dnsmasq-local-cname-expand",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.3",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "dnsmasq-local-cname-expand",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.3",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "dnsmasq-local-cname-expand",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.3",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "dnsmasq-local-cname-expand",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.4",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "dnsmasq-local-cname-expand",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.4",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "dnsmasq-local-cname-expand",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.4",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "dnsmasq-local-cname-expand",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "thekelleys-dnsmasq-2.90",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "dnsmasq-local-cname-expand",
+      "detail": "1 step(s): property ok; parity ok",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "pass",
+      "peer_id": "thekelleys-dnsmasq-2.90",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "dnsmasq-local-cname-expand",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "thekelleys-dnsmasq-2.90",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "edns-opt-passthrough-smoke",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.4",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "edns-opt-passthrough-smoke",
+      "detail": "1 step(s): property ok; parity ok",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "pass",
+      "peer_id": "cznic-knot-3.4",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "edns-opt-passthrough-smoke",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.4",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "edns-opt-passthrough-smoke",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.5",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "edns-opt-passthrough-smoke",
+      "detail": "1 step(s): property ok; parity ok",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "pass",
+      "peer_id": "cznic-knot-3.5",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "edns-opt-passthrough-smoke",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.5",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "edns-opt-passthrough-smoke",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.18",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "edns-opt-passthrough-smoke",
+      "detail": "1 step(s): property ok; parity ok",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "pass",
+      "peer_id": "isc-bind-9.18",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "edns-opt-passthrough-smoke",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.18",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "edns-opt-passthrough-smoke",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.20",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "edns-opt-passthrough-smoke",
+      "detail": "1 step(s): property ok; parity ok",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "pass",
+      "peer_id": "isc-bind-9.20",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "edns-opt-passthrough-smoke",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.20",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "edns-opt-passthrough-smoke",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "edns-opt-passthrough-smoke",
+      "detail": "1 step(s): property ok; parity ok",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "pass",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "edns-opt-passthrough-smoke",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "edns-opt-passthrough-smoke",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "edns-opt-passthrough-smoke",
+      "detail": "1 step(s): property ok; parity ok",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "pass",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "edns-opt-passthrough-smoke",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "edns-opt-passthrough-smoke",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.21",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "edns-opt-passthrough-smoke",
+      "detail": "1 step(s): property ok; parity ok",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "pass",
+      "peer_id": "nlnetlabs-unbound-1.21",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "edns-opt-passthrough-smoke",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.21",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "edns-opt-passthrough-smoke",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.22",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "edns-opt-passthrough-smoke",
+      "detail": "1 step(s): property ok; parity ok",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "pass",
+      "peer_id": "nlnetlabs-unbound-1.22",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "edns-opt-passthrough-smoke",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.22",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "edns-opt-passthrough-smoke",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.0",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "edns-opt-passthrough-smoke",
+      "detail": "1 step(s): property ok; parity ok",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "pass",
+      "peer_id": "powerdns-auth-5.0",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "edns-opt-passthrough-smoke",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.0",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "edns-opt-passthrough-smoke",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.1",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "edns-opt-passthrough-smoke",
+      "detail": "1 step(s): property ok; parity ok",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "pass",
+      "peer_id": "powerdns-auth-5.1",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "edns-opt-passthrough-smoke",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.1",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "edns-opt-passthrough-smoke",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.3",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "edns-opt-passthrough-smoke",
+      "detail": "1 step(s): property ok; parity ok",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "pass",
+      "peer_id": "powerdns-recursor-5.3",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "edns-opt-passthrough-smoke",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.3",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "edns-opt-passthrough-smoke",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.4",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "edns-opt-passthrough-smoke",
+      "detail": "1 step(s): property ok; parity ok",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "pass",
+      "peer_id": "powerdns-recursor-5.4",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "edns-opt-passthrough-smoke",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.4",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "edns-opt-passthrough-smoke",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "thekelleys-dnsmasq-2.90",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "edns-opt-passthrough-smoke",
+      "detail": "1 step(s): property ok; parity ok",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "pass",
+      "peer_id": "thekelleys-dnsmasq-2.90",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "edns-opt-passthrough-smoke",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "thekelleys-dnsmasq-2.90",
+      "profile_id": "forward-split-io"
+    },
+    {
       "case_id": "fixture-auth-a",
       "detail": "applicability",
       "oracles": [
@@ -2173,6 +4729,66 @@
         "fixture"
       ],
       "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "fixture-auth-a",
+      "detail": "applicability",
+      "oracles": [
+        "fixture"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "fixture-auth-a",
+      "detail": "applicability",
+      "oracles": [
+        "fixture"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "fixture-auth-a",
+      "detail": "applicability",
+      "oracles": [
+        "fixture"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "fixture-auth-a",
+      "detail": "applicability",
+      "oracles": [
+        "fixture"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "fixture-auth-a",
+      "detail": "applicability",
+      "oracles": [
+        "fixture"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "fixture-auth-a",
+      "detail": "applicability",
+      "oracles": [
+        "fixture"
+      ],
+      "outcome": "skip",
       "peer_id": "nlnetlabs-unbound-1.21",
       "profile_id": "cache-forward"
     },
@@ -2503,6 +5119,66 @@
         "fixture"
       ],
       "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "fixture-auth-aaaa",
+      "detail": "applicability",
+      "oracles": [
+        "fixture"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "fixture-auth-aaaa",
+      "detail": "applicability",
+      "oracles": [
+        "fixture"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "fixture-auth-aaaa",
+      "detail": "applicability",
+      "oracles": [
+        "fixture"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "fixture-auth-aaaa",
+      "detail": "applicability",
+      "oracles": [
+        "fixture"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "fixture-auth-aaaa",
+      "detail": "applicability",
+      "oracles": [
+        "fixture"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "fixture-auth-aaaa",
+      "detail": "applicability",
+      "oracles": [
+        "fixture"
+      ],
+      "outcome": "skip",
       "peer_id": "nlnetlabs-unbound-1.21",
       "profile_id": "cache-forward"
     },
@@ -2833,6 +5509,66 @@
         "fixture"
       ],
       "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "fixture-auth-api-a",
+      "detail": "applicability",
+      "oracles": [
+        "fixture"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "fixture-auth-api-a",
+      "detail": "applicability",
+      "oracles": [
+        "fixture"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "fixture-auth-api-a",
+      "detail": "applicability",
+      "oracles": [
+        "fixture"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "fixture-auth-api-a",
+      "detail": "applicability",
+      "oracles": [
+        "fixture"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "fixture-auth-api-a",
+      "detail": "applicability",
+      "oracles": [
+        "fixture"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "fixture-auth-api-a",
+      "detail": "applicability",
+      "oracles": [
+        "fixture"
+      ],
+      "outcome": "skip",
       "peer_id": "nlnetlabs-unbound-1.21",
       "profile_id": "cache-forward"
     },
@@ -3037,6 +5773,903 @@
       "profile_id": "forward-split-io"
     },
     {
+      "case_id": "fixture-auth-cname-a",
+      "detail": "applicability",
+      "oracles": [
+        "fixture",
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.4",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "fixture-auth-cname-a",
+      "detail": "1 step(s): fixture ok; property ok; parity ok",
+      "oracles": [
+        "fixture",
+        "property",
+        "parity"
+      ],
+      "outcome": "pass",
+      "peer_id": "cznic-knot-3.4",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "fixture-auth-cname-a",
+      "detail": "applicability",
+      "oracles": [
+        "fixture",
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.4",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "fixture-auth-cname-a",
+      "detail": "applicability",
+      "oracles": [
+        "fixture",
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.5",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "fixture-auth-cname-a",
+      "detail": "1 step(s): fixture ok; property ok; parity ok",
+      "oracles": [
+        "fixture",
+        "property",
+        "parity"
+      ],
+      "outcome": "pass",
+      "peer_id": "cznic-knot-3.5",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "fixture-auth-cname-a",
+      "detail": "applicability",
+      "oracles": [
+        "fixture",
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.5",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "fixture-auth-cname-a",
+      "detail": "applicability",
+      "oracles": [
+        "fixture",
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.18",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "fixture-auth-cname-a",
+      "detail": "1 step(s): fixture ok; property ok; parity ok",
+      "oracles": [
+        "fixture",
+        "property",
+        "parity"
+      ],
+      "outcome": "pass",
+      "peer_id": "isc-bind-9.18",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "fixture-auth-cname-a",
+      "detail": "applicability",
+      "oracles": [
+        "fixture",
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.18",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "fixture-auth-cname-a",
+      "detail": "applicability",
+      "oracles": [
+        "fixture",
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.20",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "fixture-auth-cname-a",
+      "detail": "1 step(s): fixture ok; property ok; parity ok",
+      "oracles": [
+        "fixture",
+        "property",
+        "parity"
+      ],
+      "outcome": "pass",
+      "peer_id": "isc-bind-9.20",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "fixture-auth-cname-a",
+      "detail": "applicability",
+      "oracles": [
+        "fixture",
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.20",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "fixture-auth-cname-a",
+      "detail": "applicability",
+      "oracles": [
+        "fixture",
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "fixture-auth-cname-a",
+      "detail": "applicability",
+      "oracles": [
+        "fixture",
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "fixture-auth-cname-a",
+      "detail": "applicability",
+      "oracles": [
+        "fixture",
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "fixture-auth-cname-a",
+      "detail": "applicability",
+      "oracles": [
+        "fixture",
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "fixture-auth-cname-a",
+      "detail": "applicability",
+      "oracles": [
+        "fixture",
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "fixture-auth-cname-a",
+      "detail": "applicability",
+      "oracles": [
+        "fixture",
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "fixture-auth-cname-a",
+      "detail": "applicability",
+      "oracles": [
+        "fixture",
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.21",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "fixture-auth-cname-a",
+      "detail": "applicability",
+      "oracles": [
+        "fixture",
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.21",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "fixture-auth-cname-a",
+      "detail": "applicability",
+      "oracles": [
+        "fixture",
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.21",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "fixture-auth-cname-a",
+      "detail": "applicability",
+      "oracles": [
+        "fixture",
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.22",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "fixture-auth-cname-a",
+      "detail": "applicability",
+      "oracles": [
+        "fixture",
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.22",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "fixture-auth-cname-a",
+      "detail": "applicability",
+      "oracles": [
+        "fixture",
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.22",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "fixture-auth-cname-a",
+      "detail": "applicability",
+      "oracles": [
+        "fixture",
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.0",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "fixture-auth-cname-a",
+      "detail": "1 step(s): fixture ok; property ok; parity ok",
+      "oracles": [
+        "fixture",
+        "property",
+        "parity"
+      ],
+      "outcome": "pass",
+      "peer_id": "powerdns-auth-5.0",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "fixture-auth-cname-a",
+      "detail": "applicability",
+      "oracles": [
+        "fixture",
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.0",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "fixture-auth-cname-a",
+      "detail": "applicability",
+      "oracles": [
+        "fixture",
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.1",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "fixture-auth-cname-a",
+      "detail": "1 step(s): fixture ok; property ok; parity ok",
+      "oracles": [
+        "fixture",
+        "property",
+        "parity"
+      ],
+      "outcome": "pass",
+      "peer_id": "powerdns-auth-5.1",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "fixture-auth-cname-a",
+      "detail": "applicability",
+      "oracles": [
+        "fixture",
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.1",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "fixture-auth-cname-a",
+      "detail": "applicability",
+      "oracles": [
+        "fixture",
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.3",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "fixture-auth-cname-a",
+      "detail": "applicability",
+      "oracles": [
+        "fixture",
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.3",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "fixture-auth-cname-a",
+      "detail": "applicability",
+      "oracles": [
+        "fixture",
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.3",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "fixture-auth-cname-a",
+      "detail": "applicability",
+      "oracles": [
+        "fixture",
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.4",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "fixture-auth-cname-a",
+      "detail": "applicability",
+      "oracles": [
+        "fixture",
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.4",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "fixture-auth-cname-a",
+      "detail": "applicability",
+      "oracles": [
+        "fixture",
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.4",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "fixture-auth-cname-a",
+      "detail": "applicability",
+      "oracles": [
+        "fixture",
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "thekelleys-dnsmasq-2.90",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "fixture-auth-cname-a",
+      "detail": "applicability",
+      "oracles": [
+        "fixture",
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "thekelleys-dnsmasq-2.90",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "fixture-auth-cname-a",
+      "detail": "applicability",
+      "oracles": [
+        "fixture",
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "thekelleys-dnsmasq-2.90",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "fixture-auth-nodata-mx",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.4",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "fixture-auth-nodata-mx",
+      "detail": "1 step(s): property ok; parity ok",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "pass",
+      "peer_id": "cznic-knot-3.4",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "fixture-auth-nodata-mx",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.4",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "fixture-auth-nodata-mx",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.5",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "fixture-auth-nodata-mx",
+      "detail": "1 step(s): property ok; parity ok",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "pass",
+      "peer_id": "cznic-knot-3.5",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "fixture-auth-nodata-mx",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.5",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "fixture-auth-nodata-mx",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.18",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "fixture-auth-nodata-mx",
+      "detail": "1 step(s): property ok; parity ok",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "pass",
+      "peer_id": "isc-bind-9.18",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "fixture-auth-nodata-mx",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.18",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "fixture-auth-nodata-mx",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.20",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "fixture-auth-nodata-mx",
+      "detail": "1 step(s): property ok; parity ok",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "pass",
+      "peer_id": "isc-bind-9.20",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "fixture-auth-nodata-mx",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.20",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "fixture-auth-nodata-mx",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "fixture-auth-nodata-mx",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "fixture-auth-nodata-mx",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "fixture-auth-nodata-mx",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "fixture-auth-nodata-mx",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "fixture-auth-nodata-mx",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "fixture-auth-nodata-mx",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.21",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "fixture-auth-nodata-mx",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.21",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "fixture-auth-nodata-mx",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.21",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "fixture-auth-nodata-mx",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.22",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "fixture-auth-nodata-mx",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.22",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "fixture-auth-nodata-mx",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.22",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "fixture-auth-nodata-mx",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.0",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "fixture-auth-nodata-mx",
+      "detail": "1 step(s): property ok; parity ok",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "pass",
+      "peer_id": "powerdns-auth-5.0",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "fixture-auth-nodata-mx",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.0",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "fixture-auth-nodata-mx",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.1",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "fixture-auth-nodata-mx",
+      "detail": "1 step(s): property ok; parity ok",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "pass",
+      "peer_id": "powerdns-auth-5.1",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "fixture-auth-nodata-mx",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.1",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "fixture-auth-nodata-mx",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.3",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "fixture-auth-nodata-mx",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.3",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "fixture-auth-nodata-mx",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.3",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "fixture-auth-nodata-mx",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.4",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "fixture-auth-nodata-mx",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.4",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "fixture-auth-nodata-mx",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.4",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "fixture-auth-nodata-mx",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "thekelleys-dnsmasq-2.90",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "fixture-auth-nodata-mx",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "thekelleys-dnsmasq-2.90",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "fixture-auth-nodata-mx",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "thekelleys-dnsmasq-2.90",
+      "profile_id": "forward-split-io"
+    },
+    {
       "case_id": "fixture-auth-nxdomain",
       "detail": "applicability",
       "oracles": [
@@ -3163,6 +6796,66 @@
         "fixture"
       ],
       "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "fixture-auth-nxdomain",
+      "detail": "applicability",
+      "oracles": [
+        "fixture"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "fixture-auth-nxdomain",
+      "detail": "applicability",
+      "oracles": [
+        "fixture"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "fixture-auth-nxdomain",
+      "detail": "applicability",
+      "oracles": [
+        "fixture"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "fixture-auth-nxdomain",
+      "detail": "applicability",
+      "oracles": [
+        "fixture"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "fixture-auth-nxdomain",
+      "detail": "applicability",
+      "oracles": [
+        "fixture"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "fixture-auth-nxdomain",
+      "detail": "applicability",
+      "oracles": [
+        "fixture"
+      ],
+      "outcome": "skip",
       "peer_id": "nlnetlabs-unbound-1.21",
       "profile_id": "cache-forward"
     },
@@ -3493,6 +7186,66 @@
         "property"
       ],
       "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "forward-parity-smoke",
+      "detail": "1 step(s): property ok",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "pass",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "forward-parity-smoke",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "forward-parity-smoke",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "forward-parity-smoke",
+      "detail": "1 step(s): property ok",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "pass",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "forward-parity-smoke",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "forward-parity-smoke",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
       "peer_id": "nlnetlabs-unbound-1.21",
       "profile_id": "cache-forward"
     },
@@ -3691,6 +7444,1800 @@
       "detail": "applicability",
       "oracles": [
         "property"
+      ],
+      "outcome": "skip",
+      "peer_id": "thekelleys-dnsmasq-2.90",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "passthrough-aa-auth-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.4",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "passthrough-aa-auth-a",
+      "detail": "1 step(s): property ok; parity ok",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "pass",
+      "peer_id": "cznic-knot-3.4",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "passthrough-aa-auth-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.4",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "passthrough-aa-auth-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.5",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "passthrough-aa-auth-a",
+      "detail": "1 step(s): property ok; parity ok",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "pass",
+      "peer_id": "cznic-knot-3.5",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "passthrough-aa-auth-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.5",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "passthrough-aa-auth-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.18",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "passthrough-aa-auth-a",
+      "detail": "1 step(s): property ok; parity ok",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "pass",
+      "peer_id": "isc-bind-9.18",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "passthrough-aa-auth-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.18",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "passthrough-aa-auth-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.20",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "passthrough-aa-auth-a",
+      "detail": "1 step(s): property ok; parity ok",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "pass",
+      "peer_id": "isc-bind-9.20",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "passthrough-aa-auth-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.20",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "passthrough-aa-auth-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "passthrough-aa-auth-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "passthrough-aa-auth-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "passthrough-aa-auth-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "passthrough-aa-auth-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "passthrough-aa-auth-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "passthrough-aa-auth-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.21",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "passthrough-aa-auth-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.21",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "passthrough-aa-auth-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.21",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "passthrough-aa-auth-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.22",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "passthrough-aa-auth-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.22",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "passthrough-aa-auth-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.22",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "passthrough-aa-auth-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.0",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "passthrough-aa-auth-a",
+      "detail": "1 step(s): property ok; parity ok",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "pass",
+      "peer_id": "powerdns-auth-5.0",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "passthrough-aa-auth-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.0",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "passthrough-aa-auth-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.1",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "passthrough-aa-auth-a",
+      "detail": "1 step(s): property ok; parity ok",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "pass",
+      "peer_id": "powerdns-auth-5.1",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "passthrough-aa-auth-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.1",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "passthrough-aa-auth-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.3",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "passthrough-aa-auth-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.3",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "passthrough-aa-auth-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.3",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "passthrough-aa-auth-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.4",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "passthrough-aa-auth-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.4",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "passthrough-aa-auth-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.4",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "passthrough-aa-auth-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "thekelleys-dnsmasq-2.90",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "passthrough-aa-auth-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "thekelleys-dnsmasq-2.90",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "passthrough-aa-auth-a",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "thekelleys-dnsmasq-2.90",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "pdns-recursor-rd0-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.4",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "pdns-recursor-rd0-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.4",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "pdns-recursor-rd0-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.4",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "pdns-recursor-rd0-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.5",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "pdns-recursor-rd0-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.5",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "pdns-recursor-rd0-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.5",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "pdns-recursor-rd0-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.18",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "pdns-recursor-rd0-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.18",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "pdns-recursor-rd0-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.18",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "pdns-recursor-rd0-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.20",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "pdns-recursor-rd0-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.20",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "pdns-recursor-rd0-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.20",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "pdns-recursor-rd0-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "pdns-recursor-rd0-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "pdns-recursor-rd0-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "pdns-recursor-rd0-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "pdns-recursor-rd0-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "pdns-recursor-rd0-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "pdns-recursor-rd0-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.21",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "pdns-recursor-rd0-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.21",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "pdns-recursor-rd0-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.21",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "pdns-recursor-rd0-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.22",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "pdns-recursor-rd0-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.22",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "pdns-recursor-rd0-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.22",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "pdns-recursor-rd0-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.0",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "pdns-recursor-rd0-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.0",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "pdns-recursor-rd0-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.0",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "pdns-recursor-rd0-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.1",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "pdns-recursor-rd0-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.1",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "pdns-recursor-rd0-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.1",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "pdns-recursor-rd0-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.3",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "pdns-recursor-rd0-refused",
+      "detail": "differential match",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "characterized",
+      "peer_id": "powerdns-recursor-5.3",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "pdns-recursor-rd0-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.3",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "pdns-recursor-rd0-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.4",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "pdns-recursor-rd0-refused",
+      "detail": "differential match",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "characterized",
+      "peer_id": "powerdns-recursor-5.4",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "pdns-recursor-rd0-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.4",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "pdns-recursor-rd0-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "thekelleys-dnsmasq-2.90",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "pdns-recursor-rd0-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "thekelleys-dnsmasq-2.90",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "pdns-recursor-rd0-refused",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "thekelleys-dnsmasq-2.90",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "peer-tc-passthrough",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.4",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "peer-tc-passthrough",
+      "detail": "1 step(s): property ok; parity ok",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "pass",
+      "peer_id": "cznic-knot-3.4",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "peer-tc-passthrough",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.4",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "peer-tc-passthrough",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.5",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "peer-tc-passthrough",
+      "detail": "1 step(s): property ok; parity ok",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "pass",
+      "peer_id": "cznic-knot-3.5",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "peer-tc-passthrough",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.5",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "peer-tc-passthrough",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.18",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "peer-tc-passthrough",
+      "detail": "1 step(s): property ok; parity ok",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "pass",
+      "peer_id": "isc-bind-9.18",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "peer-tc-passthrough",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.18",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "peer-tc-passthrough",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.20",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "peer-tc-passthrough",
+      "detail": "1 step(s): property ok; parity ok",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "pass",
+      "peer_id": "isc-bind-9.20",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "peer-tc-passthrough",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.20",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "peer-tc-passthrough",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "peer-tc-passthrough",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "peer-tc-passthrough",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "peer-tc-passthrough",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "peer-tc-passthrough",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "peer-tc-passthrough",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "peer-tc-passthrough",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.21",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "peer-tc-passthrough",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.21",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "peer-tc-passthrough",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.21",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "peer-tc-passthrough",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.22",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "peer-tc-passthrough",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.22",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "peer-tc-passthrough",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.22",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "peer-tc-passthrough",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.0",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "peer-tc-passthrough",
+      "detail": "1 step(s): property ok; parity ok",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "pass",
+      "peer_id": "powerdns-auth-5.0",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "peer-tc-passthrough",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.0",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "peer-tc-passthrough",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.1",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "peer-tc-passthrough",
+      "detail": "1 step(s): property ok; parity ok",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "pass",
+      "peer_id": "powerdns-auth-5.1",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "peer-tc-passthrough",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.1",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "peer-tc-passthrough",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.3",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "peer-tc-passthrough",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.3",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "peer-tc-passthrough",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.3",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "peer-tc-passthrough",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.4",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "peer-tc-passthrough",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.4",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "peer-tc-passthrough",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.4",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "peer-tc-passthrough",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "thekelleys-dnsmasq-2.90",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "peer-tc-passthrough",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "thekelleys-dnsmasq-2.90",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "peer-tc-passthrough",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "thekelleys-dnsmasq-2.90",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "recursive-outside-aa-shape",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.4",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "recursive-outside-aa-shape",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.4",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "recursive-outside-aa-shape",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.4",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "recursive-outside-aa-shape",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.5",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "recursive-outside-aa-shape",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.5",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "recursive-outside-aa-shape",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.5",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "recursive-outside-aa-shape",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.18",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "recursive-outside-aa-shape",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.18",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "recursive-outside-aa-shape",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.18",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "recursive-outside-aa-shape",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.20",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "recursive-outside-aa-shape",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.20",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "recursive-outside-aa-shape",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.20",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "recursive-outside-aa-shape",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "recursive-outside-aa-shape",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "recursive-outside-aa-shape",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "recursive-outside-aa-shape",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "recursive-outside-aa-shape",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "recursive-outside-aa-shape",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "recursive-outside-aa-shape",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.21",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "recursive-outside-aa-shape",
+      "detail": "differential match",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "characterized",
+      "peer_id": "nlnetlabs-unbound-1.21",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "recursive-outside-aa-shape",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.21",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "recursive-outside-aa-shape",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.22",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "recursive-outside-aa-shape",
+      "detail": "differential match",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "characterized",
+      "peer_id": "nlnetlabs-unbound-1.22",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "recursive-outside-aa-shape",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.22",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "recursive-outside-aa-shape",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.0",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "recursive-outside-aa-shape",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.0",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "recursive-outside-aa-shape",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.0",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "recursive-outside-aa-shape",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.1",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "recursive-outside-aa-shape",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.1",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "recursive-outside-aa-shape",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.1",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "recursive-outside-aa-shape",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.3",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "recursive-outside-aa-shape",
+      "detail": "differential match",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "characterized",
+      "peer_id": "powerdns-recursor-5.3",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "recursive-outside-aa-shape",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.3",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "recursive-outside-aa-shape",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.4",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "recursive-outside-aa-shape",
+      "detail": "differential match",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "characterized",
+      "peer_id": "powerdns-recursor-5.4",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "recursive-outside-aa-shape",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.4",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "recursive-outside-aa-shape",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "thekelleys-dnsmasq-2.90",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "recursive-outside-aa-shape",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "thekelleys-dnsmasq-2.90",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "recursive-outside-aa-shape",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity",
+        "differential"
       ],
       "outcome": "skip",
       "peer_id": "thekelleys-dnsmasq-2.90",
@@ -3823,6 +9370,66 @@
         "property"
       ],
       "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "rhai-soft-drop",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "rhai-soft-drop",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "rhai-soft-drop",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "rhai-soft-drop",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "rhai-soft-drop",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "rhai-soft-drop",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
       "peer_id": "nlnetlabs-unbound-1.21",
       "profile_id": "cache-forward"
     },
@@ -4153,6 +9760,66 @@
         "property"
       ],
       "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "rules-clear-drop",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "rules-clear-drop",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "rules-clear-drop",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "rules-clear-drop",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "rules-clear-drop",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "rules-clear-drop",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
       "peer_id": "nlnetlabs-unbound-1.21",
       "profile_id": "cache-forward"
     },
@@ -4483,6 +10150,66 @@
         "property"
       ],
       "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "rules-drop-now",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "rules-drop-now",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "rules-drop-now",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "rules-drop-now",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "rules-drop-now",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "rules-drop-now",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
       "peer_id": "nlnetlabs-unbound-1.21",
       "profile_id": "cache-forward"
     },
@@ -4813,6 +10540,66 @@
         "property"
       ],
       "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "rules-qname-forward",
+      "detail": "1 step(s): property ok",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "pass",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "rules-qname-forward",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "rules-qname-forward",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "rules-qname-forward",
+      "detail": "1 step(s): property ok",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "pass",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "rules-qname-forward",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "rules-qname-forward",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
       "peer_id": "nlnetlabs-unbound-1.21",
       "profile_id": "cache-forward"
     },
@@ -5143,6 +10930,66 @@
         "property"
       ],
       "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "rules-soft-drop",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "rules-soft-drop",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "rules-soft-drop",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "rules-soft-drop",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "rules-soft-drop",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "rules-soft-drop",
+      "detail": "applicability",
+      "oracles": [
+        "property"
+      ],
+      "outcome": "skip",
       "peer_id": "nlnetlabs-unbound-1.21",
       "profile_id": "cache-forward"
     },
@@ -5341,19 +11188,877 @@
       "detail": "applicability",
       "oracles": [
         "property"
+      ],
+      "outcome": "skip",
+      "peer_id": "thekelleys-dnsmasq-2.90",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "stub-aaaa-for-a-only",
+      "detail": "applicability",
+      "oracles": [
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.4",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "stub-aaaa-for-a-only",
+      "detail": "applicability",
+      "oracles": [
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.4",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "stub-aaaa-for-a-only",
+      "detail": "applicability",
+      "oracles": [
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.4",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "stub-aaaa-for-a-only",
+      "detail": "applicability",
+      "oracles": [
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.5",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "stub-aaaa-for-a-only",
+      "detail": "applicability",
+      "oracles": [
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.5",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "stub-aaaa-for-a-only",
+      "detail": "applicability",
+      "oracles": [
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.5",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "stub-aaaa-for-a-only",
+      "detail": "applicability",
+      "oracles": [
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.18",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "stub-aaaa-for-a-only",
+      "detail": "applicability",
+      "oracles": [
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.18",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "stub-aaaa-for-a-only",
+      "detail": "applicability",
+      "oracles": [
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.18",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "stub-aaaa-for-a-only",
+      "detail": "applicability",
+      "oracles": [
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.20",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "stub-aaaa-for-a-only",
+      "detail": "applicability",
+      "oracles": [
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.20",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "stub-aaaa-for-a-only",
+      "detail": "applicability",
+      "oracles": [
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.20",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "stub-aaaa-for-a-only",
+      "detail": "applicability",
+      "oracles": [
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "stub-aaaa-for-a-only",
+      "detail": "applicability",
+      "oracles": [
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "stub-aaaa-for-a-only",
+      "detail": "applicability",
+      "oracles": [
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "stub-aaaa-for-a-only",
+      "detail": "applicability",
+      "oracles": [
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "stub-aaaa-for-a-only",
+      "detail": "applicability",
+      "oracles": [
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "stub-aaaa-for-a-only",
+      "detail": "applicability",
+      "oracles": [
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "stub-aaaa-for-a-only",
+      "detail": "applicability",
+      "oracles": [
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.21",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "stub-aaaa-for-a-only",
+      "detail": "applicability",
+      "oracles": [
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.21",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "stub-aaaa-for-a-only",
+      "detail": "applicability",
+      "oracles": [
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.21",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "stub-aaaa-for-a-only",
+      "detail": "applicability",
+      "oracles": [
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.22",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "stub-aaaa-for-a-only",
+      "detail": "applicability",
+      "oracles": [
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.22",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "stub-aaaa-for-a-only",
+      "detail": "applicability",
+      "oracles": [
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.22",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "stub-aaaa-for-a-only",
+      "detail": "applicability",
+      "oracles": [
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.0",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "stub-aaaa-for-a-only",
+      "detail": "applicability",
+      "oracles": [
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.0",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "stub-aaaa-for-a-only",
+      "detail": "applicability",
+      "oracles": [
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.0",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "stub-aaaa-for-a-only",
+      "detail": "applicability",
+      "oracles": [
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.1",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "stub-aaaa-for-a-only",
+      "detail": "applicability",
+      "oracles": [
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.1",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "stub-aaaa-for-a-only",
+      "detail": "applicability",
+      "oracles": [
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.1",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "stub-aaaa-for-a-only",
+      "detail": "applicability",
+      "oracles": [
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.3",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "stub-aaaa-for-a-only",
+      "detail": "applicability",
+      "oracles": [
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.3",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "stub-aaaa-for-a-only",
+      "detail": "applicability",
+      "oracles": [
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.3",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "stub-aaaa-for-a-only",
+      "detail": "applicability",
+      "oracles": [
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.4",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "stub-aaaa-for-a-only",
+      "detail": "applicability",
+      "oracles": [
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.4",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "stub-aaaa-for-a-only",
+      "detail": "applicability",
+      "oracles": [
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.4",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "stub-aaaa-for-a-only",
+      "detail": "applicability",
+      "oracles": [
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "thekelleys-dnsmasq-2.90",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "stub-aaaa-for-a-only",
+      "detail": "differential match",
+      "oracles": [
+        "parity",
+        "differential"
+      ],
+      "outcome": "characterized",
+      "peer_id": "thekelleys-dnsmasq-2.90",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "stub-aaaa-for-a-only",
+      "detail": "applicability",
+      "oracles": [
+        "parity",
+        "differential"
+      ],
+      "outcome": "skip",
+      "peer_id": "thekelleys-dnsmasq-2.90",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "unbound-local-cname-no-chase",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.4",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "unbound-local-cname-no-chase",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.4",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "unbound-local-cname-no-chase",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.4",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "unbound-local-cname-no-chase",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.5",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "unbound-local-cname-no-chase",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.5",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "unbound-local-cname-no-chase",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "cznic-knot-3.5",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "unbound-local-cname-no-chase",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.18",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "unbound-local-cname-no-chase",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.18",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "unbound-local-cname-no-chase",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.18",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "unbound-local-cname-no-chase",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.20",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "unbound-local-cname-no-chase",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.20",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "unbound-local-cname-no-chase",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-9.20",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "unbound-local-cname-no-chase",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "unbound-local-cname-no-chase",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "unbound-local-cname-no-chase",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.18",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "unbound-local-cname-no-chase",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "unbound-local-cname-no-chase",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "unbound-local-cname-no-chase",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "isc-bind-resolver-9.20",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "unbound-local-cname-no-chase",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.21",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "unbound-local-cname-no-chase",
+      "detail": "1 step(s): property ok; parity ok",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "pass",
+      "peer_id": "nlnetlabs-unbound-1.21",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "unbound-local-cname-no-chase",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.21",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "unbound-local-cname-no-chase",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.22",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "unbound-local-cname-no-chase",
+      "detail": "1 step(s): property ok; parity ok",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "pass",
+      "peer_id": "nlnetlabs-unbound-1.22",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "unbound-local-cname-no-chase",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "nlnetlabs-unbound-1.22",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "unbound-local-cname-no-chase",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.0",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "unbound-local-cname-no-chase",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.0",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "unbound-local-cname-no-chase",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.0",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "unbound-local-cname-no-chase",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.1",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "unbound-local-cname-no-chase",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.1",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "unbound-local-cname-no-chase",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-auth-5.1",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "unbound-local-cname-no-chase",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.3",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "unbound-local-cname-no-chase",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.3",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "unbound-local-cname-no-chase",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.3",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "unbound-local-cname-no-chase",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.4",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "unbound-local-cname-no-chase",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.4",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "unbound-local-cname-no-chase",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "powerdns-recursor-5.4",
+      "profile_id": "forward-split-io"
+    },
+    {
+      "case_id": "unbound-local-cname-no-chase",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "thekelleys-dnsmasq-2.90",
+      "profile_id": "cache-forward"
+    },
+    {
+      "case_id": "unbound-local-cname-no-chase",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
+      ],
+      "outcome": "skip",
+      "peer_id": "thekelleys-dnsmasq-2.90",
+      "profile_id": "forward-only"
+    },
+    {
+      "case_id": "unbound-local-cname-no-chase",
+      "detail": "applicability",
+      "oracles": [
+        "property",
+        "parity"
       ],
       "outcome": "skip",
       "peer_id": "thekelleys-dnsmasq-2.90",
       "profile_id": "forward-split-io"
     }
   ],
-  "generated_at": "2026-07-14T19:51:00Z",
-  "inputs_fingerprint": "sha256:0ed442387e93ce9cc8a2685fe730a402809727ee828e1def0b3b4cc018cb89a4",
+  "generated_at": "2026-07-15T01:12:10Z",
+  "inputs_fingerprint": "sha256:df6a75539ca6859019055c9b4b4a0ef53b02dc2d6f801571c8b018b6d2cf0322",
   "provenance": {
     "conduit_image": "conduit:local",
-    "conduit_image_digest": "sha256:dde6b28ea9b48b3438951f7e38915d417c2aa3c78ee0420b5541441d5f690188",
+    "conduit_image_digest": "sha256:32da564de23d0491cf4a66ba466fc464294cd7c71a012bb95326b5eae4ec64e5",
     "conduit_version": "dev",
-    "git_head": "31b6a858135f54489b95f4cfffa2260e0db85eeb",
+    "git_head": "e4f84cc4bc1acdbb1b7ce8106cdb81a028ab9191",
     "runner": "interop.runner/0.1.0"
   },
   "schema_version": 1

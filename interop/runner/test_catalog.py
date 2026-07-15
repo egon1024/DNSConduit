@@ -33,10 +33,11 @@ class CatalogSortTests(unittest.TestCase):
             Peer("z", "PowerDNS", "Recursor", "5.4", "recursive", "img", family="pdns-recursor"),
             Peer("a", "CZ.NIC", "Knot DNS", "3.3", "auth", "img", family="knot"),
             Peer("b", "ISC", "BIND", "9.18", "auth", "img", family="bind"),
+            Peer("r", "ISC", "BIND Resolver", "9.18", "recursive", "img", family="bind-recursive"),
             Peer("y", "PowerDNS", "Recursor", "5.3", "recursive", "img", family="pdns-recursor"),
         ]
         ids = [p.id for p in sorted_peers(peers)]
-        self.assertEqual(ids, ["a", "b", "y", "z"])
+        self.assertEqual(ids, ["a", "b", "r", "y", "z"])
 
 
 class PublisherSlugTests(unittest.TestCase):

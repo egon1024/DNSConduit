@@ -225,11 +225,21 @@ def _run_cell(
         for idx, step in enumerate(steps):
             step_q = str(step.get("qname", default_qname)).rstrip(".")
             step_t = str(step.get("qtype") or default_qtype or "A")
-            via = dig_query("127.0.0.1", host_port, step_q, qtype=step_t)
+            bufsize = step.get("bufsize")
+            dig_kw: dict = {"qtype": step_t}
+            if bufsize is not None:
+                dig_kw["bufsize"] = int(bufsize)
+            if step.get("notcp"):
+                dig_kw["notcp"] = True
+            if step.get("ignore_tc"):
+                dig_kw["ignore_tc"] = True
+            if step.get("norecurse"):
+                dig_kw["norecurse"] = True
+            via = dig_query("127.0.0.1", host_port, step_q, **dig_kw)
             via_steps.append(via)
             if needs_parity:
                 direct_host, direct_port = stack.peer_query_addr
-                direct = dig_query(direct_host, direct_port, step_q, qtype=step_t)
+                direct = dig_query(direct_host, direct_port, step_q, **dig_kw)
         outcome, detail = evaluate_oracles(
             case.oracles,
             via_conduit=via_steps[-1] if via_steps else None,

@@ -534,6 +534,14 @@ def generate_matrix(
         "stub peer — see [Conduit behavior](/interop/conduit-behavior.md). "
         "No peer is preferred or recommended.",
         "",
+        "By default, Conduit’s forward path **passes peer response shapes through** "
+        "(rcode, answer section, and flags such as AA/TC) so operators see the same "
+        "backend quirks they would when querying the peer directly. Cases that "
+        "document those quirks use parity against a direct dig; "
+        "`characterized` cells record expected peer-specific shapes. Configuration "
+        "that rewrites or sanitizes peer answers is covered separately when those "
+        "knobs are under test.",
+        "",
         "## Matrices",
         "",
         "- [Conduit behavior](/interop/conduit-behavior.md) — Conduit-focused cases (stub peer)",
