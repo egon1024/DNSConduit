@@ -16,7 +16,11 @@ from .conduit_merge import merge_conduit_profile
 from .oracles import QueryResult
 from .paths import COMPOSE_CELL, FIXTURES, INTEROP, PROFILES, ROOT
 from .peer_packs import materialize_peer_config
+from .peer_query_count import count_dnsmasq_queries
 from .setup_ir import SetupIR
+
+# Conduit address on the cell bridge (see compose/cell.compose.yml).
+CONDUIT_PEER_CLIENT_IP = "172.30.97.20"
 
 
 def docker_available() -> bool:
@@ -219,6 +223,50 @@ class CellStack:
     @property
     def peer_query_addr(self) -> tuple[str, int]:
         return ("127.0.0.1", self.peer_host_port)
+
+    def peer_logs(self) -> str:
+        """Return ``docker compose logs`` for the peer service (query log source)."""
+        if self._env is None:
+            raise RuntimeError("cell stack is not started")
+        out = subprocess.check_output(
+            [
+                "docker",
+                "compose",
+                "-p",
+                self.project,
+                *self._compose_files(),
+                "logs",
+                "--no-color",
+                "peer",
+            ],
+            cwd=ROOT,
+            env=self._env,
+            text=True,
+            stderr=subprocess.STDOUT,
+        )
+        return out
+
+    def count_peer_queries(
+        self,
+        qname: str,
+        qtype: str = "A",
+        *,
+        from_conduit: bool = True,
+    ) -> int:
+        """Count matching query lines in the peer log (dnsmasq ``--log-queries``).
+
+        When ``from_conduit`` is true (default), only count queries sourced from
+        the Conduit container IP so readiness digs on the published port do not
+        pollute the baseline used for cache hit proofs.
+        """
+        from_ip = CONDUIT_PEER_CLIENT_IP if from_conduit else None
+        if self.peer.family == "dnsmasq":
+            return count_dnsmasq_queries(
+                self.peer_logs(), qname, qtype, from_ip=from_ip
+            )
+        raise RuntimeError(
+            f"peer-query-count is not implemented for family {self.peer.family!r}"
+        )
 
     def _compose_files(self) -> list[str]:
         files = ["-f", str(COMPOSE_CELL)]

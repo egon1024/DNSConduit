@@ -1681,7 +1681,8 @@
       "case_id": "cache-miss-then-hit-a",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "cznic-knot-3.4",
@@ -1691,7 +1692,8 @@
       "case_id": "cache-miss-then-hit-a",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "cznic-knot-3.4",
@@ -1701,7 +1703,8 @@
       "case_id": "cache-miss-then-hit-a",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "cznic-knot-3.4",
@@ -1711,7 +1714,8 @@
       "case_id": "cache-miss-then-hit-a",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "cznic-knot-3.5",
@@ -1721,7 +1725,8 @@
       "case_id": "cache-miss-then-hit-a",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "cznic-knot-3.5",
@@ -1731,7 +1736,8 @@
       "case_id": "cache-miss-then-hit-a",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "cznic-knot-3.5",
@@ -1741,7 +1747,8 @@
       "case_id": "cache-miss-then-hit-a",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "isc-bind-9.18",
@@ -1751,7 +1758,8 @@
       "case_id": "cache-miss-then-hit-a",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "isc-bind-9.18",
@@ -1761,7 +1769,8 @@
       "case_id": "cache-miss-then-hit-a",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "isc-bind-9.18",
@@ -1771,7 +1780,8 @@
       "case_id": "cache-miss-then-hit-a",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "isc-bind-9.20",
@@ -1781,7 +1791,8 @@
       "case_id": "cache-miss-then-hit-a",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "isc-bind-9.20",
@@ -1791,7 +1802,8 @@
       "case_id": "cache-miss-then-hit-a",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "isc-bind-9.20",
@@ -1801,7 +1813,8 @@
       "case_id": "cache-miss-then-hit-a",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "isc-bind-resolver-9.18",
@@ -1811,7 +1824,8 @@
       "case_id": "cache-miss-then-hit-a",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "isc-bind-resolver-9.18",
@@ -1821,7 +1835,8 @@
       "case_id": "cache-miss-then-hit-a",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "isc-bind-resolver-9.18",
@@ -1831,7 +1846,8 @@
       "case_id": "cache-miss-then-hit-a",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "isc-bind-resolver-9.20",
@@ -1841,7 +1857,8 @@
       "case_id": "cache-miss-then-hit-a",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "isc-bind-resolver-9.20",
@@ -1851,7 +1868,8 @@
       "case_id": "cache-miss-then-hit-a",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "isc-bind-resolver-9.20",
@@ -1861,7 +1879,8 @@
       "case_id": "cache-miss-then-hit-a",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "nlnetlabs-unbound-1.21",
@@ -1871,7 +1890,8 @@
       "case_id": "cache-miss-then-hit-a",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "nlnetlabs-unbound-1.21",
@@ -1881,7 +1901,8 @@
       "case_id": "cache-miss-then-hit-a",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "nlnetlabs-unbound-1.21",
@@ -1891,7 +1912,8 @@
       "case_id": "cache-miss-then-hit-a",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "nlnetlabs-unbound-1.22",
@@ -1901,7 +1923,8 @@
       "case_id": "cache-miss-then-hit-a",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "nlnetlabs-unbound-1.22",
@@ -1911,7 +1934,8 @@
       "case_id": "cache-miss-then-hit-a",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "nlnetlabs-unbound-1.22",
@@ -1921,7 +1945,8 @@
       "case_id": "cache-miss-then-hit-a",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "powerdns-auth-5.0",
@@ -1931,7 +1956,8 @@
       "case_id": "cache-miss-then-hit-a",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "powerdns-auth-5.0",
@@ -1941,7 +1967,8 @@
       "case_id": "cache-miss-then-hit-a",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "powerdns-auth-5.0",
@@ -1951,7 +1978,8 @@
       "case_id": "cache-miss-then-hit-a",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "powerdns-auth-5.1",
@@ -1961,7 +1989,8 @@
       "case_id": "cache-miss-then-hit-a",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "powerdns-auth-5.1",
@@ -1971,7 +2000,8 @@
       "case_id": "cache-miss-then-hit-a",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "powerdns-auth-5.1",
@@ -1981,7 +2011,8 @@
       "case_id": "cache-miss-then-hit-a",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "powerdns-recursor-5.3",
@@ -1991,7 +2022,8 @@
       "case_id": "cache-miss-then-hit-a",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "powerdns-recursor-5.3",
@@ -2001,7 +2033,8 @@
       "case_id": "cache-miss-then-hit-a",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "powerdns-recursor-5.3",
@@ -2011,7 +2044,8 @@
       "case_id": "cache-miss-then-hit-a",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "powerdns-recursor-5.4",
@@ -2021,7 +2055,8 @@
       "case_id": "cache-miss-then-hit-a",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "powerdns-recursor-5.4",
@@ -2031,7 +2066,8 @@
       "case_id": "cache-miss-then-hit-a",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "powerdns-recursor-5.4",
@@ -2039,9 +2075,10 @@
     },
     {
       "case_id": "cache-miss-then-hit-a",
-      "detail": "2 step(s): property ok; property ok",
+      "detail": "2 step(s): property ok; property ok; peer-query-count www.smoke.test/A=1",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "pass",
       "peer_id": "thekelleys-dnsmasq-2.90",
@@ -2051,7 +2088,8 @@
       "case_id": "cache-miss-then-hit-a",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "thekelleys-dnsmasq-2.90",
@@ -2061,7 +2099,8 @@
       "case_id": "cache-miss-then-hit-a",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "thekelleys-dnsmasq-2.90",
@@ -2071,7 +2110,8 @@
       "case_id": "cache-nxdomain-miss-then-hit",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "cznic-knot-3.4",
@@ -2081,7 +2121,8 @@
       "case_id": "cache-nxdomain-miss-then-hit",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "cznic-knot-3.4",
@@ -2091,7 +2132,8 @@
       "case_id": "cache-nxdomain-miss-then-hit",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "cznic-knot-3.4",
@@ -2101,7 +2143,8 @@
       "case_id": "cache-nxdomain-miss-then-hit",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "cznic-knot-3.5",
@@ -2111,7 +2154,8 @@
       "case_id": "cache-nxdomain-miss-then-hit",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "cznic-knot-3.5",
@@ -2121,7 +2165,8 @@
       "case_id": "cache-nxdomain-miss-then-hit",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "cznic-knot-3.5",
@@ -2131,7 +2176,8 @@
       "case_id": "cache-nxdomain-miss-then-hit",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "isc-bind-9.18",
@@ -2141,7 +2187,8 @@
       "case_id": "cache-nxdomain-miss-then-hit",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "isc-bind-9.18",
@@ -2151,7 +2198,8 @@
       "case_id": "cache-nxdomain-miss-then-hit",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "isc-bind-9.18",
@@ -2161,7 +2209,8 @@
       "case_id": "cache-nxdomain-miss-then-hit",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "isc-bind-9.20",
@@ -2171,7 +2220,8 @@
       "case_id": "cache-nxdomain-miss-then-hit",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "isc-bind-9.20",
@@ -2181,7 +2231,8 @@
       "case_id": "cache-nxdomain-miss-then-hit",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "isc-bind-9.20",
@@ -2191,7 +2242,8 @@
       "case_id": "cache-nxdomain-miss-then-hit",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "isc-bind-resolver-9.18",
@@ -2201,7 +2253,8 @@
       "case_id": "cache-nxdomain-miss-then-hit",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "isc-bind-resolver-9.18",
@@ -2211,7 +2264,8 @@
       "case_id": "cache-nxdomain-miss-then-hit",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "isc-bind-resolver-9.18",
@@ -2221,7 +2275,8 @@
       "case_id": "cache-nxdomain-miss-then-hit",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "isc-bind-resolver-9.20",
@@ -2231,7 +2286,8 @@
       "case_id": "cache-nxdomain-miss-then-hit",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "isc-bind-resolver-9.20",
@@ -2241,7 +2297,8 @@
       "case_id": "cache-nxdomain-miss-then-hit",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "isc-bind-resolver-9.20",
@@ -2251,7 +2308,8 @@
       "case_id": "cache-nxdomain-miss-then-hit",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "nlnetlabs-unbound-1.21",
@@ -2261,7 +2319,8 @@
       "case_id": "cache-nxdomain-miss-then-hit",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "nlnetlabs-unbound-1.21",
@@ -2271,7 +2330,8 @@
       "case_id": "cache-nxdomain-miss-then-hit",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "nlnetlabs-unbound-1.21",
@@ -2281,7 +2341,8 @@
       "case_id": "cache-nxdomain-miss-then-hit",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "nlnetlabs-unbound-1.22",
@@ -2291,7 +2352,8 @@
       "case_id": "cache-nxdomain-miss-then-hit",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "nlnetlabs-unbound-1.22",
@@ -2301,7 +2363,8 @@
       "case_id": "cache-nxdomain-miss-then-hit",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "nlnetlabs-unbound-1.22",
@@ -2311,7 +2374,8 @@
       "case_id": "cache-nxdomain-miss-then-hit",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "powerdns-auth-5.0",
@@ -2321,7 +2385,8 @@
       "case_id": "cache-nxdomain-miss-then-hit",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "powerdns-auth-5.0",
@@ -2331,7 +2396,8 @@
       "case_id": "cache-nxdomain-miss-then-hit",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "powerdns-auth-5.0",
@@ -2341,7 +2407,8 @@
       "case_id": "cache-nxdomain-miss-then-hit",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "powerdns-auth-5.1",
@@ -2351,7 +2418,8 @@
       "case_id": "cache-nxdomain-miss-then-hit",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "powerdns-auth-5.1",
@@ -2361,7 +2429,8 @@
       "case_id": "cache-nxdomain-miss-then-hit",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "powerdns-auth-5.1",
@@ -2371,7 +2440,8 @@
       "case_id": "cache-nxdomain-miss-then-hit",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "powerdns-recursor-5.3",
@@ -2381,7 +2451,8 @@
       "case_id": "cache-nxdomain-miss-then-hit",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "powerdns-recursor-5.3",
@@ -2391,7 +2462,8 @@
       "case_id": "cache-nxdomain-miss-then-hit",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "powerdns-recursor-5.3",
@@ -2401,7 +2473,8 @@
       "case_id": "cache-nxdomain-miss-then-hit",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "powerdns-recursor-5.4",
@@ -2411,7 +2484,8 @@
       "case_id": "cache-nxdomain-miss-then-hit",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "powerdns-recursor-5.4",
@@ -2421,7 +2495,8 @@
       "case_id": "cache-nxdomain-miss-then-hit",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "powerdns-recursor-5.4",
@@ -2429,9 +2504,10 @@
     },
     {
       "case_id": "cache-nxdomain-miss-then-hit",
-      "detail": "2 step(s): property ok; property ok",
+      "detail": "2 step(s): property ok; property ok; peer-query-count missing.nxcache.test/A=1",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "pass",
       "peer_id": "thekelleys-dnsmasq-2.90",
@@ -2441,7 +2517,8 @@
       "case_id": "cache-nxdomain-miss-then-hit",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "thekelleys-dnsmasq-2.90",
@@ -2451,7 +2528,8 @@
       "case_id": "cache-nxdomain-miss-then-hit",
       "detail": "applicability",
       "oracles": [
-        "property"
+        "property",
+        "peer-query-count"
       ],
       "outcome": "skip",
       "peer_id": "thekelleys-dnsmasq-2.90",
@@ -12052,13 +12130,13 @@
       "profile_id": "forward-split-io"
     }
   ],
-  "generated_at": "2026-07-15T01:12:10Z",
-  "inputs_fingerprint": "sha256:df6a75539ca6859019055c9b4b4a0ef53b02dc2d6f801571c8b018b6d2cf0322",
+  "generated_at": "2026-07-15T02:44:19Z",
+  "inputs_fingerprint": "sha256:0ac592489a2a72bb27efdbd81a579be3fc9fd1f4312e1f0f37f72724c8a3c48b",
   "provenance": {
     "conduit_image": "conduit:local",
-    "conduit_image_digest": "sha256:32da564de23d0491cf4a66ba466fc464294cd7c71a012bb95326b5eae4ec64e5",
+    "conduit_image_digest": "sha256:7cf18388d034efe2ef5645561ee5522a7afb287d1078d93c6c662d2d0ff7a7b5",
     "conduit_version": "dev",
-    "git_head": "e4f84cc4bc1acdbb1b7ce8106cdb81a028ab9191",
+    "git_head": "25a1e3082813d5031ca70ad23d6521d4896ce978",
     "runner": "interop.runner/0.1.0"
   },
   "schema_version": 1

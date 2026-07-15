@@ -13,6 +13,8 @@ def prepare(*, out_dir: Path, ir: SetupIR, peer) -> None:
         "-k",
         "--no-daemon",
         "--log-queries",
+        # stderr so docker compose logs captures query lines for peer-query-count.
+        "--log-facility=-",
         "--port=53",
         "--bind-interfaces",
         "--interface=eth0",
@@ -44,6 +46,13 @@ def prepare(*, out_dir: Path, ir: SetupIR, peer) -> None:
         z = zone.strip().strip(".")
         if z:
             args.append(f"--local=/{z}/")
+    # Hosts/local answers default to TTL 0; Conduit cannot cache those. Use the
+    # max configured local_rr TTL (or 300) so cache-forward cells can warm-hit.
+    if hosts_lines or ir.local_zones or cnames:
+        local_ttl = max((rr.ttl for rr in ir.local_rr), default=300)
+        if local_ttl < 1:
+            local_ttl = 300
+        args.append(f"--local-ttl={local_ttl}")
     # Fixtures: not required for stub smoke; auth fixtures use auth families.
     run = out_dir / "run.sh"
     cmdline = " ".join(sh_quote(a) for a in args)

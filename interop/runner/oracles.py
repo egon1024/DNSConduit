@@ -1,4 +1,4 @@
-"""Oracle evaluation helpers (parity / fixture / property / differential / sequence)."""
+"""Oracle evaluation helpers (parity / fixture / property / differential / sequence / peer-query-count)."""
 
 from __future__ import annotations
 
@@ -35,6 +35,7 @@ def evaluate_oracles(
     direct: QueryResult | None,
     peer_id: str,
     via_steps: list[QueryResult] | None = None,
+    peer_query_deltas: dict[tuple[str, str], int] | None = None,
 ) -> tuple[str, str]:
     """
     Return (outcome, detail). Outcomes: pass | fail | characterized.
@@ -42,7 +43,8 @@ def evaluate_oracles(
 
     Per-step oracles (property/parity/fixture/differential) run against each entry in
     ``via_steps`` when provided, otherwise against ``via_conduit`` once.
-    Sequence oracles run once against the full step list.
+    Sequence and peer-query-count oracles run once against the full step list /
+    measured upstream deltas (not per DNS step).
     """
     if via_conduit is None and not via_steps:
         return "fail", "no response via Conduit"
@@ -56,6 +58,12 @@ def evaluate_oracles(
         kind = oracle.get("kind")
         if kind == "sequence":
             ok, msg = _sequence(steps, oracle.get("checks", []))
+            if not ok:
+                return "fail", msg
+            details.append(msg)
+            continue
+        if kind == "peer-query-count":
+            ok, msg = _peer_query_count(oracle, peer_query_deltas)
             if not ok:
                 return "fail", msg
             details.append(msg)
@@ -97,6 +105,32 @@ def evaluate_oracles(
             else:
                 return "fail", f"unknown oracle kind: {kind}"
     return "pass", "; ".join(details) if details else "ok"
+
+
+def peer_query_count_key(qname: str, qtype: str) -> tuple[str, str]:
+    from .peer_query_count import normalize_qname
+
+    return normalize_qname(qname), qtype.strip().upper()
+
+
+def _peer_query_count(
+    oracle: dict[str, Any],
+    deltas: dict[tuple[str, str], int] | None,
+) -> tuple[bool, str]:
+    if "expect" not in oracle:
+        return False, "peer-query-count requires expect"
+    qname = str(oracle.get("qname") or "")
+    qtype = str(oracle.get("qtype") or "A")
+    if not qname:
+        return False, "peer-query-count requires qname"
+    key = peer_query_count_key(qname, qtype)
+    if deltas is None or key not in deltas:
+        return False, f"peer-query-count unavailable for {key[0]}/{key[1]}"
+    got = int(deltas[key])
+    want = int(oracle["expect"])
+    if got != want:
+        return False, f"peer-query-count want {want} got {got} for {key[0]}/{key[1]}"
+    return True, f"peer-query-count {key[0]}/{key[1]}={got}"
 
 
 def _property(result: QueryResult, oracle: dict[str, Any]) -> tuple[bool, str]:
