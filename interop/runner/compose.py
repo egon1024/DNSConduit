@@ -24,6 +24,30 @@ from .setup_ir import SetupIR
 CONDUIT_PEER_CLIENT_IP = "172.30.97.20"
 
 
+def resolve_conduitctl() -> Path:
+    """Locate host ``conduitctl`` for mid-case health control actions.
+
+    Order: ``CONDUITCTL`` env, ``PATH``, then workspace ``target/{release,debug}``.
+    """
+    env = os.environ.get("CONDUITCTL", "").strip()
+    if env:
+        path = Path(env)
+        if path.is_file() and os.access(path, os.X_OK):
+            return path
+        raise RuntimeError(f"CONDUITCTL={env!r} is not an executable file")
+    which = shutil.which("conduitctl")
+    if which:
+        return Path(which)
+    for rel in ("target/release/conduitctl", "target/debug/conduitctl"):
+        candidate = ROOT / rel
+        if candidate.is_file() and os.access(candidate, os.X_OK):
+            return candidate
+    raise RuntimeError(
+        "conduitctl not found (set CONDUITCTL, install on PATH, or "
+        "`cargo build -p conduitctl` so target/debug/conduitctl exists)"
+    )
+
+
 def docker_available() -> bool:
     return shutil.which("docker") is not None
 
@@ -217,6 +241,7 @@ class CellStack:
         self.host_port = host_port
         self.peer_host_port = host_port + 1
         self.metrics_host_port = host_port + 2
+        self.control_host_port = host_port + 3
         self.project = project
         self._tmpdir: tempfile.TemporaryDirectory[str] | None = None
         self._override: Path | None = None
@@ -229,6 +254,10 @@ class CellStack:
     @property
     def metrics_url(self) -> str:
         return f"http://127.0.0.1:{self.metrics_host_port}/metrics"
+
+    @property
+    def control_endpoint(self) -> str:
+        return f"http://127.0.0.1:{self.control_host_port}"
 
     def peer_logs(self) -> str:
         """Return ``docker compose logs`` for the peer service (query log source)."""
@@ -297,6 +326,43 @@ class CellStack:
             f"metrics endpoint not ready at {self.metrics_url}: {last_err}"
         )
 
+    def run_conduitctl(self, args: list[str], *, timeout: float = 10.0) -> None:
+        """Run host ``conduitctl`` against this cell's published control port."""
+        ctl = resolve_conduitctl()
+        cmd = [str(ctl), "--endpoint", self.control_endpoint, *args]
+        try:
+            subprocess.check_call(
+                cmd,
+                cwd=ROOT,
+                timeout=timeout,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+            )
+        except subprocess.CalledProcessError as exc:
+            err = (exc.stderr or b"").decode("utf-8", errors="replace").strip()
+            raise RuntimeError(
+                f"conduitctl failed ({exc.returncode}): {' '.join(args)}"
+                + (f": {err}" if err else "")
+            ) from exc
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeError(
+                f"conduitctl timed out after {timeout}s: {' '.join(args)}"
+            ) from exc
+
+    def wait_for_control(self, attempts: int = 40, delay: float = 0.25) -> None:
+        """Poll until ``conduitctl health show`` succeeds (control published)."""
+        last_err: Exception | None = None
+        for _ in range(attempts):
+            try:
+                self.run_conduitctl(["health", "show"])
+                return
+            except RuntimeError as exc:
+                last_err = exc
+                time.sleep(delay)
+        raise RuntimeError(
+            f"control endpoint not ready at {self.control_endpoint}: {last_err}"
+        )
+
     def _compose_files(self) -> list[str]:
         files = ["-f", str(COMPOSE_CELL)]
         if self._override is not None:
@@ -313,6 +379,7 @@ class CellStack:
                 "CONDUIT_ASSETS_DIR": str((tmp / "assets").resolve()),
                 "CONDUIT_HOST_PORT": str(self.host_port),
                 "CONDUIT_METRICS_HOST_PORT": str(self.metrics_host_port),
+                "CONDUIT_CONTROL_HOST_PORT": str(self.control_host_port),
                 "PEER_CONFIG_DIR": str((tmp / "peer").resolve()),
                 "PEER_HOST_PORT": str(self.peer_host_port),
             }

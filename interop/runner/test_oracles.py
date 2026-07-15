@@ -293,6 +293,66 @@ class PropertyOracleTests(unittest.TestCase):
         self.assertEqual(outcome, "fail")
         self.assertIn("no answer ttl", detail.lower())
 
+    def test_sequence_step_rcodes(self):
+        via_a = QueryResult(rcode="SERVFAIL", ancount=0, answers=[])
+        via_b = QueryResult(rcode="NOERROR", ancount=1, answers=[{"rdata": "1.2.3.4"}])
+        outcome, detail = evaluate_oracles(
+            [
+                {
+                    "kind": "sequence",
+                    "checks": ["step-rcodes"],
+                    "rcodes": ["SERVFAIL", "NOERROR"],
+                }
+            ],
+            via_conduit=via_b,
+            via_steps=[via_a, via_b],
+            direct=None,
+            peer_id="peer",
+        )
+        self.assertEqual(outcome, "pass")
+        self.assertIn("sequence", detail.lower())
+
+    def test_sequence_step_rcodes_fail(self):
+        via_a = QueryResult(rcode="NOERROR", ancount=1, answers=[{"rdata": "1.2.3.4"}])
+        via_b = QueryResult(rcode="NOERROR", ancount=1, answers=[{"rdata": "1.2.3.4"}])
+        outcome, detail = evaluate_oracles(
+            [
+                {
+                    "kind": "sequence",
+                    "checks": ["step-rcodes"],
+                    "rcodes": ["SERVFAIL", "NOERROR"],
+                }
+            ],
+            via_conduit=via_b,
+            via_steps=[via_a, via_b],
+            direct=None,
+            peer_id="peer",
+        )
+        self.assertEqual(outcome, "fail")
+        self.assertIn("SERVFAIL", detail)
+
+    def test_property_on_last_only(self):
+        via_a = QueryResult(rcode="SERVFAIL", ancount=0, answers=[])
+        via_b = QueryResult(
+            rcode="NOERROR",
+            ancount=1,
+            answers=[{"name": "x.", "type": "A", "rdata": "1.2.3.4"}],
+        )
+        outcome, _ = evaluate_oracles(
+            [
+                {
+                    "kind": "property",
+                    "apply": "last",
+                    "checks": ["rcode-noerror", "has-answer"],
+                }
+            ],
+            via_conduit=via_b,
+            via_steps=[via_a, via_b],
+            direct=None,
+            peer_id="peer",
+        )
+        self.assertEqual(outcome, "pass")
+
 
 class ParityAndDifferentialTests(unittest.TestCase):
     def test_parity_aa_and_answer_types(self):

@@ -153,8 +153,11 @@ nav:
           - fixture-auth-nodata-mx: interop/cases/fixture-auth-nodata-mx.md
           - fixture-auth-nxdomain: interop/cases/fixture-auth-nxdomain.md
           - forward-parity-smoke: interop/cases/forward-parity-smoke.md
+          - health-drain-avoids-backend: interop/cases/health-drain-avoids-backend.md
+          - health-drain-resume-returns: interop/cases/health-drain-resume-returns.md
           - health-fail-open-all-down: interop/cases/health-fail-open-all-down.md
           - health-live-dead-prefer-live: interop/cases/health-live-dead-prefer-live.md
+          - health-passive-fast-trip: interop/cases/health-passive-fast-trip.md
           - passthrough-aa-auth-a: interop/cases/passthrough-aa-auth-a.md
           - pdns-recursor-rd0-refused: interop/cases/pdns-recursor-rd0-refused.md
           - peer-tc-passthrough: interop/cases/peer-tc-passthrough.md

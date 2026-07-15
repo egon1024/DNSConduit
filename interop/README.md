@@ -78,6 +78,13 @@ profile before that cell starts (e.g. swapping the `pools` backend address).
 for the **dnsmasq** family via query logs. Conduit-behavior cache cases pin
 `thekelleys-dnsmasq-2.90`; other families raise if a case requests this oracle.
 
+**Control plane / `conduitctl` steps:** cell compose always publishes
+`${CONDUIT_CONTROL_HOST_PORT}` → container `5199`. Cases that use mid-query
+`action: conduitctl` must set `control.listen_address: "0.0.0.0:5199"` in
+`conduit_delta` (not `127.0.0.1`) and require a host **`conduitctl`** binary
+(`CONDUITCTL`, `PATH`, or `target/{release,debug}/conduitctl` after
+`cargo build -p conduitctl`).
+
 Recursive/stub peers must answer from local/static data only — no public
 internet dependency in committed cases. See
 `docs/superpowers/process/e2e-interop-testing.md` (Cursor-side) for the
