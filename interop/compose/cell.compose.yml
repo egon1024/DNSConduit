@@ -19,6 +19,7 @@ services:
       - "${CONDUIT_HOST_PORT}:5353/udp"
       - "${CONDUIT_HOST_PORT}:5353/tcp"
       - "${CONDUIT_METRICS_HOST_PORT}:9090/tcp"
+      - "${CONDUIT_CONTROL_HOST_PORT}:5199/tcp"
 
 networks:
   interop:

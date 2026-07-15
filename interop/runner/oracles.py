@@ -63,7 +63,7 @@ def evaluate_oracles(
     for oracle in oracles:
         kind = oracle.get("kind")
         if kind == "sequence":
-            ok, msg = _sequence(steps, oracle.get("checks", []))
+            ok, msg = _sequence(steps, oracle)
             if not ok:
                 return "fail", msg
             details.append(msg)
@@ -81,7 +81,13 @@ def evaluate_oracles(
             details.append(msg)
             continue
 
-        for idx, via in enumerate(steps):
+        apply_on = str(oracle.get("apply") or "all").strip().lower()
+        if apply_on == "last":
+            step_pairs = [(len(steps) - 1, steps[-1])]
+        else:
+            step_pairs = list(enumerate(steps))
+
+        for idx, via in step_pairs:
             assert via is not None
             if kind == "property":
                 ok, msg = _property(via, oracle)
@@ -269,7 +275,8 @@ def _max_answer_ttl(result: QueryResult) -> int | None:
     return max(values)
 
 
-def _sequence(steps: list[QueryResult], checks: list[str]) -> tuple[bool, str]:
+def _sequence(steps: list[QueryResult], oracle: dict[str, Any]) -> tuple[bool, str]:
+    checks = oracle.get("checks", [])
     for check in checks:
         if check == "answer-order-varies":
             orders = {_answer_order_key(s) for s in steps if s.answers}
@@ -294,6 +301,20 @@ def _sequence(steps: list[QueryResult], checks: list[str]) -> tuple[bool, str]:
                         f"step {idx} ttl={prev} step {idx + 1} ttl={ttl}"
                     )
                 prev = ttl
+        elif check == "step-rcodes":
+            want = [str(x).upper() for x in (oracle.get("rcodes") or [])]
+            if not want:
+                return False, "step-rcodes requires rcodes"
+            if len(steps) != len(want):
+                return False, (
+                    f"step-rcodes expects {len(want)} dig steps got {len(steps)}"
+                )
+            for idx, (step, expected) in enumerate(zip(steps, want, strict=True)):
+                got = step.rcode.upper()
+                if got != expected:
+                    return False, (
+                        f"step {idx + 1}: expected rcode {expected} got {got}"
+                    )
         else:
             return False, f"unknown sequence check: {check}"
     return True, "sequence ok"

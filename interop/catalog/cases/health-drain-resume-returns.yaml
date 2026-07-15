@@ -1,0 +1,109 @@
+schema_version: 1
+id: health-drain-resume-returns
+matrix: conduit
+suites: [full]
+intent: |
+  ## Purpose
+
+  Draining the only answering backend yields a forward-timeout **SERVFAIL**;
+  **resume** on that backend (with the sibling held down) restores successful
+  answers. Proves drain/resume round-trip without relying on fail-open alone.
+
+  Results appear on the **Conduit behavior** matrix (one stub peer). Requires a
+  host **`conduitctl`** binary (see interop README).
+
+  ## How it works
+
+  1. Pool: `live` (stub) and `dead` (unused IP); slow probes so operator
+     controls own applied state for the proof.
+  2. Drain `live` → dig gets SERVFAIL (only `dead` remains eligible and times
+     out).
+  3. Resume `live`, then drain `dead` so fail-open cannot re-admit a blackhole.
+  4. Second dig succeeds on `live`.
+  5. Checks require SERVFAIL then NOERROR, one peer query overall, one dead
+     timeout attempt, and one live success.
+
+  ## Outcomes
+
+  | Outcome | Meaning for operators |
+  |---|---|
+  | <span class="interop-outcome interop-outcome--pass">pass</span> | Drain caused SERVFAIL; resume restored live answers. |
+  | <span class="interop-outcome interop-outcome--fail">fail</span> | Unexpected rcodes, peer traffic, or missing drain/resume effect. |
+  | <span class="interop-outcome interop-outcome--skip">skip</span> | This peer/profile combination is out of scope. |
+  | <span class="interop-outcome interop-outcome--characterized">characterized</span> | Not used for this case today. If it appeared, it would mean a documented peer-specific quirk rather than a Conduit regression. |
+applicability:
+  roles: [stub]
+  profiles: [forward-only]
+  peers: [thekelleys-dnsmasq-2.90]
+peer_setup:
+  local_rr:
+    - name: www.smoke.test.
+      type: A
+      rdata: "192.0.2.20"
+      ttl: 60
+conduit_delta:
+  control:
+    listen_address: "0.0.0.0:5199"
+  forward:
+    outstanding_per_backend: 50
+    timeout_ms: 400
+  orchestrator:
+    max_attempts: 1
+    max_txn_duration_ms: 5000
+    txn_table_capacity: 1024
+  pools:
+    - name: default
+      health:
+        enabled: true
+        interval_ms: 2000
+        timeout_ms: 500
+        fall: 50
+        rise: 1
+        probe_qname: "health-probe.interop."
+        probe_qtype: A
+        passive_fast_trip: false
+        min_eligible: 1
+      backends:
+        - address: "172.30.97.10:53"
+          name: live
+          weight: 100
+        - address: "172.30.97.99:53"
+          name: dead
+          weight: 100
+  metrics:
+    enabled: true
+    profile: full
+    prometheus:
+      listen_address: "0.0.0.0:9090"
+      path: /metrics
+queries:
+  - action: conduitctl
+    args: ["health", "set", "down", "--pool", "default", "--backend", "live"]
+  - qname: www.smoke.test.
+  - action: conduitctl
+    args: ["health", "resume", "--pool", "default", "--backend", "live"]
+  - action: conduitctl
+    args: ["health", "set", "down", "--pool", "default", "--backend", "dead"]
+  - qname: www.smoke.test.
+oracles:
+  - kind: sequence
+    checks: [step-rcodes]
+    rcodes: [SERVFAIL, NOERROR]
+  - kind: property
+    apply: last
+    checks: [rcode-noerror, has-answer]
+  - kind: peer-query-count
+    expect: 1
+    qname: www.smoke.test.
+    qtype: A
+  - kind: metrics-delta
+    expect:
+      - metric: conduit_forward_attempts_total
+        labels: {pool: default, backend: live, outcome: success}
+        delta: 1
+      - metric: conduit_forward_attempts_total
+        labels: {pool: default, backend: dead, outcome: error}
+        delta: 1
+      - metric: conduit_forward_errors_total
+        labels: {pool: default, backend: dead, reason: timeout}
+        delta: 1

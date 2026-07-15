@@ -222,8 +222,13 @@ def _run_cell(
         steps = case.queries or [{"qname": default_qname}]
         needs_parity = any(o.get("kind") == "parity" for o in case.oracles)
         needs_metrics = any(o.get("kind") == "metrics-delta" for o in case.oracles)
+        needs_control = any(
+            str(step.get("action") or "").strip().lower() == "conduitctl" for step in steps
+        )
         if needs_metrics:
             stack.wait_for_metrics()
+        if needs_control:
+            stack.wait_for_control()
         pqc_specs = _peer_query_count_specs(
             case.oracles, steps=steps, default_qname=default_qname, default_qtype=default_qtype
         )
@@ -237,6 +242,20 @@ def _run_cell(
             sleep_before = step.get("sleep_before_secs")
             if sleep_before is not None:
                 time.sleep(float(sleep_before))
+            action = str(step.get("action") or "").strip().lower()
+            if action == "conduitctl":
+                args = step.get("args")
+                if not isinstance(args, list) or not all(isinstance(a, str) for a in args):
+                    raise RuntimeError(
+                        f"query step {idx + 1}: conduitctl action requires string args list"
+                    )
+                stack.run_conduitctl([str(a) for a in args])
+                continue
+            if action:
+                raise RuntimeError(
+                    f"query step {idx + 1}: unknown action {action!r} "
+                    "(supported: conduitctl, or omit for dig)"
+                )
             step_q = str(step.get("qname", default_qname)).rstrip(".")
             step_t = str(step.get("qtype") or default_qtype or "A")
             bufsize = step.get("bufsize")
@@ -270,7 +289,7 @@ def _run_cell(
         )
         if outcome != "pass":
             return outcome, detail
-        return "pass", f"{len(via_steps)} step(s): {detail}"
+        return "pass", f"{len(via_steps)} dig step(s): {detail}"
     finally:
         stack.stop()
 
@@ -283,10 +302,14 @@ def _peer_query_count_specs(
     default_qtype: str,
 ) -> list[tuple[tuple[str, str], str, str]]:
     """Return (key, qname, qtype) for each peer-query-count oracle (qname resolved)."""
-    first_q = str(steps[0].get("qname", default_qname)).rstrip(".") if steps else default_qname
-    first_t = (
-        str(steps[0].get("qtype") or default_qtype or "A") if steps else (default_qtype or "A")
-    )
+    first_q = default_qname
+    first_t = default_qtype or "A"
+    for step in steps:
+        if step.get("action"):
+            continue
+        first_q = str(step.get("qname", default_qname)).rstrip(".")
+        first_t = str(step.get("qtype") or default_qtype or "A")
+        break
     out: list[tuple[tuple[str, str], str, str]] = []
     for oracle in oracles:
         if oracle.get("kind") != "peer-query-count":
