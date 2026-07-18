@@ -13,7 +13,7 @@
     },
     {
       "case_id": "auth-dangling-cname-nxdomain",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -46,7 +46,7 @@
     },
     {
       "case_id": "auth-dangling-cname-nxdomain",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -79,7 +79,7 @@
     },
     {
       "case_id": "auth-dangling-cname-nxdomain",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -112,7 +112,7 @@
     },
     {
       "case_id": "auth-dangling-cname-nxdomain",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -277,7 +277,7 @@
     },
     {
       "case_id": "auth-dangling-cname-nxdomain",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -310,7 +310,7 @@
     },
     {
       "case_id": "auth-dangling-cname-nxdomain",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -442,7 +442,7 @@
     },
     {
       "case_id": "auth-unknown-zone-refused",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -475,7 +475,7 @@
     },
     {
       "case_id": "auth-unknown-zone-refused",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -508,7 +508,7 @@
     },
     {
       "case_id": "auth-unknown-zone-refused",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -541,7 +541,7 @@
     },
     {
       "case_id": "auth-unknown-zone-refused",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -706,7 +706,7 @@
     },
     {
       "case_id": "auth-unknown-zone-refused",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -739,7 +739,7 @@
     },
     {
       "case_id": "auth-unknown-zone-refused",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -871,7 +871,7 @@
     },
     {
       "case_id": "basic-a-forward",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -904,7 +904,7 @@
     },
     {
       "case_id": "basic-a-forward",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -937,7 +937,7 @@
     },
     {
       "case_id": "basic-a-forward",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -970,7 +970,7 @@
     },
     {
       "case_id": "basic-a-forward",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -1003,7 +1003,7 @@
     },
     {
       "case_id": "basic-a-forward",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -1036,7 +1036,7 @@
     },
     {
       "case_id": "basic-a-forward",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -1069,7 +1069,7 @@
     },
     {
       "case_id": "basic-a-forward",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -1102,7 +1102,7 @@
     },
     {
       "case_id": "basic-a-forward",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -1135,7 +1135,7 @@
     },
     {
       "case_id": "basic-a-forward",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -1168,7 +1168,7 @@
     },
     {
       "case_id": "basic-a-forward",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -1201,7 +1201,7 @@
     },
     {
       "case_id": "basic-a-forward",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -1234,7 +1234,7 @@
     },
     {
       "case_id": "basic-a-forward",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -1267,7 +1267,7 @@
     },
     {
       "case_id": "basic-a-forward",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -1649,7 +1649,7 @@
     },
     {
       "case_id": "cache-forward-a",
-      "detail": "1 step(s): property ok",
+      "detail": "1 dig step(s): property ok",
       "oracles": [
         "property"
       ],
@@ -2147,7 +2147,7 @@
     },
     {
       "case_id": "cache-miss-then-hit-a",
-      "detail": "2 step(s): property ok; property ok; peer-query-count www.smoke.test/A=1; sequence ok; metrics-delta conduit_cache_lookups_total{result=miss}=1; conduit_cache_lookups_total{result=hit}=1; conduit_responses_total{answer_source=forward}=1; conduit_responses_total{answer_source=cache}=1",
+      "detail": "2 dig step(s): property ok; property ok; peer-query-count www.smoke.test/A=1; sequence ok; metrics-delta conduit_cache_lookups_total{result=miss}=1; conduit_cache_lookups_total{result=hit}=1; conduit_responses_total{answer_source=forward}=1; conduit_responses_total{answer_source=cache}=1",
       "oracles": [
         "property",
         "peer-query-count",
@@ -2618,7 +2618,7 @@
     },
     {
       "case_id": "cache-nxdomain-miss-then-hit",
-      "detail": "2 step(s): property ok; property ok; peer-query-count missing.nxcache.test/A=1; metrics-delta conduit_cache_lookups_total{result=miss}=1; conduit_cache_lookups_total{result=hit}=1; conduit_responses_total{answer_source=forward}=1; conduit_responses_total{answer_source=cache}=1",
+      "detail": "2 dig step(s): property ok; property ok; peer-query-count missing.nxcache.test/A=1; metrics-delta conduit_cache_lookups_total{result=miss}=1; conduit_cache_lookups_total{result=hit}=1; conduit_responses_total{answer_source=forward}=1; conduit_responses_total{answer_source=cache}=1",
       "oracles": [
         "property",
         "peer-query-count",
@@ -3050,7 +3050,7 @@
     },
     {
       "case_id": "cache-rotate-rrset",
-      "detail": "8 step(s): property ok; property ok; property ok; property ok; property ok; property ok; property ok; property ok; sequence ok",
+      "detail": "8 dig step(s): property ok; property ok; property ok; property ok; property ok; property ok; property ok; property ok; sequence ok",
       "oracles": [
         "property",
         "sequence"
@@ -3463,7 +3463,7 @@
     },
     {
       "case_id": "dataplane-split-io-forward",
-      "detail": "1 step(s): property ok",
+      "detail": "1 dig step(s): property ok",
       "oracles": [
         "property"
       ],
@@ -4348,7 +4348,7 @@
     },
     {
       "case_id": "dnsmasq-local-cname-expand",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -4381,7 +4381,7 @@
     },
     {
       "case_id": "edns-opt-passthrough-smoke",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -4414,7 +4414,7 @@
     },
     {
       "case_id": "edns-opt-passthrough-smoke",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -4447,7 +4447,7 @@
     },
     {
       "case_id": "edns-opt-passthrough-smoke",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -4480,7 +4480,7 @@
     },
     {
       "case_id": "edns-opt-passthrough-smoke",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -4513,7 +4513,7 @@
     },
     {
       "case_id": "edns-opt-passthrough-smoke",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -4546,7 +4546,7 @@
     },
     {
       "case_id": "edns-opt-passthrough-smoke",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -4579,7 +4579,7 @@
     },
     {
       "case_id": "edns-opt-passthrough-smoke",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -4612,7 +4612,7 @@
     },
     {
       "case_id": "edns-opt-passthrough-smoke",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -4645,7 +4645,7 @@
     },
     {
       "case_id": "edns-opt-passthrough-smoke",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -4678,7 +4678,7 @@
     },
     {
       "case_id": "edns-opt-passthrough-smoke",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -4711,7 +4711,7 @@
     },
     {
       "case_id": "edns-opt-passthrough-smoke",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -4744,7 +4744,7 @@
     },
     {
       "case_id": "edns-opt-passthrough-smoke",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -4777,7 +4777,7 @@
     },
     {
       "case_id": "edns-opt-passthrough-smoke",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -4809,7 +4809,7 @@
     },
     {
       "case_id": "fixture-auth-a",
-      "detail": "1 step(s): fixture ok",
+      "detail": "1 dig step(s): fixture ok",
       "oracles": [
         "fixture"
       ],
@@ -4839,7 +4839,7 @@
     },
     {
       "case_id": "fixture-auth-a",
-      "detail": "1 step(s): fixture ok",
+      "detail": "1 dig step(s): fixture ok",
       "oracles": [
         "fixture"
       ],
@@ -4869,7 +4869,7 @@
     },
     {
       "case_id": "fixture-auth-a",
-      "detail": "1 step(s): fixture ok",
+      "detail": "1 dig step(s): fixture ok",
       "oracles": [
         "fixture"
       ],
@@ -4899,7 +4899,7 @@
     },
     {
       "case_id": "fixture-auth-a",
-      "detail": "1 step(s): fixture ok",
+      "detail": "1 dig step(s): fixture ok",
       "oracles": [
         "fixture"
       ],
@@ -5049,7 +5049,7 @@
     },
     {
       "case_id": "fixture-auth-a",
-      "detail": "1 step(s): fixture ok",
+      "detail": "1 dig step(s): fixture ok",
       "oracles": [
         "fixture"
       ],
@@ -5079,7 +5079,7 @@
     },
     {
       "case_id": "fixture-auth-a",
-      "detail": "1 step(s): fixture ok",
+      "detail": "1 dig step(s): fixture ok",
       "oracles": [
         "fixture"
       ],
@@ -5199,7 +5199,7 @@
     },
     {
       "case_id": "fixture-auth-aaaa",
-      "detail": "1 step(s): fixture ok",
+      "detail": "1 dig step(s): fixture ok",
       "oracles": [
         "fixture"
       ],
@@ -5229,7 +5229,7 @@
     },
     {
       "case_id": "fixture-auth-aaaa",
-      "detail": "1 step(s): fixture ok",
+      "detail": "1 dig step(s): fixture ok",
       "oracles": [
         "fixture"
       ],
@@ -5259,7 +5259,7 @@
     },
     {
       "case_id": "fixture-auth-aaaa",
-      "detail": "1 step(s): fixture ok",
+      "detail": "1 dig step(s): fixture ok",
       "oracles": [
         "fixture"
       ],
@@ -5289,7 +5289,7 @@
     },
     {
       "case_id": "fixture-auth-aaaa",
-      "detail": "1 step(s): fixture ok",
+      "detail": "1 dig step(s): fixture ok",
       "oracles": [
         "fixture"
       ],
@@ -5439,7 +5439,7 @@
     },
     {
       "case_id": "fixture-auth-aaaa",
-      "detail": "1 step(s): fixture ok",
+      "detail": "1 dig step(s): fixture ok",
       "oracles": [
         "fixture"
       ],
@@ -5469,7 +5469,7 @@
     },
     {
       "case_id": "fixture-auth-aaaa",
-      "detail": "1 step(s): fixture ok",
+      "detail": "1 dig step(s): fixture ok",
       "oracles": [
         "fixture"
       ],
@@ -5589,7 +5589,7 @@
     },
     {
       "case_id": "fixture-auth-api-a",
-      "detail": "1 step(s): fixture ok",
+      "detail": "1 dig step(s): fixture ok",
       "oracles": [
         "fixture"
       ],
@@ -5619,7 +5619,7 @@
     },
     {
       "case_id": "fixture-auth-api-a",
-      "detail": "1 step(s): fixture ok",
+      "detail": "1 dig step(s): fixture ok",
       "oracles": [
         "fixture"
       ],
@@ -5649,7 +5649,7 @@
     },
     {
       "case_id": "fixture-auth-api-a",
-      "detail": "1 step(s): fixture ok",
+      "detail": "1 dig step(s): fixture ok",
       "oracles": [
         "fixture"
       ],
@@ -5679,7 +5679,7 @@
     },
     {
       "case_id": "fixture-auth-api-a",
-      "detail": "1 step(s): fixture ok",
+      "detail": "1 dig step(s): fixture ok",
       "oracles": [
         "fixture"
       ],
@@ -5829,7 +5829,7 @@
     },
     {
       "case_id": "fixture-auth-api-a",
-      "detail": "1 step(s): fixture ok",
+      "detail": "1 dig step(s): fixture ok",
       "oracles": [
         "fixture"
       ],
@@ -5859,7 +5859,7 @@
     },
     {
       "case_id": "fixture-auth-api-a",
-      "detail": "1 step(s): fixture ok",
+      "detail": "1 dig step(s): fixture ok",
       "oracles": [
         "fixture"
       ],
@@ -5981,7 +5981,7 @@
     },
     {
       "case_id": "fixture-auth-cname-a",
-      "detail": "1 step(s): fixture ok; property ok; parity ok",
+      "detail": "1 dig step(s): fixture ok; property ok; parity ok",
       "oracles": [
         "fixture",
         "property",
@@ -6017,7 +6017,7 @@
     },
     {
       "case_id": "fixture-auth-cname-a",
-      "detail": "1 step(s): fixture ok; property ok; parity ok",
+      "detail": "1 dig step(s): fixture ok; property ok; parity ok",
       "oracles": [
         "fixture",
         "property",
@@ -6053,7 +6053,7 @@
     },
     {
       "case_id": "fixture-auth-cname-a",
-      "detail": "1 step(s): fixture ok; property ok; parity ok",
+      "detail": "1 dig step(s): fixture ok; property ok; parity ok",
       "oracles": [
         "fixture",
         "property",
@@ -6089,7 +6089,7 @@
     },
     {
       "case_id": "fixture-auth-cname-a",
-      "detail": "1 step(s): fixture ok; property ok; parity ok",
+      "detail": "1 dig step(s): fixture ok; property ok; parity ok",
       "oracles": [
         "fixture",
         "property",
@@ -6269,7 +6269,7 @@
     },
     {
       "case_id": "fixture-auth-cname-a",
-      "detail": "1 step(s): fixture ok; property ok; parity ok",
+      "detail": "1 dig step(s): fixture ok; property ok; parity ok",
       "oracles": [
         "fixture",
         "property",
@@ -6305,7 +6305,7 @@
     },
     {
       "case_id": "fixture-auth-cname-a",
-      "detail": "1 step(s): fixture ok; property ok; parity ok",
+      "detail": "1 dig step(s): fixture ok; property ok; parity ok",
       "oracles": [
         "fixture",
         "property",
@@ -6448,7 +6448,7 @@
     },
     {
       "case_id": "fixture-auth-nodata-mx",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -6481,7 +6481,7 @@
     },
     {
       "case_id": "fixture-auth-nodata-mx",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -6514,7 +6514,7 @@
     },
     {
       "case_id": "fixture-auth-nodata-mx",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -6547,7 +6547,7 @@
     },
     {
       "case_id": "fixture-auth-nodata-mx",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -6712,7 +6712,7 @@
     },
     {
       "case_id": "fixture-auth-nodata-mx",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -6745,7 +6745,7 @@
     },
     {
       "case_id": "fixture-auth-nodata-mx",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -6876,7 +6876,7 @@
     },
     {
       "case_id": "fixture-auth-nxdomain",
-      "detail": "1 step(s): fixture ok",
+      "detail": "1 dig step(s): fixture ok",
       "oracles": [
         "fixture"
       ],
@@ -6906,7 +6906,7 @@
     },
     {
       "case_id": "fixture-auth-nxdomain",
-      "detail": "1 step(s): fixture ok",
+      "detail": "1 dig step(s): fixture ok",
       "oracles": [
         "fixture"
       ],
@@ -6936,7 +6936,7 @@
     },
     {
       "case_id": "fixture-auth-nxdomain",
-      "detail": "1 step(s): fixture ok",
+      "detail": "1 dig step(s): fixture ok",
       "oracles": [
         "fixture"
       ],
@@ -6966,7 +6966,7 @@
     },
     {
       "case_id": "fixture-auth-nxdomain",
-      "detail": "1 step(s): fixture ok",
+      "detail": "1 dig step(s): fixture ok",
       "oracles": [
         "fixture"
       ],
@@ -7116,7 +7116,7 @@
     },
     {
       "case_id": "fixture-auth-nxdomain",
-      "detail": "1 step(s): fixture ok",
+      "detail": "1 dig step(s): fixture ok",
       "oracles": [
         "fixture"
       ],
@@ -7146,7 +7146,7 @@
     },
     {
       "case_id": "fixture-auth-nxdomain",
-      "detail": "1 step(s): fixture ok",
+      "detail": "1 dig step(s): fixture ok",
       "oracles": [
         "fixture"
       ],
@@ -7266,7 +7266,7 @@
     },
     {
       "case_id": "forward-parity-smoke",
-      "detail": "1 step(s): property ok",
+      "detail": "1 dig step(s): property ok",
       "oracles": [
         "property"
       ],
@@ -7296,7 +7296,7 @@
     },
     {
       "case_id": "forward-parity-smoke",
-      "detail": "1 step(s): property ok",
+      "detail": "1 dig step(s): property ok",
       "oracles": [
         "property"
       ],
@@ -7326,7 +7326,7 @@
     },
     {
       "case_id": "forward-parity-smoke",
-      "detail": "1 step(s): property ok",
+      "detail": "1 dig step(s): property ok",
       "oracles": [
         "property"
       ],
@@ -7356,7 +7356,7 @@
     },
     {
       "case_id": "forward-parity-smoke",
-      "detail": "1 step(s): property ok",
+      "detail": "1 dig step(s): property ok",
       "oracles": [
         "property"
       ],
@@ -7386,7 +7386,7 @@
     },
     {
       "case_id": "forward-parity-smoke",
-      "detail": "1 step(s): property ok",
+      "detail": "1 dig step(s): property ok",
       "oracles": [
         "property"
       ],
@@ -7416,7 +7416,7 @@
     },
     {
       "case_id": "forward-parity-smoke",
-      "detail": "1 step(s): property ok",
+      "detail": "1 dig step(s): property ok",
       "oracles": [
         "property"
       ],
@@ -7446,7 +7446,7 @@
     },
     {
       "case_id": "forward-parity-smoke",
-      "detail": "1 step(s): property ok",
+      "detail": "1 dig step(s): property ok",
       "oracles": [
         "property"
       ],
@@ -7476,7 +7476,7 @@
     },
     {
       "case_id": "forward-parity-smoke",
-      "detail": "1 step(s): property ok",
+      "detail": "1 dig step(s): property ok",
       "oracles": [
         "property"
       ],
@@ -7506,7 +7506,7 @@
     },
     {
       "case_id": "forward-parity-smoke",
-      "detail": "1 step(s): property ok",
+      "detail": "1 dig step(s): property ok",
       "oracles": [
         "property"
       ],
@@ -7536,7 +7536,7 @@
     },
     {
       "case_id": "forward-parity-smoke",
-      "detail": "1 step(s): property ok",
+      "detail": "1 dig step(s): property ok",
       "oracles": [
         "property"
       ],
@@ -7566,7 +7566,7 @@
     },
     {
       "case_id": "forward-parity-smoke",
-      "detail": "1 step(s): property ok",
+      "detail": "1 dig step(s): property ok",
       "oracles": [
         "property"
       ],
@@ -7596,7 +7596,7 @@
     },
     {
       "case_id": "forward-parity-smoke",
-      "detail": "1 step(s): property ok",
+      "detail": "1 dig step(s): property ok",
       "oracles": [
         "property"
       ],
@@ -7626,7 +7626,7 @@
     },
     {
       "case_id": "forward-parity-smoke",
-      "detail": "1 step(s): property ok",
+      "detail": "1 dig step(s): property ok",
       "oracles": [
         "property"
       ],
@@ -9065,7 +9065,7 @@
     },
     {
       "case_id": "health-fail-open-all-down",
-      "detail": "1 step(s): property ok; peer-query-count www.smoke.test/A=0; metrics-delta conduit_forward_attempts_total{outcome=error,pool=default}=1; conduit_forward_errors_total{pool=default,reason=timeout}=1; conduit_forward_errors_total{reason=no_backend}=0",
+      "detail": "1 dig step(s): property ok; peer-query-count www.smoke.test/A=0; metrics-delta conduit_forward_attempts_total{outcome=error,pool=default}=1; conduit_forward_errors_total{pool=default,reason=timeout}=1; conduit_forward_errors_total{reason=no_backend}=0",
       "oracles": [
         "property",
         "peer-query-count",
@@ -9533,7 +9533,7 @@
     },
     {
       "case_id": "health-live-dead-prefer-live",
-      "detail": "1 step(s): property ok; peer-query-count www.smoke.test/A=1; metrics-delta conduit_forward_attempts_total{backend=live,outcome=success,pool=default}=1; conduit_forward_attempts_total{backend=dead,pool=default}=0",
+      "detail": "1 dig step(s): property ok; peer-query-count www.smoke.test/A=1; metrics-delta conduit_forward_attempts_total{backend=live,outcome=success,pool=default}=1; conduit_forward_attempts_total{backend=dead,pool=default}=0",
       "oracles": [
         "property",
         "peer-query-count",
@@ -10075,7 +10075,7 @@
     },
     {
       "case_id": "passthrough-aa-auth-a",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -10108,7 +10108,7 @@
     },
     {
       "case_id": "passthrough-aa-auth-a",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -10141,7 +10141,7 @@
     },
     {
       "case_id": "passthrough-aa-auth-a",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -10174,7 +10174,7 @@
     },
     {
       "case_id": "passthrough-aa-auth-a",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -10339,7 +10339,7 @@
     },
     {
       "case_id": "passthrough-aa-auth-a",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -10372,7 +10372,7 @@
     },
     {
       "case_id": "passthrough-aa-auth-a",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -10972,7 +10972,7 @@
     },
     {
       "case_id": "peer-tc-passthrough",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -11005,7 +11005,7 @@
     },
     {
       "case_id": "peer-tc-passthrough",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -11038,7 +11038,7 @@
     },
     {
       "case_id": "peer-tc-passthrough",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -11071,7 +11071,7 @@
     },
     {
       "case_id": "peer-tc-passthrough",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -11236,7 +11236,7 @@
     },
     {
       "case_id": "peer-tc-passthrough",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -11269,7 +11269,7 @@
     },
     {
       "case_id": "peer-tc-passthrough",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -12228,7 +12228,7 @@
     },
     {
       "case_id": "rhai-soft-drop",
-      "detail": "1 step(s): property ok",
+      "detail": "1 dig step(s): property ok",
       "oracles": [
         "property"
       ],
@@ -12618,7 +12618,7 @@
     },
     {
       "case_id": "rules-clear-drop",
-      "detail": "1 step(s): property ok",
+      "detail": "1 dig step(s): property ok",
       "oracles": [
         "property"
       ],
@@ -13008,7 +13008,7 @@
     },
     {
       "case_id": "rules-drop-now",
-      "detail": "1 step(s): property ok",
+      "detail": "1 dig step(s): property ok",
       "oracles": [
         "property"
       ],
@@ -13038,7 +13038,7 @@
     },
     {
       "case_id": "rules-qname-forward",
-      "detail": "1 step(s): property ok",
+      "detail": "1 dig step(s): property ok",
       "oracles": [
         "property"
       ],
@@ -13068,7 +13068,7 @@
     },
     {
       "case_id": "rules-qname-forward",
-      "detail": "1 step(s): property ok",
+      "detail": "1 dig step(s): property ok",
       "oracles": [
         "property"
       ],
@@ -13098,7 +13098,7 @@
     },
     {
       "case_id": "rules-qname-forward",
-      "detail": "1 step(s): property ok",
+      "detail": "1 dig step(s): property ok",
       "oracles": [
         "property"
       ],
@@ -13128,7 +13128,7 @@
     },
     {
       "case_id": "rules-qname-forward",
-      "detail": "1 step(s): property ok",
+      "detail": "1 dig step(s): property ok",
       "oracles": [
         "property"
       ],
@@ -13158,7 +13158,7 @@
     },
     {
       "case_id": "rules-qname-forward",
-      "detail": "1 step(s): property ok",
+      "detail": "1 dig step(s): property ok",
       "oracles": [
         "property"
       ],
@@ -13188,7 +13188,7 @@
     },
     {
       "case_id": "rules-qname-forward",
-      "detail": "1 step(s): property ok",
+      "detail": "1 dig step(s): property ok",
       "oracles": [
         "property"
       ],
@@ -13218,7 +13218,7 @@
     },
     {
       "case_id": "rules-qname-forward",
-      "detail": "1 step(s): property ok",
+      "detail": "1 dig step(s): property ok",
       "oracles": [
         "property"
       ],
@@ -13248,7 +13248,7 @@
     },
     {
       "case_id": "rules-qname-forward",
-      "detail": "1 step(s): property ok",
+      "detail": "1 dig step(s): property ok",
       "oracles": [
         "property"
       ],
@@ -13278,7 +13278,7 @@
     },
     {
       "case_id": "rules-qname-forward",
-      "detail": "1 step(s): property ok",
+      "detail": "1 dig step(s): property ok",
       "oracles": [
         "property"
       ],
@@ -13308,7 +13308,7 @@
     },
     {
       "case_id": "rules-qname-forward",
-      "detail": "1 step(s): property ok",
+      "detail": "1 dig step(s): property ok",
       "oracles": [
         "property"
       ],
@@ -13338,7 +13338,7 @@
     },
     {
       "case_id": "rules-qname-forward",
-      "detail": "1 step(s): property ok",
+      "detail": "1 dig step(s): property ok",
       "oracles": [
         "property"
       ],
@@ -13368,7 +13368,7 @@
     },
     {
       "case_id": "rules-qname-forward",
-      "detail": "1 step(s): property ok",
+      "detail": "1 dig step(s): property ok",
       "oracles": [
         "property"
       ],
@@ -13398,7 +13398,7 @@
     },
     {
       "case_id": "rules-qname-forward",
-      "detail": "1 step(s): property ok",
+      "detail": "1 dig step(s): property ok",
       "oracles": [
         "property"
       ],
@@ -13788,7 +13788,7 @@
     },
     {
       "case_id": "rules-soft-drop",
-      "detail": "1 step(s): property ok",
+      "detail": "1 dig step(s): property ok",
       "oracles": [
         "property"
       ],
@@ -14446,7 +14446,7 @@
     },
     {
       "case_id": "unbound-local-cname-no-chase",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -14479,7 +14479,7 @@
     },
     {
       "case_id": "unbound-local-cname-no-chase",
-      "detail": "1 step(s): property ok; parity ok",
+      "detail": "1 dig step(s): property ok; parity ok",
       "oracles": [
         "property",
         "parity"
@@ -14665,13 +14665,13 @@
       "profile_id": "forward-split-io"
     }
   ],
-  "generated_at": "2026-07-15T14:34:19Z",
+  "generated_at": "2026-07-18T12:20:19Z",
   "inputs_fingerprint": "sha256:fc5378622e8a37ef1be8289b90f3e0936a2c024008681c26df2c87be98d5b6b9",
   "provenance": {
     "conduit_image": "conduit:local",
-    "conduit_image_digest": "sha256:fc2fa1e6ae0bbca8d578f13f6cde82181d1f419dfdde29fc95afbfc25823c8cc",
+    "conduit_image_digest": "sha256:8e2956bb5913407a537abc9a19bb49ed7f74a173ba7914eef213f0ede1ed28b7",
     "conduit_version": "dev",
-    "git_head": "9fc0b3a3332b174d9aa6097f4ba8b9bc96dc6c49",
+    "git_head": "d0ea2a93ca7e95012527b10942ef851c6a0220e5",
     "runner": "interop.runner/0.1.0"
   },
   "schema_version": 1
