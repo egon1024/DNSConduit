@@ -1,21 +1,3 @@
 # Unreleased
 
-This release adds a **published interop correctness matrix** and **Docker Hub image distribution**. There are no changes to DNS datapath behavior, configuration, or the control-plane API since the previous release; upgrading requires no operator action.
-
-## Interop correctness matrix
-
-- A published **correctness matrix** records tested behavior against multiple third-party DNS implementations, split **by publisher** (software under test; no peer is preferred or recommended): **CZ.NIC** (Knot DNS), **ISC** (BIND and BIND Resolver), **NLnet Labs** (Unbound), **PowerDNS** (Authoritative Server and Recursor), and **thekelleys** (dnsmasq). See the [Interop overview](/interop/index.md).
-- **Conduit-behavior cases** — cache path, ordered rules, and dataplane runtime — run against a single stub peer on the [Conduit behavior](/interop/conduit-behavior.md) page, so they read as Conduit behavior rather than per-peer claims.
-- **Named cases** each document purpose, method, and outcome meaning. Coverage includes forwarding parity ([basic-a-forward](/interop/cases/basic-a-forward.md)), the DNS answer cache (cold miss, [miss→hit](/interop/cases/cache-miss-then-hit-a.md) with peer query-count and TTL-decay checks, negative caching, RRset rotation), ordered rule actions (allow, soft-drop, hard-drop, clear-drop), Rhai soft-drop, the `split_io` dataplane runtime, backend health (live/dead preference, all-down fail-open, passive fast-trip, and [drain/resume](/interop/cases/health-drain-resume-returns.md) via `conduitctl`), authoritative fixtures, and per-service response **passthrough** quirks.
-- Results carry **last-tested provenance** and an outcome legend — **pass**, **skip**, **characterized** (documented peer-specific shape, not a Conduit regression), and **fail**. By default Conduit's forward path passes peer response shapes through, so parity cases show the same backend quirks an operator would see querying the peer directly.
-- The Docker suite is **reproducible locally** (`make interop-image`, `make interop-smoke`) and is **not** run by GitHub Actions; CI only checks that committed results stay fresh when harness inputs change. See [Running these tests locally](/interop/index.md#running-these-tests-locally).
-
-## Container image distribution
-
-- Release container images are now published to **Docker Hub** (`egon1024/dnsconduit`) in addition to **GHCR** (`ghcr.io/egon1024/dnsconduit`), with identical contents and the same content digest. See [Install and run — Container image](/getting-started/install-and-run.md#container-image).
-- The **`latest`** tag tracks the newest stable release of the highest stable major version. Pin an explicit version or content digest for reproducible interop or production rolls rather than relying on `latest`.
-- The release asset `conduit-<version>.image-digest.txt` records the image reference and content digest.
-
-## Documentation
-
-- Clarified that unreferenced `caches:` instances validate successfully and that cache attachment for answer lookup/fill is via **lookup profile providers** only. See [Reference: caches](/reference/config-schema/caches.md).
+_No unreleased operator-facing changes._
