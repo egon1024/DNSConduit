@@ -111,7 +111,7 @@ Use **`conduitctl apply`**, **`conduitctl reload`**, or **SIGHUP** — same snap
 | `memory.shard_count` **< 1** | Invalid shard count |
 | `memory.eviction` not **`passive`** or **`active`** | Invalid eviction mode |
 
-Unreferenced cache instances (defined in **`caches:`** but not used by any lookup provider) **validate successfully** — reserved for future attachment points.
+Unreferenced cache instances (defined in **`caches:`** but not used by any lookup provider) **validate successfully** — for example an instance used only by some lookup profiles, or held for later open-by-name use. Cache attachment for answer lookup/fill is via **lookup profile providers** only (not pool or backend membership).
 
 ## Related topics
 
