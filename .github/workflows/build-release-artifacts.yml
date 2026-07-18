@@ -39,8 +39,8 @@ jobs:
       - name: Validate version
         run: |
           set -euo pipefail
-          if [[ ! "${RELEASE_VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::version must be MAJOR.MINOR.PATCH (got: ${RELEASE_VERSION})"
+          if [[ ! "${RELEASE_VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-dev\.[0-9]+)?$ ]]; then
+            echo "::error::version must be MAJOR.MINOR.PATCH or MAJOR.MINOR.PATCH-dev.N (got: ${RELEASE_VERSION})"
             exit 1
           fi
 
@@ -102,20 +102,74 @@ jobs:
       - name: Build and push container image
         env:
           GH_TOKEN: ${{ github.token }}
+          DOCKERHUB_USERNAME: ${{ vars.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         run: |
           set -euo pipefail
           IMAGE_OWNER="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
-          IMAGE="ghcr.io/${IMAGE_OWNER}/dnsconduit"
+          GHCR_IMAGE="ghcr.io/${IMAGE_OWNER}/dnsconduit"
+
+          # Docker Hub is an optional additional registry: it is only wired when
+          # both DOCKERHUB_USERNAME (repo variable) and DOCKERHUB_TOKEN (secret)
+          # are configured, so the release does not hard-fail before setup.
+          DOCKERHUB_ENABLED=false
+          HUB_IMAGE=""
+          if [[ -n "${DOCKERHUB_TOKEN:-}" && -n "${DOCKERHUB_USERNAME:-}" ]]; then
+            DOCKERHUB_ENABLED=true
+            HUB_IMAGE="docker.io/${DOCKERHUB_USERNAME}/dnsconduit"
+          else
+            echo "::warning::DOCKERHUB_USERNAME/DOCKERHUB_TOKEN not configured; skipping Docker Hub push (GHCR only)."
+          fi
+
+          # ':latest' tracks the newest stable release of the highest stable major.
+          # Pre-release '-dev.N' checkpoints are excluded and never move ':latest'.
+          # Mirrors the docs 'latest' alias rule in docs-deploy-aliases.sh.
+          git fetch --tags --force
+          newest_stable="$(git tag -l | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)"
+          push_latest=false
+          if [[ "${RELEASE_VERSION}" == "${newest_stable}" ]]; then
+            push_latest=true
+          fi
+
           echo "${GH_TOKEN}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-          docker build -t "${IMAGE}:${RELEASE_VERSION}" -t "${IMAGE}:latest" -f Dockerfile .
-          docker push "${IMAGE}:${RELEASE_VERSION}"
-          docker push "${IMAGE}:latest"
-          DIGEST="$(docker inspect --format='{{index .RepoDigests 0}}' "${IMAGE}:${RELEASE_VERSION}" | awk -F@ '{print $2}')"
+          if [[ "${DOCKERHUB_ENABLED}" == "true" ]]; then
+            echo "${DOCKERHUB_TOKEN}" | docker login docker.io -u "${DOCKERHUB_USERNAME}" --password-stdin
+          fi
+
+          build_args=( -t "${GHCR_IMAGE}:${RELEASE_VERSION}" )
+          if [[ "${DOCKERHUB_ENABLED}" == "true" ]]; then
+            build_args+=( -t "${HUB_IMAGE}:${RELEASE_VERSION}" )
+          fi
+          if [[ "${push_latest}" == "true" ]]; then
+            build_args+=( -t "${GHCR_IMAGE}:latest" )
+            if [[ "${DOCKERHUB_ENABLED}" == "true" ]]; then
+              build_args+=( -t "${HUB_IMAGE}:latest" )
+            fi
+          fi
+          docker build "${build_args[@]}" -f Dockerfile .
+
+          docker push "${GHCR_IMAGE}:${RELEASE_VERSION}"
+          if [[ "${DOCKERHUB_ENABLED}" == "true" ]]; then
+            docker push "${HUB_IMAGE}:${RELEASE_VERSION}"
+          fi
+          if [[ "${push_latest}" == "true" ]]; then
+            docker push "${GHCR_IMAGE}:latest"
+            if [[ "${DOCKERHUB_ENABLED}" == "true" ]]; then
+              docker push "${HUB_IMAGE}:latest"
+            fi
+          else
+            echo "::notice::${RELEASE_VERSION} is not the newest stable release (${newest_stable:-none}); leaving :latest unchanged."
+          fi
+
+          DIGEST="$(docker inspect --format='{{index .RepoDigests 0}}' "${GHCR_IMAGE}:${RELEASE_VERSION}" | awk -F@ '{print $2}')"
           if [[ -z "${DIGEST}" ]]; then
-            DIGEST="$(docker image inspect --format='{{.Id}}' "${IMAGE}:${RELEASE_VERSION}")"
+            DIGEST="$(docker image inspect --format='{{.Id}}' "${GHCR_IMAGE}:${RELEASE_VERSION}")"
           fi
           {
-            echo "image=${IMAGE}:${RELEASE_VERSION}"
+            echo "ghcr_image=${GHCR_IMAGE}:${RELEASE_VERSION}"
+            if [[ "${DOCKERHUB_ENABLED}" == "true" ]]; then
+              echo "dockerhub_image=${HUB_IMAGE}:${RELEASE_VERSION}"
+            fi
             echo "digest=${DIGEST}"
           } > "release-artifacts/conduit-${RELEASE_VERSION}.image-digest.txt"
           # Include digest file in SHA256SUMS

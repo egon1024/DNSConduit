@@ -1,6 +1,12 @@
 # Publish versioned operator documentation to gh-pages (mike) on product tags.
 # Also workflow_dispatch: Release uses GITHUB_TOKEN for gh release create, which does not
 # trigger tag-push workflows; Release explicitly dispatches this workflow after tagging.
+#
+# Auto-deploy is intentionally limited to stable MAJOR.MINOR.PATCH tags. Pre-release
+# '-dev.N' checkpoints (2.x forward-development line) do NOT publish operator docs
+# automatically; docs for the next major go live only when its stable tag ships.
+# A one-off dev deploy is still possible via workflow_dispatch (routes to the 'dev'
+# alias, never 'latest', per docs-deploy-aliases.sh).
 
 name: Docs deploy
 
@@ -8,11 +14,10 @@ on:
   push:
     tags:
       - "[0-9]+.[0-9]+.[0-9]+"
-      - "[0-9]+.[0-9]+.[0-9]+-dev.[0-9]+"
   workflow_dispatch:
     inputs:
       version:
-        description: Semver tag to deploy (e.g. 0.12.0). Must match an existing git tag.
+        description: Semver tag to deploy (e.g. 0.12.0 or 2.0.0-dev.1). Must match an existing git tag.
         required: true
         type: string
 

@@ -14,7 +14,7 @@ Each stable release publishes:
 | `conduit-dbg_<version>_amd64.deb` | Debug Debian package (unstripped) |
 | `SHA256SUMS` | Checksums for the files above |
 | `conduit-<version>.spdx.json` | Software bill of materials (SBOM) |
-| `conduit-<version>.image-digest.txt` | Container image reference and content digest (GHCR) |
+| `conduit-<version>.image-digest.txt` | Container image reference and content digest |
 
 Every tarball and package includes three binaries:
 
@@ -34,15 +34,17 @@ If a rebuild is published, delete old assets from the release page before mainta
 
 ## Container image
 
-Each stable release also publishes a server image to GitHub Container Registry:
+Each stable release publishes a server image to **GitHub Container Registry (GHCR)**:
 
 ```bash
-VERSION=0.19.0   # replace with the release you want
+VERSION=0.20.0   # replace with the release you want
 # Image path uses the lowercase GitHub owner, e.g. ghcr.io/egon1024/dnsconduit
 docker pull "ghcr.io/<owner>/dnsconduit:${VERSION}"
 ```
 
-Pin by digest for reproducible interop or production rolls. The release asset `conduit-<version>.image-digest.txt` records the image reference and digest. Example run:
+The same image is also mirrored to **Docker Hub** under `egon1024/dnsconduit` (`docker pull egon1024/dnsconduit:${VERSION}`) — the contents and content digest match GHCR. The **`latest`** tag points at the newest stable release of the highest stable major version; pin an explicit `${VERSION}` (or a digest) for reproducible interop or production rolls rather than relying on `latest`.
+
+Pin by digest for reproducibility. The release asset `conduit-<version>.image-digest.txt` records the image reference and digest. Example run:
 
 ```bash
 docker run --rm -p 53:53/udp -p 53:53/tcp \
