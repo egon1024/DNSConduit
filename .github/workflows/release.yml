@@ -1,21 +1,26 @@
-# Creates a semver tag and GitHub Release on merge to main, then dispatches docs and release artifacts.
+# Creates a semver tag and GitHub Release on merge to the active release line, then
+# dispatches docs and release artifacts.
 #
-# Ordering: version + release notes are committed to main before any tag or GitHub Release.
-# Docs deploy and artifact builds run only after gh release create succeeds.
-# See docs/superpowers/process/release-workflow-manual-testing.md for failure recovery.
+# Post-1.0 the active stable line is `1.x`; `main` is frozen at 1.0.0 and only fires
+# this workflow for the eventual `2.x` -> `main` major merge. The release targets the
+# branch that triggered the run (GITHUB_REF_NAME), so the same file works on both lines.
+#
+# Ordering: version + release notes are committed to the release branch before any tag
+# or GitHub Release. Docs deploy and artifact builds run only after gh release create
+# succeeds. See docs/superpowers/process/release-workflow-manual-testing.md for recovery.
 
 name: Release
 
 on:
   push:
-    branches: [main]
+    branches: [1.x, main]
   workflow_dispatch:
     inputs:
       release_version:
         description: >-
-          Publish this version (e.g. 0.12.0). Use when main already has the Cargo bump
-          and release notes but the GitHub release failed. Leave empty to compute from
-          tags and PR bump rules.
+          Publish this version (e.g. 0.12.0). Use when the release branch already has the
+          Cargo bump and release notes but the GitHub release failed. Leave empty to
+          compute from tags and PR bump rules.
         required: false
         type: string
 
@@ -25,13 +30,16 @@ permissions:
   actions: write
 
 concurrency:
-  group: release-main
+  group: release-${{ github.ref_name }}
   cancel-in-progress: false
 
 jobs:
   release:
     name: Tag and release
     runs-on: ubuntu-latest
+    env:
+      # Branch that triggered the run; the release PR/tag/GitHub Release all target it.
+      RELEASE_BRANCH: ${{ github.ref_name }}
     # Skip the chore:release bump commit (avoids loop). workflow_dispatch always runs.
     if: >-
       github.event_name == 'workflow_dispatch' ||
@@ -143,7 +151,8 @@ jobs:
         env:
           NEXT_VERSION: ${{ steps.release_version.outputs.next_version }}
           # Admin PAT (repo owner): push release branch + gh pr merge --admin.
-          # Direct pushes to main are blocked by rulesets even with a PAT unless bypass mode is Always.
+          # Direct pushes to the release branch are blocked by rulesets even with a PAT
+          # unless bypass mode is Always.
           GH_TOKEN: ${{ secrets.RELEASE_PUSH_TOKEN }}
         run: |
           set -euo pipefail
@@ -157,7 +166,7 @@ jobs:
             operator-docs/site-root/versions/release-dates.json
           if git diff --cached --quiet; then
             echo "committed=false" >>"$GITHUB_OUTPUT"
-            echo "Release preparation already on main for ${NEXT_VERSION}; skipping commit."
+            echo "Release preparation already on ${RELEASE_BRANCH} for ${NEXT_VERSION}; skipping commit."
             exit 0
           fi
 
@@ -171,9 +180,9 @@ jobs:
             "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
             HEAD:"${release_branch}"
 
-          pr_number="$(gh pr list --head "${release_branch}" --base main --state open --json number --jq '.[0].number // empty')"
+          pr_number="$(gh pr list --head "${release_branch}" --base "${RELEASE_BRANCH}" --state open --json number --jq '.[0].number // empty')"
           if [[ -z "${pr_number}" ]]; then
-            gh pr create --base main --head "${release_branch}" \
+            gh pr create --base "${RELEASE_BRANCH}" --head "${release_branch}" \
               --title "chore: release ${NEXT_VERSION}" \
               --body "Automated version bump and release notes for ${NEXT_VERSION}. #no-docs"
             pr_number="$(gh pr view "${release_branch}" --json number --jq .number)"
@@ -181,23 +190,23 @@ jobs:
           gh pr merge "${pr_number}" --rebase --admin --delete-branch
           echo "committed=true" >>"$GITHUB_OUTPUT"
 
-      - name: Verify release preparation on main
+      - name: Verify release preparation on release branch
         if: steps.exists.outputs.skip != 'true'
         env:
           NEXT_VERSION: ${{ steps.release_version.outputs.next_version }}
         run: |
           set -euo pipefail
-          git fetch origin main
+          git fetch origin "${RELEASE_BRANCH}"
           notes_path="operator-docs/docs/release-notes/${NEXT_VERSION}.md"
-          if ! git cat-file -e "origin/main:${notes_path}" 2>/dev/null; then
-            echo "::error::Release notes missing on main: ${notes_path}"
+          if ! git cat-file -e "origin/${RELEASE_BRANCH}:${notes_path}" 2>/dev/null; then
+            echo "::error::Release notes missing on ${RELEASE_BRANCH}: ${notes_path}"
             exit 1
           fi
           # Note: awk must not `exit` early here. Exiting closes the pipe while
           # `git show` is still writing, which raises SIGPIPE; under `pipefail`
           # that fails the step with exit code 141. Read all input and emit the
           # first match at END instead.
-          cargo_ver="$(git show "origin/main:Cargo.toml" | awk '
+          cargo_ver="$(git show "origin/${RELEASE_BRANCH}:Cargo.toml" | awk '
             /^\[workspace\.package\]/ { in_pkg=1; next }
             /^\[/ { in_pkg=0 }
             in_pkg && /^version = / && ver == "" {
@@ -208,10 +217,10 @@ jobs:
             END { print ver }
           ')"
           if [[ "${cargo_ver}" != "${NEXT_VERSION}" ]]; then
-            echo "::error::Cargo.toml on main is ${cargo_ver:-unknown}; expected ${NEXT_VERSION}"
+            echo "::error::Cargo.toml on ${RELEASE_BRANCH} is ${cargo_ver:-unknown}; expected ${NEXT_VERSION}"
             exit 1
           fi
-          lock_ver="$(git show "origin/main:Cargo.lock" | awk '
+          lock_ver="$(git show "origin/${RELEASE_BRANCH}:Cargo.lock" | awk '
             /^name = "conduit"$/ { want=1; next }
             want && /^version = / && ver == "" {
               val=$3
@@ -221,19 +230,19 @@ jobs:
             END { print ver }
           ')"
           if [[ "${lock_ver}" != "${NEXT_VERSION}" ]]; then
-            echo "::error::Cargo.lock on main pins conduit ${lock_ver:-unknown}; expected ${NEXT_VERSION}"
+            echo "::error::Cargo.lock on ${RELEASE_BRANCH} pins conduit ${lock_ver:-unknown}; expected ${NEXT_VERSION}"
             exit 1
           fi
           dates_path="operator-docs/site-root/versions/release-dates.json"
-          if ! git show "origin/main:${dates_path}" | grep -q "\"${NEXT_VERSION}\""; then
-            echo "::error::${dates_path} on main is missing ${NEXT_VERSION}"
+          if ! git show "origin/${RELEASE_BRANCH}:${dates_path}" | grep -q "\"${NEXT_VERSION}\""; then
+            echo "::error::${dates_path} on ${RELEASE_BRANCH} is missing ${NEXT_VERSION}"
             exit 1
           fi
           if git rev-parse "refs/tags/${NEXT_VERSION}" >/dev/null 2>&1; then
             echo "::error::Tag ${NEXT_VERSION} already exists locally; refusing to create release"
             exit 1
           fi
-          echo "Verified ${notes_path}, Cargo.toml, Cargo.lock, and ${dates_path} ${NEXT_VERSION} on origin/main."
+          echo "Verified ${notes_path}, Cargo.toml, Cargo.lock, and ${dates_path} ${NEXT_VERSION} on origin/${RELEASE_BRANCH}."
 
       - name: Create GitHub Release
         if: steps.exists.outputs.skip != 'true'
@@ -242,13 +251,13 @@ jobs:
           NEXT_VERSION: ${{ steps.release_version.outputs.next_version }}
         run: |
           set -euo pipefail
-          git fetch origin main
+          git fetch origin "${RELEASE_BRANCH}"
           if gh release view "$NEXT_VERSION" >/dev/null 2>&1; then
             echo "::error::Release ${NEXT_VERSION} already exists"
             exit 1
           fi
           gh release create "$NEXT_VERSION" \
-            --target main \
+            --target "${RELEASE_BRANCH}" \
             --title "$NEXT_VERSION" \
             --generate-notes
 

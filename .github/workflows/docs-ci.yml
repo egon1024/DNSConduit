@@ -1,11 +1,10 @@
 # Build operator documentation on pull requests (strict MkDocs).
-# Future: add 1.x and 2.x to branches: when those lines exist post–1.0.0.
 
 name: Docs CI
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, 1.x, 2.x]
     types: [opened, synchronize, reopened, ready_for_review]
 
 concurrency:

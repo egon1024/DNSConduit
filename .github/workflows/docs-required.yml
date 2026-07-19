@@ -1,12 +1,11 @@
 # Require operator-docs/ or README.md updates when operator-surface paths change.
 # Override: #no-docs in PR description (with reason). No label override.
-# Future: add 1.x and 2.x to branches: when those lines exist post–1.0.0.
 
 name: Docs required
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, 1.x, 2.x]
     types: [opened, synchronize, reopened, ready_for_review]
 
 jobs:

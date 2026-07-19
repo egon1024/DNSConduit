@@ -2,7 +2,7 @@ name: Version preview
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, 1.x, 2.x]
     types: [opened, synchronize, reopened, ready_for_review, edited]
   workflow_dispatch:
     inputs:
