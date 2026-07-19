@@ -84,8 +84,25 @@ jobs:
           set -euo pipefail
           cd operator-docs
           export DOCS_PRODUCT_VERSION="${TAG}"
+          # mike takes aliases as POSITIONAL args plus a single --update-aliases
+          # flag; it has no value-taking "--update-alias" option. The alias
+          # resolver may emit "--update-alias <name>" tokens, so strip those and
+          # collect the bare alias names. Passing repeated "--update-alias <name>"
+          # only ever worked with a single alias; two aliases (e.g. latest +
+          # stable-1 on the first 1.x stable) overflow the positional slot.
+          aliases=()
           # shellcheck disable=SC2086
-          mike deploy --push "${TAG}" ${MIKE_ALIAS_ARGS:-} ${MIKE_STABLE_1_ARGS:-}
+          for tok in ${MIKE_ALIAS_ARGS:-} ${MIKE_STABLE_1_ARGS:-}; do
+            case "$tok" in
+              --update-alias|--update-aliases) ;;
+              *) aliases+=("$tok") ;;
+            esac
+          done
+          if [[ ${#aliases[@]} -gt 0 ]]; then
+            mike deploy --push --update-aliases "${TAG}" "${aliases[@]}"
+          else
+            mike deploy --push "${TAG}"
+          fi
 
       - name: Set site root redirect
         run: |
