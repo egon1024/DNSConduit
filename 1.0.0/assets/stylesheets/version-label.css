@@ -1,0 +1,25 @@
+/* Documentation product version (hooks.py → __config.version.default → doc-version.js). */
+.md-doc-version,
+.md-version {
+  font-size: 0.7rem;
+  font-weight: 400;
+  opacity: 0.9;
+  margin-left: 0.35rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.2rem;
+  background: var(--md-default-fg-color--lightest, rgba(0, 0, 0, 0.05));
+}
+
+.md-version__current {
+  font-weight: 500;
+}
+
+/* Hide GitHub “latest release” in the repo card (Material fetches the newest
+   GitHub Release object, not git tags — can lag behind docs at /latest/). */
+.md-source__fact--version {
+  display: none;
+}
+
+.md-source__fact:nth-child(1n + 2)::before {
+  margin-left: 0;
+}
