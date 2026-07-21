@@ -16,7 +16,7 @@ By default, Conduit’s forward path **passes peer response shapes through** (rc
 - [PowerDNS](/interop/publishers/powerdns.md) — Authoritative Server, Recursor
 - [thekelleys](/interop/publishers/thekelleys.md) — dnsmasq
 
-*Last tested 2026-07-18 · No failures; 8 characterized*
+*Last tested 2026-07-21 · No failures; 8 characterized*
 
 ## Outcomes
 

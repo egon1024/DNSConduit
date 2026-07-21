@@ -176,6 +176,7 @@ pub fn start_split_io(
         let proto = ln.protocol.to_lowercase();
         for _ in 0..ingress.threads {
             let ln = ln.clone();
+            let store = store.clone();
             let txn_store = txn_store.clone();
             let policy_queue = policy_queue.clone();
             let reply_routes = reply_routes.clone();
@@ -200,6 +201,7 @@ pub fn start_split_io(
                     IngressKind::Tcp(tcp) => run_tcp_ingress(
                         tcp,
                         ln,
+                        store,
                         txn_store,
                         policy_queue,
                         reply_routes,
@@ -210,6 +212,7 @@ pub fn start_split_io(
                     IngressKind::Udp(udp) => run_udp_ingress(
                         udp,
                         ln,
+                        store,
                         txn_store,
                         policy_queue,
                         reply_routes,

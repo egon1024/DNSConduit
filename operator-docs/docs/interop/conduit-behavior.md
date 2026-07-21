@@ -2,7 +2,7 @@
 
 These cases exercise **Conduit** (lookup/cache path, request rules, dataplane runtime, backend health) rather than peer-product interoperability. They run against a **single stub peer** (`thekelleys-dnsmasq-2.90` (dnsmasq 2.90)) so results are not spread across every publisher column. Cache hit proofs that use `peer-query-count` rely on that stub’s dnsmasq query logs — not a general multi-peer count facility. Peer contract cases remain under [By publisher](/interop/publishers/thekelleys.md).
 
-*Last tested 2026-07-18 · All executed cases passed*
+*Last tested 2026-07-21 · All executed cases passed*
 
 ## Results
 

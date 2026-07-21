@@ -114,7 +114,7 @@ Top-level [pipeline phase](/concepts/architecture-and-packet-path.md#pipeline-ph
 | **Lookup** (phase) | Pipeline step — cache and forward providers produce DNS answers |
 | **`lookup(table, key)`** | Rhai function — reads a **`data_sources:`** policy table by key; returns a string or **`""`** on miss |
 
-→ [Data sources and lookups](/rhai/data-sources-and-lookups.md), [Architecture — Lookup](/concepts/architecture-and-packet-path.md#lookup)
+→ [Lookups](/rhai/data-sources-and-lookups.md), [Data sources](/policy-routing/data-sources.md), [Architecture — Lookup](/concepts/architecture-and-packet-path.md#lookup)
 
 ### Answer source
 

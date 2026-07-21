@@ -37,10 +37,11 @@ Each block maps to a section in the canonical config model. The table below foll
 |-------|------|------------|
 | `schema_version` | Config schema version (**`1`**) | This page |
 | `listeners` | [Dataplane](/glossary/index.md#dataplane) ingress (client DNS) | [Reference: listeners](/reference/config-schema/listeners.md) |
+| `acls` | Optional client IP ACL (global; per-listener override on listeners) | [Client ACLs](/policy-routing/client-acls.md), [Reference: acls](/reference/config-schema/acls.md) |
 | `rules` | Declarative policy | [Rules and actions](/policy-routing/rules-and-actions.md), [Reference: rules](/reference/config-schema/rules.md) |
 | `rhai` | Script sandbox limits (scripts come from `rules`) | [Sandbox limits](/rhai/sandbox-limits.md), [Reference: rhai](/reference/config-schema/rhai.md) |
-| `data_sources` | Lookup tables for [Rhai](/rhai/index.md) | [Data sources and lookups](/rhai/data-sources-and-lookups.md), [Reference: data sources](/reference/config-schema/data-sources.md) |
-| `data_source_limits` | Load-safety caps for `data_sources` tables | [Load-safety limits](/rhai/data-sources-and-lookups.md#load-safety-limits), [Reference: data sources](/reference/config-schema/data-sources.md) |
+| `data_sources` | Lookup tables for [Rhai](/rhai/index.md) and CIDR views for ACLs | [Data sources](/policy-routing/data-sources.md), [Reference: data sources](/reference/config-schema/data-sources.md) |
+| `data_source_limits` | Load-safety caps for `data_sources` tables | [Load-safety limits](/policy-routing/data-sources.md#load-safety-limits), [Reference: data sources](/reference/config-schema/data-sources.md) |
 | `lookup` | Answer-path profiles and ordered providers | [Architecture — Lookup](/concepts/architecture-and-packet-path.md#lookup), [Reference: lookup](/reference/config-schema/lookup.md) |
 | `caches` | Named DNS answer cache instances for lookup cache providers | [DNS answer cache](/guides/dns-answer-cache.md), [Reference: caches](/reference/config-schema/caches.md) |
 | `pools` | Upstream [pools](/glossary/index.md#pool) and [backends](/glossary/index.md#backend); optional per-pool `health:` | [Pools and backends](/policy-routing/pools-and-backends.md), [Backend health](/policy-routing/backend-health.md), [Reference: pools](/reference/config-schema/pools.md), [Reference: health](/reference/config-schema/health.md) |
@@ -69,7 +70,7 @@ Relative **filesystem** paths in the config resolve against the **directory cont
 | Field | Example |
 |-------|---------|
 | Rhai script path in rule actions | `type: rhai`, `value: scripts/policy.rhai` |
-| `data_sources` `path` (`type: csv` today) | `data/blocklist.csv` |
+| `data_sources` `path` (`type: csv` or `type: cidr`) | `data/blocklist.csv` |
 | `control.tls` | `cert_path`, `key_path`, `client_ca_path` |
 | `events.sinks` dnstap destinations | `unix:run/dnstap.sock` (path after `unix:`) |
 
@@ -118,7 +119,7 @@ Validation has two stages:
 2. **Runtime snapshot compile** — the same step Conduit runs after YAML validation at startup and on reload:
 
 - Rhai scripts referenced by rules are read, compiled, and checked for metric registration
-- [Data sources](/rhai/data-sources-and-lookups.md) (for example CSV lookup tables) are loaded from disk
+- [Data sources](/policy-routing/data-sources.md) (for example CSV lookup tables) are loaded from disk
 - Forward and pool-forward settings are compiled
 
 Compile errors use prefixed messages such as `script 'path': …`, `rule 'name': …`, and `data source 'name': …`.

@@ -313,6 +313,7 @@ mod tests {
             answer_source: None,
             cache_instance: None,
             tag_has: &tag_has,
+            client_cidr_match: None,
         };
         let a = trace_activation_matches(&activation, &ctx);
         let b = trace_activation_matches(&activation, &ctx);
@@ -340,6 +341,7 @@ mod tests {
             data_source_limits: None,
             caches: vec![],
             lookup: None,
+            acls: None,
         };
         let (_, t) = compile_from_config(&cfg);
         assert!(!t.enabled);
@@ -381,6 +383,7 @@ mod tests {
             data_source_limits: None,
             caches: vec![],
             lookup: None,
+            acls: None,
         };
         let (_, t) = compile_from_config(&cfg);
         assert!(t.enabled);
@@ -424,6 +427,7 @@ mod tests {
             data_source_limits: None,
             caches: vec![],
             lookup: None,
+            acls: None,
         };
         let (m, _) = compile_from_config(&cfg);
         assert_eq!(

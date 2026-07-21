@@ -33,7 +33,7 @@ Schema reference for the top-level `rules:` block. Operator-oriented behavior: [
 
 Wire-enum selector values (`qtype`, `qclass`, `opcode`, `edns_option`, `rcode`) use the same IANA names and numeric aliases as Rule Rhai (`A`, `TYPE1`, `SERVFAIL`, `RCODE2`, …). Unknown values are rejected at config load.
 
-**Transaction metadata:** `tag`
+**Transaction metadata:** `tag`, `client_cidr` (rule-only; `value` = **`type: cidr`** data source name — see [Client ACLs](/policy-routing/client-acls.md) and [Rules and actions — Selectors](/policy-routing/rules-and-actions.md#selectors))
 
 **Sampling and cadence:** `every_nth_global`, `every_nth_worker`, `sample_percent` — see [Rules and actions — Sampling and cadence](/policy-routing/rules-and-actions.md#sampling-and-cadence)
 

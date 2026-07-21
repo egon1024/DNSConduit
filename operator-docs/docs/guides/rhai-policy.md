@@ -156,7 +156,7 @@ Name **outside** the rule’s **`qname_suffix`** selector never runs the script 
 dig @127.0.0.1 -p 15353 +time=3 +tries=1 example.com A
 ```
 
-**What you verified:** [Data sources](/rhai/data-sources-and-lookups.md) grant model, request-hook Rhai, policy **drop** vs forward, and a **custom user metric** on blocks (`conduit_user_block_hits`). Deeper behavior: [Runtime and concurrency — Query outcomes](/concepts/runtime-and-concurrency.md#query-outcomes-and-worker-occupancy), [User metrics](/rhai/user-metrics.md), [Troubleshooting — no client response](/troubleshooting/index.md#client-gets-no-response-timeout-or-silence).
+**What you verified:** [Data sources](/policy-routing/data-sources.md) grant model, request-hook Rhai, policy **drop** vs forward, and a **custom user metric** on blocks (`conduit_user_block_hits`). Deeper behavior: [Runtime and concurrency — Query outcomes](/concepts/runtime-and-concurrency.md#query-outcomes-and-worker-occupancy), [User metrics](/rhai/user-metrics.md), [Troubleshooting — no client response](/troubleshooting/index.md#client-gets-no-response-timeout-or-silence).
 
 ---
 
@@ -321,7 +321,8 @@ Compile-time checks (unknown **`lookup`** table name, Rhai syntax, **`data_sourc
 ## Related topics
 
 - [Rhai for rules](/rhai/rule-rhai.md) — when to use scripts vs built-in actions
-- [Data sources and lookups](/rhai/data-sources-and-lookups.md) — CSV schema and grant model
+- [Data sources](/policy-routing/data-sources.md) — CSV / CIDR formats and grant model
+- [Rhai lookups](/rhai/data-sources-and-lookups.md) — `lookup()` / `lookup_ip()` surface
 - [Retries and transactions](/policy-routing/retries-and-transactions.md) — limits and pool lifecycle
 - [Rules and actions](/policy-routing/rules-and-actions.md) — selectors, action order, validation
 - [Control plane workflows](/guides/control-plane-workflows.md) — reload, apply, export

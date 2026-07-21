@@ -8,6 +8,7 @@ use crate::script_errors::{
     report_lookup_unknown_table, report_script_log_info, report_script_log_warn,
 };
 use rhai::{CustomType, Dynamic, EvalAltResult, TypeBuilder};
+use std::net::IpAddr;
 use std::sync::{Arc, Mutex};
 
 #[derive(Clone)]
@@ -69,6 +70,31 @@ impl LookupView {
             return String::new();
         }
         self.store.lookup(table, key)
+    }
+
+    /// Longest-prefix lookup over a named `type: cidr` data source. Returns
+    /// `""` for a miss (unknown table, unparseable `addr`, or no matching
+    /// prefix); a hit is always non-empty (see `load_cidr_table`).
+    pub fn lookup_ip(&self, name: &str, addr: &str) -> String {
+        if !self.store.has_cidr_table(name) {
+            crate::runtime::SCRIPT_RUN_CTX.with(|cell| {
+                if let Some(ctx) = cell.borrow().as_ref() {
+                    report_lookup_unknown_table(
+                        ctx.builtin.as_deref(),
+                        ctx.snapshot_generation,
+                        &ctx.script_path,
+                        &ctx.rule_name,
+                        name,
+                    );
+                }
+            });
+            return String::new();
+        }
+        let Ok(ip) = addr.parse::<IpAddr>() else {
+            tracing::warn!(table = %name, addr = %addr, "lookup_ip: invalid IP address argument");
+            return String::new();
+        };
+        self.store.lookup_ip(name, ip).unwrap_or_default().into()
     }
 }
 
@@ -258,10 +284,20 @@ impl CustomType for LogView {
 
 impl CustomType for LookupView {
     fn build(mut builder: TypeBuilder<Self>) {
-        builder.with_name("Lookup").with_fn(
-            "lookup",
-            |view: LookupView, table: String, key: String| -> String { view.lookup(&table, &key) },
-        );
+        builder
+            .with_name("Lookup")
+            .with_fn(
+                "lookup",
+                |view: LookupView, table: String, key: String| -> String {
+                    view.lookup(&table, &key)
+                },
+            )
+            .with_fn(
+                "lookup_ip",
+                |view: LookupView, name: String, addr: String| -> String {
+                    view.lookup_ip(&name, &addr)
+                },
+            );
     }
 }
 

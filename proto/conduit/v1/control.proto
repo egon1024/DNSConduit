@@ -12,6 +12,8 @@ service ConduitControl {
   rpc ReloadFromFile(ReloadFromFileRequest) returns (ReloadFromFileResponse);
   rpc Health(HealthRequest) returns (HealthResponse);
   rpc GetTrace(GetTraceRequest) returns (GetTraceResponse);
+  // Read-only ACL dry-run against the live runtime snapshot (no metrics/logs).
+  rpc CheckAcl(CheckAclRequest) returns (CheckAclResponse);
 }
 
 message GetConfigRequest {}
@@ -76,4 +78,23 @@ message TraceEvent {
 message GetTraceResponse {
   bool found = 1;
   repeated TraceEvent events = 2;
+}
+
+message CheckAclRequest {
+  string ip = 1;                 // client IP to evaluate (IPv4 or IPv6)
+  optional string listener = 2;  // filter by listener name; omit = all listeners
+}
+
+// One listener's effective ACL outcome for CheckAcl / conduitctl acl check.
+message AclCheckResult {
+  string listener = 1;
+  string decision = 2;           // admit | drop | refuse | tag
+  optional string tag = 3;       // set when decision is tag
+  string matched = 4;            // cidr view name, or "default"
+  string action = 5;             // matched rule action, or default_action (allow|deny)
+}
+
+message CheckAclResponse {
+  string ip = 1;
+  repeated AclCheckResult results = 2;
 }

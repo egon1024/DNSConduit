@@ -29,6 +29,22 @@ logging:
 
 Validate with `conduitctl validate --file …`. Invalid levels or outputs fail validation before Conduit starts.
 
+### Query access — ACL denials { #query-access-acl-denials }
+
+Optional **`logging.query_access`** sets an independent level for [Client ACL](/policy-routing/client-acls.md) denial lines without raising global **`logging.level`**. When omitted, ACL denials stay off at default **`info`**. Optional **`acl_denied_sample`** (`per_source` or `every_nth`) reduces log volume only — metrics and enforcement still count every decision.
+
+Field reference: [Config schema: logging](/reference/config-schema/logging.md).
+
+```yaml
+logging:
+  level: info
+  query_access:
+    acl_denied: warn
+    acl_denied_sample:
+      mode: per_source
+      rate: 10
+```
+
 ### `RUST_LOG` override { #rust_log-override }
 
 If the environment variable **`RUST_LOG`** is set when Conduit starts, it **replaces** `logging.level` for filter construction. This follows common Rust tooling conventions — useful in labs:

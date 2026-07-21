@@ -1,8 +1,10 @@
+use crate::cidr::{load_cidr_table, CidrTable};
 use crate::error::ScriptError;
 use conduit_proto::config::{DataSource, DataSourceLimits as ProtoDataSourceLimits};
 use conduit_proto::paths::resolve_config_path;
 use std::collections::HashMap;
 use std::io::Read;
+use std::net::IpAddr;
 use std::path::Path;
 
 /// Built-in load-safety defaults (generous; tunable via `data_source_limits:`).
@@ -116,6 +118,7 @@ fn nz_u32(v: u32, default: u32) -> u32 {
 #[derive(Debug, Clone, Default)]
 pub struct DataSourceStore {
     tables: HashMap<String, HashMap<String, String>>,
+    cidr_tables: HashMap<String, CidrTable>,
 }
 
 impl DataSourceStore {
@@ -127,8 +130,19 @@ impl DataSourceStore {
             .unwrap_or_default()
     }
 
+    /// Longest-prefix lookup over a named `type: cidr` data source. `None` is
+    /// a miss (unknown table or no matching prefix); `Some` is a hit,
+    /// including a hit with an empty stored value.
+    pub fn lookup_ip(&self, name: &str, addr: IpAddr) -> Option<&str> {
+        self.cidr_tables.get(name)?.lookup(addr)
+    }
+
     pub fn has_table(&self, table: &str) -> bool {
         self.tables.contains_key(table)
+    }
+
+    pub fn has_cidr_table(&self, name: &str) -> bool {
+        self.cidr_tables.contains_key(name)
     }
 
     pub fn table_names(&self) -> impl Iterator<Item = &String> {
@@ -138,6 +152,11 @@ impl DataSourceStore {
     #[cfg(test)]
     pub fn insert_table(&mut self, name: impl Into<String>, entries: HashMap<String, String>) {
         self.tables.insert(name.into(), entries);
+    }
+
+    #[cfg(test)]
+    pub fn insert_cidr_table(&mut self, name: impl Into<String>) {
+        self.cidr_tables.insert(name.into(), CidrTable::default());
     }
 }
 
@@ -159,10 +178,13 @@ pub fn load_data_sources(
     let mut store = DataSourceStore::default();
     let mut total_bytes: u64 = 0;
     for ds in sources {
-        if ds.r#type != "csv" {
+        if ds.r#type != "csv" && ds.r#type != "cidr" {
             return Err(ScriptError::DataSource {
                 name: ds.name.clone(),
-                message: format!("unsupported type '{}', only csv is supported", ds.r#type),
+                message: format!(
+                    "unsupported type '{}', only csv and cidr are supported",
+                    ds.r#type
+                ),
             });
         }
         if ds.name.is_empty() {
@@ -179,7 +201,21 @@ pub fn load_data_sources(
         }
         let path = resolve_config_path(base_dir, &ds.path);
         let effective = limits.effective_for(ds);
-        let (table, bytes_read) = load_csv(&path, ds, &effective)?;
+        let bytes_read = if ds.r#type == "cidr" {
+            let (table, bytes_read) = load_cidr_table(
+                &path,
+                &ds.name,
+                effective.max_file_bytes,
+                effective.max_entries,
+                effective.max_value_bytes,
+            )?;
+            store.cidr_tables.insert(ds.name.clone(), table);
+            bytes_read
+        } else {
+            let (table, bytes_read) = load_csv(&path, ds, &effective)?;
+            store.tables.insert(ds.name.clone(), table);
+            bytes_read
+        };
         total_bytes = total_bytes.saturating_add(bytes_read);
         if total_bytes > limits.max_total_bytes {
             return Err(ScriptError::DataSource {
@@ -190,7 +226,6 @@ pub fn load_data_sources(
                 ),
             });
         }
-        store.tables.insert(ds.name.clone(), table);
     }
     Ok(store)
 }
@@ -340,6 +375,20 @@ mod tests {
             path,
             key_column: "key".into(),
             value_column: "value".into(),
+            max_file_bytes: None,
+            max_entries: None,
+            max_key_bytes: None,
+            max_value_bytes: None,
+        }
+    }
+
+    fn cidr_source(name: &str, path: String) -> DataSource {
+        DataSource {
+            name: name.into(),
+            r#type: "cidr".into(),
+            path,
+            key_column: String::new(),
+            value_column: String::new(),
             max_file_bytes: None,
             max_entries: None,
             max_key_bytes: None,
@@ -527,5 +576,86 @@ mod tests {
         // Global is generous; per-entry override is the binding constraint.
         let err = load_data_sources(&[ds], None, &DataSourceLimits::default()).unwrap_err();
         assert!(format!("{err}").contains("max_entries"), "got: {err}");
+    }
+
+    fn temp_prefixes(tag: &str, content: &str) -> PathBuf {
+        let mut path = std::env::temp_dir();
+        let unique = format!(
+            "conduit-ds-{tag}-{}-{:?}.txt",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        );
+        path.push(unique);
+        let mut f = std::fs::File::create(&path).unwrap();
+        f.write_all(content.as_bytes()).unwrap();
+        path
+    }
+
+    #[test]
+    fn load_cidr_data_source_and_lookup_ip() {
+        let path = temp_prefixes("acl-nets", "10.0.0.0/8 corp\n2001:db8::/32 corp6\n");
+        let ds = cidr_source("corp_nets", path.display().to_string());
+        let store = load_data_sources(&[ds], None, &DataSourceLimits::default()).unwrap();
+        assert_eq!(
+            store.lookup_ip("corp_nets", "10.1.2.3".parse().unwrap()),
+            Some("corp")
+        );
+        assert_eq!(
+            store.lookup_ip("corp_nets", "2001:db8::1".parse().unwrap()),
+            Some("corp6")
+        );
+        assert_eq!(
+            store.lookup_ip("corp_nets", "192.0.2.1".parse().unwrap()),
+            None
+        );
+        assert_eq!(
+            store.lookup_ip("unknown", "10.0.0.1".parse().unwrap()),
+            None
+        );
+        assert!(store.has_cidr_table("corp_nets"));
+        assert!(!store.has_table("corp_nets"));
+    }
+
+    #[test]
+    fn cidr_and_csv_sources_coexist() {
+        let cidr_path = temp_prefixes("mixed-nets", "10.0.0.0/8 corp\n");
+        let csv_path = temp_csv("mixed-csv", "key,value\na,1\n");
+        let sources = vec![
+            cidr_source("nets", cidr_path.display().to_string()),
+            csv_source("table", csv_path.display().to_string()),
+        ];
+        let store = load_data_sources(&sources, None, &DataSourceLimits::default()).unwrap();
+        assert_eq!(
+            store.lookup_ip("nets", "10.0.0.1".parse().unwrap()),
+            Some("corp")
+        );
+        assert_eq!(store.lookup("table", "a"), "1");
+    }
+
+    #[test]
+    fn cidr_bad_file_fails_snapshot() {
+        let path = temp_prefixes("bad-nets", "not-a-prefix\n");
+        let ds = cidr_source("nets", path.display().to_string());
+        let err = load_data_sources(&[ds], None, &DataSourceLimits::default()).unwrap_err();
+        assert!(
+            format!("{err}").contains("invalid CIDR prefix"),
+            "got: {err}"
+        );
+    }
+
+    #[test]
+    fn cidr_oversize_file_rejected_via_limits() {
+        let big = "10.0.0.0/8 v\n".repeat(100);
+        let path = temp_prefixes("cidr-oversize", &big);
+        let ds = cidr_source("nets", path.display().to_string());
+        let limits = DataSourceLimits {
+            max_file_bytes: 8,
+            ..DataSourceLimits::default()
+        };
+        let err = load_data_sources(&[ds], None, &limits).unwrap_err();
+        assert!(format!("{err}").contains("max_file_bytes"), "got: {err}");
     }
 }

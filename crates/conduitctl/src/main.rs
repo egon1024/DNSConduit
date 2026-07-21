@@ -3,17 +3,19 @@
 use anyhow::Context;
 use clap::{Parser, Subcommand};
 use conduit_config::{load_overlay_patch, load_yaml, validate};
-use conduit_core::RuntimeSnapshot;
+use conduit_core::{check_client_acl, RuntimeSnapshot};
 use conduit_proto::config::Config as RuntimeConfig;
 use conduit_proto::control::backend_health_client::BackendHealthClient;
 use conduit_proto::control::conduit_control_client::ConduitControlClient;
 use conduit_proto::control::Config as ControlConfig;
 use conduit_proto::control::{
-    ApplyConfigRequest, BackendHealthFilter, ExportConfigRequest, GetBackendHealthRequest,
-    GetTraceRequest, HealthControlAction, HealthScope, HealthScopeLevel, OverlayApplyMode,
-    ReloadFromFileRequest, SetHealthControlRequest,
+    ApplyConfigRequest, BackendHealthFilter, CheckAclRequest, ExportConfigRequest,
+    GetBackendHealthRequest, GetTraceRequest, HealthControlAction, HealthScope, HealthScopeLevel,
+    OverlayApplyMode, ReloadFromFileRequest, SetHealthControlRequest,
 };
 use prost::Message;
+use serde::Serialize;
+use std::net::IpAddr;
 use std::path::PathBuf;
 
 #[derive(Parser)]
@@ -70,6 +72,26 @@ enum Commands {
         #[command(subcommand)]
         command: HealthCommands,
     },
+    /// Client ACL inspection
+    Acl {
+        #[command(subcommand)]
+        command: AclCommands,
+    },
+}
+
+#[derive(Subcommand)]
+enum AclCommands {
+    /// Evaluate effective ACL policy for a client IP (pretty JSON on stdout)
+    Check {
+        /// Client IP address (IPv4 or IPv6)
+        ip: String,
+        /// Limit to one listener name (default: all listeners)
+        #[arg(long)]
+        listener: Option<String>,
+        /// Offline: compile this config file instead of querying the live process
+        #[arg(long)]
+        file: Option<PathBuf>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -110,6 +132,23 @@ enum HealthCommands {
         #[arg(long, conflicts_with = "global", value_name = "HOST:PORT|NAME")]
         backend: Option<String>,
     },
+}
+
+#[derive(Serialize)]
+struct AclCheckOutput {
+    ip: String,
+    source: String,
+    results: Vec<AclCheckResultOut>,
+}
+
+#[derive(Serialize)]
+struct AclCheckResultOut {
+    listener: String,
+    decision: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tag: Option<String>,
+    matched: String,
+    action: String,
 }
 
 fn runtime_to_control(cfg: RuntimeConfig) -> ControlConfig {
@@ -200,6 +239,80 @@ fn with_auth<T>(cli: &Cli, mut request: tonic::Request<T>) -> anyhow::Result<ton
         request.metadata_mut().insert("authorization", meta);
     }
     Ok(request)
+}
+
+fn print_acl_check(out: &AclCheckOutput) -> anyhow::Result<()> {
+    println!("{}", serde_json::to_string_pretty(out)?);
+    Ok(())
+}
+
+fn acl_check_offline(
+    file: &PathBuf,
+    ip: IpAddr,
+    listener: Option<&str>,
+) -> anyhow::Result<AclCheckOutput> {
+    let yaml = std::fs::read_to_string(file).with_context(|| format!("reading {:?}", file))?;
+    let cfg = load_yaml(&yaml)?;
+    let v = validate(&cfg);
+    if !v.ok {
+        for e in &v.errors {
+            eprintln!("{e}");
+        }
+        anyhow::bail!("validation failed");
+    }
+    let base_dir = file.parent();
+    let snap = RuntimeSnapshot::try_from_config_with_base(cfg, base_dir).map_err(|e| {
+        eprintln!("{e}");
+        anyhow::anyhow!("compile failed")
+    })?;
+    let results = check_client_acl(&snap.config, &snap.scripting.data_sources, ip, listener)?;
+    Ok(AclCheckOutput {
+        ip: ip.to_string(),
+        source: "file".into(),
+        results: results
+            .into_iter()
+            .map(|r| AclCheckResultOut {
+                listener: r.listener,
+                decision: r.decision,
+                tag: r.tag,
+                matched: r.matched,
+                action: r.action,
+            })
+            .collect(),
+    })
+}
+
+async fn acl_check_live(
+    cli: &Cli,
+    ip: IpAddr,
+    listener: Option<String>,
+) -> anyhow::Result<AclCheckOutput> {
+    let mut client = client(cli).await?;
+    let resp = client
+        .check_acl(with_auth(
+            cli,
+            tonic::Request::new(CheckAclRequest {
+                ip: ip.to_string(),
+                listener,
+            }),
+        )?)
+        .await?
+        .into_inner();
+    Ok(AclCheckOutput {
+        ip: resp.ip,
+        source: "live".into(),
+        results: resp
+            .results
+            .into_iter()
+            .map(|r| AclCheckResultOut {
+                listener: r.listener,
+                decision: r.decision,
+                tag: r.tag,
+                matched: r.matched,
+                action: r.action,
+            })
+            .collect(),
+    })
 }
 
 #[tokio::main]
@@ -320,6 +433,19 @@ async fn main() -> anyhow::Result<()> {
                 );
             }
         }
+        Commands::Acl { ref command } => match command {
+            AclCommands::Check { ip, listener, file } => {
+                let addr: IpAddr = ip
+                    .parse()
+                    .with_context(|| format!("invalid ip address '{ip}'"))?;
+                let out = if let Some(path) = file {
+                    acl_check_offline(path, addr, listener.as_deref())?
+                } else {
+                    acl_check_live(&cli, addr, listener.clone()).await?
+                };
+                print_acl_check(&out)?;
+            }
+        },
         Commands::Health { ref command } => match command {
             HealthCommands::Show { pool, backend } => {
                 let mut client = health_client(&cli).await?;

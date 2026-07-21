@@ -90,7 +90,7 @@ After **SIGHUP**, `conduitctl reload`, or `conduitctl apply`, Conduit compiles t
 |---------|-------|------------|
 | Sandbox limits (operations, call depth, hook timeout) | `rhai:` | [Sandbox limits](/rhai/sandbox-limits.md) |
 | Script path on a rule | `rules:` → `type: rhai` | [Rules and actions](/policy-routing/rules-and-actions.md), [Reference: rules](/reference/config-schema/rules.md) |
-| Lookup tables for scripts | `data_sources:` | [Data sources and lookups](/rhai/data-sources-and-lookups.md) |
+| Lookup tables for scripts | `data_sources:` | [Data sources](/policy-routing/data-sources.md), [Lookups](/rhai/data-sources-and-lookups.md) |
 | Custom metric names and labels | Declared in script source at compile time | [User metrics](/rhai/user-metrics.md) |
 
 When you omit the top-level **`rhai:`** block, Conduit still applies default sandbox limits (**10000** operations, call depth **32**, **50** ms hook timeout). You only need **`rhai:`** in the file when you want to tune those limits.
@@ -118,7 +118,7 @@ Built-in actions on the same rule still ran before the script. Use [Logging](/ob
 3. [Transaction API (`txn`)](/rhai/txn-api.md) — per-query policy methods and YAML equivalents
 4. [Runtime API](/rhai/runtime-api.md) — `runtime.routing()` health reads
 5. [Sandbox limits](/rhai/sandbox-limits.md) — `rhai:` fields, defaults, tuning and failure behavior
-6. [Data sources and lookups](/rhai/data-sources-and-lookups.md) — `data_sources:` and `lookup()`
+6. [Lookups](/rhai/data-sources-and-lookups.md) — `lookup()` / `lookup_ip()` ([Data sources](/policy-routing/data-sources.md) for `data_sources:` config)
 7. [User metrics](/rhai/user-metrics.md) — `metrics.inc`, `conduit_user_*` export
 
 ## Prerequisites

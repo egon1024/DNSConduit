@@ -1,5 +1,6 @@
 //! Core runtime: snapshots, transactions, pipeline traits.
 
+pub mod acl;
 pub mod clock;
 pub mod configurator;
 pub mod event_emit;
@@ -21,6 +22,11 @@ pub mod transaction;
 pub mod txn_store;
 pub mod upstream_response;
 
+pub use acl::{
+    check_client_acl, effective_acl, evaluate_full, evaluate_preadmission, AclAction,
+    AclCheckError, AclCheckResult, AclDecision, AclDefaultAction, CompiledAclPolicy,
+    CompiledAclRule,
+};
 pub use clock::{Clock, SystemClock};
 pub use conduit_config::forward::{
     CompiledForward, CompiledPoolForward, DEFAULT_SOURCE_SELECTION, MAX_SOURCES_V4,

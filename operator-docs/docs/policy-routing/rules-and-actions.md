@@ -126,11 +126,28 @@ Conditions on the upstream result — use on the **response** hook after [Wait f
 
 ### Transaction metadata
 
-[Tags](/glossary/index.md#tags) set earlier on the same [transaction](/glossary/index.md#transaction) (for example by a prior rule or Rhai for rules).
+[Tags](/glossary/index.md#tags) set earlier on the same [transaction](/glossary/index.md#transaction) (for example by a prior rule, [Client ACLs](/policy-routing/client-acls.md) **`tag`**, or Rhai for rules), and client IP membership in a named CIDR data source.
 
 | Type | Typical hook | Tests |
 |------|--------------|--------|
 | `tag` | both | Tag presence or value |
+| `client_cidr` | both | Client socket IP is in the named **`type: cidr`** [data source](/policy-routing/data-sources.md#cidr-sources) (`value` = source name). Rule-only — not valid on event sink filters. |
+
+```yaml
+rules:
+  match_mode: first_match
+  rules:
+    - name: partners-servfail-retry
+      hook: request
+      selectors:
+        - type: client_cidr
+          value: partner_nets
+      actions:
+        - type: set_tag
+          value: partner
+```
+
+For host-managed ingress allow/deny without rules, prefer [Client ACLs](/policy-routing/client-acls.md). Use **`client_cidr`** when you need rule-hook actions or Rhai after admission.
 
 ### Sampling and cadence { #sampling-and-cadence }
 

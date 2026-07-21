@@ -121,6 +121,11 @@ enum QueriesDroppedTotal {
     Full(IntCounterVec),
 }
 
+enum AclDecisionsTotal {
+    Minimal(IntCounterVec),
+    Full(IntCounterVec),
+}
+
 enum ResponseDuration {
     Full(HistogramVec),
 }
@@ -133,6 +138,7 @@ pub struct BuiltinRegistry {
     responses_total: Option<ResponsesTotal>,
     responses_truncated_total: Option<ResponsesTruncatedTotal>,
     queries_dropped_total: Option<QueriesDroppedTotal>,
+    acl_decisions_total: Option<AclDecisionsTotal>,
     response_duration: Option<ResponseDuration>,
     lookup_provider_outcomes: Option<IntCounterVec>,
     cache_lookups: Option<IntCounterVec>,
@@ -284,6 +290,34 @@ impl BuiltinRegistry {
                 .expect("metric");
                 registry.register(Box::new(v.clone())).expect("register");
                 Some(QueriesDroppedTotal::Minimal(v))
+            }
+        } else {
+            None
+        };
+
+        let acl_decisions_total = if effective {
+            if is_full {
+                let v = IntCounterVec::new(
+                    Opts::new(
+                        "conduit_acl_decisions_total",
+                        "Client IP ACL decisions by tier and action",
+                    ),
+                    &["tier", "action", "listener", "ip_family"],
+                )
+                .expect("metric");
+                registry.register(Box::new(v.clone())).expect("register");
+                Some(AclDecisionsTotal::Full(v))
+            } else {
+                let v = IntCounterVec::new(
+                    Opts::new(
+                        "conduit_acl_decisions_total",
+                        "Client IP ACL decisions by tier and action",
+                    ),
+                    &["tier", "action", "listener"],
+                )
+                .expect("metric");
+                registry.register(Box::new(v.clone())).expect("register");
+                Some(AclDecisionsTotal::Minimal(v))
             }
         } else {
             None
@@ -783,6 +817,7 @@ impl BuiltinRegistry {
             responses_total,
             responses_truncated_total,
             queries_dropped_total,
+            acl_decisions_total,
             response_duration,
             lookup_provider_outcomes,
             cache_lookups,
@@ -894,6 +929,34 @@ impl BuiltinRegistry {
                 QueriesDroppedTotal::Full(c) => {
                     let ip_family = ip_family_label(client_addr);
                     c.with_label_values(&[listener, protocol, reason, ip_family])
+                        .inc();
+                }
+            }
+        }
+    }
+
+    /// Record one client IP ACL decision.
+    ///
+    /// `tier` is `preadmission` (pre-parse drop-only gate) or `listener`
+    /// (full first-match). `action` is `drop` | `refuse` | `tag` | `admit`.
+    pub fn record_acl_decision(
+        &self,
+        tier: &str,
+        action: &str,
+        listener: &str,
+        client_ip: std::net::IpAddr,
+    ) {
+        if !self.enabled {
+            return;
+        }
+        if let Some(ref acl) = self.acl_decisions_total {
+            match acl {
+                AclDecisionsTotal::Minimal(c) => {
+                    c.with_label_values(&[tier, action, listener]).inc();
+                }
+                AclDecisionsTotal::Full(c) => {
+                    let ip_family = if client_ip.is_ipv6() { "v6" } else { "v4" };
+                    c.with_label_values(&[tier, action, listener, ip_family])
                         .inc();
                 }
             }
@@ -1322,6 +1385,8 @@ impl BuiltinRegistry {
             "cache",
             "result",
             "answer_source",
+            "tier",
+            "action",
         ]
     }
 }
@@ -1680,6 +1745,36 @@ mod tests {
             "full policy drops include ip_family, body:\n{body}"
         );
         assert!(body.contains(r#"reason="request_rules""#), "body:\n{body}");
+    }
+
+    #[test]
+    fn acl_decisions_recorded_on_minimal_and_full() {
+        let v4: std::net::IpAddr = "10.1.2.3".parse().unwrap();
+        let v6: std::net::IpAddr = "2001:db8::1".parse().unwrap();
+
+        let reg = BuiltinRegistry::new(true, BuiltinProfile::Minimal);
+        reg.record_acl_decision("preadmission", "drop", "ln", v4);
+        reg.record_acl_decision("listener", "refuse", "ln", v4);
+        let body = encode_builtin(reg.gather());
+        assert!(
+            body.contains("conduit_acl_decisions_total"),
+            "body:\n{body}"
+        );
+        assert!(body.contains(r#"tier="preadmission""#), "body:\n{body}");
+        assert!(body.contains(r#"action="refuse""#), "body:\n{body}");
+        assert!(
+            !body.contains("ip_family="),
+            "minimal acl decisions omit ip_family, body:\n{body}"
+        );
+
+        let reg = BuiltinRegistry::new(true, BuiltinProfile::Full);
+        reg.record_acl_decision("listener", "tag", "ln", v6);
+        let body = encode_builtin(reg.gather());
+        assert!(
+            body.contains(r#"ip_family="v6""#),
+            "full acl decisions include ip_family, body:\n{body}"
+        );
+        assert!(body.contains(r#"action="tag""#), "body:\n{body}");
     }
 
     #[test]

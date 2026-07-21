@@ -1,19 +1,26 @@
 //! UDP DNS listener worker.
 
+use crate::acl_gate::{AclGate, AclGateOutcome};
 use crate::listener::DataplaneShutdown;
 use crate::query_slot::run_in_slot;
 use conduit_core::orchestrator::Orchestrator;
 use conduit_core::routing::listener_metric_label;
 use conduit_core::snapshot::SnapshotStore;
+use conduit_core::stages::send::build_error_response;
+use conduit_core::structural_parse::{apply_parsed_query, structural_parse};
 use conduit_core::transaction::{ClientProtocol, Transaction};
 use conduit_core::txn_store::SharedTxnStore;
 use conduit_events::EventHub;
+use conduit_metrics::MetricsHub;
 use conduit_proto::config::Listener;
 use socket2::{Domain, Protocol, Socket, Type};
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
+
+/// DNS REFUSED response code.
+const RCODE_REFUSED: u16 = 5;
 
 pub fn bind_socket(
     listener: &Listener,
@@ -52,12 +59,14 @@ pub fn run_worker(
     txn_store: SharedTxnStore,
     orchestrator: Arc<Orchestrator>,
     observation: Arc<EventHub>,
+    metrics: Arc<MetricsHub>,
     shutdown: DataplaneShutdown,
     global_query_counter: Arc<AtomicU64>,
 ) -> std::io::Result<()> {
     udp.set_read_timeout(Some(Duration::from_secs(1)))?;
 
     let listener_label = listener_metric_label(&listener);
+    let mut acl_gate = AclGate::new(listener.acls.clone(), listener_label.clone());
     let mut buf = [0u8; 4096];
     let mut next_id = 1u64;
     loop {
@@ -69,6 +78,45 @@ pub fn run_worker(
                 let snap = store.load();
                 let global_query_index = global_query_counter.fetch_add(1, Ordering::Relaxed) + 1;
                 let query_bytes = buf[..len].to_vec();
+
+                // Tier 0: drop before structural parse / slot.
+                if matches!(
+                    acl_gate.decide_preadmission(&snap, peer.ip(), &metrics),
+                    AclGateOutcome::Drop
+                ) {
+                    next_id = next_id.wrapping_add(1);
+                    continue;
+                }
+
+                let parsed = match structural_parse(&query_bytes) {
+                    Ok(parsed) => parsed,
+                    Err(reason) => {
+                        metrics.builtin.record_parse_rejected(reason.as_str());
+                        next_id = next_id.wrapping_add(1);
+                        continue;
+                    }
+                };
+
+                let acl_tag = match acl_gate.decide_full(&snap, peer.ip(), &metrics) {
+                    AclGateOutcome::Admit => None,
+                    AclGateOutcome::AdmitTagged(tag) => Some(tag),
+                    AclGateOutcome::Drop => {
+                        next_id = next_id.wrapping_add(1);
+                        continue;
+                    }
+                    AclGateOutcome::Refuse => {
+                        let (wire, _, _) = build_error_response(
+                            parsed.dns_id,
+                            RCODE_REFUSED,
+                            &query_bytes,
+                            parsed.client_udp_payload_size,
+                        );
+                        let _ = udp.send_to(&wire, peer);
+                        next_id = next_id.wrapping_add(1);
+                        continue;
+                    }
+                };
+
                 let wire = match run_in_slot(
                     &txn_store,
                     orchestrator.as_ref(),
@@ -79,6 +127,11 @@ pub fn run_worker(
                             .with_global_query_index(global_query_index)
                             .with_listener_label(listener_label.clone())
                             .with_query_wire(query_bytes.clone());
+                        apply_parsed_query(&mut slot.txn, parsed);
+                        slot.pre_parsed = true;
+                        if let Some(tag) = acl_tag {
+                            slot.txn.tags.set_bool(tag, true);
+                        }
                         let _ = slot.query.set_from_slice(&query_bytes);
                     },
                 ) {

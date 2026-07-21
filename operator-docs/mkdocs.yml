@@ -85,7 +85,9 @@ nav:
       - Runtime and concurrency: concepts/runtime-and-concurrency.md
   - Policy & routing:
       - Overview: policy-routing/index.md
+      - Client ACLs: policy-routing/client-acls.md
       - Rules and actions: policy-routing/rules-and-actions.md
+      - Data sources: policy-routing/data-sources.md
       - Pools and backends: policy-routing/pools-and-backends.md
       - Backend health: policy-routing/backend-health.md
       - Retries and transactions: policy-routing/retries-and-transactions.md
@@ -184,6 +186,7 @@ nav:
       - Config schema:
           - Overview: reference/config-schema/index.md
           - Listeners: reference/config-schema/listeners.md
+          - Acls: reference/config-schema/acls.md
           - Rules: reference/config-schema/rules.md
           - Rhai: reference/config-schema/rhai.md
           - Data sources: reference/config-schema/data-sources.md

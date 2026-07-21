@@ -89,6 +89,7 @@ mod tests {
             reuse_port: None,
             name: None,
             rcvbuf: None,
+            acls: None,
         };
         let resolved = resolve_listener_ingress(&block, &ln);
         assert_eq!(resolved.threads, 2);
@@ -106,6 +107,7 @@ mod tests {
             reuse_port: Some(true),
             name: Some("public-udp".into()),
             rcvbuf: Some(1_048_576),
+            acls: None,
         };
         let resolved = resolve_listener_ingress(&block, &ln);
         assert_eq!(resolved.threads, 8);

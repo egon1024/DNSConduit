@@ -1,8 +1,13 @@
-//! Ingress workers for split_io (recv → structural parse → slot acquire → policy queue).
+//! Ingress workers for split_io
+//! (UDP: recv → ACL preadmission → parse → ACL full → slot;
+//!  TCP: accept → ACL preadmission → read → parse → ACL full → slot).
 
 use super::queue::{PolicyQueue, PolicyWork, ReplyRoutes, ReplyTarget};
+use crate::acl_gate::{AclGate, AclGateOutcome};
 use crate::listener::{tcp, udp, DataplaneShutdown};
 use conduit_core::routing::listener_metric_label;
+use conduit_core::snapshot::SnapshotStore;
+use conduit_core::stages::send::build_error_response;
 use conduit_core::structural_parse::{apply_parsed_query, structural_parse, ParsedQuery};
 use conduit_core::transaction::{ClientProtocol, Transaction};
 use conduit_core::txn_store::{AcquireError, SharedTxnStore};
@@ -14,10 +19,14 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
+/// DNS REFUSED response code.
+const RCODE_REFUSED: u16 = 5;
+
 #[allow(clippy::too_many_arguments)]
 pub fn run_udp_ingress(
     udp: Arc<UdpSocket>,
     listener: Listener,
+    store: Arc<SnapshotStore>,
     txn_store: SharedTxnStore,
     policy_queue: Arc<PolicyQueue>,
     reply_routes: Arc<ReplyRoutes>,
@@ -27,6 +36,7 @@ pub fn run_udp_ingress(
 ) -> std::io::Result<()> {
     udp.set_read_timeout(Some(Duration::from_secs(1)))?;
     let listener_label = listener_metric_label(&listener);
+    let mut acl_gate = AclGate::new(listener.acls.clone(), listener_label.clone());
     let mut buf = [0u8; 4096];
     loop {
         if shutdown.is_shutdown() {
@@ -36,10 +46,33 @@ pub fn run_udp_ingress(
             Ok((len, peer)) => {
                 let global_query_index = global_query_counter.fetch_add(1, Ordering::Relaxed) + 1;
                 let query_bytes = buf[..len].to_vec();
+                let snap = store.load();
+                // Tier 0: drop known-bad clients before paying for structural parse.
+                if matches!(
+                    acl_gate.decide_preadmission(&snap, peer.ip(), &metrics),
+                    AclGateOutcome::Drop
+                ) {
+                    continue;
+                }
                 let parsed = match structural_parse(&query_bytes) {
                     Ok(parsed) => parsed,
                     Err(reason) => {
                         metrics.builtin.record_parse_rejected(reason.as_str());
+                        continue;
+                    }
+                };
+                let tag = match acl_gate.decide_full(&snap, peer.ip(), &metrics) {
+                    AclGateOutcome::Admit => None,
+                    AclGateOutcome::AdmitTagged(tag) => Some(tag),
+                    AclGateOutcome::Drop => continue,
+                    AclGateOutcome::Refuse => {
+                        let (wire, _, _) = build_error_response(
+                            parsed.dns_id,
+                            RCODE_REFUSED,
+                            &query_bytes,
+                            parsed.client_udp_payload_size,
+                        );
+                        let _ = udp.send_to(&wire, peer);
                         continue;
                     }
                 };
@@ -51,6 +84,7 @@ pub fn run_udp_ingress(
                     global_query_index,
                     &query_bytes,
                     parsed,
+                    tag,
                 ) {
                     Ok(id) => id,
                     Err(AcquireError::Exhausted) => {
@@ -87,6 +121,7 @@ pub fn run_udp_ingress(
 pub fn run_tcp_ingress(
     tcp: TcpListener,
     listener: Listener,
+    store: Arc<SnapshotStore>,
     txn_store: SharedTxnStore,
     policy_queue: Arc<PolicyQueue>,
     reply_routes: Arc<ReplyRoutes>,
@@ -96,6 +131,7 @@ pub fn run_tcp_ingress(
 ) -> std::io::Result<()> {
     tcp.set_nonblocking(true)?;
     let listener_label = listener_metric_label(&listener);
+    let mut acl_gate = AclGate::new(listener.acls.clone(), listener_label.clone());
     loop {
         if shutdown.is_shutdown() {
             break;
@@ -107,6 +143,14 @@ pub fn run_tcp_ingress(
                     Ok(p) => p,
                     Err(_) => continue,
                 };
+                let snap = store.load();
+                // Tier 0: explicit drop closes the TCP session before reading a query.
+                if matches!(
+                    acl_gate.decide_preadmission(&snap, peer.ip(), &metrics),
+                    AclGateOutcome::Drop
+                ) {
+                    continue;
+                }
                 let mut len_buf = [0u8; 2];
                 if stream.read_exact(&mut len_buf).is_err() {
                     continue;
@@ -127,6 +171,19 @@ pub fn run_tcp_ingress(
                         continue;
                     }
                 };
+                let tag = match acl_gate.decide_full(&snap, peer.ip(), &metrics) {
+                    AclGateOutcome::Admit => None,
+                    AclGateOutcome::AdmitTagged(tag) => Some(tag),
+                    AclGateOutcome::Drop => continue,
+                    AclGateOutcome::Refuse => {
+                        let (wire, _, _) =
+                            build_error_response(parsed.dns_id, RCODE_REFUSED, &buf, None);
+                        let len = (wire.len() as u16).to_be_bytes();
+                        let _ = stream.write_all(&len);
+                        let _ = stream.write_all(&wire);
+                        continue;
+                    }
+                };
                 let slot_id = match acquire_ingress_slot(
                     &txn_store,
                     peer,
@@ -135,6 +192,7 @@ pub fn run_tcp_ingress(
                     global_query_index,
                     &buf,
                     parsed,
+                    tag,
                 ) {
                     Ok(id) => id,
                     Err(AcquireError::Exhausted) => continue,
@@ -158,6 +216,7 @@ pub fn run_tcp_ingress(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn acquire_ingress_slot(
     txn_store: &SharedTxnStore,
     peer: SocketAddr,
@@ -166,6 +225,7 @@ fn acquire_ingress_slot(
     global_query_index: u64,
     query_bytes: &[u8],
     parsed: ParsedQuery,
+    acl_tag: Option<String>,
 ) -> Result<conduit_core::txn_store::SlotId, AcquireError> {
     let mut store = txn_store.lock();
     let slot_id = store.acquire()?;
@@ -179,6 +239,9 @@ fn acquire_ingress_slot(
                 .with_query_wire(query_bytes.to_vec());
             apply_parsed_query(&mut slot.txn, parsed);
             slot.pre_parsed = true;
+            if let Some(tag) = acl_tag {
+                slot.txn.tags.set_bool(tag, true);
+            }
             if slot.query.set_from_slice(query_bytes).is_err() {
                 slot.response_overflow = Some(query_bytes.to_vec());
             }

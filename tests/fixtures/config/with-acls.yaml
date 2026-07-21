@@ -1,0 +1,37 @@
+schema_version: 1
+listeners:
+  threads: 1
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+      name: public
+      acls:
+        default_action: deny
+        rules:
+          - match: block_nets
+            action: drop
+          - match: corp_nets
+            action: accept
+    - address: "127.0.0.1:15354"
+      protocol: udp
+      name: internal
+pools:
+  - name: default
+    backends:
+      - address: "127.0.0.1:5300"
+        weight: 100
+data_sources:
+  - name: corp_nets
+    type: cidr
+    path: ../data/acl-corp-nets.txt
+  - name: block_nets
+    type: cidr
+    path: ../data/acl-block-nets.txt
+acls:
+  default_action: allow
+  rules:
+    - match: corp_nets
+      action: tag
+      tag: corp
+control:
+  listen_address: "127.0.0.1:0"

@@ -17,5 +17,10 @@ conduit-config = { path = "../conduit-config" }
 conduit-core = { path = "../conduit-core" }
 conduit-proto = { path = "../conduit-proto" }
 prost = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
 tonic = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+[dev-dependencies]
+serde_json = { workspace = true }

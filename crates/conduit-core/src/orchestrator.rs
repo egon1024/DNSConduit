@@ -50,7 +50,10 @@ fn observe_after_request_rules(
         if let Some(th) = tracing {
             if snapshot.tracing_master_enabled() {
                 let tag_has = |k: &str| txn.tags.has(k);
-                let ctx = selector_match_ctx(txn, &tag_has);
+                let store = &snapshot.scripting.data_sources;
+                let client_ip = txn.client_addr.ip();
+                let client_cidr_match = |name: &str| store.lookup_ip(name, client_ip).is_some();
+                let ctx = selector_match_ctx(txn, &tag_has, Some(&client_cidr_match));
                 if trace_activation_matches(&th.compiled.activation, &ctx) {
                     txn.trace_log = Some(conduit_metrics::TraceLog::default());
                 }
