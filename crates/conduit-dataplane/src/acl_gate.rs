@@ -10,7 +10,7 @@ use conduit_core::acl::{effective_acl, evaluate_full, evaluate_preadmission, Acl
 use conduit_core::snapshot::RuntimeSnapshot;
 use conduit_core::CompiledAclPolicy;
 use conduit_metrics::MetricsHub;
-use conduit_proto::config::AclsConfig;
+use conduit_proto::config::{AclsConfig, Listener};
 use conduit_script::DataSourceStore;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
@@ -41,8 +41,10 @@ pub enum AclGateOutcome {
 /// Per-worker client IP ACL gate. Recompiled on snapshot generation change.
 pub struct AclGate {
     listener_label: String,
-    /// This listener's own `acls:` (replaces global when set); fixed for the worker.
-    listener_acls: Option<AclsConfig>,
+    /// Bind identity for this worker — used to resolve `acls:` from the live snapshot
+    /// (sockets are not rebound on reload, but policy must still hot-update).
+    listener_address: String,
+    listener_protocol: String,
     /// Snapshot generation the compiled policy + logging config were built from.
     generation: Option<u64>,
     /// `None` when no `acls:` apply to this listener (admit-all fast path).
@@ -51,10 +53,11 @@ pub struct AclGate {
 }
 
 impl AclGate {
-    pub fn new(listener_acls: Option<AclsConfig>, listener_label: String) -> Self {
+    pub fn new(listener: &Listener, listener_label: String) -> Self {
         Self {
             listener_label,
-            listener_acls,
+            listener_address: listener.address.clone(),
+            listener_protocol: listener.protocol.clone(),
             generation: None,
             compiled: None,
             log: AclDeniedLog::default(),
@@ -111,7 +114,8 @@ impl AclGate {
         }
         self.generation = Some(snap.generation);
         let global = snap.config.acls.as_ref();
-        let listener = self.listener_acls.as_ref();
+        let listener =
+            listener_acls_from_snap(snap, &self.listener_address, &self.listener_protocol);
         self.compiled = effective_acl(global, listener)
             .map(|_| CompiledAclPolicy::compile_effective(global, listener));
         self.log.configure(
@@ -199,6 +203,22 @@ impl AclGate {
             }
         }
     }
+}
+
+/// Resolve this worker's per-listener `acls:` from the current snapshot by bind
+/// identity. Missing listener (e.g. removed while sockets await restart) → inherit.
+fn listener_acls_from_snap<'a>(
+    snap: &'a RuntimeSnapshot,
+    address: &str,
+    protocol: &str,
+) -> Option<&'a AclsConfig> {
+    snap.config.listeners.as_ref().and_then(|block| {
+        block
+            .listeners
+            .iter()
+            .find(|ln| ln.address == address && ln.protocol == protocol)
+            .and_then(|ln| ln.acls.as_ref())
+    })
 }
 
 /// The `type: cidr` source (view) whose first match produced the decision, or
@@ -337,7 +357,48 @@ impl AclDeniedLog {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use conduit_proto::config::{AclDeniedSample, QueryAccessLogging};
+    use conduit_proto::config::{
+        AclDeniedSample, AclsConfig, Config, Listener, ListenersConfig, QueryAccessLogging,
+    };
+
+    #[test]
+    fn refresh_applies_per_listener_acl_from_live_snapshot() {
+        // Worker started before per-listener ACL existed (startup clone would be None).
+        let listener = Listener {
+            address: "127.0.0.1:5353".into(),
+            protocol: "udp".into(),
+            name: Some("public".into()),
+            acls: None,
+            ..Default::default()
+        };
+        let mut gate = AclGate::new(&listener, "public".into());
+
+        let cfg = Config {
+            listeners: Some(ListenersConfig {
+                threads: 1,
+                listeners: vec![Listener {
+                    address: "127.0.0.1:5353".into(),
+                    protocol: "udp".into(),
+                    name: Some("public".into()),
+                    acls: Some(AclsConfig {
+                        default_action: "deny".into(),
+                        rules: vec![],
+                    }),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let mut snap = RuntimeSnapshot::from_config(cfg);
+        snap.generation = 1;
+        let metrics = MetricsHub::from_config(&snap.config);
+        assert_eq!(
+            gate.decide(&snap, "127.0.0.1".parse().unwrap(), &metrics),
+            AclGateOutcome::Drop,
+            "live snapshot per-listener deny must apply without restart"
+        );
+    }
 
     #[test]
     fn every_nth_emits_one_in_n_per_worker() {

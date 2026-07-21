@@ -66,7 +66,7 @@ pub fn run_worker(
     udp.set_read_timeout(Some(Duration::from_secs(1)))?;
 
     let listener_label = listener_metric_label(&listener);
-    let mut acl_gate = AclGate::new(listener.acls.clone(), listener_label.clone());
+    let mut acl_gate = AclGate::new(&listener, listener_label.clone());
     let mut buf = [0u8; 4096];
     let mut next_id = 1u64;
     loop {

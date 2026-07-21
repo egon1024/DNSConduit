@@ -1,50 +1,49 @@
 //! IPv4/IPv6 longest-prefix CIDR store: file-backed `type: cidr` data source
 //! and the host `lookup_ip` primitive (client-acls design decision 2).
+//!
+//! Lookups use a prefix trie (TreeBitMap / radix-style LPM), not a linear scan,
+//! so large blocklists stay O(prefix width) rather than O(entries).
 
 use crate::error::ScriptError;
 use ipnet::{IpNet, Ipv4Net, Ipv6Net};
+use prefix_trie::PrefixMap;
 use std::io::Read;
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+use std::net::IpAddr;
 use std::path::Path;
 
-/// Longest-prefix match over separate IPv4/IPv6 prefix lists. Empty values
+/// Longest-prefix match over separate IPv4/IPv6 prefix tries. Empty values
 /// are valid entries (a hit with `Some("")`); a miss is `None`.
 #[derive(Debug, Clone, Default)]
 pub struct CidrTable {
-    v4: Vec<(Ipv4Net, String)>,
-    v6: Vec<(Ipv6Net, String)>,
+    v4: PrefixMap<Ipv4Net, String>,
+    v6: PrefixMap<Ipv6Net, String>,
 }
 
 impl CidrTable {
     pub fn lookup(&self, addr: IpAddr) -> Option<&str> {
         match addr {
-            IpAddr::V4(a) => longest_match_v4(&self.v4, a),
-            IpAddr::V6(a) => longest_match_v6(&self.v6, a),
+            IpAddr::V4(a) => {
+                let host = Ipv4Net::new(a, 32).expect("/32 is always valid");
+                self.v4.get_lpm(&host).map(|(_net, value)| value.as_str())
+            }
+            IpAddr::V6(a) => {
+                let host = Ipv6Net::new(a, 128).expect("/128 is always valid");
+                self.v6.get_lpm(&host).map(|(_net, value)| value.as_str())
+            }
         }
     }
 
     fn insert(&mut self, net: IpNet, value: String) {
         match net {
-            IpNet::V4(n) => self.v4.push((n, value)),
-            IpNet::V6(n) => self.v6.push((n, value)),
+            // Duplicate exact prefix: last insert wins (file order).
+            IpNet::V4(n) => {
+                self.v4.insert(n, value);
+            }
+            IpNet::V6(n) => {
+                self.v6.insert(n, value);
+            }
         }
     }
-}
-
-fn longest_match_v4(entries: &[(Ipv4Net, String)], addr: Ipv4Addr) -> Option<&str> {
-    entries
-        .iter()
-        .filter(|(net, _)| net.contains(&addr))
-        .max_by_key(|(net, _)| net.prefix_len())
-        .map(|(_, v)| v.as_str())
-}
-
-fn longest_match_v6(entries: &[(Ipv6Net, String)], addr: Ipv6Addr) -> Option<&str> {
-    entries
-        .iter()
-        .filter(|(net, _)| net.contains(&addr))
-        .max_by_key(|(net, _)| net.prefix_len())
-        .map(|(_, v)| v.as_str())
 }
 
 /// Parses `10.0.0.0/8`-style prefixes, or a bare `IpAddr` as `/32` or `/128`.
@@ -200,6 +199,27 @@ mod tests {
         let path = temp_cidr("miss", "10.0.0.0/8 v4\n");
         let (table, _bytes) = load_cidr_table(&path, "t", 1024, 100, 64).unwrap();
         assert_eq!(table.lookup("192.0.2.1".parse().unwrap()), None);
+    }
+
+    #[test]
+    fn duplicate_exact_prefix_last_wins() {
+        let path = temp_cidr("dup", "10.0.0.0/8 first\n10.0.0.0/8 second\n");
+        let (table, _bytes) = load_cidr_table(&path, "t", 1024, 100, 64).unwrap();
+        assert_eq!(table.lookup("10.1.2.3".parse().unwrap()), Some("second"));
+    }
+
+    #[test]
+    fn many_prefixes_still_longest_match() {
+        let mut content = String::from("0.0.0.0/0 root\n");
+        for i in 0..256u32 {
+            content.push_str(&format!("10.{i}.0.0/16 mid-{i}\n"));
+        }
+        content.push_str("10.42.1.0/24 leaf\n");
+        let path = temp_cidr("many", &content);
+        let (table, _bytes) = load_cidr_table(&path, "t", 64 * 1024, 1000, 64).unwrap();
+        assert_eq!(table.lookup("10.42.1.9".parse().unwrap()), Some("leaf"));
+        assert_eq!(table.lookup("10.42.2.9".parse().unwrap()), Some("mid-42"));
+        assert_eq!(table.lookup("192.0.2.1".parse().unwrap()), Some("root"));
     }
 
     #[test]

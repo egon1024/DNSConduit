@@ -48,6 +48,7 @@ dnstap = "0.1.7"
 protobuf = "3.7"
 rhai = { version = "1.20", features = ["sync"] }
 ipnet = "2"
+prefix-trie = "0.9"
 prometheus = "0.13"
 hyper = { version = "1", features = ["server", "http1"] }
 hyper-util = { version = "0.1", features = ["tokio", "server"] }

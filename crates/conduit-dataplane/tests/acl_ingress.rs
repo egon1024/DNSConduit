@@ -121,7 +121,13 @@ control:
     )
 }
 
-fn start_runtime(yaml: &str) -> (conduit_dataplane::runtime::DataplaneHandle, Arc<MetricsHub>) {
+fn start_runtime(
+    yaml: &str,
+) -> (
+    conduit_dataplane::runtime::DataplaneHandle,
+    Arc<MetricsHub>,
+    Arc<SnapshotStore>,
+) {
     let cfg = load_yaml(yaml).expect("load");
     assert!(validate(&cfg).ok, "{:?}", validate(&cfg).errors);
     let store = Arc::new(SnapshotStore::new(RuntimeSnapshot::from_config(
@@ -129,10 +135,10 @@ fn start_runtime(yaml: &str) -> (conduit_dataplane::runtime::DataplaneHandle, Ar
     )));
     let metrics = Arc::new(MetricsHub::from_config(&cfg));
     let tracing = Arc::new(TracingHub::from_config(&cfg));
-    let handle = start(store, metrics.clone(), tracing).expect("start");
+    let handle = start(store.clone(), metrics.clone(), tracing).expect("start");
     // Give listeners a moment to bind.
     thread::sleep(Duration::from_millis(50));
-    (handle, metrics)
+    (handle, metrics, store)
 }
 
 fn send_and_recv(listen_port: u16, id: u16) -> Option<Message> {
@@ -192,7 +198,7 @@ acls:
       action: accept
 "#,
     );
-    let (handle, metrics) = start_runtime(&yaml);
+    let (handle, metrics, _) = start_runtime(&yaml);
     let reply = if protocol == "tcp" {
         send_and_recv_tcp(listen_port, 1)
     } else {
@@ -229,7 +235,7 @@ acls:
       action: refuse
 "#,
     );
-    let (handle, _) = start_runtime(&yaml);
+    let (handle, _, _) = start_runtime(&yaml);
     let msg = if protocol == "tcp" {
         send_and_recv_tcp(listen_port, 2)
     } else {
@@ -259,7 +265,7 @@ acls:
       action: accept
 "#,
     );
-    let (handle, _) = start_runtime(&yaml);
+    let (handle, _, _) = start_runtime(&yaml);
     let msg = if protocol == "tcp" {
         send_and_recv_tcp(listen_port, 3)
     } else {
@@ -299,7 +305,7 @@ rules:
         - type: drop
 "#,
     );
-    let (handle, _) = start_runtime(&yaml);
+    let (handle, _, _) = start_runtime(&yaml);
     let reply = if protocol == "tcp" {
         send_and_recv_tcp(listen_port, 4)
     } else {
@@ -332,7 +338,7 @@ acls:
       action: drop
 "#,
     );
-    let (handle, metrics) = start_runtime(&yaml);
+    let (handle, metrics, _) = start_runtime(&yaml);
     let addr: std::net::SocketAddr = format!("127.0.0.1:{listen_port}").parse().unwrap();
     let mut stream = TcpStream::connect(addr).expect("connect");
     stream
@@ -480,7 +486,7 @@ acls:
   rules: []
 "#,
     );
-    let (handle, metrics) = start_runtime(&yaml);
+    let (handle, metrics, _) = start_runtime(&yaml);
     let client = UdpSocket::bind("127.0.0.1:0").unwrap();
     client
         .set_read_timeout(Some(Duration::from_millis(300)))
@@ -499,4 +505,291 @@ acls:
     );
     handle.shutdown();
     let _ = std::fs::remove_file(cidr);
+}
+
+/// Per-listener `acls:` fully replaces global — omit would inherit admit-all.
+fn assert_per_listener_replace_deny(runtime: &str) {
+    let listen_port = bind_ephemeral();
+    let (backend_port, _up) = mock_upstream();
+    let cidr = write_cidr("replace", "10.0.0.0/8\n");
+    let yaml = format!(
+        r#"
+schema_version: 1
+dataplane:
+  runtime: {runtime}
+  policy_workers: 1
+  io_workers: 1
+listeners:
+  threads: 1
+  reuse_port: false
+  listeners:
+    - address: "127.0.0.1:{listen_port}"
+      protocol: udp
+      name: public
+      acls:
+        default_action: deny
+        rules: []
+forward:
+  outstanding_per_backend: 32
+  timeout_ms: 2000
+orchestrator:
+  max_attempts: 1
+  max_txn_duration_ms: 5000
+  txn_table_capacity: 16
+events:
+  queue_depth: 64
+  drop_policy: drop_oldest
+  sinks: []
+metrics:
+  enabled: true
+  profile: full
+data_sources:
+  - name: nets
+    type: cidr
+    path: {cidr_path}
+# Global would admit everyone; listener replace must win.
+acls:
+  default_action: allow
+  rules: []
+pools:
+  - name: default
+    backends:
+      - address: "127.0.0.1:{backend_port}"
+        weight: 100
+control:
+  listen_address: "127.0.0.1:0"
+"#,
+        cidr_path = cidr.to_str().unwrap(),
+    );
+    let (handle, metrics, _) = start_runtime(&yaml);
+    assert!(
+        send_and_recv(listen_port, 10).is_none(),
+        "{runtime}: per-listener replace deny must drop (not inherit global allow)"
+    );
+    let body = encode_builtin(metrics.builtin.gather());
+    assert!(
+        body.contains(r#"action="drop""#),
+        "{runtime}: expected drop metric, body:\n{body}"
+    );
+    handle.shutdown();
+    let _ = std::fs::remove_file(cidr);
+}
+
+/// Hot-reload must apply a newly added per-listener ACL without process restart.
+fn assert_per_listener_acl_hot_reload(runtime: &str) {
+    let listen_port = bind_ephemeral();
+    let (backend_port, _up) = mock_upstream();
+    let cidr = write_cidr("reload", "10.0.0.0/8\n");
+    let cidr_path = cidr.to_str().unwrap().to_string();
+    let base_yaml = format!(
+        r#"
+schema_version: 1
+dataplane:
+  runtime: {runtime}
+  policy_workers: 1
+  io_workers: 1
+listeners:
+  threads: 1
+  reuse_port: false
+  listeners:
+    - address: "127.0.0.1:{listen_port}"
+      protocol: udp
+      name: public
+forward:
+  outstanding_per_backend: 32
+  timeout_ms: 2000
+orchestrator:
+  max_attempts: 1
+  max_txn_duration_ms: 5000
+  txn_table_capacity: 16
+events:
+  queue_depth: 64
+  drop_policy: drop_oldest
+  sinks: []
+metrics:
+  enabled: true
+  profile: full
+data_sources:
+  - name: nets
+    type: cidr
+    path: {cidr_path}
+acls:
+  default_action: allow
+  rules: []
+pools:
+  - name: default
+    backends:
+      - address: "127.0.0.1:{backend_port}"
+        weight: 100
+control:
+  listen_address: "127.0.0.1:0"
+"#
+    );
+    let (handle, _, store) = start_runtime(&base_yaml);
+    assert!(
+        send_and_recv(listen_port, 11).is_some(),
+        "{runtime}: baseline without per-listener ACL must admit"
+    );
+
+    let reloaded = format!(
+        r#"
+schema_version: 1
+dataplane:
+  runtime: {runtime}
+  policy_workers: 1
+  io_workers: 1
+listeners:
+  threads: 1
+  reuse_port: false
+  listeners:
+    - address: "127.0.0.1:{listen_port}"
+      protocol: udp
+      name: public
+      acls:
+        default_action: deny
+        rules: []
+forward:
+  outstanding_per_backend: 32
+  timeout_ms: 2000
+orchestrator:
+  max_attempts: 1
+  max_txn_duration_ms: 5000
+  txn_table_capacity: 16
+events:
+  queue_depth: 64
+  drop_policy: drop_oldest
+  sinks: []
+metrics:
+  enabled: true
+  profile: full
+data_sources:
+  - name: nets
+    type: cidr
+    path: {cidr_path}
+acls:
+  default_action: allow
+  rules: []
+pools:
+  - name: default
+    backends:
+      - address: "127.0.0.1:{backend_port}"
+        weight: 100
+control:
+  listen_address: "127.0.0.1:0"
+"#
+    );
+    let cfg = load_yaml(&reloaded).expect("reload load");
+    assert!(validate(&cfg).ok, "{:?}", validate(&cfg).errors);
+    // Mirror production install_validated: stamp snap.generation before swap so
+    // AclGate (and other generation-keyed consumers) recompile.
+    let mut snap = RuntimeSnapshot::from_config(cfg);
+    snap.generation = store.generation() + 1;
+    store.swap(snap);
+    // Worker must notice the new generation on the next query.
+    thread::sleep(Duration::from_millis(20));
+    assert!(
+        send_and_recv(listen_port, 12).is_none(),
+        "{runtime}: after snapshot swap, per-listener deny must apply without restart"
+    );
+    handle.shutdown();
+    let _ = std::fs::remove_file(cidr);
+}
+
+fn assert_acl_refuse_ipv6(runtime: &str) {
+    let sock = match UdpSocket::bind("[::1]:0") {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("skipping IPv6 ACL test: cannot bind ::1 ({e})");
+            return;
+        }
+    };
+    let listen_port = sock.local_addr().unwrap().port();
+    drop(sock);
+    let (backend_port, _up) = mock_upstream();
+    let cidr = write_cidr("v6", "::1/128\n");
+    let yaml = format!(
+        r#"
+schema_version: 1
+dataplane:
+  runtime: {runtime}
+  policy_workers: 1
+  io_workers: 1
+listeners:
+  threads: 1
+  reuse_port: false
+  listeners:
+    - address: "[::1]:{listen_port}"
+      protocol: udp
+      name: acl-v6
+forward:
+  outstanding_per_backend: 32
+  timeout_ms: 2000
+orchestrator:
+  max_attempts: 1
+  max_txn_duration_ms: 5000
+  txn_table_capacity: 16
+events:
+  queue_depth: 64
+  drop_policy: drop_oldest
+  sinks: []
+metrics:
+  enabled: true
+  profile: full
+data_sources:
+  - name: nets
+    type: cidr
+    path: {cidr_path}
+acls:
+  default_action: allow
+  rules:
+    - match: nets
+      action: refuse
+pools:
+  - name: default
+    backends:
+      - address: "127.0.0.1:{backend_port}"
+        weight: 100
+control:
+  listen_address: "127.0.0.1:0"
+"#,
+        cidr_path = cidr.to_str().unwrap(),
+    );
+    let (handle, _, _) = start_runtime(&yaml);
+    let client = UdpSocket::bind("[::1]:0").expect("client ::1");
+    client
+        .set_read_timeout(Some(Duration::from_millis(400)))
+        .unwrap();
+    let target: std::net::SocketAddr = format!("[::1]:{listen_port}").parse().unwrap();
+    client.send_to(&sample_query(20), target).unwrap();
+    let mut buf = [0u8; 512];
+    let (len, _) = client.recv_from(&mut buf).expect("REFUSED over IPv6");
+    let msg = Message::from_bytes(&buf[..len]).expect("parse");
+    assert_eq!(msg.response_code(), ResponseCode::Refused);
+    handle.shutdown();
+    let _ = std::fs::remove_file(cidr);
+}
+
+#[test]
+fn sync_per_listener_replace_deny() {
+    assert_per_listener_replace_deny("sync");
+}
+
+#[test]
+fn split_io_per_listener_replace_deny() {
+    assert_per_listener_replace_deny("split_io");
+}
+
+#[test]
+fn sync_per_listener_acl_hot_reload() {
+    assert_per_listener_acl_hot_reload("sync");
+}
+
+#[test]
+fn split_io_per_listener_acl_hot_reload() {
+    assert_per_listener_acl_hot_reload("split_io");
+}
+
+#[test]
+fn sync_acl_refuse_ipv6() {
+    assert_acl_refuse_ipv6("sync");
 }
