@@ -962,7 +962,7 @@ Pool name selected for the current forward attempt (empty when unset).
 #### Behavior
 
 - On the response hook after a forward answer, the pool that served this attempt — pair with [`txn.answer_source()`](#txnanswer_source) **`forward`**.
-- On the request hook (and before Route), reflects routing intent from [`txn.set_pool`](#txnset_pool) / rules; may be set even when a later cache hit never forwards. Also available as **`pool`** on [`txn.response()`](#txnresponse).
+- On the request hook (and before Route), reflects routing intent from [`txn.set_pool`](#txnset_poolname) / rules; may be set even when a later cache hit never forwards. Also available as **`pool`** on [`txn.response()`](#txnresponse).
 
 </div>
 
@@ -2773,7 +2773,7 @@ if txn.question().qname.ends_with(".corp.example.") {
 
 - [Host API overview](/rhai/host-api.md) — five scope objects in every hook
 - [Runtime API](/rhai/runtime-api.md) — read-only `runtime.routing` health and routing views
-- [Data sources and lookups](/rhai/data-sources-and-lookups.md) — `lookup()` and `data_sources:`
+- [Lookups](/rhai/data-sources-and-lookups.md) — `lookup()` / `lookup_ip()` in rule scripts
 - [User metrics](/rhai/user-metrics.md) — `metrics.inc` / `metrics.inc_labels`
 - [Script logging](/rhai/script-logging.md) — `log.info` / `log.warn`
 - [Hooks and phases](/rhai/hooks-and-phases.md) — request vs response hook

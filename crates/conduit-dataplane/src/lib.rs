@@ -1,5 +1,6 @@
 //! DNS dataplane: listeners, forward, and I/O pipeline stages.
 
+pub mod acl_gate;
 mod cache_reaper;
 pub mod drain;
 pub mod forward;

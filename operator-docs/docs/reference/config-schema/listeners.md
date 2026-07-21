@@ -51,6 +51,7 @@ Each list entry under `listeners.listeners` is one bind address and protocol.
 | `threads` | integer | no | inherits block **`threads`** | Per-entry [ingress worker](#worker-count) override for this listener only. Must be **≥ 1** when set. |
 | `reuse_port` | boolean | no | inherits block **`reuse_port`** | Per-entry **`SO_REUSEPORT`** override (UDP, Unix only). |
 | `name` | string | no | derived from `address` | Stable identity for this listener. When set, it becomes the **`listener`** [metric](/observability/metrics.md) label instead of the address. Must be **unique** across entries when set. |
+| `acls` | object | no | inherit top-level **`acls:`** | Optional [client ACL](/policy-routing/client-acls.md) policy for this listener only. When set, **fully replaces** global ACL (same shape as [Config schema: acls](/reference/config-schema/acls.md)). When omitted, inherits top-level **`acls:`** (or admit-all). |
 | `rcvbuf` | integer | no | inherits block **`rcvbuf`** | Per-entry UDP receive-buffer override in bytes; **0** keeps the OS default. UDP only. |
 
 **`sndbuf`** is a block-level reserved field only and is not applied to sockets (see [Block fields](#block-fields)).

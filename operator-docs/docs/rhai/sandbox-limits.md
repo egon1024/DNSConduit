@@ -171,7 +171,7 @@ PromQL example:
 sum(rate(conduit_script_errors_total[5m])) by (reason)
 ```
 
-Unknown-table lookups use milestone + periodic logging — see [Data sources and lookups — lookup behavior](/rhai/data-sources-and-lookups.md#lookup-behavior).
+Unknown-table lookups use milestone + periodic logging — see [Lookups — lookup behavior](/rhai/data-sources-and-lookups.md#lookup-behavior).
 
 **Script logging:** **`log.info`** / **`log.warn`** from Rhai are rate-limited (first call per script/rule per snapshot, then every **100** calls). See [Script logging](/rhai/script-logging.md).
 
@@ -195,7 +195,7 @@ Rule Rhai adds interpreted cost versus built-ins alone — see [Rule Rhai overvi
 - [Hooks and phases](/rhai/hooks-and-phases.md) — request vs response, phase guards, script errors on a hook
 - [Transaction API (`txn`)](/rhai/txn-api.md) — per-query policy methods
 - [Rules and actions](/policy-routing/rules-and-actions.md) — action order, scripted policy
-- [Data sources and lookups](/rhai/data-sources-and-lookups.md) — `lookup` compile vs runtime behavior
+- [Lookups](/rhai/data-sources-and-lookups.md) — `lookup` compile vs runtime behavior
 - [Runtime API](/rhai/runtime-api.md) — `runtime.routing()` snapshot timing
 - [Built-in metrics](/observability/built-in-metrics.md) — `conduit_script_errors_total`
 - [Config file](/control-plane/config-file.md) — path resolution for `.rhai` files

@@ -17,9 +17,14 @@ pub enum CompiledSelector {
     Tag(String),
     AnswerSource(AnswerSourceSelector),
     CacheInstance(String),
-    SamplePercent { percent: PercentKey, key: SampleKey },
+    SamplePercent {
+        percent: PercentKey,
+        key: SampleKey,
+    },
     EveryNthWorker(u64),
     EveryNthGlobal(u64),
+    /// Client IP membership in a named `type: cidr` data source (rules only).
+    ClientCidr(String),
 }
 
 /// Salt for deterministic `sample_percent` bucketing.
@@ -60,9 +65,14 @@ pub struct SelectorMatchCtx<'a> {
     /// Named cache instance when the answer came from cache.
     pub cache_instance: Option<&'a str>,
     pub tag_has: &'a dyn Fn(&str) -> bool,
+    /// Resolves a `client_cidr` selector: given a CIDR data source name, returns
+    /// whether the client IP is a member. `None` in contexts without a client IP
+    /// and data-source store (e.g. event sink filters); such contexts never see a
+    /// `client_cidr` selector because it is rejected as rule-only at validate.
+    pub client_cidr_match: Option<&'a dyn Fn(&str) -> bool>,
 }
 
-const RULE_ONLY_SELECTOR_TYPES: &[&str] = &["every_nth_worker", "every_nth_global"];
+const RULE_ONLY_SELECTOR_TYPES: &[&str] = &["every_nth_worker", "every_nth_global", "client_cidr"];
 pub const SELECTOR_TYPES: &[&str] = &[
     "qname_suffix",
     "qname_exact",
@@ -77,6 +87,7 @@ pub const SELECTOR_TYPES: &[&str] = &[
     "sample_percent",
     "every_nth_worker",
     "every_nth_global",
+    "client_cidr",
 ];
 pub const NON_RULE_SELECTOR_TYPES: &[&str] = &[
     "qname_suffix",
@@ -330,6 +341,12 @@ impl CompiledSelector {
                 let nth = parse_every_nth(sel.value.as_str())?;
                 Ok(CompiledSelector::EveryNthGlobal(nth))
             }
+            "client_cidr" => {
+                if sel.value.trim().is_empty() {
+                    return Err("client_cidr selector value must be a cidr data source name".into());
+                }
+                Ok(CompiledSelector::ClientCidr(sel.value.clone()))
+            }
             _ => Ok(CompiledSelector::QnameSuffix(sel.value.clone())),
         }
     }
@@ -365,6 +382,7 @@ impl CompiledSelector {
             CompiledSelector::EveryNthGlobal(n) => {
                 matches_every_nth_global(ctx.global_query_index, *n)
             }
+            CompiledSelector::ClientCidr(name) => ctx.client_cidr_match.is_some_and(|f| f(name)),
         }
     }
 }
@@ -477,6 +495,7 @@ mod tests {
             answer_source: None,
             cache_instance: None,
             tag_has,
+            client_cidr_match: None,
         }
     }
 
@@ -538,6 +557,40 @@ mod tests {
         assert!(!sel.matches_ctx(&ctx));
         ctx.cache_instance = Some("global");
         assert!(sel.matches_ctx(&ctx));
+    }
+
+    #[test]
+    fn client_cidr_selector_matches_via_closure() {
+        let sel = CompiledSelector::compile(
+            &Selector {
+                r#type: "client_cidr".into(),
+                value: "corp_nets".into(),
+                key: None,
+                key_from: None,
+            },
+            &SelectorCompileCtx::default(),
+        )
+        .unwrap();
+        assert!(matches!(sel, CompiledSelector::ClientCidr(ref n) if n == "corp_nets"));
+
+        // No closure available (e.g. sink filter context): never matches.
+        let ctx = test_ctx(1, 1, None, None, None, &|_| false);
+        assert!(!sel.matches_ctx(&ctx));
+
+        // Closure reports membership for the named source.
+        let cidr_match = |name: &str| name == "corp_nets";
+        let mut hit = test_ctx(1, 1, None, None, None, &|_| false);
+        hit.client_cidr_match = Some(&cidr_match);
+        assert!(sel.matches_ctx(&hit));
+
+        let other = CompiledSelector::ClientCidr("guest_nets".into());
+        assert!(!other.matches_ctx(&hit));
+    }
+
+    #[test]
+    fn client_cidr_is_rule_only() {
+        assert!(validate_selector_type("client_cidr").is_ok());
+        assert!(validate_non_rule_selector_type("client_cidr").is_err());
     }
 
     #[test]

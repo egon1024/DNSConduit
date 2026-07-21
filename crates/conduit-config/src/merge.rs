@@ -79,6 +79,9 @@ pub fn merge_file_and_overlay(file: &Config, overlay: &Config) -> Result<Config,
     if overlay.lookup.is_some() {
         merged.lookup = overlay.lookup.clone();
     }
+    if overlay.acls.is_some() {
+        merged.acls = overlay.acls.clone();
+    }
     if !overlay.caches.is_empty() {
         merged.caches = overlay.caches.clone();
     }
@@ -110,6 +113,7 @@ pub fn is_overlay_patch_empty(cfg: &Config) -> bool {
         && cfg.data_source_limits.is_none()
         && cfg.lookup.is_none()
         && cfg.caches.is_empty()
+        && cfg.acls.is_none()
 }
 
 /// Merge one overlay patch into another (same rules as [`merge_file_and_overlay`]).

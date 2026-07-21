@@ -50,6 +50,7 @@ Use **`full`** for day-two operations, SLO dashboards, and debugging upstream or
 | [`conduit_queries_by_pool_total`](#conduit_queries_by_pool_total) | yes (`pool`) | yes | — |
 | [`conduit_queries_dropped_total`](#conduit_queries_dropped_total) | yes (`listener`, `protocol`, `reason`) | yes (+ `ip_family`) | — |
 | [`conduit_parse_rejected_total`](#conduit_parse_rejected_total) | yes (`reason`) | yes | — |
+| [`conduit_acl_decisions_total`](#conduit_acl_decisions_total) | yes (`tier`, `action`, `listener`) | yes (+ `ip_family`) | — |
 | [`conduit_responses_total`](#conduit_responses_total) | yes (`listener`, `protocol`, coarse `rcode`, `answer_source`) | yes (+ fine `rcode`, `ip_family`) | — |
 | [`conduit_responses_truncated_total`](#conduit_responses_truncated_total) | yes (`listener`, `protocol`, `answer_source`) | yes (+ `ip_family`) | — |
 | [`conduit_forward_errors_total`](#conduit_forward_errors_total) | yes (`pool`, `backend`, `reason`) | yes | — |
@@ -89,6 +90,7 @@ Policy [drops](#conduit_queries_dropped_total) still increment this counter (the
 
 ### conduit_parse_rejected_total { #conduit_parse_rejected_total }
 
+
 | | |
 |--|--|
 | **Type** | Counter |
@@ -105,6 +107,27 @@ Policy [drops](#conduit_queries_dropped_total) still increment this counter (the
 | `not_query` | Message is not a query (for example a response) |
 | `no_question` | Query with no question section |
 | `multi_question` | More than one question |
+
+### conduit_acl_decisions_total { #conduit_acl_decisions_total }
+
+| | |
+|--|--|
+| **Type** | Counter |
+| **Labels (`minimal`)** | `tier`, `action`, `listener` |
+| **Labels (`full`)** | above + `ip_family` (`v4` / `v6`) |
+| **Profile** | `minimal` and `full` |
+| **When** | Host [Client ACL](/policy-routing/client-acls.md) gate records a decision |
+
+`tier` values:
+
+| `tier` | Meaning |
+|--------|---------|
+| `preadmission` | Tier 0 — explicit **`drop`** before structural parse |
+| `listener` | Tier 1 — full policy after parse, before slot acquire |
+
+`action` values: `drop`, `refuse`, `tag`, `admit`.
+
+Host ACL gates only — rule/`client_cidr` / Rhai policy does **not** increment this series (use rule drops or [user metrics](/rhai/user-metrics.md) instead). Same series on Prometheus scrape and OTLP push.
 
 ### conduit_queries_by_pool_total { #conduit_queries_by_pool_total }
 
@@ -283,7 +306,7 @@ sum(rate(conduit_script_errors_total[5m])) by (reason)
 sum(rate(conduit_script_errors_total{reason="lookup_unknown_table"}[5m])) by (script, table)
 ```
 
-See [Data sources and lookups — lookup behavior](/rhai/data-sources-and-lookups.md#lookup-behavior) for compile-time literal checks vs runtime unknown-table behavior.
+See [Lookups — lookup behavior](/rhai/data-sources-and-lookups.md#lookup-behavior) for compile-time literal checks vs runtime unknown-table behavior.
 
 ---
 

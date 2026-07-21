@@ -57,7 +57,7 @@ flowchart LR
 |-------|------|
 | **`txn`** methods (pools, tags, drop/retry, egress, question/response, sampling) | [Transaction API (`txn`)](/rhai/txn-api.md) |
 | **`runtime.routing()`** pool/backend views | [Runtime API](/rhai/runtime-api.md) |
-| **`lookup()`** and **`data_sources:`** | [Data sources and lookups](/rhai/data-sources-and-lookups.md) |
+| **`lookup()`** / **`lookup_ip()`** | [Lookups](/rhai/data-sources-and-lookups.md) |
 | **`metrics.inc`** / **`metrics.inc_labels`** | [User metrics](/rhai/user-metrics.md) |
 | **`log.info`** / **`log.warn`** | [Script logging](/rhai/script-logging.md) |
 | Hook timing and phase guards | [Hooks and phases](/rhai/hooks-and-phases.md) |

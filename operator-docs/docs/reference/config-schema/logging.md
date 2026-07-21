@@ -14,12 +14,35 @@ Field reference for the optional top-level **`logging:`** block. For log format,
 |-------|------|----------|---------|-------------|
 | `level` | string | no | **`info`** | Minimum severity: **`error`**, **`warn`**, **`info`**, **`debug`**, or **`trace`** |
 | `output` | string | no | **`stderr`** | **`stderr`** or **`stdout`** |
+| `query_access` | object | no | omitted | Per-event levels for [Client ACL](/policy-routing/client-acls.md) denials (and related access lines). Does **not** require raising global `logging.level`. |
+
+### `logging.query_access`
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `acl_denied` | string | no | **`off`** | Level for ACL denial lines: **`off`**, **`error`**, **`warn`**, **`info`**, **`debug`**, **`trace`**. Default stays quiet at global **`info`**. |
+| `acl_denied_sample` | object | no | omitted (log all at configured level) | Optional sampling — does **not** affect metrics or enforcement |
+
+#### `acl_denied_sample`
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `mode` | string | yes | **`per_source`** (hash of client IP) or **`every_nth`** (per-worker counter) |
+| `rate` | number | for `per_source` | 0–100 — percent of distinct client IPs that emit deny logs |
+| `nth` | integer | for `every_nth` | Emit one of every N denials on this worker (`N >= 1`) |
 
 ```yaml
 logging:
   level: info
   output: stderr
+  query_access:
+    acl_denied: warn
+    acl_denied_sample:
+      mode: every_nth
+      nth: 100
 ```
+
+Denial lines include client IP, listener, matched view (or `default`), action, enforcement stage (`preadmission` / `listener`), and IP family. Prefer **`warn`** or **`debug`** for expected deny volume — not **`error`**.
 
 ## Validation
 

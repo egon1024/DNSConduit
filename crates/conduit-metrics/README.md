@@ -30,6 +30,7 @@ When the `metrics` section is **omitted**, export is disabled (no scrape listene
 | `conduit_queries_by_pool_total` | yes (`pool`) | yes | — |
 | `conduit_queries_dropped_total` | yes (`listener`, `protocol`, `reason`) | yes (+ `ip_family`) | — |
 | `conduit_parse_rejected_total` | yes (`reason`) | yes | — |
+| `conduit_acl_decisions_total` | yes (`tier`, `action`, `listener`) | yes (+ `ip_family`) | — |
 | `conduit_responses_total` | yes (`listener`, `protocol`, coarse `rcode`, `answer_source`) | yes (+ fine `rcode`, `ip_family`) | — |
 | `conduit_responses_truncated_total` | yes (`listener`, `protocol`, `answer_source`) | yes (+ `ip_family`) | — |
 | `conduit_forward_errors_total`, `conduit_retries_total`, `conduit_script_errors_total` | yes | yes | — |
@@ -49,6 +50,7 @@ When the `metrics` section is **omitted**, export is disabled (no scrape listene
 | `conduit_queries_by_pool_total` | `pool` | After route selection |
 | `conduit_queries_dropped_total` | `listener`, `protocol`, `reason` (+ `ip_family` on `full`) | Policy drop: `request_rules` or `response_rules` (no DNS reply) |
 | `conduit_parse_rejected_total` | `reason` | `empty`, `wire_error`, `not_query`, `no_question`, `multi_question` |
+| `conduit_acl_decisions_total` | `tier`, `action`, `listener` (+ `ip_family` on `full`) | Host ACL gates: `tier`=`preadmission`\|`listener`; `action`=`drop`\|`refuse`\|`tag`\|`admit` |
 | `conduit_responses_total` | `listener`, `protocol`, `rcode`, `answer_source` (+ `ip_family` on `full`) | **`minimal`:** coarse `rcode` (`NOERROR`, `NXDOMAIN`, `SERVFAIL`, `REFUSED`, `OTHER`). **`full`:** per-IANA `rcode` (0–23 names) + `ip_family` |
 | `conduit_responses_truncated_total` | `listener`, `protocol`, `answer_source` (+ `ip_family` on `full`) | UDP send fits response to client payload size on RR boundaries and sets TC when required; joinable with `conduit_responses_total` |
 | `conduit_phase_duration_seconds` | `phase` | `full` profile only |

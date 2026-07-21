@@ -8,13 +8,14 @@ use crate::defaults::{
 };
 use crate::error::ConfigError;
 use conduit_proto::config::{
-    Action, Backend, CacheInstance, CacheKeyAugmentConfig, CacheKeyConfig, CacheMemoryConfig,
-    CacheNegativeConfig, CacheOnHitConfig, CacheTruncatedUdpConfig, Config, ControlConfig,
-    ControlTlsConfig, DataSource, DataSourceLimits, DataplaneConfig, EventSinkFilters,
-    EventsConfig, ForwardConfig, HealthCheck, Listener, ListenersConfig, LoggingConfig,
-    LookupConfig, LookupProfile, LookupProvider, MetricsConfig, OrchestratorConfig,
-    OtelMetricsConfig, Pool, PrometheusMetricsConfig, RhaiConfig, Rule, RulesConfig, Selector,
-    ShutdownConfig, TracingActivation, TracingConfig, TracingOutput, UserMetricExportConfig,
+    AclDeniedSample, AclRule, AclsConfig, Action, Backend, CacheInstance, CacheKeyAugmentConfig,
+    CacheKeyConfig, CacheMemoryConfig, CacheNegativeConfig, CacheOnHitConfig,
+    CacheTruncatedUdpConfig, Config, ControlConfig, ControlTlsConfig, DataSource, DataSourceLimits,
+    DataplaneConfig, EventSinkFilters, EventsConfig, ForwardConfig, HealthCheck, Listener,
+    ListenersConfig, LoggingConfig, LookupConfig, LookupProfile, LookupProvider, MetricsConfig,
+    OrchestratorConfig, OtelMetricsConfig, Pool, PrometheusMetricsConfig, QueryAccessLogging,
+    RhaiConfig, Rule, RulesConfig, Selector, ShutdownConfig, TracingActivation, TracingConfig,
+    TracingOutput, UserMetricExportConfig,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -56,6 +57,8 @@ pub(crate) struct YamlConfig {
     caches: Vec<YamlCacheInstance>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     lookup: Option<YamlLookup>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    acls: Option<YamlAcls>,
 }
 
 /// Sparse overlay patch: omitted top-level keys stay unset (`None` / empty) in [`Config`].
@@ -97,6 +100,8 @@ pub(crate) struct YamlOverlayPatch {
     caches: Vec<YamlCacheInstance>,
     #[serde(default)]
     lookup: Option<YamlLookup>,
+    #[serde(default)]
+    acls: Option<YamlAcls>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -120,6 +125,51 @@ pub(crate) struct YamlLogging {
     level: String,
     #[serde(default = "default_log_output")]
     output: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    query_access: Option<YamlQueryAccess>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Default, Clone)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct YamlQueryAccess {
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    acl_denied: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    acl_denied_sample: Option<YamlAclDeniedSample>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct YamlAclDeniedSample {
+    mode: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    rate: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    nth: Option<u32>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct YamlAcls {
+    #[serde(default = "default_acl_default_action")]
+    default_action: String,
+    #[serde(default)]
+    rules: Vec<YamlAclRule>,
+}
+
+fn default_acl_default_action() -> String {
+    "allow".into()
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct YamlAclRule {
+    /// Named `type: cidr` data source.
+    #[serde(rename = "match")]
+    match_view: String,
+    action: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    tag: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -168,6 +218,7 @@ impl Default for YamlLogging {
         Self {
             level: default_log_level(),
             output: default_log_output(),
+            query_access: None,
         }
     }
 }
@@ -275,6 +326,9 @@ pub(crate) struct YamlListener {
     name: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     rcvbuf: Option<u32>,
+    /// When set, fully replaces top-level `acls:` for this listener.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    acls: Option<YamlAcls>,
 }
 
 fn default_source_selection() -> String {
@@ -904,6 +958,7 @@ impl From<YamlOverlayPatch> for Config {
             data_source_limits: y.data_source_limits.map(Into::into),
             caches: y.caches.into_iter().map(Into::into).collect(),
             lookup: y.lookup.map(Into::into),
+            acls: y.acls.map(Into::into),
         }
     }
 }
@@ -929,6 +984,7 @@ impl From<YamlConfig> for Config {
             data_source_limits: y.data_source_limits.map(Into::into),
             caches: y.caches.into_iter().map(Into::into).collect(),
             lookup: y.lookup.map(Into::into),
+            acls: y.acls.map(Into::into),
         }
     }
 }
@@ -1028,6 +1084,45 @@ impl From<YamlLogging> for LoggingConfig {
         LoggingConfig {
             level: y.level,
             output: y.output,
+            query_access: y.query_access.map(Into::into),
+        }
+    }
+}
+
+impl From<YamlQueryAccess> for QueryAccessLogging {
+    fn from(y: YamlQueryAccess) -> Self {
+        QueryAccessLogging {
+            acl_denied: y.acl_denied,
+            acl_denied_sample: y.acl_denied_sample.map(Into::into),
+        }
+    }
+}
+
+impl From<YamlAclDeniedSample> for AclDeniedSample {
+    fn from(y: YamlAclDeniedSample) -> Self {
+        AclDeniedSample {
+            mode: y.mode,
+            rate: y.rate,
+            nth: y.nth,
+        }
+    }
+}
+
+impl From<YamlAcls> for AclsConfig {
+    fn from(y: YamlAcls) -> Self {
+        AclsConfig {
+            default_action: y.default_action,
+            rules: y.rules.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl From<YamlAclRule> for AclRule {
+    fn from(y: YamlAclRule) -> Self {
+        AclRule {
+            r#match: y.match_view,
+            action: y.action,
+            tag: y.tag,
         }
     }
 }
@@ -1093,6 +1188,7 @@ impl From<YamlListener> for Listener {
             reuse_port: y.reuse_port,
             name: y.name,
             rcvbuf: y.rcvbuf,
+            acls: y.acls.map(Into::into),
         }
     }
 }
@@ -1503,6 +1599,7 @@ pub(crate) fn config_to_yaml(cfg: &Config) -> Result<YamlConfig, ConfigError> {
                 Some(y)
             }
         }),
+        acls: cfg.acls.as_ref().map(YamlAcls::from),
     })
 }
 
@@ -1601,6 +1698,49 @@ impl From<&LoggingConfig> for YamlLogging {
             } else {
                 l.output.clone()
             },
+            query_access: l.query_access.as_ref().map(YamlQueryAccess::from),
+        }
+    }
+}
+
+impl From<&QueryAccessLogging> for YamlQueryAccess {
+    fn from(q: &QueryAccessLogging) -> Self {
+        YamlQueryAccess {
+            acl_denied: q.acl_denied.clone(),
+            acl_denied_sample: q.acl_denied_sample.as_ref().map(YamlAclDeniedSample::from),
+        }
+    }
+}
+
+impl From<&AclDeniedSample> for YamlAclDeniedSample {
+    fn from(s: &AclDeniedSample) -> Self {
+        YamlAclDeniedSample {
+            mode: s.mode.clone(),
+            rate: s.rate,
+            nth: s.nth,
+        }
+    }
+}
+
+impl From<&AclsConfig> for YamlAcls {
+    fn from(a: &AclsConfig) -> Self {
+        YamlAcls {
+            default_action: if a.default_action.is_empty() {
+                default_acl_default_action()
+            } else {
+                a.default_action.clone()
+            },
+            rules: a.rules.iter().map(YamlAclRule::from).collect(),
+        }
+    }
+}
+
+impl From<&AclRule> for YamlAclRule {
+    fn from(r: &AclRule) -> Self {
+        YamlAclRule {
+            match_view: r.r#match.clone(),
+            action: r.action.clone(),
+            tag: r.tag.clone(),
         }
     }
 }
@@ -1676,6 +1816,7 @@ impl From<&Listener> for YamlListener {
             reuse_port: ln.reuse_port,
             name: ln.name.clone(),
             rcvbuf: ln.rcvbuf,
+            acls: ln.acls.as_ref().map(YamlAcls::from),
         }
     }
 }

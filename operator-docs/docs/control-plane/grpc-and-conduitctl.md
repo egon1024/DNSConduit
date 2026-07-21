@@ -4,7 +4,7 @@ This page is the **connection and command reference** for the optional [control 
 
 ## Enabling the control plane
 
-Conduit starts the gRPC listener only when the process **starts** with a `control:` block that sets **`listen_address`** (for example `127.0.0.1:5199`). Without it, DNS still runs but **`conduitctl apply`**, **`export`**, **`reload`**, **`trace`**, and **`health`** are unavailable — use **SIGHUP** or a process restart to reload from disk instead.
+Conduit starts the gRPC listener only when the process **starts** with a `control:` block that sets **`listen_address`** (for example `127.0.0.1:5199`). Without it, DNS still runs but **`conduitctl apply`**, **`export`**, **`reload`**, **`trace`**, **`health`**, and live **`acl check`** are unavailable — use **SIGHUP** or a process restart to reload from disk instead. Offline **`validate --file`** and **`acl check --file`** still work.
 
 Adding or changing `control:` via reload updates the stored config but does **not** start or rebind the listener today. **Restart** `conduit` after enabling or moving the control address.
 
@@ -41,6 +41,8 @@ Details: [API keys](/security/api-keys.md), [mTLS](/security/mtls.md).
 | `conduitctl export` | Yes | Print effective config as YAML |
 | `conduitctl reload` | Yes | [Reload from disk](/glossary/index.md#reload-from-disk); clear overlay |
 | `conduitctl validate --file` | **No** | Offline YAML validation and runtime snapshot compile (Rhai, data sources, forward) |
+| `conduitctl acl check` | Yes (default) | Dry-run client [ACL](/policy-routing/client-acls.md) for an IP against the **live** snapshot |
+| `conduitctl acl check --file` | **No** | Same dry-run against a local config file (twin of `validate`) |
 | `conduitctl trace` | Yes | Fetch pipeline trace events for a transaction id |
 | `conduitctl health` | Yes | Per-backend health show, [freeze](/glossary/index.md#freeze), set up/down ([drain](/glossary/index.md#drain)), resume automatic |
 
@@ -89,9 +91,53 @@ Re-reads the config path from process startup and clears the overlay. Same seman
 conduitctl validate --file PATH
 ```
 
-Runs locally — no control plane connection. Validates YAML structure, then builds the same [runtime snapshot](/glossary/index.md#runtime-snapshot) Conduit uses at startup and reload: Rhai scripts are read and compiled, [data sources](/rhai/data-sources-and-lookups.md) are loaded, and forward settings are compiled. Paths resolve relative to the config file directory (or as absolute paths). Failures print prefixed errors (for example `script '…': …`, `rule '…': …`, `data source '…': …`) to stderr and exit non-zero.
+Runs locally — no control plane connection. Validates YAML structure, then builds the same [runtime snapshot](/glossary/index.md#runtime-snapshot) Conduit uses at startup and reload: Rhai scripts are read and compiled, [data sources](/policy-routing/data-sources.md) are loaded, and forward settings are compiled. Paths resolve relative to the config file directory (or as absolute paths). Failures print prefixed errors (for example `script '…': …`, `rule '…': …`, `data source '…': …`) to stderr and exit non-zero.
 
 The server also exposes **`ValidateConfig`** over gRPC for automation that already talks to the control plane; the CLI does not call it today.
+
+### `acl check`
+
+Dry-run client [ACL](/policy-routing/client-acls.md) evaluation for one IP. Prints **pretty JSON** to stdout. Exit code is **0** whenever the check itself succeeds (connect/load/evaluate); the JSON `decision` fields carry admit / drop / refuse / tag. The check is **read-only** — it does not bump ACL metrics or emit denial logs.
+
+```bash
+conduitctl acl check 203.0.113.50
+conduitctl acl check 203.0.113.50 --listener public
+conduitctl acl check 10.1.2.3 --file /path/to/conduit.yaml
+conduitctl acl check 10.1.2.3 --file /path/to/conduit.yaml --listener public
+```
+
+| Mode | Flag | What is evaluated |
+|------|------|-------------------|
+| **Live** (default) | (none) | Running process snapshot + in-memory CIDR tables (includes overlay) via **`CheckAcl`** |
+| **File** | `--file PATH` | Local compile of that YAML (same path resolution as `validate`) — no control plane |
+
+Omit **`--listener`** to return one result object per listener. Filter with **`--listener NAME`** (resolved listener name, including the default `protocol:address` form). Unknown listener or invalid IP exits non-zero.
+
+JSON shape:
+
+```json
+{
+  "ip": "10.1.2.3",
+  "source": "live",
+  "results": [
+    {
+      "listener": "public",
+      "decision": "admit",
+      "matched": "corp_nets",
+      "action": "accept"
+    },
+    {
+      "listener": "internal",
+      "decision": "tag",
+      "tag": "corp",
+      "matched": "corp_nets",
+      "action": "tag"
+    }
+  ]
+}
+```
+
+`source` is **`live`** or **`file`**. `decision` is `admit`, `drop`, `refuse`, or `tag` (tag name in sibling `tag`). `matched` is the CIDR view name, or **`default`** when `default_action` applied. `action` is the matched rule action, or `allow` / `deny` for the default.
 
 ### `trace`
 

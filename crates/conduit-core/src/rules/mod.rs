@@ -107,8 +107,9 @@ impl CompiledRules {
         let user_export = metrics.map(|m| m.user.as_ref());
         let builtin_profile = metrics.map(|m| m.compiled.profile);
         let builtin = metrics.map(|m| Arc::clone(&m.builtin));
+        let store = Arc::clone(&scripting.data_sources);
         for rule in self.rules.iter().filter(|r| r.hook == hook) {
-            if rule.matches(txn) {
+            if rule.matches(txn, &store) {
                 let outcome = rule.execute_ordered(
                     txn,
                     scripting,
@@ -185,12 +186,14 @@ impl CompiledRule {
         }
     }
 
-    fn matches(&self, txn: &Transaction) -> bool {
+    fn matches(&self, txn: &Transaction, store: &conduit_script::DataSourceStore) -> bool {
         if self.selectors.is_empty() {
             return true;
         }
         let tag_has = |k: &str| txn.tags.has(k);
-        let ctx = selector_match_ctx(txn, &tag_has);
+        let client_ip = txn.client_addr.ip();
+        let client_cidr_match = |name: &str| store.lookup_ip(name, client_ip).is_some();
+        let ctx = selector_match_ctx(txn, &tag_has, Some(&client_cidr_match));
         self.selectors.iter().all(|s| s.matches_ctx(&ctx))
     }
 
@@ -1042,6 +1045,131 @@ pools:
         txn.tags.clear("matched");
         match_rules.eval(RuleHook::Request, &mut txn, &scripting, None, None);
         assert!(!txn.tags.has("matched"));
+    }
+
+    fn cidr_scripting_and_rules(rules_block: &str) -> (CompiledScripting, CompiledRules) {
+        let dir = std::env::temp_dir().join(format!(
+            "conduit-rules-cidr-{}-{:?}",
+            std::process::id(),
+            std::time::SystemTime::now()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("nets.txt");
+        std::fs::write(&path, "10.0.0.0/8 corp\n").unwrap();
+        let yaml = format!(
+            r#"schema_version: 1
+listeners:
+  threads: 1
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+pools:
+  - name: default
+    backends:
+      - address: "127.0.0.1:5300"
+        weight: 100
+data_sources:
+  - name: corp_nets
+    type: cidr
+    path: "{}"
+{rules_block}"#,
+            path.display()
+        );
+        let cfg = conduit_config::load_yaml(&yaml).unwrap();
+        assert!(conduit_config::validate(&cfg).ok, "config must validate");
+        let scripting = conduit_script::compile_from_config(&cfg, None).unwrap();
+        let rules = CompiledRules::compile(cfg.rules.as_ref(), &scripting);
+        (scripting, rules)
+    }
+
+    #[test]
+    fn client_cidr_selector_drops_matching_client_only() {
+        let (scripting, rules) = cidr_scripting_and_rules(
+            r#"rules:
+  match_mode: first_match
+  rules:
+    - name: block-corp
+      hook: request
+      selectors:
+        - type: client_cidr
+          value: corp_nets
+      actions:
+        - type: drop
+"#,
+        );
+        let mut inside = Transaction::new(
+            1,
+            "10.1.2.3:5000".parse::<SocketAddr>().unwrap(),
+            ClientProtocol::Udp,
+        );
+        let res = rules.eval(RuleHook::Request, &mut inside, &scripting, None, None);
+        assert_eq!(res.outcome, RuleOutcome::Drop);
+
+        let mut outside = Transaction::new(
+            2,
+            "192.0.2.1:5000".parse::<SocketAddr>().unwrap(),
+            ClientProtocol::Udp,
+        );
+        let res = rules.eval(RuleHook::Request, &mut outside, &scripting, None, None);
+        assert_eq!(res.outcome, RuleOutcome::Continue);
+    }
+
+    #[test]
+    fn client_cidr_selector_sets_tag_on_request() {
+        let (scripting, rules) = cidr_scripting_and_rules(
+            r#"rules:
+  match_mode: first_match
+  rules:
+    - name: tag-corp
+      hook: request
+      selectors:
+        - type: client_cidr
+          value: corp_nets
+      actions:
+        - type: set_tag
+          value: "tier=internal"
+"#,
+        );
+        let mut inside = Transaction::new(
+            1,
+            "10.9.9.9:5000".parse::<SocketAddr>().unwrap(),
+            ClientProtocol::Udp,
+        );
+        rules.eval(RuleHook::Request, &mut inside, &scripting, None, None);
+        assert!(inside.tags.has("tier"));
+
+        let mut outside = Transaction::new(
+            2,
+            "203.0.113.5:5000".parse::<SocketAddr>().unwrap(),
+            ClientProtocol::Udp,
+        );
+        rules.eval(RuleHook::Request, &mut outside, &scripting, None, None);
+        assert!(!outside.tags.has("tier"));
+    }
+
+    #[test]
+    fn client_cidr_selector_sets_rcode_on_response() {
+        let (scripting, rules) = cidr_scripting_and_rules(
+            r#"rules:
+  match_mode: first_match
+  rules:
+    - name: refuse-corp
+      hook: response
+      selectors:
+        - type: client_cidr
+          value: corp_nets
+      actions:
+        - type: set_rcode
+          value: REFUSED
+"#,
+        );
+        let mut inside = Transaction::new(
+            1,
+            "10.0.0.7:5000".parse::<SocketAddr>().unwrap(),
+            ClientProtocol::Udp,
+        );
+        rules.eval(RuleHook::Response, &mut inside, &scripting, None, None);
+        assert_eq!(inside.rcode_label().as_deref(), Some("REFUSED"));
     }
 
     #[test]

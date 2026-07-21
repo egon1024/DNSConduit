@@ -12,7 +12,7 @@ Every hook invocation exposes five scopes. Each has a distinct mutability class:
 |-------|------|-----------|
 | **`txn`** | Per-query policy — pools, tags, drop/retry, egress, question/response reads | [Transaction API (`txn`)](/rhai/txn-api.md) |
 | **`runtime`** | Read-only process state — **`runtime.routing()`** for health-aware routing | [Runtime API](/rhai/runtime-api.md) |
-| **`lookup`** | Read-only CSV tables from **`data_sources:`** via **`lookup()`** | [Data sources and lookups](/rhai/data-sources-and-lookups.md) |
+| **`lookup`** | Read-only tables/views from **`data_sources:`** via **`lookup()`** / **`lookup_ip()`** | [Lookups](/rhai/data-sources-and-lookups.md) |
 | **`metrics`** | Write-only user counters → `conduit_user_*` | [User metrics](/rhai/user-metrics.md) |
 | **`log`** | Script log lines via Conduit tracing | [Script logging](/rhai/script-logging.md) |
 

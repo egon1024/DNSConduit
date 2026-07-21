@@ -91,6 +91,34 @@ fn register_host_api(engine: &mut Engine) {
         })
     });
 
+    engine.register_fn("lookup_ip", |name: &str, addr: &str| -> String {
+        LOOKUP_DATA.with(|cell| {
+            let store = cell.borrow().clone();
+            let Some(store) = store else {
+                return String::new();
+            };
+            if !store.has_cidr_table(name) {
+                SCRIPT_RUN_CTX.with(|ctx_cell| {
+                    if let Some(ctx) = ctx_cell.borrow().as_ref() {
+                        report_lookup_unknown_table(
+                            ctx.builtin.as_deref(),
+                            ctx.snapshot_generation,
+                            &ctx.script_path,
+                            &ctx.rule_name,
+                            name,
+                        );
+                    }
+                });
+                return String::new();
+            }
+            let Ok(ip) = addr.parse::<std::net::IpAddr>() else {
+                tracing::warn!(table = %name, addr = %addr, "lookup_ip: invalid IP address argument");
+                return String::new();
+            };
+            store.lookup_ip(name, ip).unwrap_or_default().to_string()
+        })
+    });
+
     register_host_surfaces(engine);
 
     engine
@@ -2530,6 +2558,98 @@ rules:
             after_body.contains(r#"table="not_in_config""#),
             "after:\n{after_body}"
         );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn lookup_ip_via_script_hits_and_misses() {
+        reset_thread_runtime_for_tests();
+
+        let dir =
+            std::env::temp_dir().join(format!("conduit-script-lookup-ip-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let nets_path = dir.join("nets.txt");
+        std::fs::write(&nets_path, "10.0.0.0/8 corp\n").unwrap();
+        let script_path = dir.join("acl.rhai");
+        std::fs::write(
+            &script_path,
+            r#"if lookup_ip("corp_nets", txn.client_ip()) != "" { txn.set_tag("corp", true); }"#,
+        )
+        .unwrap();
+
+        let yaml = format!(
+            r#"
+schema_version: 1
+listeners:
+  threads: 1
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+forward:
+  outstanding_per_backend: 100
+  timeout_ms: 2000
+pools:
+  - name: default
+    backends:
+      - address: "127.0.0.1:5300"
+data_sources:
+  - name: corp_nets
+    type: cidr
+    path: "{}"
+rules:
+  match_mode: first_match
+  rules:
+    - name: acl
+      hook: request
+      selectors: []
+      actions:
+        - type: rhai
+          value: "{}"
+"#,
+            nets_path.display(),
+            script_path.display()
+        );
+        let cfg = load_yaml(&yaml).unwrap();
+        let scripting = compile_from_config(&cfg, Some(&dir)).unwrap();
+
+        let mut hit = MockHost {
+            client_addr: "10.1.2.3:5353".parse().unwrap(),
+            phase: ScriptPhase::Request,
+            ..Default::default()
+        };
+        let (outcome, stats) = run_scripts(
+            &scripting,
+            &[0],
+            &mut hit,
+            ScriptPhase::Request,
+            None,
+            None,
+            None,
+            None,
+        );
+        assert_eq!(stats.errors, 0);
+        assert_eq!(outcome, ScriptRunOutcome::Ok);
+        assert!(hit.has_tag("corp"));
+
+        let mut miss = MockHost {
+            client_addr: "192.0.2.1:5353".parse().unwrap(),
+            phase: ScriptPhase::Request,
+            ..Default::default()
+        };
+        let (outcome, stats) = run_scripts(
+            &scripting,
+            &[0],
+            &mut miss,
+            ScriptPhase::Request,
+            None,
+            None,
+            None,
+            None,
+        );
+        assert_eq!(stats.errors, 0);
+        assert_eq!(outcome, ScriptRunOutcome::Ok);
+        assert!(!miss.has_tag("corp"));
+
         let _ = std::fs::remove_dir_all(&dir);
     }
 

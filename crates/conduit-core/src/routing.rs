@@ -321,6 +321,7 @@ mod tests {
             reuse_port: None,
             name: Some("lab-udp".into()),
             rcvbuf: None,
+            acls: None,
         };
         assert_eq!(listener_metric_label(&named), "lab-udp");
 

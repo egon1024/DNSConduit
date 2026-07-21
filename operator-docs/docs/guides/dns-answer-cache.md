@@ -160,4 +160,4 @@ sum(rate(conduit_responses_total[5m])) by (listener, answer_source)
 - [Architecture and packet path](/concepts/architecture-and-packet-path.md) — Lookup phase and forward provider internals
 - [Built-in metrics](/observability/built-in-metrics.md) — lookup and cache catalog
 - [Transaction API — Answer provenance](/rhai/txn-api.md#answer-provenance)
-- [Data sources and lookups](/rhai/data-sources-and-lookups.md) — **`lookup(table, key)`** vs Lookup phase
+- [Lookups](/rhai/data-sources-and-lookups.md) — **`lookup(table, key)`** vs Lookup phase

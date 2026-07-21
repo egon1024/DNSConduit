@@ -1,6 +1,7 @@
 //! Rhai scripting: compile at snapshot build, execute at rule hooks (design §6, §9).
 
 mod capability_scan;
+mod cidr;
 mod compile;
 mod data_sources;
 mod dns_wire;

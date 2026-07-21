@@ -13,6 +13,7 @@ Field-level reference for the **`ConduitControl`** gRPC service and how **`condu
 | `ReloadFromFile` | (empty) | `ok`, `errors[]` | [Reload from disk](/glossary/index.md#reload-from-disk) |
 | `Health` | (empty) | `status` (`serving`) | Liveness |
 | `GetTrace` | `txn_id` (decimal string) | `found`, `events[]` | Pipeline trace when enabled |
+| `CheckAcl` | `ip`, optional `listener` | `ip`, `results[]` | Read-only ACL dry-run against the live snapshot; no metrics or denial logs |
 
 Mutating RPCs (`ApplyConfig`, `ReloadFromFile`) leave the prior [runtime snapshot](/glossary/index.md#runtime-snapshot) unchanged when `ok` is false.
 
@@ -83,6 +84,8 @@ Overlay patches must not include **`rules`**, **`metrics`**, or **`tracing`** �
 | `export` | `ExportConfig` (`format: yaml`) | No |
 | `reload` | `ReloadFromFile` | No |
 | `validate --file` | — | **Yes** (does not call `ValidateConfig`) |
+| `acl check` | `CheckAcl` | No (default) |
+| `acl check --file` | — | **Yes** (offline compile; does not call `CheckAcl`) |
 | `trace` | `GetTrace` | No |
 | `health show` | `GetBackendHealth` | No |
 | `health freeze` | `SetHealthControl` (`freeze`) | No |

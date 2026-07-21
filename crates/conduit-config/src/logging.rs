@@ -84,6 +84,51 @@ pub fn validate_logging(cfg: Option<&LoggingConfig>) -> Result<(), ConfigError> 
             cfg.output
         )));
     }
+    if let Some(qa) = &cfg.query_access {
+        validate_query_access(qa)?;
+    }
+    Ok(())
+}
+
+fn validate_query_access(
+    qa: &conduit_proto::config::QueryAccessLogging,
+) -> Result<(), ConfigError> {
+    if !qa.acl_denied.is_empty() {
+        match qa.acl_denied.as_str() {
+            "off" | "error" | "warn" | "info" | "debug" | "trace" => {}
+            other => {
+                return Err(ConfigError::Invalid(format!(
+                    "logging.query_access.acl_denied must be off|error|warn|info|debug|trace, got '{other}'"
+                )));
+            }
+        }
+    }
+    if let Some(sample) = &qa.acl_denied_sample {
+        match sample.mode.as_str() {
+            "per_source" => {
+                let rate = sample.rate.unwrap_or(100.0);
+                if !(0.0..=100.0).contains(&rate) {
+                    return Err(ConfigError::Invalid(format!(
+                        "logging.query_access.acl_denied_sample.rate must be 0-100, got {rate}"
+                    )));
+                }
+            }
+            "every_nth" => {
+                let nth = sample.nth.unwrap_or(0);
+                if nth == 0 {
+                    return Err(ConfigError::Invalid(
+                        "logging.query_access.acl_denied_sample.nth must be >= 1 when mode is every_nth"
+                            .into(),
+                    ));
+                }
+            }
+            other => {
+                return Err(ConfigError::Invalid(format!(
+                    "logging.query_access.acl_denied_sample.mode must be per_source or every_nth, got '{other}'"
+                )));
+            }
+        }
+    }
     Ok(())
 }
 
@@ -103,6 +148,7 @@ mod tests {
         let cfg = LoggingConfig {
             level: "verbose".into(),
             output: String::new(),
+            query_access: None,
         };
         assert!(validate_logging(Some(&cfg)).is_err());
     }
@@ -112,6 +158,7 @@ mod tests {
         let cfg = LoggingConfig {
             level: "debug".into(),
             output: "stdout".into(),
+            query_access: None,
         };
         assert!(validate_logging(Some(&cfg)).is_ok());
     }

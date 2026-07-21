@@ -5,8 +5,10 @@ use crate::auth::ControlInterceptor;
 use crate::health::BackendHealthService;
 use crate::tls::server_tls_config;
 use conduit_config::{export_yaml, validate, EffectiveConfig};
+use conduit_core::check_client_acl;
 use conduit_core::configurator::{ConfiguratorHandle, OverlayApplyMode, ProposalSource};
 use conduit_core::snapshot::SnapshotStore;
+use conduit_core::AclCheckError;
 use conduit_metrics::TracingHub;
 use conduit_proto::config::Config as RuntimeConfig;
 use conduit_proto::control::backend_health_server::BackendHealthServer;
@@ -14,9 +16,10 @@ use conduit_proto::control::conduit_control_server::{ConduitControl, ConduitCont
 use conduit_proto::control::Config as ControlConfig;
 use conduit_proto::control::OverlayApplyMode as ProtoOverlayApplyMode;
 use conduit_proto::control::{
-    ApplyConfigRequest, ApplyConfigResponse, ExportConfigRequest, ExportConfigResponse,
-    GetConfigRequest, GetConfigResponse, GetTraceRequest, GetTraceResponse, HealthRequest,
-    HealthResponse, ReloadFromFileRequest, ReloadFromFileResponse, TraceEvent as TraceEventProto,
+    AclCheckResult as AclCheckResultProto, ApplyConfigRequest, ApplyConfigResponse,
+    CheckAclRequest, CheckAclResponse, ExportConfigRequest, ExportConfigResponse, GetConfigRequest,
+    GetConfigResponse, GetTraceRequest, GetTraceResponse, HealthRequest, HealthResponse,
+    ReloadFromFileRequest, ReloadFromFileResponse, TraceEvent as TraceEventProto,
     ValidateConfigRequest, ValidateConfigResponse,
 };
 use prost::Message;
@@ -165,6 +168,50 @@ impl ConduitControl for ControlService {
                     message: e.message,
                     pool: e.pool,
                     backend: e.backend,
+                })
+                .collect(),
+        }))
+    }
+
+    async fn check_acl(
+        &self,
+        request: Request<CheckAclRequest>,
+    ) -> Result<Response<CheckAclResponse>, Status> {
+        let req = request.into_inner();
+        let ip: std::net::IpAddr = req
+            .ip
+            .parse()
+            .map_err(|_| Status::invalid_argument(format!("invalid ip address '{}'", req.ip)))?;
+        let listener_filter = req
+            .listener
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty());
+
+        let snap = self.snapshots.load();
+        let results = check_client_acl(
+            &snap.config,
+            &snap.scripting.data_sources,
+            ip,
+            listener_filter,
+        )
+        .map_err(|e| match e {
+            AclCheckError::UnknownListener(name) => {
+                Status::invalid_argument(format!("unknown listener '{name}'"))
+            }
+            AclCheckError::NoListeners => Status::failed_precondition(e.to_string()),
+        })?;
+
+        Ok(Response::new(CheckAclResponse {
+            ip: ip.to_string(),
+            results: results
+                .into_iter()
+                .map(|r| AclCheckResultProto {
+                    listener: r.listener,
+                    decision: r.decision,
+                    tag: r.tag,
+                    matched: r.matched,
+                    action: r.action,
                 })
                 .collect(),
         }))

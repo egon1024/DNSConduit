@@ -12,6 +12,7 @@ conduit-config = { path = "../conduit-config" }
 conduit-events = { path = "../conduit-events" }
 conduit-metrics = { path = "../conduit-metrics" }
 conduit-proto = { path = "../conduit-proto" }
+conduit-script = { path = "../conduit-script" }
 hickory-proto = { workspace = true }
 socket2 = { workspace = true }
 thiserror = { workspace = true }

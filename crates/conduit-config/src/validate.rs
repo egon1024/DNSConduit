@@ -259,6 +259,12 @@ pub fn validate(cfg: &Config) -> ValidationResult {
         }
         let allowed_v4 = configured_source_v4_addrs(cfg);
         let allowed_v6 = configured_source_v6_addrs(cfg);
+        let cidr_names: std::collections::HashSet<&str> = cfg
+            .data_sources
+            .iter()
+            .filter(|ds| ds.r#type == "cidr")
+            .map(|ds| ds.name.as_str())
+            .collect();
         let mut rule_names = std::collections::HashSet::new();
         for rule in &rules.rules {
             if rule.name.is_empty() {
@@ -301,6 +307,12 @@ pub fn validate(cfg: &Config) -> ValidationResult {
                     errors.push(format!(
                         "rule '{}' selector '{}' requires integer value >= 1",
                         rule.name, sel.r#type
+                    ));
+                }
+                if sel.r#type == "client_cidr" && !cidr_names.contains(sel.value.as_str()) {
+                    errors.push(format!(
+                        "rule '{}' selector client_cidr '{}' is not a type:cidr data_sources name",
+                        rule.name, sel.value
                     ));
                 }
             }
@@ -449,9 +461,9 @@ pub fn validate(cfg: &Config) -> ValidationResult {
         if !data_source_names.insert(ds.name.clone()) {
             errors.push(format!("duplicate data_sources name '{}'", ds.name));
         }
-        if ds.r#type != "csv" {
+        if ds.r#type != "csv" && ds.r#type != "cidr" {
             errors.push(format!(
-                "data_sources '{}' has unsupported type '{}', only csv is supported",
+                "data_sources '{}' has unsupported type '{}', only csv and cidr are supported",
                 ds.name, ds.r#type
             ));
         }
@@ -499,11 +511,85 @@ pub fn validate(cfg: &Config) -> ValidationResult {
     }
 
     errors.extend(conduit_metrics::validate_metrics_tracing(cfg));
+    errors.extend(validate_acls(cfg));
 
     ValidationResult {
         ok: errors.is_empty(),
         errors,
     }
+}
+
+fn validate_acls(cfg: &Config) -> Vec<String> {
+    let mut errors = Vec::new();
+    let cidr_names: std::collections::HashSet<&str> = cfg
+        .data_sources
+        .iter()
+        .filter(|ds| ds.r#type == "cidr")
+        .map(|ds| ds.name.as_str())
+        .collect();
+
+    if let Some(acls) = &cfg.acls {
+        errors.extend(validate_acl_block("acls", acls, &cidr_names));
+    }
+    if let Some(listeners) = &cfg.listeners {
+        for (i, ln) in listeners.listeners.iter().enumerate() {
+            if let Some(acls) = &ln.acls {
+                let where_ = ln
+                    .name
+                    .as_deref()
+                    .filter(|n| !n.is_empty())
+                    .map(|n| format!("listeners.listeners[{i}] (name '{n}') acls"))
+                    .unwrap_or_else(|| format!("listeners.listeners[{i}].acls"));
+                errors.extend(validate_acl_block(&where_, acls, &cidr_names));
+            }
+        }
+    }
+    errors
+}
+
+fn validate_acl_block(
+    where_: &str,
+    acls: &conduit_proto::config::AclsConfig,
+    cidr_names: &std::collections::HashSet<&str>,
+) -> Vec<String> {
+    let mut errors = Vec::new();
+    match acls.default_action.as_str() {
+        "allow" | "deny" | "" => {}
+        other => errors.push(format!(
+            "{where_}.default_action must be allow or deny, got '{other}'"
+        )),
+    }
+    for (i, rule) in acls.rules.iter().enumerate() {
+        if rule.r#match.is_empty() {
+            errors.push(format!("{where_}.rules[{i}].match must not be empty"));
+        } else if !cidr_names.contains(rule.r#match.as_str()) {
+            errors.push(format!(
+                "{where_}.rules[{i}].match '{}' is not a type:cidr data_sources name",
+                rule.r#match
+            ));
+        }
+        match rule.action.as_str() {
+            "drop" | "refuse" | "accept" => {
+                if rule.tag.is_some() {
+                    errors.push(format!(
+                        "{where_}.rules[{i}].tag is only valid when action is tag"
+                    ));
+                }
+            }
+            "tag" => match rule.tag.as_deref() {
+                None | Some("") => {
+                    errors.push(format!(
+                        "{where_}.rules[{i}] action tag requires a non-empty tag name"
+                    ));
+                }
+                Some(_) => {}
+            },
+            other => errors.push(format!(
+                "{where_}.rules[{i}].action must be drop|refuse|tag|accept, got '{other}'"
+            )),
+        }
+    }
+    errors
 }
 
 #[cfg(test)]

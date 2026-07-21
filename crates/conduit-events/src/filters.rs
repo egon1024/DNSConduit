@@ -21,6 +21,8 @@ fn selector_ctx<'a>(
         answer_source: view.answer_source,
         cache_instance: view.cache_instance,
         tag_has,
+        // `client_cidr` is rule-only; sink filters never carry this selector.
+        client_cidr_match: None,
     }
 }
 
