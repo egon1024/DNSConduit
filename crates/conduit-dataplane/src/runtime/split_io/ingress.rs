@@ -36,7 +36,7 @@ pub fn run_udp_ingress(
 ) -> std::io::Result<()> {
     udp.set_read_timeout(Some(Duration::from_secs(1)))?;
     let listener_label = listener_metric_label(&listener);
-    let mut acl_gate = AclGate::new(listener.acls.clone(), listener_label.clone());
+    let mut acl_gate = AclGate::new(&listener, listener_label.clone());
     let mut buf = [0u8; 4096];
     loop {
         if shutdown.is_shutdown() {
@@ -131,7 +131,7 @@ pub fn run_tcp_ingress(
 ) -> std::io::Result<()> {
     tcp.set_nonblocking(true)?;
     let listener_label = listener_metric_label(&listener);
-    let mut acl_gate = AclGate::new(listener.acls.clone(), listener_label.clone());
+    let mut acl_gate = AclGate::new(&listener, listener_label.clone());
     loop {
         if shutdown.is_shutdown() {
             break;

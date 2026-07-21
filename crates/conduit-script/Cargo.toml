@@ -23,6 +23,7 @@ rhai = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 ipnet = { workspace = true }
+prefix-trie = { workspace = true }
 
 [dev-dependencies]
 conduit-config = { path = "../conduit-config" }

@@ -56,7 +56,7 @@ pub fn run_worker(
 ) -> std::io::Result<()> {
     tcp.set_nonblocking(true)?;
     let listener_label = listener_metric_label(&listener);
-    let mut acl_gate = AclGate::new(listener.acls.clone(), listener_label.clone());
+    let mut acl_gate = AclGate::new(&listener, listener_label.clone());
     let mut next_id = 1u64;
     loop {
         if shutdown.is_shutdown() {
