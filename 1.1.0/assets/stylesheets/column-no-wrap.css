@@ -1,0 +1,9 @@
+/* Applied at build time to cells in columns marked with .column-no-wrap on the header. */
+.md-typeset .column-no-wrap-cell {
+  white-space: nowrap;
+}
+
+.md-typeset .column-no-wrap-cell code {
+  word-break: normal;
+  white-space: nowrap;
+}
