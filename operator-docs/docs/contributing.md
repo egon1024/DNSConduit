@@ -15,7 +15,7 @@ Purely internal refactors, test-only changes, or dependency bumps with no operat
 
 ## Release notes
 
-Operator-facing changes should add bullet(s) under **`operator-docs/docs/release-notes/unreleased.md`** in the same pull request. At release cut, automation promotes that content to a versioned page (with an ISO **Released** date), updates **`operator-docs/site-root/versions/release-dates.json`**, and resets **Unreleased**.
+Operator-facing changes should add bullet(s) under **`operator-docs/docs/release-notes/unreleased.md`** in the same pull request. At release cut, automation promotes that content to a versioned page (with an ISO **Released** date), updates **`operator-docs/site-root/versions/release-dates.json`** on the release branch (and tag), and resets **Unreleased**. Docs deploy merges that tag’s dates into the already-published Versions page map so the live list stays complete across release lines.
 
 - Use **`## New features`**, **`## Fixes`**, and **`## Upgrade notes`** sections when helpful.
 - Link to canonical docs pages; do not duplicate full explanations.

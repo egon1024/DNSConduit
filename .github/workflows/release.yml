@@ -262,6 +262,9 @@ jobs:
             --generate-notes
 
       # GITHUB_TOKEN release/tag does not trigger tag-push workflows; dispatch explicitly.
+      # Run the workflow from the release branch tip (current deploy tooling), while the
+      # job checks out the product tag for mike content. That keeps dates/merge logic
+      # current across 1.x / 2.x / main without baking a branch name into docs-deploy.
       - name: Trigger docs deploy
         if: steps.exists.outputs.skip != 'true'
         env:
@@ -270,9 +273,9 @@ jobs:
         run: |
           set -euo pipefail
           gh workflow run docs-deploy.yml \
-            --ref "${NEXT_VERSION}" \
+            --ref "${RELEASE_BRANCH}" \
             -f "version=${NEXT_VERSION}"
-          echo "Dispatched Docs deploy for ${NEXT_VERSION}."
+          echo "Dispatched Docs deploy for ${NEXT_VERSION} (workflow ref ${RELEASE_BRANCH})."
 
       - name: Trigger release artifacts build
         if: steps.exists.outputs.skip != 'true'

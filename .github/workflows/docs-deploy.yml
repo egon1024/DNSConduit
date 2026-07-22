@@ -125,23 +125,40 @@ jobs:
           PAGE_DIR="operator-docs/site-root/versions"
           PAGE_SRC="${PAGE_DIR}/index.html"
           DATES_SRC="${PAGE_DIR}/release-dates.json"
-          # HTML template: prefer the tag tree; fall back to main for tags that
-          # predate the global versions page. Dates always come from main so
-          # release finalize / backfills publish without retagging.
-          git fetch origin main --depth=1
+          # HTML template: prefer the checked-out tag tree; fall back to main only
+          # for tags that predate the global versions page (rare).
+          #
+          # Release dates must NOT be taken from a fixed branch name: after 1.0,
+          # finalize writes dates on the release line (e.g. 1.x) and the tag, while
+          # main stays frozen. Merge (1) dates already on gh-pages with (2) the
+          # dates file from this deploy checkout so any release line publishes
+          # correctly and redeploying an older tag cannot drop newer dates.
           mkdir -p /tmp/global-versions
           if [[ -f "${PAGE_SRC}" ]]; then
             SRC_FILE="${PAGE_SRC}"
           else
+            git fetch origin main --depth=1
             git show origin/main:"${PAGE_SRC}" > /tmp/global-versions/index.html
             SRC_FILE="/tmp/global-versions/index.html"
           fi
-          if git cat-file -e "origin/main:${DATES_SRC}" 2>/dev/null; then
-            git show origin/main:"${DATES_SRC}" > /tmp/global-versions/release-dates.json
-            DATES_FILE="/tmp/global-versions/release-dates.json"
-          else
-            DATES_FILE=""
+          CHECKOUT_DATES=""
+          if [[ -f "${DATES_SRC}" ]]; then
+            CHECKOUT_DATES="${DATES_SRC}"
           fi
+
+          # Load merge helper from the workflow revision (GITHUB_SHA), not the
+          # product-tag tree. That way workflow_dispatch --ref 1.x -f version=1.1.0
+          # (and future release-line branches) apply current deploy logic even when
+          # the tag predates this script.
+          MERGE_SCRIPT="/tmp/global-versions/merge_release_dates_json.py"
+          if ! git cat-file -e "${GITHUB_SHA}^{commit}" 2>/dev/null; then
+            git fetch --depth=1 origin "${GITHUB_SHA}"
+          fi
+          if ! git cat-file -e "${GITHUB_SHA}:operator-docs/scripts/merge_release_dates_json.py" 2>/dev/null; then
+            echo "::error::merge_release_dates_json.py missing at ${GITHUB_SHA}; refuse to publish a stale dates map from a fixed branch."
+            exit 1
+          fi
+          git show "${GITHUB_SHA}:operator-docs/scripts/merge_release_dates_json.py" > "${MERGE_SCRIPT}"
 
           # Run after mike's pushes; rebase on the freshest gh-pages so we never race.
           git fetch origin gh-pages:gh-pages
@@ -149,8 +166,19 @@ jobs:
           git worktree add "${WORK}" gh-pages
           mkdir -p "${WORK}/versions"
           cp "${SRC_FILE}" "${WORK}/versions/index.html"
-          if [[ -n "${DATES_FILE}" && -f "${DATES_FILE}" ]]; then
-            cp "${DATES_FILE}" "${WORK}/versions/release-dates.json"
+          merge_args=(--output "${WORK}/versions/release-dates.json")
+          if [[ -f "${WORK}/versions/release-dates.json" ]]; then
+            cp "${WORK}/versions/release-dates.json" /tmp/global-versions/published-release-dates.json
+            merge_args+=(--input /tmp/global-versions/published-release-dates.json)
+          fi
+          if [[ -n "${CHECKOUT_DATES}" ]]; then
+            merge_args+=(--input "${CHECKOUT_DATES}")
+          fi
+          if [[ ${#merge_args[@]} -eq 1 ]]; then
+            echo "::warning::No release-dates.json on gh-pages or this tag; Versions page dates will be empty."
+            echo '{}' > "${WORK}/versions/release-dates.json"
+          else
+            python3 "${MERGE_SCRIPT}" "${merge_args[@]}"
           fi
           (
             cd "${WORK}"
