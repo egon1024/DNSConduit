@@ -3,16 +3,18 @@
 use conduit_config::{load_yaml, validate};
 use conduit_core::snapshot::{RuntimeSnapshot, SnapshotStore};
 use conduit_dataplane::runtime::start;
+use conduit_dataplane::runtime::DataplaneHandle;
 use conduit_metrics::{encode_builtin, MetricsHub, TracingHub};
-use hickory_proto::op::{Message, Query, ResponseCode};
+use hickory_proto::op::{Edns, Message, Query, ResponseCode};
+use hickory_proto::rr::rdata::opt::{ClientSubnet, EdnsOption};
 use hickory_proto::rr::{Name, RecordType};
 use hickory_proto::serialize::binary::{BinDecodable, BinEncodable, BinEncoder};
 use std::io::{Read, Write};
-use std::net::{TcpStream, UdpSocket};
+use std::net::{IpAddr, Ipv4Addr, TcpStream, UdpSocket};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::thread;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 fn sample_query(id: u16) -> Vec<u8> {
     let name = Name::from_utf8("test.example.").unwrap();
@@ -24,6 +26,57 @@ fn sample_query(id: u16) -> Vec<u8> {
     let mut encoder = BinEncoder::new(&mut buf);
     msg.emit(&mut encoder).unwrap();
     buf
+}
+
+/// Query with EDNS Client Subnet for a prefix that is *not* the socket peer.
+fn sample_query_with_ecs(id: u16, ecs_addr: IpAddr, source_prefix: u8) -> Vec<u8> {
+    let name = Name::from_utf8("test.example.").unwrap();
+    let query = Query::query(name, RecordType::A);
+    let mut msg = Message::new();
+    msg.set_id(id);
+    msg.add_query(query);
+    let mut edns = Edns::new();
+    edns.set_max_payload(1232);
+    edns.options_mut()
+        .insert(EdnsOption::Subnet(ClientSubnet::new(
+            ecs_addr,
+            source_prefix,
+            0,
+        )));
+    msg.set_edns(edns);
+    let mut buf = Vec::new();
+    let mut encoder = BinEncoder::new(&mut buf);
+    msg.emit(&mut encoder).unwrap();
+    buf
+}
+
+fn assert_no_txn_slot_consumed(handle: &DataplaneHandle, label: &str) {
+    assert_eq!(
+        handle.txn_store.in_use(),
+        0,
+        "{label}: terminal ACL deny must leave txn slots free"
+    );
+    assert_eq!(
+        handle.txn_store.exhaustion_total(),
+        0,
+        "{label}: terminal ACL deny must not attempt slot acquire"
+    );
+}
+
+fn wait_slots_in_use(handle: &DataplaneHandle, want: u32, timeout: Duration) {
+    let deadline = Instant::now() + timeout;
+    loop {
+        if handle.txn_store.in_use() >= want {
+            return;
+        }
+        if Instant::now() >= deadline {
+            panic!(
+                "timed out waiting for {want} in-use slot(s); have {}",
+                handle.txn_store.in_use()
+            );
+        }
+        thread::sleep(Duration::from_millis(5));
+    }
 }
 
 fn mock_upstream() -> (u16, thread::JoinHandle<()>) {
@@ -208,6 +261,7 @@ acls:
         reply.is_none(),
         "{runtime}/{protocol}: ACL drop must not reply"
     );
+    assert_no_txn_slot_consumed(&handle, &format!("{runtime}/{protocol} drop"));
     let body = encode_builtin(metrics.builtin.gather());
     assert!(
         body.contains("conduit_acl_decisions_total") && body.contains(r#"action="drop""#),
@@ -243,6 +297,7 @@ acls:
     }
     .expect("REFUSED response");
     assert_eq!(msg.response_code(), ResponseCode::Refused);
+    assert_no_txn_slot_consumed(&handle, &format!("{runtime}/{protocol} refuse"));
     handle.shutdown();
     let _ = std::fs::remove_file(cidr);
 }
@@ -765,6 +820,160 @@ control:
     let (len, _) = client.recv_from(&mut buf).expect("REFUSED over IPv6");
     let msg = Message::from_bytes(&buf[..len]).expect("parse");
     assert_eq!(msg.response_code(), ResponseCode::Refused);
+    assert_no_txn_slot_consumed(&handle, &format!("{runtime} ipv6 refuse"));
+    handle.shutdown();
+    let _ = std::fs::remove_file(cidr);
+}
+
+/// Hold the only txn slot on an admit listener, then refuse on a sibling listener.
+/// REFUSED must still be produced (ACL refuse never acquires a slot).
+fn assert_refuse_while_slot_pool_full(runtime: &str) {
+    let hold_port = bind_ephemeral();
+    let refuse_port = bind_ephemeral();
+    // Upstream that accepts the query then sleeps before answering — keeps the
+    // admit path's txn slot occupied for the window we probe refuse-without-slot.
+    let slow = UdpSocket::bind("127.0.0.1:0").unwrap();
+    let backend_port = slow.local_addr().unwrap().port();
+    let _slow_handle = thread::spawn(move || {
+        let mut buf = [0u8; 512];
+        let Ok((len, peer)) = slow.recv_from(&mut buf) else {
+            return;
+        };
+        thread::sleep(Duration::from_secs(3));
+        let mut resp = buf[..len].to_vec();
+        if resp.len() >= 3 {
+            resp[2] = 0x81;
+            resp[3] = 0x80;
+        }
+        let _ = slow.send_to(&resp, peer);
+    });
+    let cidr = write_cidr("slot-hold", "127.0.0.0/8\n");
+    let yaml = format!(
+        r#"
+schema_version: 1
+dataplane:
+  runtime: {runtime}
+  policy_workers: 1
+  io_workers: 1
+listeners:
+  threads: 1
+  reuse_port: false
+  listeners:
+    - address: "127.0.0.1:{hold_port}"
+      protocol: udp
+      name: hold
+      acls:
+        default_action: allow
+        rules: []
+    - address: "127.0.0.1:{refuse_port}"
+      protocol: udp
+      name: refuse
+      acls:
+        default_action: allow
+        rules:
+          - match: nets
+            action: refuse
+forward:
+  outstanding_per_backend: 32
+  timeout_ms: 5000
+orchestrator:
+  max_attempts: 1
+  max_txn_duration_ms: 8000
+  txn_table_capacity: 1
+events:
+  queue_depth: 64
+  drop_policy: drop_oldest
+  sinks: []
+metrics:
+  enabled: true
+  profile: full
+data_sources:
+  - name: nets
+    type: cidr
+    path: {cidr_path}
+acls:
+  default_action: allow
+  rules: []
+pools:
+  - name: default
+    backends:
+      - address: "127.0.0.1:{backend_port}"
+        weight: 100
+control:
+  listen_address: "127.0.0.1:0"
+"#,
+        cidr_path = cidr.to_str().unwrap(),
+    );
+    let (handle, _, _) = start_runtime(&yaml);
+
+    let hold_client = UdpSocket::bind("127.0.0.1:0").unwrap();
+    hold_client
+        .set_read_timeout(Some(Duration::from_millis(50)))
+        .unwrap();
+    let hold_target: std::net::SocketAddr = format!("127.0.0.1:{hold_port}").parse().unwrap();
+    hold_client.send_to(&sample_query(30), hold_target).unwrap();
+    wait_slots_in_use(&handle, 1, Duration::from_secs(2));
+    assert_eq!(handle.txn_store.exhaustion_total(), 0);
+
+    let msg = send_and_recv(refuse_port, 31).expect("REFUSED while pool full");
+    assert_eq!(msg.response_code(), ResponseCode::Refused);
+    assert_eq!(
+        handle.txn_store.in_use(),
+        1,
+        "{runtime}: refuse must not steal or release the held slot"
+    );
+    assert_eq!(
+        handle.txn_store.exhaustion_total(),
+        0,
+        "{runtime}: refuse must not attempt acquire when pool is full"
+    );
+
+    handle.shutdown();
+    let _ = std::fs::remove_file(cidr);
+}
+
+/// Socket peer is allowed; ECS carries a prefix that would be dropped if ACL used it.
+fn assert_acl_ignores_ecs(runtime: &str) {
+    let listen_port = bind_ephemeral();
+    let (backend_port, _up) = mock_upstream();
+    let cidr = write_cidr("ecs", "10.0.0.0/8\n");
+    let yaml = acl_config(
+        runtime,
+        "udp",
+        listen_port,
+        backend_port,
+        cidr.to_str().unwrap(),
+        r#"
+acls:
+  default_action: allow
+  rules:
+    - match: nets
+      action: drop
+"#,
+    );
+    let (handle, metrics, _) = start_runtime(&yaml);
+    let client = UdpSocket::bind("127.0.0.1:0").unwrap();
+    client
+        .set_read_timeout(Some(Duration::from_millis(400)))
+        .unwrap();
+    let target: std::net::SocketAddr = format!("127.0.0.1:{listen_port}").parse().unwrap();
+    let wire = sample_query_with_ecs(40, IpAddr::V4(Ipv4Addr::new(10, 1, 2, 3)), 24);
+    client.send_to(&wire, target).unwrap();
+    let mut buf = [0u8; 512];
+    let (len, _) = client
+        .recv_from(&mut buf)
+        .expect("peer allowlist must admit despite ECS in 10/8");
+    let msg = Message::from_bytes(&buf[..len]).expect("parse");
+    assert_ne!(
+        msg.response_code(),
+        ResponseCode::Refused,
+        "{runtime}: ECS must not drive ACL refuse"
+    );
+    let body = encode_builtin(metrics.builtin.gather());
+    assert!(
+        !body.contains(r#"action="drop""#),
+        "{runtime}: ECS must not drive ACL drop, body:\n{body}"
+    );
     handle.shutdown();
     let _ = std::fs::remove_file(cidr);
 }
@@ -792,4 +1001,28 @@ fn split_io_per_listener_acl_hot_reload() {
 #[test]
 fn sync_acl_refuse_ipv6() {
     assert_acl_refuse_ipv6("sync");
+}
+
+#[test]
+fn split_io_acl_refuse_ipv6() {
+    assert_acl_refuse_ipv6("split_io");
+}
+
+#[test]
+fn split_io_acl_refuse_while_slot_pool_full() {
+    // Sync holds the SharedTxnStore mutex for the entire pipeline (including
+    // forward wait), so a second thread cannot observe in_use>0 mid-query.
+    // split_io parks IoWait without holding that mutex — this is the runtime
+    // where "refuse with pool full" is observable.
+    assert_refuse_while_slot_pool_full("split_io");
+}
+
+#[test]
+fn sync_acl_ignores_ecs_client_subnet() {
+    assert_acl_ignores_ecs("sync");
+}
+
+#[test]
+fn split_io_acl_ignores_ecs_client_subnet() {
+    assert_acl_ignores_ecs("split_io");
 }

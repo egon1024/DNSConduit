@@ -194,3 +194,47 @@ acls:
     assert_eq!(la.default_action, "deny");
     assert_eq!(la.rules[0].action, "accept");
 }
+
+#[test]
+fn reject_unknown_client_cidr_selector() {
+    let mut file = NamedTempFile::new().unwrap();
+    writeln!(file, "10.0.0.0/8").unwrap();
+    let path = file.path().to_str().unwrap();
+    let yaml = format!(
+        r#"
+schema_version: 1
+listeners:
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+pools:
+  - name: primary
+    backends:
+      - address: "127.0.0.1:5300"
+data_sources:
+  - name: corp_nets
+    type: cidr
+    path: {path}
+rules:
+  match_mode: first_match
+  rules:
+    - name: bad-cidr
+      hook: request
+      selectors:
+        - type: client_cidr
+          value: missing_view
+      actions:
+        - type: drop
+"#
+    );
+    let cfg = load_yaml(&yaml).unwrap();
+    let v = validate(&cfg);
+    assert!(!v.ok);
+    assert!(
+        v.errors.iter().any(|e| e.contains("client_cidr")
+            && e.contains("missing_view")
+            && e.contains("type:cidr")),
+        "expected unknown client_cidr naming the selector value, got: {:?}",
+        v.errors
+    );
+}
