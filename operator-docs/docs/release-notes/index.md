@@ -7,6 +7,7 @@ Operator-facing changes by release. For the full list of merged pull requests, s
 
 | Version | Released | Summary |
 | --- | --- | --- |
+| [1.1.0](1.1.0.md) | 2026-07-22 | Client ACLs and CIDR data sources |
 | [1.0.0](1.0.0.md) | 2026-07-18 | First stable release |
 | [0.20.0](0.20.0.md) | 2026-07-18 | Interop correctness matrix |
 | [0.19.0](0.19.0.md) | 2026-07-13 | Breaking changes — Lookup spine { #breaking-changes--lookup-spine } |

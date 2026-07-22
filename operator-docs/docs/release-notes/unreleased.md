@@ -1,9 +1,3 @@
 # Unreleased
 
-## Client ACLs and CIDR data sources
-
-- Optional top-level **`acls:`** and per-listener **`acls:`** (omit = inherit / admit-all) for host-managed client IP allow/deny/tag using named CIDR views — see [Client ACLs](/policy-routing/client-acls.md).
-- **`data_sources`** **`type: cidr`** (IPv4 + IPv6 longest-prefix) with Rhai **`lookup_ip`** and rules selector **`client_cidr`**.
-- Built-in **`conduit_acl_decisions_total`** (Prometheus + OTLP) and optional **`logging.query_access`** ACL denial levels / sampling.
-- **`conduitctl acl check`** (live via **`CheckAcl`**, or offline **`--file`**) dry-runs effective ACL policy for an IP as pretty JSON — no metrics or denial-log side effects.
-- Documentation: **`data_sources:`** config, CSV / CIDR file formats, and load-safety limits now have a dedicated [Data sources](/policy-routing/data-sources.md) page shared by ACLs and Rhai; the Rhai [Lookups](/rhai/data-sources-and-lookups.md) page now focuses on the **`lookup()`** / **`lookup_ip()`** calling surface.
+_No unreleased operator-facing changes._
