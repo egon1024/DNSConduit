@@ -357,23 +357,41 @@ impl AclDeniedLog {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use conduit_metrics::encode_builtin;
     use conduit_proto::config::{
-        AclDeniedSample, AclsConfig, Config, Listener, ListenersConfig, QueryAccessLogging,
+        AclDeniedSample, AclsConfig, Config, Listener, ListenersConfig, LoggingConfig,
+        MetricsConfig, QueryAccessLogging,
     };
+    use std::io::{self, Write};
+    use std::sync::{Arc, Mutex};
+    use tracing_subscriber::fmt::MakeWriter;
 
-    #[test]
-    fn refresh_applies_per_listener_acl_from_live_snapshot() {
-        // Worker started before per-listener ACL existed (startup clone would be None).
-        let listener = Listener {
-            address: "127.0.0.1:5353".into(),
-            protocol: "udp".into(),
-            name: Some("public".into()),
-            acls: None,
-            ..Default::default()
-        };
-        let mut gate = AclGate::new(&listener, "public".into());
+    #[derive(Clone, Default)]
+    struct SharedLogBuf(Arc<Mutex<Vec<u8>>>);
 
-        let cfg = Config {
+    impl<'a> MakeWriter<'a> for SharedLogBuf {
+        type Writer = SharedLogWriter;
+
+        fn make_writer(&'a self) -> Self::Writer {
+            SharedLogWriter(self.0.clone())
+        }
+    }
+
+    struct SharedLogWriter(Arc<Mutex<Vec<u8>>>);
+
+    impl Write for SharedLogWriter {
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+            self.0.lock().unwrap().extend_from_slice(buf);
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    fn deny_listener_config(with_logging: Option<QueryAccessLogging>) -> Config {
+        Config {
             listeners: Some(ListenersConfig {
                 threads: 1,
                 listeners: vec![Listener {
@@ -388,8 +406,53 @@ mod tests {
                 }],
                 ..Default::default()
             }),
+            metrics: Some(MetricsConfig {
+                enabled: true,
+                profile: "full".into(),
+                ..Default::default()
+            }),
+            logging: with_logging.map(|query_access| LoggingConfig {
+                level: "info".into(),
+                output: "stderr".into(),
+                query_access: Some(query_access),
+            }),
+            ..Default::default()
+        }
+    }
+
+    fn acl_drop_total(metrics: &MetricsHub) -> u64 {
+        metrics
+            .builtin
+            .gather()
+            .into_iter()
+            .find(|f| f.get_name() == "conduit_acl_decisions_total")
+            .map(|f| {
+                f.get_metric()
+                    .iter()
+                    .filter(|m| {
+                        m.get_label()
+                            .iter()
+                            .any(|l| l.get_name() == "action" && l.get_value() == "drop")
+                    })
+                    .map(|m| m.get_counter().get_value() as u64)
+                    .sum()
+            })
+            .unwrap_or(0)
+    }
+
+    #[test]
+    fn refresh_applies_per_listener_acl_from_live_snapshot() {
+        // Worker started before per-listener ACL existed (startup clone would be None).
+        let listener = Listener {
+            address: "127.0.0.1:5353".into(),
+            protocol: "udp".into(),
+            name: Some("public".into()),
+            acls: None,
             ..Default::default()
         };
+        let mut gate = AclGate::new(&listener, "public".into());
+
+        let cfg = deny_listener_config(None);
         let mut snap = RuntimeSnapshot::from_config(cfg);
         snap.generation = 1;
         let metrics = MetricsHub::from_config(&snap.config);
@@ -444,5 +507,100 @@ mod tests {
         }));
         assert_eq!(log.level, AclLogLevel::Info);
         assert!(log.should_emit("10.0.0.1".parse().unwrap()));
+    }
+
+    #[test]
+    fn deny_log_includes_required_fields() {
+        let buf = SharedLogBuf::default();
+        let subscriber = tracing_subscriber::fmt()
+            .with_max_level(tracing::Level::WARN)
+            .with_writer(buf.clone())
+            .with_ansi(false)
+            .finish();
+        let _guard = tracing::subscriber::set_default(subscriber);
+
+        let listener = Listener {
+            address: "127.0.0.1:5353".into(),
+            protocol: "udp".into(),
+            name: Some("public".into()),
+            acls: Some(AclsConfig {
+                default_action: "deny".into(),
+                rules: vec![],
+            }),
+            ..Default::default()
+        };
+        let mut gate = AclGate::new(&listener, "public".into());
+        let cfg = deny_listener_config(Some(QueryAccessLogging {
+            acl_denied: "warn".into(),
+            acl_denied_sample: None,
+        }));
+        let mut snap = RuntimeSnapshot::from_config(cfg);
+        snap.generation = 1;
+        let metrics = MetricsHub::from_config(&snap.config);
+        assert_eq!(
+            gate.decide(&snap, "203.0.113.10".parse().unwrap(), &metrics),
+            AclGateOutcome::Drop
+        );
+
+        let text = String::from_utf8(buf.0.lock().unwrap().clone()).unwrap();
+        for needle in [
+            "client_ip=203.0.113.10",
+            "listener=\"public\"",
+            "view=\"default\"",
+            "action=\"drop\"",
+            "stage=\"listener\"",
+            "ip_family=\"v4\"",
+            "client ACL denied query",
+        ] {
+            assert!(
+                text.contains(needle),
+                "deny log missing {needle:?}, got:\n{text}"
+            );
+        }
+    }
+
+    #[test]
+    fn sampling_skip_still_increments_acl_metrics() {
+        let sample = QueryAccessLogging {
+            acl_denied: "warn".into(),
+            acl_denied_sample: Some(AclDeniedSample {
+                mode: "every_nth".into(),
+                rate: None,
+                nth: Some(100),
+            }),
+        };
+        let mut probe = AclDeniedLog::default();
+        probe.configure(Some(&sample));
+        let ip: IpAddr = "203.0.113.1".parse().unwrap();
+        let emitted = (0..5).filter(|_| probe.should_emit(ip)).count();
+        assert_eq!(emitted, 0, "every_nth=100 must skip the first five denials");
+
+        let listener = Listener {
+            address: "127.0.0.1:5353".into(),
+            protocol: "udp".into(),
+            name: Some("public".into()),
+            acls: Some(AclsConfig {
+                default_action: "deny".into(),
+                rules: vec![],
+            }),
+            ..Default::default()
+        };
+        let mut gate = AclGate::new(&listener, "public".into());
+        let cfg = deny_listener_config(Some(sample));
+        let mut snap = RuntimeSnapshot::from_config(cfg);
+        snap.generation = 1;
+        let metrics = MetricsHub::from_config(&snap.config);
+        let before = acl_drop_total(&metrics);
+        for i in 0..5 {
+            let client: IpAddr = format!("203.0.113.{i}").parse().unwrap();
+            assert_eq!(gate.decide(&snap, client, &metrics), AclGateOutcome::Drop);
+        }
+        let after = acl_drop_total(&metrics);
+        assert_eq!(
+            after - before,
+            5,
+            "ACL metrics must increment even when deny-log sampling skips; body:\n{}",
+            encode_builtin(metrics.builtin.gather())
+        );
     }
 }

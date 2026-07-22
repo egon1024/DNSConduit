@@ -23,3 +23,4 @@ crossbeam-channel = { workspace = true }
 
 [dev-dependencies]
 conduit-config = { path = "../conduit-config" }
+tracing-subscriber = { workspace = true, features = ["env-filter", "fmt"] }
