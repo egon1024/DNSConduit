@@ -10,10 +10,11 @@ use conduit_core::{
     SystemClock, Transaction,
 };
 use conduit_events::EventHub;
-use conduit_metrics::{render_prometheus, MetricsHub};
+use conduit_metrics::{gather_prometheus_families, render_prometheus, MetricsHub};
 use hickory_proto::op::{Message, Query, ResponseCode};
 use hickory_proto::rr::{Name, RecordType};
 use hickory_proto::serialize::binary::{BinEncodable, BinEncoder};
+use prometheus::{Encoder, TextEncoder};
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -372,4 +373,87 @@ fn policy_drop_response_rules_increments_queries_dropped() {
         "body:\n{body}"
     );
     assert!(body.contains(r#"reason="response_rules""#), "body:\n{body}");
+}
+
+#[test]
+fn collect_only_user_metric_increments_but_scrape_omits() {
+    let yaml =
+        include_str!("../../../tests/fixtures/config/with-rhai-block-hits-collect-only.yaml");
+    let cfg = load_yaml(yaml).unwrap();
+    let base = fixtures_config_base();
+    let snap = Arc::new(RuntimeSnapshot::try_from_config_with_base(cfg, Some(&base)).unwrap());
+    let hub = Arc::new(MetricsHub::from_config(&snap.config));
+    let orch = orchestrator_with_mock_forward(hub.clone());
+
+    let mut txn = Transaction::new(40, "127.0.0.1:15353".parse().unwrap(), ClientProtocol::Udp)
+        .with_query_wire(query_for("eu.example."));
+    let _ = orch.run(&mut txn, &snap, &SystemClock, None);
+
+    // Host store still holds the series (collect true).
+    let stored = encode_families(hub.user.gather());
+    assert!(
+        stored.contains("conduit_user_block_hits"),
+        "collect-only must still record, stored:\n{stored}"
+    );
+
+    // Emit mask omits from scrape.
+    let body = render_prometheus(hub.as_ref(), &[]);
+    assert!(
+        !body.contains("conduit_user_block_hits"),
+        "collect-only must not appear on scrape, body:\n{body}"
+    );
+    assert!(
+        body.contains("conduit_queries_total"),
+        "other emit:true series must remain, body:\n{body}"
+    );
+}
+
+#[test]
+fn collect_only_timing_category_omitted_from_scrape() {
+    let yaml = include_str!("../../../tests/fixtures/config/with-metrics-timing-collect-only.yaml");
+    let cfg = load_yaml(yaml).unwrap();
+    assert!(validate(&cfg).ok);
+    let hub = Arc::new(MetricsHub::from_config(&cfg));
+    let snap = Arc::new(RuntimeSnapshot::from_config(cfg));
+    let orch = orchestrator_with_mock_forward(hub.clone());
+
+    let mut txn = Transaction::new(41, "127.0.0.1:15353".parse().unwrap(), ClientProtocol::Udp)
+        .with_listener_label("127.0.0.1:15353")
+        .with_query_wire(sample_query());
+    let _ = orch.run(&mut txn, &snap, &SystemClock, None);
+
+    // Timing was collected on the hot path.
+    let builtin_body = encode_families(hub.builtin.gather());
+    assert!(
+        builtin_body.contains("conduit_forward_attempts_total"),
+        "timing collect must still record, body:\n{builtin_body}"
+    );
+
+    let body = render_prometheus(hub.as_ref(), &[]);
+    assert!(
+        !body.contains("conduit_forward_attempts_total"),
+        "timing emit:false must omit from scrape, body:\n{body}"
+    );
+    assert!(
+        body.contains("conduit_queries_total"),
+        "volume must still emit, body:\n{body}"
+    );
+
+    // OTEL parity: same gather path → same emit set.
+    let names: Vec<_> = gather_prometheus_families(hub.as_ref(), &[])
+        .into_iter()
+        .map(|f| f.get_name().to_string())
+        .collect();
+    assert!(!names.iter().any(|n| n == "conduit_forward_attempts_total"));
+    assert!(names.iter().any(|n| n == "conduit_queries_total"));
+}
+
+fn encode_families(families: Vec<prometheus::proto::MetricFamily>) -> String {
+    if families.is_empty() {
+        return String::new();
+    }
+    let encoder = TextEncoder::new();
+    let mut buf = Vec::new();
+    encoder.encode(&families, &mut buf).unwrap();
+    String::from_utf8(buf).unwrap()
 }

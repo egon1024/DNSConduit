@@ -15,6 +15,7 @@ This directory holds **assets only**: configs (config/), scripts (scripts/), and
 | Metrics and tracing | [manual-lab-metrics-tracing.md](../../docs/superpowers/plans/manual-lab-metrics-tracing.md) |
 | Operator metrics (4b) | [manual-lab-operator-metrics.md](../../docs/superpowers/plans/manual-lab-operator-metrics.md) |
 | Metrics-configurability G1 (startup) | [manual-lab-metrics-configurability-startup.md](../../docs/superpowers/plans/manual-lab-metrics-configurability-startup.md) |
+| Metrics-configurability collect vs emit | [manual-lab-metrics-configurability-collect-emit.md](../../docs/superpowers/plans/manual-lab-metrics-configurability-collect-emit.md) |
 | Control plane / overlay | [manual-lab-control-plane.md](../../docs/superpowers/plans/manual-lab-control-plane.md) |
 | Rhai runtime host API | [manual-lab-rhai-runtime-host-api.md](../../docs/superpowers/plans/manual-lab-rhai-runtime-host-api.md) |
 | Ordered rule actions | [manual-lab-ordered-rule-actions.md](../../docs/superpowers/plans/manual-lab-ordered-rule-actions.md) |

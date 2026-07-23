@@ -714,8 +714,13 @@ pub(crate) struct YamlBackend {
 #[derive(Debug, Deserialize, Serialize)]
 pub(crate) struct YamlUserMetricExport {
     name: String,
-    #[serde(default)]
+    /// Deprecated alias for collect/emit; empty means unset.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     export: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    collect: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    emit: Option<bool>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -1059,6 +1064,8 @@ impl From<YamlMetrics> for MetricsConfig {
                 .map(|u| UserMetricExportConfig {
                     name: u.name,
                     export: u.export,
+                    collect: u.collect,
+                    emit: u.emit,
                 })
                 .collect(),
             base: y.base,
@@ -1683,6 +1690,8 @@ impl From<&MetricsConfig> for YamlMetrics {
                 .map(|u| YamlUserMetricExport {
                     name: u.name.clone(),
                     export: u.export.clone(),
+                    collect: u.collect,
+                    emit: u.emit,
                 })
                 .collect(),
             base: m.base.clone(),

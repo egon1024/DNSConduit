@@ -99,10 +99,17 @@ message MetricsEventExport {
   optional bool emit = 2;
 }
 
-// Export tier for Rhai conduit_user_* metrics (default: full = full profile only).
+// Per-metric collect/emit for Rhai conduit_user_* metrics.
+// Prefer explicit `collect` / `emit`. Deprecated `export` ("minimal" | "full")
+// remains an alias through the 1.x line (removal scheduled for 2.x).
 message UserMetricExportConfig {
   string name = 1;    // metric name from metric_inc (without conduit_user_ prefix)
-  string export = 2;  // "minimal" | "full"
+  // Deprecated: use collect/emit. "minimal" → collect+emit whenever metrics
+  // enabled; "full" → collect+emit only on standard-tier plans (fine
+  // granularity). Empty means unset.
+  string export = 2;
+  optional bool collect = 3;
+  optional bool emit = 4;
 }
 
 message PrometheusMetricsConfig {
