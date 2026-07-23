@@ -1,0 +1,24 @@
+# Invalid: unknown dimension for timing family (must fail validate).
+schema_version: 1
+listeners:
+  threads: 2
+  reuse_port: true
+  listeners:
+    - address: "127.0.2.1:15353"
+      protocol: udp
+pools:
+  - name: default
+    backends:
+      - address: "127.0.2.1:15300"
+        weight: 100
+control:
+  listen_address: "127.0.2.1:5199"
+  reflection_enabled: true
+metrics:
+  enabled: true
+  base: standard
+  granularity:
+    timing: [qname]
+  prometheus:
+    listen_address: "127.0.2.1:19090"
+    path: /metrics

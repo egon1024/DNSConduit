@@ -86,6 +86,14 @@ message MetricsGranularity {
 
 message MetricsDimensionList {
   repeated string dimensions = 1;
+  // Responses family only (orthogonal to dimension lists): "coarse" (class
+  // buckets) or "iana" (per-code names). Empty means unset — derive from
+  // `granularity.default` (coarse/balanced → coarse; fine → iana).
+  string rcode = 2;
+  // When true, `dimensions` (including an empty list) replaces the preset
+  // expansion for this family. When false, only `rcode` is applied and the
+  // preset dimension list is kept (responses rcode-only override).
+  bool dimensions_set = 3;
 }
 
 // `collect: false, emit: true` is invalid. Unset fields default to `true`.

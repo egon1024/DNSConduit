@@ -116,6 +116,126 @@ impl Granularity {
     }
 }
 
+/// Responses `rcode` label value mode (design §Decisions 5 — orthogonal to
+/// dimension lists). Coarse = class buckets (`NOERROR`/`NXDOMAIN`/…/`OTHER`);
+/// Iana = per-code names (today's `profile: full` behaviour).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ResponsesRcodeBucketing {
+    Coarse,
+    Iana,
+}
+
+impl ResponsesRcodeBucketing {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            ResponsesRcodeBucketing::Coarse => "coarse",
+            ResponsesRcodeBucketing::Iana => "iana",
+        }
+    }
+
+    pub fn from_str_opt(s: &str) -> Option<Self> {
+        match s {
+            "coarse" => Some(ResponsesRcodeBucketing::Coarse),
+            "iana" => Some(ResponsesRcodeBucketing::Iana),
+            _ => None,
+        }
+    }
+}
+
+/// Default rcode bucketing for a granularity preset (design §12).
+pub fn default_responses_rcode(g: Granularity) -> ResponsesRcodeBucketing {
+    match g {
+        Granularity::Coarse | Granularity::Balanced => ResponsesRcodeBucketing::Coarse,
+        Granularity::Fine => ResponsesRcodeBucketing::Iana,
+    }
+}
+
+/// Known granularity families (closed set for overrides + preset expansion).
+pub const GRANULARITY_FAMILIES: &[&str] = &[
+    "volume",
+    "responses",
+    "timing",
+    "forward_failures",
+    "acl",
+    "cache_lookup",
+];
+
+/// Maintainer table: closed dimension vocabulary per family, in canonical
+/// order (used to normalize operator-provided lists at compile time).
+pub fn family_allowed_dimensions(family: &str) -> Option<&'static [&'static str]> {
+    match family {
+        "volume" => Some(&["listener", "protocol", "qtype", "qclass", "ip_family"]),
+        "responses" => Some(&[
+            "listener",
+            "protocol",
+            "rcode",
+            "ip_family",
+            "answer_source",
+        ]),
+        "timing" => Some(&["pool", "backend"]),
+        "forward_failures" => Some(&["pool", "backend", "reason"]),
+        "acl" => Some(&["tier", "action", "listener", "ip_family"]),
+        "cache_lookup" => Some(&["cache", "profile", "result"]),
+        _ => None,
+    }
+}
+
+/// Maintainer preset: expand `granularity.default` to a dimension list for
+/// `family` (design §Decisions 5). `fine` reproduces today's `profile: full`
+/// label schemas exactly (1.x compatibility).
+pub fn preset_family_dimensions(
+    family: &str,
+    granularity: Granularity,
+) -> Option<&'static [&'static str]> {
+    match family {
+        "volume" => Some(match granularity {
+            Granularity::Coarse => &["listener", "protocol"],
+            Granularity::Balanced => &["listener", "protocol", "qtype"],
+            Granularity::Fine => &["listener", "protocol", "qtype", "qclass", "ip_family"],
+        }),
+        "responses" => Some(match granularity {
+            Granularity::Coarse | Granularity::Balanced => {
+                &["listener", "protocol", "rcode", "answer_source"]
+            }
+            Granularity::Fine => &[
+                "listener",
+                "protocol",
+                "rcode",
+                "ip_family",
+                "answer_source",
+            ],
+        }),
+        "timing" => Some(match granularity {
+            Granularity::Coarse => &[],
+            Granularity::Balanced => &["pool"],
+            Granularity::Fine => &["pool", "backend"],
+        }),
+        "forward_failures" => Some(match granularity {
+            // Keep pool+backend on coarse so `base: minimal` matches today's
+            // `profile: minimal` forward_errors series identity (1.x compat).
+            Granularity::Coarse => &["pool", "backend", "reason"],
+            Granularity::Balanced => &["pool", "reason"],
+            Granularity::Fine => &["pool", "backend", "reason"],
+        }),
+        "acl" => Some(match granularity {
+            Granularity::Coarse | Granularity::Balanced => &["tier", "action", "listener"],
+            Granularity::Fine => &["tier", "action", "listener", "ip_family"],
+        }),
+        "cache_lookup" => Some(&["cache", "profile", "result"]),
+        _ => None,
+    }
+}
+
+/// Normalize an operator-supplied dimension list into canonical vocabulary
+/// order. Unknown dimensions must be rejected by the caller before this.
+fn normalize_dimensions(allowed: &[&str], provided: &[String]) -> Vec<String> {
+    allowed
+        .iter()
+        .filter(|dim| provided.iter().any(|d| d == *dim))
+        .map(|dim| dim.to_string())
+        .collect()
+}
+
 /// Maintainer table: categories in `base: minimal` (design §12).
 ///
 /// **Intentional 1.x expansion:** `health` is included here even though
@@ -162,29 +282,6 @@ pub fn default_granularity_for_base(base: MetricsBase) -> Granularity {
     }
 }
 
-/// Maintainer table: closed dimension vocabulary per family, in canonical
-/// order (used to normalize operator-provided lists at compile time).
-///
-/// G1 scope: validated here; **not yet applied** to `BuiltinRegistry`
-/// registration (per-family granularity wiring is Phase C / gate G3).
-pub fn family_allowed_dimensions(family: &str) -> Option<&'static [&'static str]> {
-    match family {
-        "volume" => Some(&["listener", "protocol", "qtype", "qclass", "ip_family"]),
-        "responses" => Some(&[
-            "listener",
-            "protocol",
-            "rcode",
-            "ip_family",
-            "answer_source",
-        ]),
-        "timing" => Some(&["pool", "backend"]),
-        "forward_failures" => Some(&["pool", "backend", "reason"]),
-        "acl" => Some(&["tier", "action", "listener", "ip_family"]),
-        "cache_lookup" => Some(&["cache", "profile", "result"]),
-        _ => None,
-    }
-}
-
 /// Per-user-metric collect/emit flags (design §Decisions 4, §11).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct UserMetricMode {
@@ -203,9 +300,14 @@ pub struct CompiledMetricsPlan {
     pub collect: BTreeMap<MetricCategory, bool>,
     pub emit: BTreeMap<MetricCategory, bool>,
     pub granularity_default: Granularity,
-    /// Validated, normalized per-family dimension overrides. Not yet applied
-    /// to registration (G3); reserved for the granularity phase.
+    /// Validated per-family dimension overrides as supplied (before preset
+    /// merge). Prefer [`Self::dimensions_for`] for the resolved list.
     pub granularity_overrides: BTreeMap<String, Vec<String>>,
+    /// Fully resolved dimension lists per family after preset expansion and
+    /// per-family overrides (design §Decisions 5).
+    pub family_dimensions: BTreeMap<String, Vec<String>>,
+    /// Responses `rcode` value mode (orthogonal to dimension lists).
+    pub responses_rcode: ResponsesRcodeBucketing,
     pub event_export_collect: bool,
     pub event_export_emit: bool,
     /// Explicit `metrics.user_metrics[]` overrides (name without `conduit_user_`
@@ -224,10 +326,25 @@ impl CompiledMetricsPlan {
             emit: BTreeMap::new(),
             granularity_default: Granularity::Fine,
             granularity_overrides: BTreeMap::new(),
+            family_dimensions: BTreeMap::new(),
+            responses_rcode: ResponsesRcodeBucketing::Iana,
             event_export_collect: false,
             event_export_emit: false,
             user_metrics: BTreeMap::new(),
         }
+    }
+
+    /// Resolved label dimensions for `family` (empty slice when unknown).
+    pub fn dimensions_for(&self, family: &str) -> &[String] {
+        self.family_dimensions
+            .get(family)
+            .map(|v| v.as_slice())
+            .unwrap_or(&[])
+    }
+
+    /// Whether `family`'s resolved schema includes `dim`.
+    pub fn has_dimension(&self, family: &str, dim: &str) -> bool {
+        self.dimensions_for(family).iter().any(|d| d == dim)
     }
 
     /// Host/hot-path collect mask for `cat` (design §Decisions 4).
@@ -561,6 +678,9 @@ pub fn resolve_metrics_plan(m: Option<&MetricsConfig>) -> Result<PlanResolution,
 
     let mut granularity_default = default_granularity_for_base(base);
     let mut granularity_overrides = BTreeMap::new();
+    let mut responses_rcode_override: Option<ResponsesRcodeBucketing> = None;
+    // Families whose dimension list was explicitly replaced (including `[]`).
+    let mut dimension_override_families = BTreeSet::new();
     if let Some(g) = &m.granularity {
         if !g.default.is_empty() {
             match Granularity::from_str_opt(&g.default) {
@@ -574,23 +694,57 @@ pub fn resolve_metrics_plan(m: Option<&MetricsConfig>) -> Result<PlanResolution,
         for (family, list) in &g.overrides {
             match family_allowed_dimensions(family) {
                 Some(allowed) => {
-                    for dim in &list.dimensions {
-                        if !allowed.contains(&dim.as_str()) {
+                    if list.dimensions_set {
+                        for dim in &list.dimensions {
+                            if !allowed.contains(&dim.as_str()) {
+                                errors.push(format!(
+                                    "metrics.granularity.{family} dimension '{dim}' is not valid for family '{family}'"
+                                ));
+                            }
+                        }
+                        let normalized = normalize_dimensions(allowed, &list.dimensions);
+                        granularity_overrides.insert(family.clone(), normalized);
+                        dimension_override_families.insert(family.clone());
+                    }
+                    if !list.rcode.is_empty() {
+                        if family != "responses" {
                             errors.push(format!(
-                                "metrics.granularity.{family} dimension '{dim}' is not valid for family '{family}'"
+                                "metrics.granularity.{family}.rcode is only valid under the responses family"
                             ));
+                        } else {
+                            match ResponsesRcodeBucketing::from_str_opt(&list.rcode) {
+                                Some(mode) => responses_rcode_override = Some(mode),
+                                None => errors.push(format!(
+                                    "metrics.granularity.responses.rcode '{}' must be coarse or iana",
+                                    list.rcode
+                                )),
+                            }
                         }
                     }
-                    let normalized: Vec<String> = allowed
-                        .iter()
-                        .filter(|dim| list.dimensions.iter().any(|d| d == *dim))
-                        .map(|dim| dim.to_string())
-                        .collect();
-                    granularity_overrides.insert(family.clone(), normalized);
                 }
                 None => errors.push(format!("metrics.granularity has unknown family '{family}'")),
             }
         }
+    }
+
+    let responses_rcode =
+        responses_rcode_override.unwrap_or_else(|| default_responses_rcode(granularity_default));
+
+    let mut family_dimensions = BTreeMap::new();
+    for family in GRANULARITY_FAMILIES {
+        let dims = if dimension_override_families.contains(*family) {
+            granularity_overrides
+                .get(*family)
+                .cloned()
+                .unwrap_or_default()
+        } else {
+            preset_family_dimensions(family, granularity_default)
+                .unwrap_or(&[])
+                .iter()
+                .map(|s| s.to_string())
+                .collect()
+        };
+        family_dimensions.insert((*family).to_string(), dims);
     }
 
     let mut collect = BTreeMap::new();
@@ -697,6 +851,8 @@ pub fn resolve_metrics_plan(m: Option<&MetricsConfig>) -> Result<PlanResolution,
             emit,
             granularity_default,
             granularity_overrides,
+            family_dimensions,
+            responses_rcode,
             event_export_collect,
             event_export_emit,
             user_metrics,
@@ -864,16 +1020,27 @@ mod tests {
         assert!(res.plan.event_export_emit);
     }
 
+    fn dims(dimensions: Vec<&str>) -> MetricsDimensionList {
+        MetricsDimensionList {
+            dimensions: dimensions.into_iter().map(str::to_string).collect(),
+            rcode: String::new(),
+            dimensions_set: true,
+        }
+    }
+
+    fn responses_rcode_only(rcode: &str) -> MetricsDimensionList {
+        MetricsDimensionList {
+            dimensions: vec![],
+            rcode: rcode.into(),
+            dimensions_set: false,
+        }
+    }
+
     #[test]
     fn unknown_granularity_family_errors() {
         let mut cfg = base_config();
         let mut overrides = std::collections::HashMap::new();
-        overrides.insert(
-            "bogus_family".to_string(),
-            MetricsDimensionList {
-                dimensions: vec!["pool".into()],
-            },
-        );
+        overrides.insert("bogus_family".to_string(), dims(vec!["pool"]));
         cfg.granularity = Some(MetricsGranularity {
             default: String::new(),
             overrides,
@@ -886,12 +1053,7 @@ mod tests {
     fn invalid_dimension_for_family_errors() {
         let mut cfg = base_config();
         let mut overrides = std::collections::HashMap::new();
-        overrides.insert(
-            "timing".to_string(),
-            MetricsDimensionList {
-                dimensions: vec!["qname".into()],
-            },
-        );
+        overrides.insert("timing".to_string(), dims(vec!["qname"]));
         cfg.granularity = Some(MetricsGranularity {
             default: String::new(),
             overrides,
@@ -904,12 +1066,7 @@ mod tests {
     fn granularity_override_normalizes_dimension_order() {
         let mut cfg = base_config();
         let mut overrides = std::collections::HashMap::new();
-        overrides.insert(
-            "timing".to_string(),
-            MetricsDimensionList {
-                dimensions: vec!["backend".into(), "pool".into()],
-            },
-        );
+        overrides.insert("timing".to_string(), dims(vec!["backend", "pool"]));
         cfg.granularity = Some(MetricsGranularity {
             default: String::new(),
             overrides,
@@ -919,18 +1076,17 @@ mod tests {
             res.plan.granularity_overrides.get("timing").unwrap(),
             &vec!["pool".to_string(), "backend".to_string()]
         );
+        assert_eq!(
+            res.plan.dimensions_for("timing"),
+            &["pool".to_string(), "backend".to_string()]
+        );
     }
 
     #[test]
     fn backend_without_pool_allowed() {
         let mut cfg = base_config();
         let mut overrides = std::collections::HashMap::new();
-        overrides.insert(
-            "forward_failures".to_string(),
-            MetricsDimensionList {
-                dimensions: vec!["backend".into()],
-            },
-        );
+        overrides.insert("forward_failures".to_string(), dims(vec!["backend"]));
         cfg.granularity = Some(MetricsGranularity {
             default: String::new(),
             overrides,
@@ -943,6 +1099,169 @@ mod tests {
                 .unwrap(),
             &vec!["backend".to_string()]
         );
+        assert_eq!(
+            res.plan.dimensions_for("forward_failures"),
+            &["backend".to_string()]
+        );
+    }
+
+    #[test]
+    fn balanced_default_expands_timing_to_pool_only() {
+        let mut cfg = base_config();
+        cfg.granularity = Some(MetricsGranularity {
+            default: "balanced".into(),
+            overrides: Default::default(),
+        });
+        let res = resolve_metrics_plan(Some(&cfg)).unwrap();
+        assert_eq!(res.plan.granularity_default, Granularity::Balanced);
+        assert_eq!(res.plan.dimensions_for("timing"), &["pool".to_string()]);
+        assert_eq!(
+            res.plan.dimensions_for("volume"),
+            &[
+                "listener".to_string(),
+                "protocol".to_string(),
+                "qtype".to_string()
+            ]
+        );
+        assert_eq!(res.plan.responses_rcode, ResponsesRcodeBucketing::Coarse);
+    }
+
+    #[test]
+    fn timing_override_replaces_balanced_preset() {
+        let mut cfg = base_config();
+        let mut overrides = std::collections::HashMap::new();
+        overrides.insert("timing".to_string(), dims(vec!["pool", "backend"]));
+        cfg.granularity = Some(MetricsGranularity {
+            default: "balanced".into(),
+            overrides,
+        });
+        let res = resolve_metrics_plan(Some(&cfg)).unwrap();
+        assert_eq!(
+            res.plan.dimensions_for("timing"),
+            &["pool".to_string(), "backend".to_string()]
+        );
+    }
+
+    #[test]
+    fn empty_timing_dimensions_aggregate() {
+        let mut cfg = base_config();
+        let mut overrides = std::collections::HashMap::new();
+        overrides.insert("timing".to_string(), dims(vec![]));
+        cfg.granularity = Some(MetricsGranularity {
+            default: "fine".into(),
+            overrides,
+        });
+        let res = resolve_metrics_plan(Some(&cfg)).unwrap();
+        assert!(res.plan.dimensions_for("timing").is_empty());
+        // Other families still use fine preset.
+        assert_eq!(
+            res.plan.dimensions_for("volume"),
+            &[
+                "listener".to_string(),
+                "protocol".to_string(),
+                "qtype".to_string(),
+                "qclass".to_string(),
+                "ip_family".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn responses_rcode_only_override_keeps_preset_dimensions() {
+        let mut cfg = base_config();
+        let mut overrides = std::collections::HashMap::new();
+        overrides.insert("responses".to_string(), responses_rcode_only("coarse"));
+        cfg.granularity = Some(MetricsGranularity {
+            default: "fine".into(),
+            overrides,
+        });
+        let res = resolve_metrics_plan(Some(&cfg)).unwrap();
+        assert_eq!(res.plan.responses_rcode, ResponsesRcodeBucketing::Coarse);
+        assert_eq!(
+            res.plan.dimensions_for("responses"),
+            &[
+                "listener".to_string(),
+                "protocol".to_string(),
+                "rcode".to_string(),
+                "ip_family".to_string(),
+                "answer_source".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn default_standard_plan_matches_shipped_full_schemas() {
+        let cfg = base_config();
+        let res = resolve_metrics_plan(Some(&cfg)).unwrap();
+        assert_eq!(res.plan.base, MetricsBase::Standard);
+        assert_eq!(res.plan.granularity_default, Granularity::Fine);
+        assert_eq!(res.plan.responses_rcode, ResponsesRcodeBucketing::Iana);
+        assert_eq!(
+            res.plan.dimensions_for("volume"),
+            &[
+                "listener".to_string(),
+                "protocol".to_string(),
+                "qtype".to_string(),
+                "qclass".to_string(),
+                "ip_family".to_string()
+            ]
+        );
+        assert_eq!(
+            res.plan.dimensions_for("responses"),
+            &[
+                "listener".to_string(),
+                "protocol".to_string(),
+                "rcode".to_string(),
+                "ip_family".to_string(),
+                "answer_source".to_string()
+            ]
+        );
+        assert_eq!(
+            res.plan.dimensions_for("timing"),
+            &["pool".to_string(), "backend".to_string()]
+        );
+        assert_eq!(
+            res.plan.dimensions_for("forward_failures"),
+            &[
+                "pool".to_string(),
+                "backend".to_string(),
+                "reason".to_string()
+            ]
+        );
+        assert_eq!(
+            res.plan.dimensions_for("acl"),
+            &[
+                "tier".to_string(),
+                "action".to_string(),
+                "listener".to_string(),
+                "ip_family".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn profile_full_alias_matches_shipped_full_schemas() {
+        let mut cfg = base_config();
+        cfg.profile = "full".into();
+        let res = resolve_metrics_plan(Some(&cfg)).unwrap();
+        assert_eq!(
+            res.plan.dimensions_for("timing"),
+            &["pool".to_string(), "backend".to_string()]
+        );
+        assert_eq!(res.plan.responses_rcode, ResponsesRcodeBucketing::Iana);
+    }
+
+    #[test]
+    fn minimal_base_uses_coarse_presets() {
+        let mut cfg = base_config();
+        cfg.base = "minimal".into();
+        let res = resolve_metrics_plan(Some(&cfg)).unwrap();
+        assert_eq!(
+            res.plan.dimensions_for("volume"),
+            &["listener".to_string(), "protocol".to_string()]
+        );
+        assert!(res.plan.dimensions_for("timing").is_empty());
+        assert_eq!(res.plan.responses_rcode, ResponsesRcodeBucketing::Coarse);
     }
 
     #[test]
