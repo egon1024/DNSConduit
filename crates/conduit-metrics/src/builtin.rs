@@ -133,6 +133,19 @@ enum ResponseDuration {
 pub struct BuiltinRegistry {
     enabled: bool,
     profile: BuiltinProfile,
+    /// `health` category membership from the compiled plan (metrics-configurability
+    /// design §12). Independent of `profile`/granularity: `base: minimal` now
+    /// includes health series — an intentional 1.x expansion vs the legacy
+    /// `profile: minimal`, which omitted health entirely.
+    health_enabled: bool,
+    /// Plan collect mask for a representative set of categories (design
+    /// §Decisions 4). Wired for `volume`, `failures`, and `timing` per the
+    /// metrics-configurability G1 scope; `lookup`/`cache_detail` remain tied
+    /// to `enabled`/`profile` for now (deferred to the granularity/export
+    /// phases).
+    collect_volume: bool,
+    collect_failures: bool,
+    collect_timing: bool,
     registry: Registry,
     queries_total: QueriesTotal,
     responses_total: Option<ResponsesTotal>,
@@ -188,7 +201,53 @@ pub struct BuiltinRegistry {
 }
 
 impl BuiltinRegistry {
+    /// Legacy two-tier constructor, preserved for existing call sites and
+    /// tests. `health` registration is tied to `profile == Full`, matching
+    /// today's shipped behavior exactly.
     pub fn new(enabled: bool, profile: BuiltinProfile) -> Self {
+        let health_enabled = enabled && profile == BuiltinProfile::Full;
+        Self::new_internal(enabled, profile, health_enabled, true, true, true)
+    }
+
+    /// Plan-driven constructor (metrics-configurability design). `health`
+    /// registration is governed by category membership + collect flag,
+    /// independent of the full/minimal label-schema split — this is what
+    /// makes `base: minimal` include health series (design §12 "intentional
+    /// expansion").
+    pub fn new_from_plan(plan: &crate::plan::CompiledMetricsPlan) -> Self {
+        use crate::plan::{Granularity, MetricCategory};
+
+        let enabled = plan.enabled;
+        let profile = if !enabled {
+            BuiltinProfile::Off
+        } else if plan.granularity_default == Granularity::Fine {
+            BuiltinProfile::Full
+        } else {
+            BuiltinProfile::Minimal
+        };
+        let health_enabled = plan.collect_for(MetricCategory::Health);
+        let collect_volume = plan.collect_for(MetricCategory::Volume);
+        let collect_failures = plan.collect_for(MetricCategory::Failures);
+        let collect_timing = plan.collect_for(MetricCategory::Timing);
+        Self::new_internal(
+            enabled,
+            profile,
+            health_enabled,
+            collect_volume,
+            collect_failures,
+            collect_timing,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn new_internal(
+        enabled: bool,
+        profile: BuiltinProfile,
+        health_enabled: bool,
+        collect_volume: bool,
+        collect_failures: bool,
+        collect_timing: bool,
+    ) -> Self {
         let registry = Registry::new();
         let effective = enabled && profile != BuiltinProfile::Off;
         let is_full = profile == BuiltinProfile::Full;
@@ -696,7 +755,7 @@ impl BuiltinRegistry {
             backend_health_transitions_total,
             pool_backends_active,
             probe_results,
-        ) = if is_full {
+        ) = if health_enabled {
             let observed = GaugeVec::new(
                 Opts::new(
                     "conduit_backend_health_observed",
@@ -812,6 +871,10 @@ impl BuiltinRegistry {
         Self {
             enabled: effective,
             profile,
+            health_enabled: effective && health_enabled,
+            collect_volume,
+            collect_failures,
+            collect_timing,
             registry,
             queries_total,
             responses_total,
@@ -872,6 +935,12 @@ impl BuiltinRegistry {
         self.enabled
     }
 
+    /// Whether the `health` category is active in the compiled plan (design
+    /// §12). Independent of `profile`; see [`Self::new_from_plan`].
+    pub fn health_enabled(&self) -> bool {
+        self.health_enabled
+    }
+
     pub fn profile(&self) -> BuiltinProfile {
         self.profile
     }
@@ -884,7 +953,7 @@ impl BuiltinRegistry {
         qclass: Option<u16>,
         client_addr: &std::net::SocketAddr,
     ) {
-        if !self.enabled {
+        if !self.enabled || !self.collect_volume {
             return;
         }
         match &self.queries_total {
@@ -902,7 +971,7 @@ impl BuiltinRegistry {
     }
 
     pub fn record_parse_rejected(&self, reason: &str) {
-        if !self.enabled {
+        if !self.enabled || !self.collect_failures {
             return;
         }
         if let Some(ref c) = self.parse_rejected_total {
@@ -918,7 +987,7 @@ impl BuiltinRegistry {
         reason: &str,
         client_addr: &std::net::SocketAddr,
     ) {
-        if !self.enabled {
+        if !self.enabled || !self.collect_volume {
             return;
         }
         if let Some(ref dropped) = self.queries_dropped_total {
@@ -946,7 +1015,7 @@ impl BuiltinRegistry {
         listener: &str,
         client_ip: std::net::IpAddr,
     ) {
-        if !self.enabled {
+        if !self.enabled || !self.collect_volume {
             return;
         }
         if let Some(ref acl) = self.acl_decisions_total {
@@ -964,7 +1033,7 @@ impl BuiltinRegistry {
     }
 
     pub fn record_query_by_pool(&self, pool: &str) {
-        if !self.enabled {
+        if !self.enabled || !self.collect_volume {
             return;
         }
         self.queries_by_pool_total.with_label_values(&[pool]).inc();
@@ -978,7 +1047,7 @@ impl BuiltinRegistry {
         client_addr: &std::net::SocketAddr,
         answer_source: Option<&str>,
     ) {
-        if !self.enabled {
+        if !self.enabled || !self.collect_volume {
             return;
         }
         let answer_source = answer_source.unwrap_or("");
@@ -1006,7 +1075,7 @@ impl BuiltinRegistry {
         client_addr: &std::net::SocketAddr,
         answer_source: Option<&str>,
     ) {
-        if !self.enabled {
+        if !self.enabled || !self.collect_volume {
             return;
         }
         let answer_source = answer_source.unwrap_or("");
@@ -1111,7 +1180,7 @@ impl BuiltinRegistry {
     }
 
     pub fn observe_phase(&self, phase: &str, duration_secs: f64) {
-        if !self.enabled || self.profile == BuiltinProfile::Minimal {
+        if !self.enabled || self.profile == BuiltinProfile::Minimal || !self.collect_timing {
             return;
         }
         self.phase_duration
@@ -1120,7 +1189,7 @@ impl BuiltinRegistry {
     }
 
     pub fn record_forward_attempt(&self, pool: &str, backend: &str, outcome: &str) {
-        if !self.enabled || self.profile == BuiltinProfile::Minimal {
+        if !self.enabled || self.profile == BuiltinProfile::Minimal || !self.collect_timing {
             return;
         }
         self.forward_attempts
@@ -1129,7 +1198,7 @@ impl BuiltinRegistry {
     }
 
     pub fn record_forward_error(&self, pool: &str, backend: &str, reason: &str) {
-        if !self.enabled {
+        if !self.enabled || !self.collect_failures {
             return;
         }
         self.forward_errors
@@ -1142,7 +1211,7 @@ impl BuiltinRegistry {
     /// `outcome` is one of: `success`, `failure` (unacceptable reply),
     /// `timeout`, or `send_error` (transport send/connect failure).
     pub fn record_probe_result(&self, pool: &str, backend: &str, outcome: &str) {
-        if !self.enabled || self.profile == BuiltinProfile::Minimal {
+        if !self.enabled || !self.health_enabled {
             return;
         }
         let Some(counter) = self.probe_results.as_ref() else {
@@ -1152,7 +1221,7 @@ impl BuiltinRegistry {
     }
 
     pub fn record_forward_duration(&self, pool: &str, backend: &str, duration_secs: f64) {
-        if !self.enabled || self.profile == BuiltinProfile::Minimal {
+        if !self.enabled || self.profile == BuiltinProfile::Minimal || !self.collect_timing {
             return;
         }
         self.forward_duration
@@ -1161,14 +1230,14 @@ impl BuiltinRegistry {
     }
 
     pub fn record_retry(&self, pool: &str) {
-        if !self.enabled {
+        if !self.enabled || !self.collect_failures {
             return;
         }
         self.retries_total.with_label_values(&[pool]).inc();
     }
 
     pub fn record_script_error(&self, reason: &str, script: &str, table: &str) {
-        if !self.enabled {
+        if !self.enabled || !self.collect_failures {
             return;
         }
         if let Some(ref c) = self.script_errors_total {
@@ -2007,6 +2076,176 @@ mod tests {
                 r#"conduit_backend_health_effective_weight{backend="127.0.0.1:5300",pool="default"} 100"#
             ),
             "panic fail-open should show configured weight, body:\n{body}"
+        );
+    }
+
+    fn minimal_plan() -> crate::plan::CompiledMetricsPlan {
+        use conduit_proto::config::MetricsConfig;
+        let cfg = MetricsConfig {
+            enabled: true,
+            profile: String::new(),
+            prometheus: None,
+            otel: None,
+            user_metrics: vec![],
+            base: "minimal".into(),
+            categories: None,
+            granularity: None,
+            collection: Default::default(),
+            event_export: None,
+        };
+        crate::plan::resolve_metrics_plan(Some(&cfg)).unwrap().plan
+    }
+
+    fn standard_plan() -> crate::plan::CompiledMetricsPlan {
+        use conduit_proto::config::MetricsConfig;
+        let cfg = MetricsConfig {
+            enabled: true,
+            profile: String::new(),
+            prometheus: None,
+            otel: None,
+            user_metrics: vec![],
+            base: "standard".into(),
+            categories: None,
+            granularity: None,
+            collection: Default::default(),
+            event_export: None,
+        };
+        crate::plan::resolve_metrics_plan(Some(&cfg)).unwrap().plan
+    }
+
+    /// G1 lab requirement: `base: minimal` includes health series — an
+    /// intentional expansion vs the legacy `profile: minimal`, which omitted
+    /// health entirely (design §12).
+    #[test]
+    fn plan_driven_minimal_base_includes_health_series() {
+        let reg = BuiltinRegistry::new_from_plan(&minimal_plan());
+        assert!(reg.health_enabled(), "base: minimal must enable health");
+        reg.set_scrape_snapshot_fn(Arc::new(|| ScrapeGaugeSnapshot {
+            health_backends: vec![HealthScrapeBackend {
+                pool: "default".into(),
+                backend: "127.0.0.1:5300".into(),
+                observed: 1.0,
+                applied: 1.0,
+                probe_automatic: 1.0,
+                effective_weight: 100.0,
+                latency_ewma_ms: Some(1.5),
+                transitions_total: 1,
+            }],
+            pool_backends_active: vec![("default".into(), 1)],
+            ..Default::default()
+        }));
+        reg.record_probe_result("default", "127.0.0.1:5300", "success");
+        let body = encode_builtin(reg.gather());
+        assert!(
+            body.contains("conduit_backend_health_observed"),
+            "base: minimal must expose health gauges, body:\n{body}"
+        );
+        assert!(
+            body.contains("conduit_probe_results_total"),
+            "base: minimal must record probe results, body:\n{body}"
+        );
+        // Still coarse-schema for volume (minimal granularity), unlike standard.
+        assert!(
+            !body.contains(r#"qtype="#),
+            "minimal plan must not add qtype label, body:\n{body}"
+        );
+    }
+
+    /// Legacy `profile: minimal` (via `new()`) must continue omitting health
+    /// — only the new plan-driven path expands minimal to include health.
+    #[test]
+    fn legacy_minimal_constructor_still_omits_health() {
+        let reg = BuiltinRegistry::new(true, BuiltinProfile::Minimal);
+        assert!(!reg.health_enabled());
+    }
+
+    #[test]
+    fn plan_driven_standard_base_matches_full_profile_schema() {
+        let reg = BuiltinRegistry::new_from_plan(&standard_plan());
+        assert!(reg.health_enabled());
+        assert_eq!(reg.profile(), BuiltinProfile::Full);
+        let addr: std::net::SocketAddr = "127.0.0.1:15353".parse().unwrap();
+        reg.record_query("ln", "udp", Some(1), Some(1), &addr);
+        let body = encode_builtin(reg.gather());
+        assert!(body.contains(r#"qtype="A""#), "body:\n{body}");
+    }
+
+    /// `collection.timing.collect: false` must suppress forward duration
+    /// observations even though the timing category remains resolved
+    /// (design §"Category collect disabled" scenario).
+    #[test]
+    fn collect_false_for_timing_suppresses_forward_duration_observations() {
+        use conduit_proto::config::{MetricsCollectEmit, MetricsConfig};
+        let mut collection = std::collections::HashMap::new();
+        collection.insert(
+            "timing".to_string(),
+            MetricsCollectEmit {
+                collect: Some(false),
+                emit: Some(false),
+            },
+        );
+        let cfg = MetricsConfig {
+            enabled: true,
+            profile: String::new(),
+            prometheus: None,
+            otel: None,
+            user_metrics: vec![],
+            base: "standard".into(),
+            categories: None,
+            granularity: None,
+            collection,
+            event_export: None,
+        };
+        let plan = crate::plan::resolve_metrics_plan(Some(&cfg)).unwrap().plan;
+        assert!(plan
+            .categories
+            .contains(&crate::plan::MetricCategory::Timing));
+        assert!(!plan.collect_for(crate::plan::MetricCategory::Timing));
+
+        let reg = BuiltinRegistry::new_from_plan(&plan);
+        reg.record_forward_duration("default", "127.0.0.1:5300", 0.05);
+        reg.observe_phase("route", 0.01);
+        let body = encode_builtin(reg.gather());
+        assert!(
+            !body.contains("conduit_forward_duration_seconds_bucket"),
+            "collect: false must suppress observations, body:\n{body}"
+        );
+        assert!(
+            !body.contains("conduit_phase_duration_seconds_bucket"),
+            "collect: false must suppress observations, body:\n{body}"
+        );
+    }
+
+    /// `categories.exclude: [failures]` resolves (with a warning, tested in
+    /// `plan::tests`) and must suppress failure-category recording.
+    #[test]
+    fn excluded_failures_category_suppresses_recording() {
+        use conduit_proto::config::{MetricsCategories, MetricsConfig};
+        let cfg = MetricsConfig {
+            enabled: true,
+            profile: String::new(),
+            prometheus: None,
+            otel: None,
+            user_metrics: vec![],
+            base: "standard".into(),
+            categories: Some(MetricsCategories {
+                include: vec![],
+                exclude: vec!["failures".into()],
+            }),
+            granularity: None,
+            collection: Default::default(),
+            event_export: None,
+        };
+        let plan = crate::plan::resolve_metrics_plan(Some(&cfg)).unwrap().plan;
+        assert!(!plan.collect_for(crate::plan::MetricCategory::Failures));
+
+        let reg = BuiltinRegistry::new_from_plan(&plan);
+        reg.record_forward_error("default", "127.0.0.1:5300", "timeout");
+        reg.record_retry("default");
+        let body = encode_builtin(reg.gather());
+        assert!(
+            !body.contains(r#"conduit_forward_errors_total{backend="127.0.0.1:5300""#),
+            "excluded failures category must suppress recording, body:\n{body}"
         );
     }
 }

@@ -1,12 +1,27 @@
 //! Compile metrics and tracing sections from config.
 
+use crate::plan::{resolve_metrics_plan, CompiledMetricsPlan, Granularity};
 use conduit_events::{
     compile_sample_key_fields, compile_selectors, hash_sample_keyed, parse_sample_percent,
     resolve_sample_key, validate_non_rule_selector_type, CompiledSelector, SampleKey,
     SelectorCompileCtx, SelectorMatchCtx,
 };
 use conduit_proto::config::{Config, MetricsConfig, TracingConfig};
+use std::sync::atomic::{AtomicBool, Ordering};
 
+/// Once-per-process gate for the `metrics.profile` deprecation log line
+/// (design §"Profile alias migration": "emitted once at process load, not
+/// on every validate"). The pure [`resolve_metrics_plan`] always returns the
+/// warning text (so it stays unit-testable); this flag only dedupes the
+/// actual `tracing::warn!` emission across repeated compiles/reloads.
+static PROFILE_DEPRECATION_LOGGED: AtomicBool = AtomicBool::new(false);
+
+/// Backward-compatible label-schema tier derived from the compiled plan's
+/// default granularity. Kept for call sites (e.g. Rhai user-metric export
+/// tiering) that predate the `MetricsPlan` model; `BuiltinRegistry` prefers
+/// [`CompiledMetricsPlan`] category membership directly where it matters
+/// (e.g. `health` is plan-driven, not tied to this tier — see
+/// [`crate::builtin::BuiltinRegistry::new_from_plan`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BuiltinProfile {
     Full,
@@ -18,6 +33,9 @@ pub enum BuiltinProfile {
 pub struct CompiledMetrics {
     pub enabled: bool,
     pub profile: BuiltinProfile,
+    /// Composable metrics plan (metrics-configurability design). Source of
+    /// truth for category membership, collect/emit, and default granularity.
+    pub plan: CompiledMetricsPlan,
     pub prometheus_listen: Option<String>,
     pub prometheus_path: String,
     pub otel_endpoint: Option<String>,
@@ -33,6 +51,7 @@ impl Default for CompiledMetrics {
         Self {
             enabled: false,
             profile: BuiltinProfile::Off,
+            plan: CompiledMetricsPlan::disabled(),
             prometheus_listen: None,
             prometheus_path: "/metrics".into(),
             otel_endpoint: None,
@@ -70,17 +89,39 @@ fn compile_metrics(m: Option<&MetricsConfig>) -> CompiledMetrics {
     let Some(m) = m else {
         return CompiledMetrics::default();
     };
-    if !m.enabled {
+    // Resolve the composable plan (base/categories/granularity/collect/emit).
+    // This is the snapshot-compile path (never fails the process): a config
+    // that fails plan resolution is rejected earlier by
+    // `conduit_metrics::validate_metrics_tracing` before any swap, so the
+    // fallback below is defensive only.
+    let resolution = resolve_metrics_plan(Some(m));
+    let plan = match &resolution {
+        Ok(r) => r.plan.clone(),
+        Err(_) => CompiledMetricsPlan::disabled(),
+    };
+    if let Ok(r) = &resolution {
+        for w in &r.warnings {
+            if w == crate::plan::PROFILE_DEPRECATION_WARNING {
+                if !PROFILE_DEPRECATION_LOGGED.swap(true, Ordering::Relaxed) {
+                    tracing::warn!("{w}");
+                }
+            } else {
+                tracing::warn!("{w}");
+            }
+        }
+    }
+    if !plan.enabled {
         return CompiledMetrics {
             enabled: false,
             profile: BuiltinProfile::Off,
+            plan,
             ..Default::default()
         };
     }
-    let profile = match m.profile.as_str() {
-        "minimal" => BuiltinProfile::Minimal,
-        "off" => BuiltinProfile::Off,
-        _ => BuiltinProfile::Full,
+    let profile = if plan.granularity_default == Granularity::Fine {
+        BuiltinProfile::Full
+    } else {
+        BuiltinProfile::Minimal
     };
     let prometheus_listen = m
         .prometheus
@@ -100,8 +141,9 @@ fn compile_metrics(m: Option<&MetricsConfig>) -> CompiledMetrics {
         .unwrap_or_else(|| "/metrics".into());
     let otel = m.otel.as_ref();
     CompiledMetrics {
-        enabled: profile != BuiltinProfile::Off,
+        enabled: plan.enabled,
         profile,
+        plan,
         prometheus_listen,
         prometheus_path,
         otel_endpoint: otel
@@ -200,13 +242,12 @@ pub fn trace_activation_matches(
 pub fn validate_metrics_tracing(cfg: &Config) -> Vec<String> {
     let mut errors = Vec::new();
     if let Some(m) = &cfg.metrics {
+        // Plan resolution owns base/categories/granularity/collect-emit
+        // validation (metrics-configurability design §Resolution order).
+        if let Err(plan_errors) = resolve_metrics_plan(Some(m)) {
+            errors.extend(plan_errors);
+        }
         if m.enabled {
-            if !matches!(m.profile.as_str(), "full" | "minimal" | "off" | "") {
-                errors.push(format!(
-                    "metrics.profile '{}' must be full, minimal, or off",
-                    m.profile
-                ));
-            }
             if let Some(p) = &m.prometheus {
                 if !p.listen_address.is_empty()
                     && p.listen_address.parse::<std::net::SocketAddr>().is_err()
@@ -409,6 +450,11 @@ mod tests {
                         .into_iter()
                         .collect(),
                 }),
+                base: String::new(),
+                categories: None,
+                granularity: None,
+                collection: Default::default(),
+                event_export: None,
                 user_metrics: vec![],
             }),
             listeners: None,

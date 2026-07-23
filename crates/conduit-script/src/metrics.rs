@@ -257,6 +257,11 @@ mod tests {
                 name: "block_hits".into(),
                 export: "minimal".into(),
             }],
+            base: String::new(),
+            categories: None,
+            granularity: None,
+            collection: Default::default(),
+            event_export: None,
         };
         reg.apply_user_metric_exports(Some(&cfg)).unwrap();
         assert!(reg.exports_at_profile("block_hits", BuiltinProfile::Minimal));
@@ -276,6 +281,11 @@ mod tests {
                 name: "missing".into(),
                 export: "minimal".into(),
             }],
+            base: String::new(),
+            categories: None,
+            granularity: None,
+            collection: Default::default(),
+            event_export: None,
         };
         let err = reg.apply_user_metric_exports(Some(&cfg)).unwrap_err();
         assert!(err.to_string().contains("unknown user metric"));
