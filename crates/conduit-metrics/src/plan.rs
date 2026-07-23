@@ -185,6 +185,13 @@ pub fn family_allowed_dimensions(family: &str) -> Option<&'static [&'static str]
     }
 }
 
+/// Per-user-metric collect/emit flags (design §Decisions 4, §11).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct UserMetricMode {
+    pub collect: bool,
+    pub emit: bool,
+}
+
 /// Compiled, generation-scoped metrics plan (design §Runtime architecture).
 ///
 /// Attached to [`crate::CompiledMetrics`] on `RuntimeSnapshot.metrics`.
@@ -201,6 +208,10 @@ pub struct CompiledMetricsPlan {
     pub granularity_overrides: BTreeMap<String, Vec<String>>,
     pub event_export_collect: bool,
     pub event_export_emit: bool,
+    /// Explicit `metrics.user_metrics[]` overrides (name without `conduit_user_`
+    /// prefix). Metrics not listed use the default `export: full` semantics
+    /// via [`Self::user_collect_for`] / [`Self::user_emit_for`].
+    pub user_metrics: BTreeMap<String, UserMetricMode>,
 }
 
 impl CompiledMetricsPlan {
@@ -215,6 +226,7 @@ impl CompiledMetricsPlan {
             granularity_overrides: BTreeMap::new(),
             event_export_collect: false,
             event_export_emit: false,
+            user_metrics: BTreeMap::new(),
         }
     }
 
@@ -226,6 +238,150 @@ impl CompiledMetricsPlan {
     /// Prometheus/OTLP emit mask for `cat` (design §Decisions 4).
     pub fn emit_for(&self, cat: MetricCategory) -> bool {
         self.enabled && self.categories.contains(&cat) && *self.emit.get(&cat).unwrap_or(&true)
+    }
+
+    /// Whether the resolved plan is "standard-tier" for legacy
+    /// `user_metrics[].export: full` (fine granularity ≡ today's `profile: full`).
+    pub fn user_metrics_standard_tier(&self) -> bool {
+        self.enabled && self.granularity_default == Granularity::Fine
+    }
+
+    /// Host collect mask for a Rhai user metric (bare name, no prefix).
+    pub fn user_collect_for(&self, name: &str) -> bool {
+        if !self.enabled {
+            return false;
+        }
+        if let Some(m) = self.user_metrics.get(name) {
+            return m.collect;
+        }
+        // Default = deprecated `export: full`: collect only on standard-tier plans.
+        self.user_metrics_standard_tier()
+    }
+
+    /// Prometheus/OTLP emit mask for a Rhai user metric (bare name, no prefix).
+    pub fn user_emit_for(&self, name: &str) -> bool {
+        if !self.enabled {
+            return false;
+        }
+        if let Some(m) = self.user_metrics.get(name) {
+            return m.emit;
+        }
+        self.user_metrics_standard_tier()
+    }
+
+    /// Whether a gathered Prometheus family name should be exported under
+    /// this plan's emit mask (built-ins by category; `conduit_user_*` by
+    /// user-metric mode; `conduit_events_*` by `event_export_emit`).
+    pub fn emits_family(&self, family_name: &str) -> bool {
+        if !self.enabled {
+            return false;
+        }
+        if family_name.starts_with("conduit_events_") {
+            return self.event_export_emit;
+        }
+        if let Some(bare) = family_name.strip_prefix("conduit_user_") {
+            return self.user_emit_for_sanitized(bare);
+        }
+        match builtin_metric_category(family_name) {
+            Some(cat) => self.emit_for(cat),
+            // Unknown family: keep exporting so we do not silently drop
+            // series during incremental registry growth.
+            None => true,
+        }
+    }
+
+    /// Emit mask for a Prometheus family bare name (`conduit_user_<bare>`).
+    fn user_emit_for_sanitized(&self, sanitized_bare: &str) -> bool {
+        if !self.enabled {
+            return false;
+        }
+        if let Some(m) = self.user_metrics.get(sanitized_bare) {
+            return m.emit;
+        }
+        for (name, mode) in &self.user_metrics {
+            if sanitize_user_metric_name(name) == sanitized_bare {
+                return mode.emit;
+            }
+        }
+        self.user_metrics_standard_tier()
+    }
+}
+
+/// Match [`crate::user`] Prometheus naming for Rhai user metrics.
+fn sanitize_user_metric_name(name: &str) -> String {
+    let mut out = String::with_capacity(name.len());
+    for c in name.chars() {
+        if c.is_ascii_alphanumeric() || c == '_' {
+            out.push(c);
+        } else {
+            out.push('_');
+        }
+    }
+    out
+}
+
+/// Map a built-in Prometheus family name to its dataplane category
+/// (design §12). Used by the emit filter in [`crate::export`].
+pub fn builtin_metric_category(family_name: &str) -> Option<MetricCategory> {
+    match family_name {
+        "conduit_queries_total"
+        | "conduit_responses_total"
+        | "conduit_responses_truncated_total"
+        | "conduit_queries_dropped_total"
+        | "conduit_acl_decisions_total"
+        | "conduit_queries_by_pool_total" => Some(MetricCategory::Volume),
+
+        "conduit_parse_rejected_total"
+        | "conduit_forward_errors_total"
+        | "conduit_script_errors_total"
+        | "conduit_retries_total"
+        | "conduit_slot_pool_exhausted_total" => Some(MetricCategory::Failures),
+
+        "conduit_lookup_provider_outcomes_total" | "conduit_cache_lookups_total" => {
+            Some(MetricCategory::Lookup)
+        }
+
+        "conduit_phase_duration_seconds"
+        | "conduit_forward_attempts_total"
+        | "conduit_forward_duration_seconds"
+        | "conduit_lookup_duration_seconds"
+        | "conduit_cache_lookup_duration_seconds"
+        | "conduit_response_duration_seconds" => Some(MetricCategory::Timing),
+
+        "conduit_cache_fills_total"
+        | "conduit_cache_singleflight_coalesced_total"
+        | "conduit_cache_evictions_total"
+        | "conduit_cache_entries" => Some(MetricCategory::CacheDetail),
+
+        "conduit_forward_outstanding" => Some(MetricCategory::ForwardDetail),
+
+        "conduit_backend_health_observed"
+        | "conduit_backend_health_applied"
+        | "conduit_backend_health_probe_automatic"
+        | "conduit_backend_health_effective_weight"
+        | "conduit_backend_health_latency_ewma_ms"
+        | "conduit_backend_health_transitions_total"
+        | "conduit_pool_backends_active"
+        | "conduit_probe_results_total" => Some(MetricCategory::Health),
+
+        "conduit_slots_in_use" | "conduit_slots_capacity" => Some(MetricCategory::Runtime),
+
+        "conduit_pool_backends_configured"
+        | "conduit_listener_info"
+        | "conduit_listener_ingress_threads"
+        | "conduit_listener_rcvbuf_bytes"
+        | "conduit_backend_info"
+        | "conduit_backend_weight" => Some(MetricCategory::Topology),
+
+        "conduit_process_resident_bytes" | "conduit_process_open_fds" => {
+            Some(MetricCategory::Process)
+        }
+
+        "conduit_build_info" | "conduit_start_time_seconds" | "conduit_config_generation" => {
+            Some(MetricCategory::Meta)
+        }
+
+        _ => None,
     }
 }
 
@@ -241,6 +397,10 @@ pub struct PlanResolution {
 /// Deprecation notice text for the `profile` alias (design §Migration Plan).
 pub const PROFILE_DEPRECATION_WARNING: &str =
     "metrics.profile is deprecated; use metrics.base instead (profile is retained as an alias through the 1.x line, removal is scheduled for 2.x)";
+
+/// Deprecation notice for `user_metrics[].export` (design §Decisions 11).
+pub const USER_METRIC_EXPORT_DEPRECATION_WARNING: &str =
+    "metrics.user_metrics[].export is deprecated; use collect/emit instead (export is retained as an alias through the 1.x line, removal is scheduled for 2.x)";
 
 /// Resolve `metrics:` config into a [`CompiledMetricsPlan`] (design
 /// §Resolution order). Pure function — logging/dedup of the one-time
@@ -466,6 +626,64 @@ pub fn resolve_metrics_plan(m: Option<&MetricsConfig>) -> Result<PlanResolution,
         (true, true)
     };
 
+    // Resolve per-user-metric collect/emit (explicit keys or deprecated `export`).
+    let standard_tier = granularity_default == Granularity::Fine;
+    let mut user_metrics = BTreeMap::new();
+    let mut seen_user = BTreeSet::new();
+    let mut export_alias_used = false;
+    for (i, u) in m.user_metrics.iter().enumerate() {
+        if u.name.is_empty() {
+            errors.push(format!("metrics.user_metrics[{i}].name must not be empty"));
+            continue;
+        }
+        if !seen_user.insert(u.name.clone()) {
+            errors.push(format!(
+                "metrics.user_metrics[{i}]: duplicate name '{}'",
+                u.name
+            ));
+            continue;
+        }
+        let explicit_collect = u.collect;
+        let explicit_emit = u.emit;
+        let has_explicit = explicit_collect.is_some() || explicit_emit.is_some();
+        let has_export = !u.export.is_empty();
+
+        if has_export {
+            export_alias_used = true;
+            if u.export != "minimal" && u.export != "full" {
+                errors.push(format!(
+                    "metrics.user_metrics[{i}].export must be 'minimal' or 'full'"
+                ));
+            }
+        }
+
+        let (collect, emit) = if has_explicit {
+            let c = explicit_collect.unwrap_or(true);
+            let e = explicit_emit.unwrap_or(true);
+            if !c && e {
+                errors.push(format!(
+                    "metrics.user_metrics[{i}] ({}): collect: false with emit: true is invalid",
+                    u.name
+                ));
+            }
+            (c, e)
+        } else if has_export {
+            match u.export.as_str() {
+                "minimal" => (true, true),
+                "full" | "" => (standard_tier, standard_tier),
+                _ => (standard_tier, standard_tier), // error already recorded
+            }
+        } else {
+            // No override keys: same as deprecated export:full default.
+            (standard_tier, standard_tier)
+        };
+
+        user_metrics.insert(u.name.clone(), UserMetricMode { collect, emit });
+    }
+    if export_alias_used {
+        warnings.push(USER_METRIC_EXPORT_DEPRECATION_WARNING.to_string());
+    }
+
     if !errors.is_empty() {
         return Err(errors);
     }
@@ -481,6 +699,7 @@ pub fn resolve_metrics_plan(m: Option<&MetricsConfig>) -> Result<PlanResolution,
             granularity_overrides,
             event_export_collect,
             event_export_emit,
+            user_metrics,
         },
         warnings,
     })
@@ -816,5 +1035,98 @@ mod tests {
         let r2 = resolve_metrics_plan(Some(&standard)).unwrap();
         assert!(r1.plan.categories.contains(&MetricCategory::Volume));
         assert!(r2.plan.categories.contains(&MetricCategory::Volume));
+    }
+
+    #[test]
+    fn user_metric_collect_only_explicit() {
+        use conduit_proto::config::UserMetricExportConfig;
+        let mut cfg = base_config();
+        cfg.user_metrics = vec![UserMetricExportConfig {
+            name: "block_hits".into(),
+            export: String::new(),
+            collect: Some(true),
+            emit: Some(false),
+        }];
+        let res = resolve_metrics_plan(Some(&cfg)).unwrap();
+        assert!(res.plan.user_collect_for("block_hits"));
+        assert!(!res.plan.user_emit_for("block_hits"));
+        assert!(!res.plan.emits_family("conduit_user_block_hits"));
+        assert!(res.warnings.is_empty());
+    }
+
+    #[test]
+    fn user_metric_export_minimal_alias_with_deprecation() {
+        use conduit_proto::config::UserMetricExportConfig;
+        let mut cfg = base_config();
+        cfg.base = "minimal".into();
+        cfg.user_metrics = vec![UserMetricExportConfig {
+            name: "block_hits".into(),
+            export: "minimal".into(),
+            collect: None,
+            emit: None,
+        }];
+        let res = resolve_metrics_plan(Some(&cfg)).unwrap();
+        assert!(res.plan.user_collect_for("block_hits"));
+        assert!(res.plan.user_emit_for("block_hits"));
+        assert!(res
+            .warnings
+            .contains(&USER_METRIC_EXPORT_DEPRECATION_WARNING.to_string()));
+    }
+
+    #[test]
+    fn user_metric_export_full_default_off_on_minimal() {
+        let mut cfg = base_config();
+        cfg.base = "minimal".into();
+        let res = resolve_metrics_plan(Some(&cfg)).unwrap();
+        assert!(!res.plan.user_collect_for("block_hits"));
+        assert!(!res.plan.user_emit_for("block_hits"));
+    }
+
+    #[test]
+    fn user_metric_invalid_collect_emit_combo() {
+        use conduit_proto::config::UserMetricExportConfig;
+        let mut cfg = base_config();
+        cfg.user_metrics = vec![UserMetricExportConfig {
+            name: "block_hits".into(),
+            export: String::new(),
+            collect: Some(false),
+            emit: Some(true),
+        }];
+        let err = resolve_metrics_plan(Some(&cfg)).unwrap_err();
+        assert!(
+            err.iter()
+                .any(|e| e.contains("collect: false") && e.contains("emit: true")),
+            "{err:?}"
+        );
+    }
+
+    #[test]
+    fn emit_mask_filters_builtin_category() {
+        let mut cfg = base_config();
+        cfg.collection.insert(
+            "timing".into(),
+            MetricsCollectEmit {
+                collect: Some(true),
+                emit: Some(false),
+            },
+        );
+        let res = resolve_metrics_plan(Some(&cfg)).unwrap();
+        assert!(res.plan.collect_for(MetricCategory::Timing));
+        assert!(!res.plan.emit_for(MetricCategory::Timing));
+        assert!(!res.plan.emits_family("conduit_forward_attempts_total"));
+        assert!(res.plan.emits_family("conduit_queries_total"));
+    }
+
+    #[test]
+    fn event_export_emit_false_filters_events_families() {
+        let mut cfg = base_config();
+        cfg.event_export = Some(MetricsEventExport {
+            collect: Some(true),
+            emit: Some(false),
+        });
+        let res = resolve_metrics_plan(Some(&cfg)).unwrap();
+        assert!(res.plan.event_export_collect);
+        assert!(!res.plan.event_export_emit);
+        assert!(!res.plan.emits_family("conduit_events_enqueued_query_total"));
     }
 }

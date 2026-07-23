@@ -1,17 +1,25 @@
 //! Gather Prometheus metric families and render text for scrape / OTLP conversion.
+//!
+//! Both sinks share [`gather_prometheus_families`], which applies the active
+//! [`crate::CompiledMetricsPlan`] emit mask so Prometheus and OTLP stay in parity.
 
 use crate::MetricsHub;
 use conduit_events::SinkMetricsSnapshot;
 use prometheus::{Encoder, IntCounterVec, Opts, Registry, TextEncoder};
 
-/// All metric families (built-in, user, event-sink) for scrape or OTLP conversion.
+/// All metric families (built-in, user, event-sink) for scrape or OTLP conversion,
+/// filtered by the hub's compiled emit mask.
 pub fn gather_prometheus_families(
     hub: &MetricsHub,
     event_sinks: &[SinkMetricsSnapshot],
 ) -> Vec<prometheus::proto::MetricFamily> {
+    let plan = &hub.compiled.plan;
     let mut families = hub.builtin.gather();
     families.extend(hub.user.gather());
-    families.extend(event_sink_families(event_sinks));
+    if plan.event_export_emit {
+        families.extend(event_sink_families(event_sinks));
+    }
+    families.retain(|f| plan.emits_family(f.get_name()));
     families
 }
 

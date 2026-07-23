@@ -791,7 +791,7 @@ pub fn run_scripts(
     host: &mut dyn HostTransaction,
     phase: ScriptPhase,
     user_export: Option<&conduit_metrics::UserRegistry>,
-    builtin_profile: Option<conduit_metrics::BuiltinProfile>,
+    _builtin_profile: Option<conduit_metrics::BuiltinProfile>,
     builtin: Option<Arc<BuiltinRegistry>>,
     routing_runtime: Option<Arc<RoutingRuntimeSnapshot>>,
 ) -> (ScriptRunOutcome, ScriptRunStats) {
@@ -832,9 +832,10 @@ pub fn run_scripts(
                 apply_effects(host, &fx);
                 stats.user_metrics.extend(fx.user_metric_flushes.clone());
                 if let Some(export) = user_export {
-                    let profile = builtin_profile.unwrap_or(conduit_metrics::BuiltinProfile::Off);
                     for m in &fx.user_metric_flushes {
-                        if scripting.metrics.exports_at_profile(&m.name, profile) {
+                        // Collect mask (not emit): collect-only metrics still
+                        // land in UserRegistry; scrape/OTLP omit them later.
+                        if scripting.metrics.should_collect(&m.name) {
                             export.add_delta(conduit_metrics::UserMetricDelta {
                                 name: m.name.clone(),
                                 labels: m.labels.clone(),

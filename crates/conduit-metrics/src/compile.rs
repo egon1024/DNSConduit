@@ -15,6 +15,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 /// warning text (so it stays unit-testable); this flag only dedupes the
 /// actual `tracing::warn!` emission across repeated compiles/reloads.
 static PROFILE_DEPRECATION_LOGGED: AtomicBool = AtomicBool::new(false);
+static USER_METRIC_EXPORT_DEPRECATION_LOGGED: AtomicBool = AtomicBool::new(false);
 
 /// Backward-compatible label-schema tier derived from the compiled plan's
 /// default granularity. Kept for call sites (e.g. Rhai user-metric export
@@ -103,6 +104,10 @@ fn compile_metrics(m: Option<&MetricsConfig>) -> CompiledMetrics {
         for w in &r.warnings {
             if w == crate::plan::PROFILE_DEPRECATION_WARNING {
                 if !PROFILE_DEPRECATION_LOGGED.swap(true, Ordering::Relaxed) {
+                    tracing::warn!("{w}");
+                }
+            } else if w == crate::plan::USER_METRIC_EXPORT_DEPRECATION_WARNING {
+                if !USER_METRIC_EXPORT_DEPRECATION_LOGGED.swap(true, Ordering::Relaxed) {
                     tracing::warn!("{w}");
                 }
             } else {

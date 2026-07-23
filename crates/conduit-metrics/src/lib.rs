@@ -28,9 +28,10 @@ pub use export::{gather_prometheus_families, render_prometheus};
 pub use labels::{ip_family_label, qclass_label, qtype_label, rcode_class_label, rcode_label};
 pub use otel::{push_metrics_once, spawn_otel_push, OtelPushSettings};
 pub use plan::{
-    default_granularity_for_base, expand_base, family_allowed_dimensions, resolve_metrics_plan,
-    CompiledMetricsPlan, Granularity, MetricCategory, MetricsBase, PlanResolution,
-    PROFILE_DEPRECATION_WARNING,
+    builtin_metric_category, default_granularity_for_base, expand_base, family_allowed_dimensions,
+    resolve_metrics_plan, CompiledMetricsPlan, Granularity, MetricCategory, MetricsBase,
+    PlanResolution, UserMetricMode, PROFILE_DEPRECATION_WARNING,
+    USER_METRIC_EXPORT_DEPRECATION_WARNING,
 };
 pub use prometheus_http::spawn_prometheus_server;
 pub use store::{MetricStore, SeriesIdentity};
