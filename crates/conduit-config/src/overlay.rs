@@ -62,6 +62,11 @@ mod tests {
                 prometheus: None,
                 otel: None,
                 user_metrics: vec![],
+                base: String::new(),
+                categories: None,
+                granularity: None,
+                collection: Default::default(),
+                event_export: None,
             }),
             ..Default::default()
         };

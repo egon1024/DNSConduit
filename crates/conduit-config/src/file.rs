@@ -12,10 +12,11 @@ use conduit_proto::config::{
     CacheKeyConfig, CacheMemoryConfig, CacheNegativeConfig, CacheOnHitConfig,
     CacheTruncatedUdpConfig, Config, ControlConfig, ControlTlsConfig, DataSource, DataSourceLimits,
     DataplaneConfig, EventSinkFilters, EventsConfig, ForwardConfig, HealthCheck, Listener,
-    ListenersConfig, LoggingConfig, LookupConfig, LookupProfile, LookupProvider, MetricsConfig,
-    OrchestratorConfig, OtelMetricsConfig, Pool, PrometheusMetricsConfig, QueryAccessLogging,
-    RhaiConfig, Rule, RulesConfig, Selector, ShutdownConfig, TracingActivation, TracingConfig,
-    TracingOutput, UserMetricExportConfig,
+    ListenersConfig, LoggingConfig, LookupConfig, LookupProfile, LookupProvider, MetricsCategories,
+    MetricsCollectEmit, MetricsConfig, MetricsDimensionList, MetricsEventExport,
+    MetricsGranularity, OrchestratorConfig, OtelMetricsConfig, Pool, PrometheusMetricsConfig,
+    QueryAccessLogging, RhaiConfig, Rule, RulesConfig, Selector, ShutdownConfig, TracingActivation,
+    TracingConfig, TracingOutput, UserMetricExportConfig,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -721,8 +722,22 @@ pub(crate) struct YamlUserMetricExport {
 pub(crate) struct YamlMetrics {
     #[serde(default)]
     enabled: bool,
-    #[serde(default = "default_metrics_profile")]
+    /// Deprecated alias for `base`; empty means unset. Retained through the
+    /// 1.x line (metrics-configurability design §Migration Plan).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     profile: String,
+    /// "none" | "minimal" | "standard"; empty means unset (defaults to
+    /// "standard" when enabled).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    base: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    categories: Option<YamlMetricsCategories>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    granularity: Option<YamlGranularity>,
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    collection: std::collections::HashMap<String, YamlCollectEmit>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    event_export: Option<YamlCollectEmit>,
     #[serde(default)]
     prometheus: Option<YamlPrometheusMetrics>,
     #[serde(default)]
@@ -731,8 +746,34 @@ pub(crate) struct YamlMetrics {
     user_metrics: Vec<YamlUserMetricExport>,
 }
 
-fn default_metrics_profile() -> String {
-    "full".into()
+#[derive(Debug, Deserialize, Serialize, Default)]
+pub(crate) struct YamlMetricsCategories {
+    #[serde(default)]
+    include: Vec<String>,
+    #[serde(default)]
+    exclude: Vec<String>,
+}
+
+/// `default` is the granularity preset; any other key names a per-family
+/// dimension list override (e.g. `timing: [pool]`).
+#[derive(Debug, Deserialize, Serialize, Default)]
+pub(crate) struct YamlGranularity {
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    default: String,
+    #[serde(flatten)]
+    overrides: std::collections::HashMap<String, Vec<String>>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Default, Clone, Copy)]
+pub(crate) struct YamlCollectEmit {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    collect: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    emit: Option<bool>,
+}
+
+fn default_metrics_path() -> String {
+    "/metrics".into()
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -740,10 +781,6 @@ pub(crate) struct YamlPrometheusMetrics {
     listen_address: String,
     #[serde(default = "default_metrics_path")]
     path: String,
-}
-
-fn default_metrics_path() -> String {
-    "/metrics".into()
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -1024,6 +1061,36 @@ impl From<YamlMetrics> for MetricsConfig {
                     export: u.export,
                 })
                 .collect(),
+            base: y.base,
+            categories: y.categories.map(|c| MetricsCategories {
+                include: c.include,
+                exclude: c.exclude,
+            }),
+            granularity: y.granularity.map(|g| MetricsGranularity {
+                default: g.default,
+                overrides: g
+                    .overrides
+                    .into_iter()
+                    .map(|(family, dimensions)| (family, MetricsDimensionList { dimensions }))
+                    .collect(),
+            }),
+            collection: y
+                .collection
+                .into_iter()
+                .map(|(name, ce)| {
+                    (
+                        name,
+                        MetricsCollectEmit {
+                            collect: ce.collect,
+                            emit: ce.emit,
+                        },
+                    )
+                })
+                .collect(),
+            event_export: y.event_export.map(|ce| MetricsEventExport {
+                collect: ce.collect,
+                emit: ce.emit,
+            }),
         }
     }
 }
@@ -1618,6 +1685,36 @@ impl From<&MetricsConfig> for YamlMetrics {
                     export: u.export.clone(),
                 })
                 .collect(),
+            base: m.base.clone(),
+            categories: m.categories.as_ref().map(|c| YamlMetricsCategories {
+                include: c.include.clone(),
+                exclude: c.exclude.clone(),
+            }),
+            granularity: m.granularity.as_ref().map(|g| YamlGranularity {
+                default: g.default.clone(),
+                overrides: g
+                    .overrides
+                    .iter()
+                    .map(|(family, list)| (family.clone(), list.dimensions.clone()))
+                    .collect(),
+            }),
+            collection: m
+                .collection
+                .iter()
+                .map(|(name, ce)| {
+                    (
+                        name.clone(),
+                        YamlCollectEmit {
+                            collect: ce.collect,
+                            emit: ce.emit,
+                        },
+                    )
+                })
+                .collect(),
+            event_export: m.event_export.as_ref().map(|ce| YamlCollectEmit {
+                collect: ce.collect,
+                emit: ce.emit,
+            }),
         }
     }
 }
@@ -2279,5 +2376,90 @@ shutdown:
         assert!(cfg.shutdown.is_none());
         let exported = crate::export_yaml(&cfg).expect("export");
         assert!(!exported.contains("shutdown:"));
+    }
+
+    #[test]
+    fn metrics_configurability_fields_parse_and_round_trip() {
+        let yaml = r#"
+schema_version: 1
+listeners:
+  threads: 1
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+pools:
+  - name: default
+    backends:
+      - address: "127.0.0.1:5300"
+metrics:
+  enabled: true
+  base: standard
+  categories:
+    include: [timing]
+    exclude: [process]
+  collection:
+    timing:
+      collect: true
+      emit: false
+  granularity:
+    default: fine
+    timing: [pool]
+  event_export:
+    collect: true
+    emit: true
+"#;
+        let cfg: Config = load_yaml(yaml).expect("parse");
+        let metrics = cfg.metrics.as_ref().expect("metrics block present");
+        assert_eq!(metrics.base, "standard");
+        let categories = metrics.categories.as_ref().expect("categories");
+        assert_eq!(categories.include, vec!["timing".to_string()]);
+        assert_eq!(categories.exclude, vec!["process".to_string()]);
+        let timing_collection = metrics.collection.get("timing").expect("timing override");
+        assert_eq!(timing_collection.collect, Some(true));
+        assert_eq!(timing_collection.emit, Some(false));
+        let granularity = metrics.granularity.as_ref().expect("granularity");
+        assert_eq!(granularity.default, "fine");
+        assert_eq!(
+            granularity
+                .overrides
+                .get("timing")
+                .expect("timing dims")
+                .dimensions,
+            vec!["pool".to_string()]
+        );
+        let event_export = metrics.event_export.as_ref().expect("event_export");
+        assert_eq!(event_export.collect, Some(true));
+        assert_eq!(event_export.emit, Some(true));
+
+        let exported = crate::export_yaml(&cfg).expect("export");
+        assert!(exported.contains("base: standard"));
+        let reparsed = load_yaml(&exported).expect("reparse");
+        assert_eq!(reparsed.metrics, cfg.metrics);
+    }
+
+    #[test]
+    fn metrics_profile_alias_still_parses_for_1x_compat() {
+        let yaml = r#"
+schema_version: 1
+listeners:
+  threads: 1
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+pools:
+  - name: default
+    backends:
+      - address: "127.0.0.1:5300"
+metrics:
+  enabled: true
+  profile: full
+"#;
+        let cfg: Config = load_yaml(yaml).expect("parse");
+        let metrics = cfg.metrics.as_ref().expect("metrics block present");
+        assert_eq!(metrics.profile, "full");
+        assert!(
+            metrics.base.is_empty(),
+            "base unset when only profile given"
+        );
     }
 }

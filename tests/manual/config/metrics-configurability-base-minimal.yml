@@ -1,0 +1,44 @@
+# G1 manual lab: metrics.base: minimal — coarse label schema, but health
+# category series ARE present (intentional expansion vs legacy profile: minimal).
+schema_version: 1
+listeners:
+  threads: 2
+  reuse_port: true
+  listeners:
+    - address: "127.0.2.1:15353"
+      protocol: udp
+forward:
+  outstanding_per_backend: 100
+  timeout_ms: 2000
+orchestrator:
+  max_attempts: 3
+  max_txn_duration_ms: 5000
+  txn_table_capacity: 1024
+events:
+  queue_depth: 4096
+  drop_policy: drop_oldest
+rhai:
+  max_operations: 10000
+  max_call_depth: 32
+pools:
+  - name: default
+    health:
+      enabled: true
+      interval_ms: 1000
+      timeout_ms: 1000
+      rise: 3
+      fall: 2
+      probe_qname: "health-probe.example."
+      probe_qtype: A
+    backends:
+      - address: "127.0.2.1:15300"
+        weight: 100
+control:
+  listen_address: "127.0.2.1:5199"
+  reflection_enabled: true
+metrics:
+  enabled: true
+  base: minimal
+  prometheus:
+    listen_address: "127.0.2.1:19090"
+    path: /metrics

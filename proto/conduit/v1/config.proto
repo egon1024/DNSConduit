@@ -46,12 +46,57 @@ message ShutdownConfig {
 }
 
 // Phase 4: Prometheus scrape + OTEL push (design §7.1).
+// Metrics configurability (design §Decisions 1-14): `base` + `categories` +
+// `granularity` + `collection` + `event_export` compile into a MetricsPlan.
 message MetricsConfig {
   bool enabled = 1;
-  string profile = 2;              // "full" | "minimal" | "off"; default full when enabled
+  // Deprecated: use `base` instead. Accepted as an alias for the entire `1.x`
+  // line (not removed until `2.x`): "minimal" -> base "minimal"; "full" ->
+  // base "standard" (deprecation warning); "off" with enabled true -> warns
+  // and normalizes to enabled: false. Empty string means unset.
+  string profile = 2;
   optional PrometheusMetricsConfig prometheus = 3;
   optional OtelMetricsConfig otel = 4;
   repeated UserMetricExportConfig user_metrics = 5;  // per-metric export tier overrides
+
+  // "none" | "minimal" | "standard"; empty means unset (defaults to
+  // "standard" when enabled and neither `base` nor `profile` is set).
+  string base = 6;
+  optional MetricsCategories categories = 7;
+  optional MetricsGranularity granularity = 8;
+  // Per-category collect/emit overrides, keyed by category name.
+  map<string, MetricsCollectEmit> collection = 9;
+  // Separate axis for `conduit_events_*`; not part of dataplane category resolution.
+  optional MetricsEventExport event_export = 10;
+}
+
+// Category include/exclude deltas applied on top of the `base` expansion:
+// `C = expand(base) ∪ include − exclude`.
+message MetricsCategories {
+  repeated string include = 1;
+  repeated string exclude = 2;
+}
+
+// `default` expands to a maintainer dimension-list preset per family;
+// `overrides` fully replaces the preset expansion for the named family.
+message MetricsGranularity {
+  string default = 1;  // "coarse" | "balanced" | "fine"
+  map<string, MetricsDimensionList> overrides = 2;
+}
+
+message MetricsDimensionList {
+  repeated string dimensions = 1;
+}
+
+// `collect: false, emit: true` is invalid. Unset fields default to `true`.
+message MetricsCollectEmit {
+  optional bool collect = 1;
+  optional bool emit = 2;
+}
+
+message MetricsEventExport {
+  optional bool collect = 1;
+  optional bool emit = 2;
 }
 
 // Export tier for Rhai conduit_user_* metrics (default: full = full profile only).

@@ -3,6 +3,7 @@
 doc
 /docs
 openspec
+.superpowers/
 .venv-docs/
 .python-version
 

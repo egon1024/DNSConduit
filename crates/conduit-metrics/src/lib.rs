@@ -6,7 +6,9 @@ mod compile;
 mod export;
 mod labels;
 mod otel;
+mod plan;
 mod prometheus_http;
+mod store;
 mod task;
 mod trace;
 mod user;
@@ -25,7 +27,13 @@ pub use compile::{
 pub use export::{gather_prometheus_families, render_prometheus};
 pub use labels::{ip_family_label, qclass_label, qtype_label, rcode_class_label, rcode_label};
 pub use otel::{push_metrics_once, spawn_otel_push, OtelPushSettings};
+pub use plan::{
+    default_granularity_for_base, expand_base, family_allowed_dimensions, resolve_metrics_plan,
+    CompiledMetricsPlan, Granularity, MetricCategory, MetricsBase, PlanResolution,
+    PROFILE_DEPRECATION_WARNING,
+};
 pub use prometheus_http::spawn_prometheus_server;
+pub use store::{MetricStore, SeriesIdentity};
 pub use task::{OtelPushHandle, PrometheusServerHandle};
 pub use trace::{TraceEvent, TraceLog, TraceStore};
 pub use user::{UserMetricDelta, UserRegistry};
@@ -53,7 +61,11 @@ impl MetricsHub {
 
     pub fn from_config(config: &conduit_proto::config::Config) -> Self {
         let (compiled, _) = compile_from_config(config);
-        let builtin = Arc::new(BuiltinRegistry::new(compiled.enabled, compiled.profile));
+        // Plan-driven registration (metrics-configurability): `health` and the
+        // volume/failures/timing collect mask follow `compiled.plan` rather
+        // than the legacy `profile` two-tier split. See
+        // `BuiltinRegistry::new_from_plan`.
+        let builtin = Arc::new(BuiltinRegistry::new_from_plan(&compiled.plan));
         let user = Arc::new(UserRegistry::new(compiled.enabled));
         Self {
             builtin,
