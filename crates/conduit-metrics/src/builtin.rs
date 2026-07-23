@@ -102,13 +102,11 @@ pub struct BackendIdentity {
 pub type ScrapeSnapshotFn = Arc<dyn Fn() -> ScrapeGaugeSnapshot + Send + Sync>;
 
 enum QueriesTotal {
-    Minimal(IntCounterVec),
-    Full(IntCounterVec),
+    Vec(IntCounterVec),
 }
 
 enum ResponsesTotal {
-    Minimal(IntCounterVec),
-    Full(IntCounterVec),
+    Vec(IntCounterVec),
 }
 
 enum ResponsesTruncatedTotal {
@@ -122,12 +120,72 @@ enum QueriesDroppedTotal {
 }
 
 enum AclDecisionsTotal {
-    Minimal(IntCounterVec),
-    Full(IntCounterVec),
+    Vec(IntCounterVec),
 }
 
 enum ResponseDuration {
     Full(HistogramVec),
+}
+
+/// Resolved label schemas for families whose Prometheus dimensions vary with
+/// `metrics.granularity` (design §Decisions 5).
+#[derive(Debug, Clone)]
+struct FamilyLabelSchemas {
+    volume: Vec<String>,
+    responses: Vec<String>,
+    responses_rcode: crate::plan::ResponsesRcodeBucketing,
+    timing: Vec<String>,
+    forward_failures: Vec<String>,
+    acl: Vec<String>,
+}
+
+impl FamilyLabelSchemas {
+    fn from_plan(plan: &crate::plan::CompiledMetricsPlan) -> Self {
+        Self {
+            volume: plan.dimensions_for("volume").to_vec(),
+            responses: plan.dimensions_for("responses").to_vec(),
+            responses_rcode: plan.responses_rcode,
+            timing: plan.dimensions_for("timing").to_vec(),
+            forward_failures: plan.dimensions_for("forward_failures").to_vec(),
+            acl: plan.dimensions_for("acl").to_vec(),
+        }
+    }
+
+    fn for_legacy_profile(profile: BuiltinProfile) -> Self {
+        use crate::plan::{
+            default_responses_rcode, preset_family_dimensions, Granularity, ResponsesRcodeBucketing,
+        };
+        let g = match profile {
+            BuiltinProfile::Full => Granularity::Fine,
+            BuiltinProfile::Minimal | BuiltinProfile::Off => Granularity::Coarse,
+        };
+        let dims = |family: &str| -> Vec<String> {
+            preset_family_dimensions(family, g)
+                .unwrap_or(&[])
+                .iter()
+                .map(|s| (*s).to_string())
+                .collect()
+        };
+        Self {
+            volume: dims("volume"),
+            responses: dims("responses"),
+            responses_rcode: match profile {
+                BuiltinProfile::Full => ResponsesRcodeBucketing::Iana,
+                _ => default_responses_rcode(g),
+            },
+            timing: dims("timing"),
+            forward_failures: dims("forward_failures"),
+            acl: dims("acl"),
+        }
+    }
+
+    fn volume_has_ip_family(&self) -> bool {
+        self.volume.iter().any(|d| d == "ip_family")
+    }
+}
+
+fn label_refs(dims: &[String]) -> Vec<&str> {
+    dims.iter().map(String::as_str).collect()
 }
 
 pub struct BuiltinRegistry {
@@ -146,6 +204,7 @@ pub struct BuiltinRegistry {
     collect_volume: bool,
     collect_failures: bool,
     collect_timing: bool,
+    schemas: FamilyLabelSchemas,
     registry: Registry,
     queries_total: QueriesTotal,
     responses_total: Option<ResponsesTotal>,
@@ -206,14 +265,23 @@ impl BuiltinRegistry {
     /// today's shipped behavior exactly.
     pub fn new(enabled: bool, profile: BuiltinProfile) -> Self {
         let health_enabled = enabled && profile == BuiltinProfile::Full;
-        Self::new_internal(enabled, profile, health_enabled, true, true, true)
+        // Legacy `minimal` omits timing hot-path recording (today's profile split).
+        let collect_timing = profile == BuiltinProfile::Full;
+        let schemas = FamilyLabelSchemas::for_legacy_profile(profile);
+        Self::new_internal(
+            enabled,
+            profile,
+            health_enabled,
+            true,
+            true,
+            collect_timing,
+            schemas,
+        )
     }
 
-    /// Plan-driven constructor (metrics-configurability design). `health`
-    /// registration is governed by category membership + collect flag,
-    /// independent of the full/minimal label-schema split — this is what
-    /// makes `base: minimal` include health series (design §12 "intentional
-    /// expansion").
+    /// Plan-driven constructor (metrics-configurability design). Label schemas
+    /// come from resolved `granularity` presets/overrides; `health` follows
+    /// category collect (design §12 intentional minimal expansion).
     pub fn new_from_plan(plan: &crate::plan::CompiledMetricsPlan) -> Self {
         use crate::plan::{Granularity, MetricCategory};
 
@@ -229,6 +297,7 @@ impl BuiltinRegistry {
         let collect_volume = plan.collect_for(MetricCategory::Volume);
         let collect_failures = plan.collect_for(MetricCategory::Failures);
         let collect_timing = plan.collect_for(MetricCategory::Timing);
+        let schemas = FamilyLabelSchemas::from_plan(plan);
         Self::new_internal(
             enabled,
             profile,
@@ -236,6 +305,7 @@ impl BuiltinRegistry {
             collect_volume,
             collect_failures,
             collect_timing,
+            schemas,
         )
     }
 
@@ -247,59 +317,47 @@ impl BuiltinRegistry {
         collect_volume: bool,
         collect_failures: bool,
         collect_timing: bool,
+        schemas: FamilyLabelSchemas,
     ) -> Self {
         let registry = Registry::new();
         let effective = enabled && profile != BuiltinProfile::Off;
         let is_full = profile == BuiltinProfile::Full;
+        let volume_labels = label_refs(&schemas.volume);
+        let responses_labels = label_refs(&schemas.responses);
+        let acl_labels = label_refs(&schemas.acl);
+        let forward_failure_labels = label_refs(&schemas.forward_failures);
 
-        let queries_total = if is_full {
+        // Timing attempts always include structural `outcome`; duration uses
+        // timing dims only (`pool` / `backend` / empty aggregate).
+        let mut forward_attempt_dims = schemas.timing.clone();
+        forward_attempt_dims.push("outcome".to_string());
+        let forward_attempt_labels = label_refs(&forward_attempt_dims);
+        let forward_duration_labels = label_refs(&schemas.timing);
+
+        let queries_total = {
             let v = IntCounterVec::new(
                 Opts::new("conduit_queries_total", "DNS queries received"),
-                &["listener", "protocol", "qtype", "qclass", "ip_family"],
+                &volume_labels,
             )
             .expect("metric");
             registry.register(Box::new(v.clone())).expect("register");
-            QueriesTotal::Full(v)
-        } else {
-            let v = IntCounterVec::new(
-                Opts::new("conduit_queries_total", "DNS queries received"),
-                &["listener", "protocol"],
-            )
-            .expect("metric");
-            registry.register(Box::new(v.clone())).expect("register");
-            QueriesTotal::Minimal(v)
+            QueriesTotal::Vec(v)
         };
 
         let responses_total = if effective {
-            if is_full {
-                let v = IntCounterVec::new(
-                    Opts::new("conduit_responses_total", "DNS responses sent to clients"),
-                    &[
-                        "listener",
-                        "protocol",
-                        "rcode",
-                        "ip_family",
-                        "answer_source",
-                    ],
-                )
-                .expect("metric");
-                registry.register(Box::new(v.clone())).expect("register");
-                Some(ResponsesTotal::Full(v))
-            } else {
-                let v = IntCounterVec::new(
-                    Opts::new("conduit_responses_total", "DNS responses sent to clients"),
-                    &["listener", "protocol", "rcode", "answer_source"],
-                )
-                .expect("metric");
-                registry.register(Box::new(v.clone())).expect("register");
-                Some(ResponsesTotal::Minimal(v))
-            }
+            let v = IntCounterVec::new(
+                Opts::new("conduit_responses_total", "DNS responses sent to clients"),
+                &responses_labels,
+            )
+            .expect("metric");
+            registry.register(Box::new(v.clone())).expect("register");
+            Some(ResponsesTotal::Vec(v))
         } else {
             None
         };
 
         let responses_truncated_total = if effective {
-            if is_full {
+            if schemas.volume_has_ip_family() {
                 let v = IntCounterVec::new(
                     Opts::new(
                         "conduit_responses_truncated_total",
@@ -327,7 +385,7 @@ impl BuiltinRegistry {
         };
 
         let queries_dropped_total = if effective {
-            if is_full {
+            if schemas.volume_has_ip_family() {
                 let v = IntCounterVec::new(
                     Opts::new(
                         "conduit_queries_dropped_total",
@@ -355,29 +413,16 @@ impl BuiltinRegistry {
         };
 
         let acl_decisions_total = if effective {
-            if is_full {
-                let v = IntCounterVec::new(
-                    Opts::new(
-                        "conduit_acl_decisions_total",
-                        "Client IP ACL decisions by tier and action",
-                    ),
-                    &["tier", "action", "listener", "ip_family"],
-                )
-                .expect("metric");
-                registry.register(Box::new(v.clone())).expect("register");
-                Some(AclDecisionsTotal::Full(v))
-            } else {
-                let v = IntCounterVec::new(
-                    Opts::new(
-                        "conduit_acl_decisions_total",
-                        "Client IP ACL decisions by tier and action",
-                    ),
-                    &["tier", "action", "listener"],
-                )
-                .expect("metric");
-                registry.register(Box::new(v.clone())).expect("register");
-                Some(AclDecisionsTotal::Minimal(v))
-            }
+            let v = IntCounterVec::new(
+                Opts::new(
+                    "conduit_acl_decisions_total",
+                    "Client IP ACL decisions by tier and action",
+                ),
+                &acl_labels,
+            )
+            .expect("metric");
+            registry.register(Box::new(v.clone())).expect("register");
+            Some(AclDecisionsTotal::Vec(v))
         } else {
             None
         };
@@ -539,12 +584,12 @@ impl BuiltinRegistry {
                 "conduit_forward_attempts_total",
                 "Upstream forward attempts",
             ),
-            &["pool", "backend", "outcome"],
+            &forward_attempt_labels,
         )
         .expect("metric");
         let forward_errors = IntCounterVec::new(
             Opts::new("conduit_forward_errors_total", "Forward errors"),
-            &["pool", "backend", "reason"],
+            &forward_failure_labels,
         )
         .expect("metric");
         let forward_duration = HistogramVec::new(
@@ -553,7 +598,7 @@ impl BuiltinRegistry {
                 "Upstream forward round-trip time",
             )
             .buckets(forward_duration_buckets()),
-            &["pool", "backend"],
+            &forward_duration_labels,
         )
         .expect("metric");
         let retries_total = IntCounterVec::new(
@@ -875,6 +920,7 @@ impl BuiltinRegistry {
             collect_volume,
             collect_failures,
             collect_timing,
+            schemas,
             registry,
             queries_total,
             responses_total,
@@ -956,18 +1002,22 @@ impl BuiltinRegistry {
         if !self.enabled || !self.collect_volume {
             return;
         }
-        match &self.queries_total {
-            QueriesTotal::Minimal(v) => {
-                v.with_label_values(&[listener, protocol]).inc();
-            }
-            QueriesTotal::Full(v) => {
-                let qtype = qtype.map(qtype_label).unwrap_or_else(|| "UNKNOWN".into());
-                let qclass = qclass.map(qclass_label).unwrap_or_else(|| "UNKNOWN".into());
-                let ip_family = ip_family_label(client_addr);
-                v.with_label_values(&[listener, protocol, &qtype, &qclass, ip_family])
-                    .inc();
+        let QueriesTotal::Vec(v) = &self.queries_total;
+        let qtype_s = qtype.map(qtype_label).unwrap_or_else(|| "UNKNOWN".into());
+        let qclass_s = qclass.map(qclass_label).unwrap_or_else(|| "UNKNOWN".into());
+        let ip_family = ip_family_label(client_addr);
+        let mut vals: Vec<&str> = Vec::with_capacity(self.schemas.volume.len());
+        for dim in &self.schemas.volume {
+            match dim.as_str() {
+                "listener" => vals.push(listener),
+                "protocol" => vals.push(protocol),
+                "qtype" => vals.push(&qtype_s),
+                "qclass" => vals.push(&qclass_s),
+                "ip_family" => vals.push(ip_family),
+                _ => vals.push(""),
             }
         }
+        v.with_label_values(&vals).inc();
     }
 
     pub fn record_parse_rejected(&self, reason: &str) {
@@ -1018,17 +1068,19 @@ impl BuiltinRegistry {
         if !self.enabled || !self.collect_volume {
             return;
         }
-        if let Some(ref acl) = self.acl_decisions_total {
-            match acl {
-                AclDecisionsTotal::Minimal(c) => {
-                    c.with_label_values(&[tier, action, listener]).inc();
-                }
-                AclDecisionsTotal::Full(c) => {
-                    let ip_family = if client_ip.is_ipv6() { "v6" } else { "v4" };
-                    c.with_label_values(&[tier, action, listener, ip_family])
-                        .inc();
+        if let Some(AclDecisionsTotal::Vec(c)) = self.acl_decisions_total.as_ref() {
+            let ip_family = if client_ip.is_ipv6() { "v6" } else { "v4" };
+            let mut vals: Vec<&str> = Vec::with_capacity(self.schemas.acl.len());
+            for dim in &self.schemas.acl {
+                match dim.as_str() {
+                    "tier" => vals.push(tier),
+                    "action" => vals.push(action),
+                    "listener" => vals.push(listener),
+                    "ip_family" => vals.push(ip_family),
+                    _ => vals.push(""),
                 }
             }
+            c.with_label_values(&vals).inc();
         }
     }
 
@@ -1051,21 +1103,27 @@ impl BuiltinRegistry {
             return;
         }
         let answer_source = answer_source.unwrap_or("");
-        if let Some(ref responses) = self.responses_total {
-            match responses {
-                ResponsesTotal::Minimal(c) => {
-                    let rcode = rcode_class_label(rcode);
-                    c.with_label_values(&[listener, protocol, rcode, answer_source])
-                        .inc();
-                }
-                ResponsesTotal::Full(c) => {
-                    let rcode = rcode_label(rcode);
-                    let ip_family = ip_family_label(client_addr);
-                    c.with_label_values(&[listener, protocol, rcode, ip_family, answer_source])
-                        .inc();
-                }
+        let Some(ResponsesTotal::Vec(c)) = self.responses_total.as_ref() else {
+            return;
+        };
+        use crate::plan::ResponsesRcodeBucketing;
+        let rcode_s = match self.schemas.responses_rcode {
+            ResponsesRcodeBucketing::Coarse => rcode_class_label(rcode).to_string(),
+            ResponsesRcodeBucketing::Iana => rcode_label(rcode).to_string(),
+        };
+        let ip_family = ip_family_label(client_addr);
+        let mut vals: Vec<&str> = Vec::with_capacity(self.schemas.responses.len());
+        for dim in &self.schemas.responses {
+            match dim.as_str() {
+                "listener" => vals.push(listener),
+                "protocol" => vals.push(protocol),
+                "rcode" => vals.push(&rcode_s),
+                "ip_family" => vals.push(ip_family),
+                "answer_source" => vals.push(answer_source),
+                _ => vals.push(""),
             }
         }
+        c.with_label_values(&vals).inc();
     }
 
     pub fn record_response_truncated(
@@ -1180,7 +1238,7 @@ impl BuiltinRegistry {
     }
 
     pub fn observe_phase(&self, phase: &str, duration_secs: f64) {
-        if !self.enabled || self.profile == BuiltinProfile::Minimal || !self.collect_timing {
+        if !self.enabled || !self.collect_timing {
             return;
         }
         self.phase_duration
@@ -1189,21 +1247,35 @@ impl BuiltinRegistry {
     }
 
     pub fn record_forward_attempt(&self, pool: &str, backend: &str, outcome: &str) {
-        if !self.enabled || self.profile == BuiltinProfile::Minimal || !self.collect_timing {
+        if !self.enabled || !self.collect_timing {
             return;
         }
-        self.forward_attempts
-            .with_label_values(&[pool, backend, outcome])
-            .inc();
+        let mut vals: Vec<&str> = Vec::with_capacity(self.schemas.timing.len() + 1);
+        for dim in &self.schemas.timing {
+            match dim.as_str() {
+                "pool" => vals.push(pool),
+                "backend" => vals.push(backend),
+                _ => vals.push(""),
+            }
+        }
+        vals.push(outcome);
+        self.forward_attempts.with_label_values(&vals).inc();
     }
 
     pub fn record_forward_error(&self, pool: &str, backend: &str, reason: &str) {
         if !self.enabled || !self.collect_failures {
             return;
         }
-        self.forward_errors
-            .with_label_values(&[pool, backend, reason])
-            .inc();
+        let mut vals: Vec<&str> = Vec::with_capacity(self.schemas.forward_failures.len());
+        for dim in &self.schemas.forward_failures {
+            match dim.as_str() {
+                "pool" => vals.push(pool),
+                "backend" => vals.push(backend),
+                "reason" => vals.push(reason),
+                _ => vals.push(""),
+            }
+        }
+        self.forward_errors.with_label_values(&vals).inc();
     }
 
     /// Record one active health-probe outcome (`full` profile only).
@@ -1221,11 +1293,19 @@ impl BuiltinRegistry {
     }
 
     pub fn record_forward_duration(&self, pool: &str, backend: &str, duration_secs: f64) {
-        if !self.enabled || self.profile == BuiltinProfile::Minimal || !self.collect_timing {
+        if !self.enabled || !self.collect_timing {
             return;
         }
+        let mut vals: Vec<&str> = Vec::with_capacity(self.schemas.timing.len());
+        for dim in &self.schemas.timing {
+            match dim.as_str() {
+                "pool" => vals.push(pool),
+                "backend" => vals.push(backend),
+                _ => vals.push(""),
+            }
+        }
         self.forward_duration
-            .with_label_values(&[pool, backend])
+            .with_label_values(&vals)
             .observe(duration_secs);
     }
 
@@ -2246,6 +2326,177 @@ mod tests {
         assert!(
             !body.contains(r#"conduit_forward_errors_total{backend="127.0.0.1:5300""#),
             "excluded failures category must suppress recording, body:\n{body}"
+        );
+    }
+
+    fn plan_with_timing_dims(dims: &[&str]) -> crate::plan::CompiledMetricsPlan {
+        use conduit_proto::config::{MetricsConfig, MetricsDimensionList, MetricsGranularity};
+        let mut overrides = std::collections::HashMap::new();
+        overrides.insert(
+            "timing".to_string(),
+            MetricsDimensionList {
+                dimensions: dims.iter().map(|s| (*s).to_string()).collect(),
+                rcode: String::new(),
+                dimensions_set: true,
+            },
+        );
+        let cfg = MetricsConfig {
+            enabled: true,
+            profile: String::new(),
+            prometheus: None,
+            otel: None,
+            user_metrics: vec![],
+            base: "standard".into(),
+            categories: None,
+            granularity: Some(MetricsGranularity {
+                default: String::new(),
+                overrides,
+            }),
+            collection: Default::default(),
+            event_export: None,
+        };
+        crate::plan::resolve_metrics_plan(Some(&cfg)).unwrap().plan
+    }
+
+    #[test]
+    fn timing_pool_only_omits_backend_label() {
+        let plan = plan_with_timing_dims(&["pool"]);
+        assert_eq!(plan.dimensions_for("timing"), &["pool".to_string()]);
+        let reg = BuiltinRegistry::new_from_plan(&plan);
+        reg.record_forward_duration("default", "127.0.0.1:5300", 0.05);
+        reg.record_forward_attempt("default", "127.0.0.1:5300", "success");
+        let body = encode_builtin(reg.gather());
+        assert!(
+            body.contains(r#"conduit_forward_duration_seconds_count{pool="default"}"#)
+                || body.contains(r#"conduit_forward_duration_seconds_sum{pool="default"}"#),
+            "pool-only duration, body:\n{body}"
+        );
+        assert!(
+            !body.contains(r#"backend="127.0.0.1:5300""#),
+            "pool-only must omit backend, body:\n{body}"
+        );
+        assert!(
+            body.contains(r#"conduit_forward_attempts_total{outcome="success",pool="default"}"#),
+            "pool-only attempts, body:\n{body}"
+        );
+    }
+
+    #[test]
+    fn timing_pool_backend_includes_both_labels() {
+        let plan = plan_with_timing_dims(&["pool", "backend"]);
+        let reg = BuiltinRegistry::new_from_plan(&plan);
+        reg.record_forward_duration("default", "127.0.0.1:5300", 0.05);
+        let body = encode_builtin(reg.gather());
+        assert!(
+            body.contains(r#"backend="127.0.0.1:5300""#) && body.contains(r#"pool="default""#),
+            "pool+backend duration, body:\n{body}"
+        );
+    }
+
+    #[test]
+    fn timing_schema_change_is_distinct_series_identity() {
+        // Same metric name, different dimension schemas → distinct MetricStore
+        // identities (design §Decisions 8 / series identity).
+        let store = crate::MetricStore::new();
+        let buckets = vec![0.001, 0.01, 0.1, 1.0];
+        let pool_only = store.get_or_create_histogram(
+            "conduit_forward_duration_seconds",
+            "help",
+            &["pool"],
+            buckets.clone(),
+        );
+        let pool_backend = store.get_or_create_histogram(
+            "conduit_forward_duration_seconds",
+            "help",
+            &["pool", "backend"],
+            buckets,
+        );
+        pool_only.with_label_values(&["default"]).observe(0.01);
+        pool_backend
+            .with_label_values(&["default", "127.0.0.1:5300"])
+            .observe(0.02);
+        assert_eq!(store.len(), 2);
+        assert_eq!(
+            pool_only.with_label_values(&["default"]).get_sample_count(),
+            1
+        );
+        assert_eq!(
+            pool_backend
+                .with_label_values(&["default", "127.0.0.1:5300"])
+                .get_sample_count(),
+            1
+        );
+    }
+
+    #[test]
+    fn responses_coarse_rcode_override_uses_class_buckets() {
+        use conduit_proto::config::{MetricsConfig, MetricsDimensionList, MetricsGranularity};
+        let mut overrides = std::collections::HashMap::new();
+        overrides.insert(
+            "responses".to_string(),
+            MetricsDimensionList {
+                dimensions: vec![],
+                rcode: "coarse".into(),
+                dimensions_set: false,
+            },
+        );
+        let cfg = MetricsConfig {
+            enabled: true,
+            profile: String::new(),
+            prometheus: None,
+            otel: None,
+            user_metrics: vec![],
+            base: "standard".into(),
+            categories: None,
+            granularity: Some(MetricsGranularity {
+                default: "fine".into(),
+                overrides,
+            }),
+            collection: Default::default(),
+            event_export: None,
+        };
+        let plan = crate::plan::resolve_metrics_plan(Some(&cfg)).unwrap().plan;
+        assert_eq!(
+            plan.responses_rcode,
+            crate::plan::ResponsesRcodeBucketing::Coarse
+        );
+        // Fine responses dimensions retained (rcode-only override).
+        assert!(plan.has_dimension("responses", "ip_family"));
+
+        let reg = BuiltinRegistry::new_from_plan(&plan);
+        let addr: std::net::SocketAddr = "127.0.0.1:15353".parse().unwrap();
+        // NXDOMAIN = 3 → coarse bucket still "NXDOMAIN"
+        reg.record_response("ln", "udp", Some(3), &addr, Some("forward"));
+        let body = encode_builtin(reg.gather());
+        assert!(
+            body.contains(r#"rcode="NXDOMAIN""#),
+            "coarse NXDOMAIN bucket, body:\n{body}"
+        );
+    }
+
+    #[test]
+    fn default_standard_registry_matches_legacy_full_query_labels() {
+        let plan_reg = BuiltinRegistry::new_from_plan(&standard_plan());
+        let legacy = BuiltinRegistry::new(true, BuiltinProfile::Full);
+        let addr: std::net::SocketAddr = "127.0.0.1:15353".parse().unwrap();
+        plan_reg.record_query("ln", "udp", Some(1), Some(1), &addr);
+        legacy.record_query("ln", "udp", Some(1), Some(1), &addr);
+        plan_reg.record_forward_duration("default", "127.0.0.1:5300", 0.01);
+        legacy.record_forward_duration("default", "127.0.0.1:5300", 0.01);
+        let plan_body = encode_builtin(plan_reg.gather());
+        let legacy_body = encode_builtin(legacy.gather());
+        let query_line = r#"conduit_queries_total{ip_family="v4",listener="ln",protocol="udp",qclass="IN",qtype="A"}"#;
+        assert!(plan_body.contains(query_line), "plan body:\n{plan_body}");
+        assert!(
+            legacy_body.contains(query_line),
+            "legacy body:\n{legacy_body}"
+        );
+        let timing_line =
+            r#"conduit_forward_duration_seconds_count{backend="127.0.0.1:5300",pool="default"}"#;
+        assert!(plan_body.contains(timing_line), "plan body:\n{plan_body}");
+        assert!(
+            legacy_body.contains(timing_line),
+            "legacy body:\n{legacy_body}"
         );
     }
 }

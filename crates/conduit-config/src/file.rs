@@ -760,13 +760,61 @@ pub(crate) struct YamlMetricsCategories {
 }
 
 /// `default` is the granularity preset; any other key names a per-family
-/// dimension list override (e.g. `timing: [pool]`).
+/// override. Most families use a dimension list (`timing: [pool]`); the
+/// `responses` family may also be a map with `dimensions` and/or `rcode`
+/// (`coarse` | `iana`) for orthogonal rcode bucketing.
 #[derive(Debug, Deserialize, Serialize, Default)]
 pub(crate) struct YamlGranularity {
     #[serde(default, skip_serializing_if = "String::is_empty")]
     default: String,
     #[serde(flatten)]
-    overrides: std::collections::HashMap<String, Vec<String>>,
+    overrides: std::collections::HashMap<String, YamlFamilyGranularity>,
+}
+
+/// Per-family granularity override: bare dimension list, or (for responses)
+/// a map with optional `dimensions` and `rcode`.
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
+#[serde(untagged)]
+pub(crate) enum YamlFamilyGranularity {
+    Dimensions(Vec<String>),
+    Detailed {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        dimensions: Option<Vec<String>>,
+        #[serde(default, skip_serializing_if = "String::is_empty")]
+        rcode: String,
+    },
+}
+
+impl YamlFamilyGranularity {
+    fn into_proto(self) -> MetricsDimensionList {
+        match self {
+            YamlFamilyGranularity::Dimensions(dimensions) => MetricsDimensionList {
+                dimensions,
+                rcode: String::new(),
+                dimensions_set: true,
+            },
+            YamlFamilyGranularity::Detailed { dimensions, rcode } => MetricsDimensionList {
+                dimensions_set: dimensions.is_some(),
+                dimensions: dimensions.unwrap_or_default(),
+                rcode,
+            },
+        }
+    }
+
+    fn from_proto(list: &MetricsDimensionList) -> Self {
+        if !list.rcode.is_empty() || !list.dimensions_set {
+            YamlFamilyGranularity::Detailed {
+                dimensions: if list.dimensions_set {
+                    Some(list.dimensions.clone())
+                } else {
+                    None
+                },
+                rcode: list.rcode.clone(),
+            }
+        } else {
+            YamlFamilyGranularity::Dimensions(list.dimensions.clone())
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize, Default, Clone, Copy)]
@@ -1078,7 +1126,7 @@ impl From<YamlMetrics> for MetricsConfig {
                 overrides: g
                     .overrides
                     .into_iter()
-                    .map(|(family, dimensions)| (family, MetricsDimensionList { dimensions }))
+                    .map(|(family, override_)| (family, override_.into_proto()))
                     .collect(),
             }),
             collection: y
@@ -1704,7 +1752,7 @@ impl From<&MetricsConfig> for YamlMetrics {
                 overrides: g
                     .overrides
                     .iter()
-                    .map(|(family, list)| (family.clone(), list.dimensions.clone()))
+                    .map(|(family, list)| (family.clone(), YamlFamilyGranularity::from_proto(list)))
                     .collect(),
             }),
             collection: m
@@ -2436,6 +2484,13 @@ metrics:
                 .dimensions,
             vec!["pool".to_string()]
         );
+        assert!(
+            granularity
+                .overrides
+                .get("timing")
+                .expect("timing dims")
+                .dimensions_set
+        );
         let event_export = metrics.event_export.as_ref().expect("event_export");
         assert_eq!(event_export.collect, Some(true));
         assert_eq!(event_export.emit, Some(true));
@@ -2470,5 +2525,39 @@ metrics:
             metrics.base.is_empty(),
             "base unset when only profile given"
         );
+    }
+
+    #[test]
+    fn metrics_granularity_responses_rcode_map_form() {
+        let yaml = r#"
+schema_version: 1
+listeners:
+  threads: 1
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+pools:
+  - name: default
+    backends:
+      - address: "127.0.0.1:5300"
+metrics:
+  enabled: true
+  base: standard
+  granularity:
+    default: fine
+    responses:
+      rcode: coarse
+"#;
+        let cfg: Config = load_yaml(yaml).expect("parse");
+        let metrics = cfg.metrics.as_ref().expect("metrics");
+        let g = metrics.granularity.as_ref().expect("granularity");
+        let responses = g.overrides.get("responses").expect("responses");
+        assert_eq!(responses.rcode, "coarse");
+        assert!(!responses.dimensions_set);
+        assert!(responses.dimensions.is_empty());
+
+        let exported = crate::export_yaml(&cfg).expect("export");
+        let reparsed = load_yaml(&exported).expect("reparse");
+        assert_eq!(reparsed.metrics, cfg.metrics);
     }
 }
