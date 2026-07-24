@@ -8,6 +8,8 @@ use conduit_config::{
     clear_overlay, is_overlay_patch_empty, load_yaml, merge_file_and_overlay,
     merge_overlay_patches, validate, validate_overlay_patch, EffectiveConfig, ValidationResult,
 };
+use conduit_events::EventHub;
+use conduit_metrics::{MetricsExportController, MetricsHub};
 use conduit_proto::config::Config;
 use std::fmt;
 use std::fs;
@@ -72,6 +74,12 @@ struct ProposalEnvelope {
 pub struct ConfiguratorState {
     pub config_path: PathBuf,
     pub base_dir: Option<PathBuf>,
+    /// Metrics hub for hot-swapping metrics plan on config reload.
+    pub metrics_hub: Option<Arc<MetricsHub>>,
+    /// Export controller for hot-rebinding Prometheus/OTLP sinks.
+    pub export_controller: Option<Arc<MetricsExportController>>,
+    /// Event hub for passing to export controller commit.
+    pub events: Option<Arc<EventHub>>,
 }
 
 /// Handle used by gRPC, SIGHUP, and tests to enqueue proposals.
@@ -137,6 +145,13 @@ impl ConfiguratorHandle {
 pub struct ConfiguratorSpawn {
     handle: ConfiguratorHandle,
     task: JoinHandle<()>,
+    /// Sender to inject export controller after dataplane starts.
+    state_tx: mpsc::Sender<ConfiguratorStateUpdate>,
+}
+
+/// Dynamic updates to configurator state (sent after spawn).
+enum ConfiguratorStateUpdate {
+    ExportController(Arc<MetricsExportController>, Arc<EventHub>),
 }
 
 impl ConfiguratorSpawn {
@@ -144,8 +159,30 @@ impl ConfiguratorSpawn {
         self.handle.clone()
     }
 
+    /// Wire the export controller into the configurator state for hot-rebind.
+    ///
+    /// Called by RuntimeSupervisor after the dataplane is started and the
+    /// export controller is created. The controller needs EventHub, which
+    /// only exists after dataplane start.
+    pub fn set_export_controller(
+        &mut self,
+        controller: Arc<MetricsExportController>,
+        events: Arc<EventHub>,
+    ) {
+        let _ = self
+            .state_tx
+            .try_send(ConfiguratorStateUpdate::ExportController(
+                controller, events,
+            ));
+    }
+
     pub async fn shutdown(self) {
+        // Drop *both* senders so the background select loop can exit.
+        // G4 added `state_tx` for late export-controller injection; leaving it
+        // alive after dropping only the proposal handle left `state_rx.recv()`
+        // pending forever and hung process shutdown (SIGINT never completed).
         drop(self.handle);
+        drop(self.state_tx);
         match self.task.await {
             Ok(()) => {}
             Err(e) if e.is_panic() => std::panic::resume_unwind(e.into_panic()),
@@ -161,16 +198,40 @@ pub fn spawn(
     state: ConfiguratorState,
 ) -> ConfiguratorSpawn {
     let (tx, mut rx) = mpsc::channel::<ProposalEnvelope>(64);
+    let (state_tx, mut state_rx) = mpsc::channel::<ConfiguratorStateUpdate>(4);
     let handle = ConfiguratorHandle { tx: tx.clone() };
 
     let task = tokio::spawn(async move {
-        while let Some(envelope) = rx.recv().await {
-            let result = apply_proposal(&store, &effective, &state, envelope.proposal).await;
-            let _ = envelope.reply.send(result);
+        // Mutable state that can be updated after spawn (e.g., export controller).
+        let mut state = state;
+
+        loop {
+            tokio::select! {
+                // Handle state updates (e.g., export controller injection).
+                Some(update) = state_rx.recv() => {
+                    match update {
+                        ConfiguratorStateUpdate::ExportController(controller, events) => {
+                            state.export_controller = Some(controller);
+                            state.events = Some(events);
+                            tracing::debug!("export controller wired into configurator");
+                        }
+                    }
+                }
+                // Handle proposal envelopes.
+                Some(envelope) = rx.recv() => {
+                    let result = apply_proposal(&store, &effective, &state, envelope.proposal).await;
+                    let _ = envelope.reply.send(result);
+                }
+                else => break,
+            }
         }
     });
 
-    ConfiguratorSpawn { handle, task }
+    ConfiguratorSpawn {
+        handle,
+        task,
+        state_tx,
+    }
 }
 
 async fn apply_proposal(
@@ -192,10 +253,45 @@ async fn apply_proposal(
         }
     };
 
-    match store.install_validated_with_base(merged, state.base_dir.as_deref()) {
+    // Compile metrics config for export controller prepare and hub apply.
+    let (compiled, _) = conduit_metrics::compile_from_config(&merged);
+
+    // Prepare export rebind BEFORE installing snapshot: if Prometheus bind fails,
+    // reject the apply without mutating any runtime state.
+    let pending_export = if let Some(ref controller) = state.export_controller {
+        match controller.prepare(&compiled).await {
+            Ok(pending) => Some(pending),
+            Err(e) => {
+                tracing::warn!(error = %e, "export rebind prepare failed; rejecting apply");
+                return ApplyResult {
+                    ok: false,
+                    errors: vec![e],
+                    generation: store.generation(),
+                };
+            }
+        }
+    } else {
+        None
+    };
+
+    match store.install_validated_with_base(merged.clone(), state.base_dir.as_deref()) {
         Ok(()) => {
             let new = store.load();
             log_config_applied(proposal.source, new.generation, &prev, &new);
+
+            // Hot-swap metrics plan if hub is configured.
+            if let Some(ref hub) = state.metrics_hub {
+                hub.apply_compiled(compiled);
+                tracing::debug!(generation = new.generation, "metrics plan hot-swapped");
+            }
+
+            // Commit export rebind AFTER successful snapshot install.
+            if let (Some(pending), Some(ref controller), Some(ref events)) =
+                (pending_export, &state.export_controller, &state.events)
+            {
+                controller.commit(pending, events.clone()).await;
+            }
+
             ApplyResult {
                 ok: true,
                 errors: vec![],
@@ -382,6 +478,9 @@ mod tests {
             base_dir: Some(
                 PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/config"),
             ),
+            metrics_hub: None,
+            export_controller: None,
+            events: None,
         };
         let handle = spawn(store.clone(), effective, state).handle();
 
@@ -410,6 +509,9 @@ mod tests {
             base_dir: Some(
                 PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/config"),
             ),
+            metrics_hub: None,
+            export_controller: None,
+            events: None,
         };
         let handle = spawn(store.clone(), effective, state).handle();
         let gen0 = store.generation();
@@ -439,6 +541,9 @@ mod tests {
             base_dir: Some(
                 PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/config"),
             ),
+            metrics_hub: None,
+            export_controller: None,
+            events: None,
         };
         let handle = spawn(store.clone(), effective.clone(), state).handle();
 
@@ -496,6 +601,9 @@ mod tests {
             base_dir: Some(
                 PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/config"),
             ),
+            metrics_hub: None,
+            export_controller: None,
+            events: None,
         };
         let handle = spawn(store.clone(), effective, state).handle();
 
@@ -529,6 +637,9 @@ mod tests {
             base_dir: Some(
                 PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/config"),
             ),
+            metrics_hub: None,
+            export_controller: None,
+            events: None,
         };
         let handle = spawn(store.clone(), effective, state).handle();
 
@@ -566,6 +677,9 @@ mod tests {
             base_dir: Some(
                 PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/config"),
             ),
+            metrics_hub: None,
+            export_controller: None,
+            events: None,
         };
         let handle = spawn(store.clone(), effective.clone(), state).handle();
 
@@ -598,6 +712,9 @@ mod tests {
             base_dir: Some(
                 PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/config"),
             ),
+            metrics_hub: None,
+            export_controller: None,
+            events: None,
         };
         let handle = spawn(store.clone(), effective.clone(), state).handle();
 
@@ -639,6 +756,9 @@ mod tests {
             base_dir: Some(
                 PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/config"),
             ),
+            metrics_hub: None,
+            export_controller: None,
+            events: None,
         };
         let handle = spawn(store.clone(), effective, state).handle();
         let gen0 = store.generation();
@@ -678,6 +798,9 @@ mod tests {
             base_dir: Some(
                 PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/config"),
             ),
+            metrics_hub: None,
+            export_controller: None,
+            events: None,
         };
         let handle = spawn(store.clone(), effective, state).handle();
 
@@ -698,5 +821,40 @@ pools:
             store.load().config.listeners.as_ref().unwrap().listeners[0].address,
             file_listener_addr
         );
+    }
+
+    /// Regression: G4 `state_tx` must be dropped on shutdown or the select loop
+    /// never exits (process hangs on SIGINT after export controller is wired).
+    #[tokio::test]
+    async fn shutdown_completes_after_export_controller_wired() {
+        let yaml = include_str!("../../../tests/fixtures/config/minimal.yaml");
+        let file_cfg = load_yaml(yaml).unwrap();
+        let store = Arc::new(SnapshotStore::new(RuntimeSnapshot::from_config(
+            file_cfg.clone(),
+        )));
+        let effective = Arc::new(Mutex::new(EffectiveConfig::new(file_cfg.clone())));
+        let state = ConfiguratorState {
+            config_path: PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../tests/fixtures/config/minimal.yaml"),
+            base_dir: Some(
+                PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/config"),
+            ),
+            metrics_hub: None,
+            export_controller: None,
+            events: None,
+        };
+        let mut spawn = spawn(store, effective, state);
+
+        let hub = Arc::new(conduit_metrics::MetricsHub::from_config(&file_cfg));
+        let events = Arc::new(conduit_events::EventHub::disabled());
+        let controller = Arc::new(conduit_metrics::MetricsExportController::new(hub));
+        spawn.set_export_controller(controller, events);
+
+        // Give the state update a moment to be processed.
+        tokio::task::yield_now().await;
+
+        tokio::time::timeout(std::time::Duration::from_secs(2), spawn.shutdown())
+            .await
+            .expect("configurator shutdown hung — state_tx likely still open");
     }
 }

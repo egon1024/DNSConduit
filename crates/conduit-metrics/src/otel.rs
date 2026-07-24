@@ -2,8 +2,10 @@
 //! counters, gauges, and histograms (HELP, units, sum/count/buckets).
 
 use crate::export::gather_prometheus_families;
+use crate::export_controller::OtelHotSettings;
 use crate::task::OtelPushHandle;
 use crate::MetricsHub;
+use arc_swap::ArcSwap;
 use async_trait::async_trait;
 use conduit_events::EventHub;
 use http::header::{HeaderName, HeaderValue};
@@ -35,6 +37,10 @@ pub struct OtelPushSettings {
     pub headers: Vec<(String, String)>,
 }
 
+/// Spawn the original OTLP push loop with frozen settings.
+///
+/// This is the legacy API: settings are captured at spawn time. For hot-reload
+/// support, use [`build_otel_push_loop`] with an `ArcSwap<OtelHotSettings>`.
 pub fn spawn_otel_push(
     settings: OtelPushSettings,
     hub: Arc<MetricsHub>,
@@ -71,6 +77,73 @@ pub fn spawn_otel_push(
                         let mut resource_metrics = families_to_resource_metrics(
                             &families,
                             resource_kv.clone(),
+                            series_start,
+                        );
+                        if let Err(e) = exporter.export(&mut resource_metrics).await {
+                            tracing::warn!(error = %e, %endpoint, "otel metrics push failed");
+                        } else {
+                            tracing::debug!(%endpoint, "otel metrics push ok");
+                        }
+                    }
+                }
+            }
+        }
+        tracing::debug!(%endpoint, "otel metrics push stopped");
+    });
+    OtelPushHandle::new(shutdown_tx, join)
+}
+
+/// Build an OTLP push loop with hot-swappable settings.
+///
+/// The loop reads `hot_settings` each iteration for interval, headers, and
+/// resource attributes. Changing those via `ArcSwap::store` updates the next
+/// push without rebuilding the HTTP client.
+///
+/// To change the endpoint or TLS settings, shut down this loop and spawn a new
+/// one with the new `OtelPushSettings`.
+pub fn build_otel_push_loop(
+    settings: OtelPushSettings,
+    hub: Arc<MetricsHub>,
+    observation: Arc<EventHub>,
+    hot_settings: Arc<ArcSwap<OtelHotSettings>>,
+) -> OtelPushHandle {
+    let (shutdown_tx, mut shutdown_rx) = tokio::sync::oneshot::channel();
+    let join = tokio::spawn(async move {
+        let endpoint = settings.endpoint.clone();
+        let exporter = match build_metric_exporter(&settings) {
+            Ok(e) => e,
+            Err(e) => {
+                tracing::error!(error = %e, %endpoint, "failed to build OTLP metric exporter");
+                return;
+            }
+        };
+
+        // Fixed start for cumulative series for the life of this push task.
+        let series_start = SystemTime::now();
+
+        loop {
+            // Read hot settings each iteration so interval/headers/attrs changes take effect.
+            let current = hot_settings.load();
+            let interval = Duration::from_millis(current.push_interval_ms.max(1000) as u64);
+
+            tokio::select! {
+                _ = &mut shutdown_rx => break,
+                _ = tokio::time::sleep(interval) => {
+                    if hub.metrics_enabled() {
+                        // Re-read in case settings changed during sleep.
+                        let current = hot_settings.load();
+                        let mut resource_kv: Vec<KeyValue> = current
+                            .resource_attributes
+                            .iter()
+                            .map(|(k, v)| KeyValue::new(k.clone(), v.clone()))
+                            .collect();
+                        resource_kv.push(KeyValue::new("service.name", "conduit"));
+
+                        let obs = observation.sink_metrics_snapshot();
+                        let families = gather_prometheus_families(hub.as_ref(), &obs);
+                        let mut resource_metrics = families_to_resource_metrics(
+                            &families,
+                            resource_kv,
                             series_start,
                         );
                         if let Err(e) = exporter.export(&mut resource_metrics).await {

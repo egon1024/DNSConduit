@@ -284,7 +284,7 @@ mod tests {
         let mut reg = MetricRegistry::default();
         reg.register("hits", HashSet::new()).unwrap();
         let mut cfg = conduit_proto::config::MetricsConfig {
-            enabled: true,
+            enabled: Some(true),
             profile: String::new(),
             prometheus: None,
             otel: None,
@@ -313,7 +313,7 @@ mod tests {
         reg.register("block_hits", HashSet::from(["category".into()]))
             .unwrap();
         let cfg = MetricsConfig {
-            enabled: true,
+            enabled: Some(true),
             profile: String::new(),
             prometheus: None,
             otel: None,
@@ -341,7 +341,7 @@ mod tests {
         let mut reg = MetricRegistry::default();
         reg.register("block_hits", HashSet::new()).unwrap();
         let cfg = MetricsConfig {
-            enabled: true,
+            enabled: Some(true),
             profile: String::new(),
             prometheus: None,
             otel: None,
@@ -368,7 +368,7 @@ mod tests {
 
         let mut reg = MetricRegistry::default();
         let cfg = MetricsConfig {
-            enabled: true,
+            enabled: Some(true),
             profile: "full".into(),
             prometheus: None,
             otel: None,

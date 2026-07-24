@@ -4,8 +4,9 @@
 
 use conduit_config::load_yaml;
 use conduit_script::testing::MockHost;
-use conduit_script::{compile_from_config, run_scripts, ScriptPhase};
-use std::collections::HashMap;
+use conduit_script::{
+    compile_from_config, run_scripts, HostTransaction, ScriptPhase, ScriptRunOutcome,
+};
 use std::path::PathBuf;
 use std::time::Instant;
 
@@ -24,8 +25,8 @@ fn main() {
 
     let n = 10_000u32;
     let start = Instant::now();
-    for _ in 0..n {
-        let _ = run_scripts(
+    for i in 0..n {
+        let (outcome, _) = run_scripts(
             &scripting,
             &[0],
             &mut host,
@@ -35,7 +36,14 @@ fn main() {
             None,
             None,
         );
-        host.pool = None;
+        assert_eq!(
+            outcome,
+            ScriptRunOutcome::Ok,
+            "script run {i} failed (bench is not measuring successful hook execution)"
+        );
+        // set-vip-pool.rhai sets pool + tag; clear both so each iteration is comparable.
+        host.clear_pool();
+        host.clear_tag("tier");
     }
     let elapsed = start.elapsed();
     println!(

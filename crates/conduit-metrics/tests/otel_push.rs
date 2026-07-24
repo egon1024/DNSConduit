@@ -214,9 +214,9 @@ fn otel_yaml_roundtrip_preserves_allow_invalid_certs() {
         .otel
         .as_mut()
         .unwrap()
-        .allow_invalid_certs = true;
+        .allow_invalid_certs = Some(true);
     let exported = conduit_config::export_yaml(&cfg).unwrap();
     let cfg2 = load_yaml(&exported).unwrap();
     let otel = cfg2.metrics.as_ref().unwrap().otel.as_ref().unwrap();
-    assert!(otel.allow_invalid_certs);
+    assert_eq!(otel.allow_invalid_certs, Some(true));
 }

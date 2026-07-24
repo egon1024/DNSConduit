@@ -1,0 +1,7 @@
+# G4 manual lab: rebind Prometheus to new port 19091.
+# Apply this overlay to test Prometheus hot-rebind.
+schema_version: 1
+metrics:
+  prometheus:
+    listen_address: "127.0.2.1:19091"
+    path: /metrics

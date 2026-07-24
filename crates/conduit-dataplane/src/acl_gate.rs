@@ -137,7 +137,7 @@ impl AclGate {
         };
         match evaluate_preadmission(policy, client_ip, store) {
             AclDecision::Drop => {
-                metrics.builtin.record_acl_decision(
+                metrics.builtin().record_acl_decision(
                     TIER_PREADMISSION,
                     ACTION_DROP,
                     &self.listener_label,
@@ -173,9 +173,12 @@ impl AclGate {
             AclDecision::Refuse => ACTION_REFUSE,
             AclDecision::Tag(_) => ACTION_TAG,
         };
-        metrics
-            .builtin
-            .record_acl_decision(TIER_LISTENER, action, &self.listener_label, client_ip);
+        metrics.builtin().record_acl_decision(
+            TIER_LISTENER,
+            action,
+            &self.listener_label,
+            client_ip,
+        );
         match decision {
             AclDecision::Admit => AclGateOutcome::Admit,
             AclDecision::Tag(tag) => AclGateOutcome::AdmitTagged(tag),
@@ -407,7 +410,7 @@ mod tests {
                 ..Default::default()
             }),
             metrics: Some(MetricsConfig {
-                enabled: true,
+                enabled: Some(true),
                 profile: "full".into(),
                 ..Default::default()
             }),
@@ -422,7 +425,7 @@ mod tests {
 
     fn acl_drop_total(metrics: &MetricsHub) -> u64 {
         metrics
-            .builtin
+            .builtin()
             .gather()
             .into_iter()
             .find(|f| f.get_name() == "conduit_acl_decisions_total")
@@ -600,7 +603,7 @@ mod tests {
             after - before,
             5,
             "ACL metrics must increment even when deny-log sampling skips; body:\n{}",
-            encode_builtin(metrics.builtin.gather())
+            encode_builtin(metrics.builtin().gather())
         );
     }
 }

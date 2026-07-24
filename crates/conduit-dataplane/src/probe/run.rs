@@ -195,7 +195,9 @@ fn record_probe_result(
     outcome: &str,
 ) {
     if let Some((pool, backend)) = scheduler.backend_labels(backend_idx) {
-        metrics.builtin.record_probe_result(pool, backend, outcome);
+        metrics
+            .builtin()
+            .record_probe_result(pool, backend, outcome);
     }
 }
 

@@ -58,13 +58,12 @@ impl WaitResponseStage {
             .unwrap_or_else(|| "unknown".into());
         let success = txn.response_wire.is_some();
         let outcome = if success { "success" } else { "error" };
-        hub.builtin
-            .record_forward_attempt(pool, &backend_label, outcome);
+        let builtin = txn.builtin_registry(hub);
+        builtin.record_forward_attempt(pool, &backend_label, outcome);
         if !success {
-            hub.builtin
-                .record_forward_error(pool, &backend_label, "timeout");
+            builtin.record_forward_error(pool, &backend_label, "timeout");
         }
-        hub.builtin.record_forward_duration(
+        builtin.record_forward_duration(
             pool,
             &backend_label,
             txn.last_forward_ms() as f64 / 1000.0,

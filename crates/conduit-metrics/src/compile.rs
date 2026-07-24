@@ -118,7 +118,6 @@ fn compile_metrics(m: Option<&MetricsConfig>) -> CompiledMetrics {
     if !plan.enabled {
         return CompiledMetrics {
             enabled: false,
-            profile: BuiltinProfile::Off,
             plan,
             ..Default::default()
         };
@@ -154,7 +153,16 @@ fn compile_metrics(m: Option<&MetricsConfig>) -> CompiledMetrics {
         otel_endpoint: otel
             .filter(|o| !o.endpoint.is_empty())
             .map(|o| o.endpoint.clone()),
-        otel_push_interval_ms: otel.map(|o| o.push_interval_ms).unwrap_or(15_000).max(1000),
+        otel_push_interval_ms: otel
+            .map(|o| {
+                if o.push_interval_ms == 0 {
+                    15_000
+                } else {
+                    o.push_interval_ms
+                }
+            })
+            .unwrap_or(15_000)
+            .max(1000),
         otel_resource_attributes: otel
             .map(|o| {
                 o.resource_attributes
@@ -163,7 +171,9 @@ fn compile_metrics(m: Option<&MetricsConfig>) -> CompiledMetrics {
                     .collect()
             })
             .unwrap_or_default(),
-        otel_allow_invalid_certs: otel.map(|o| o.allow_invalid_certs).unwrap_or(false),
+        otel_allow_invalid_certs: otel
+            .map(|o| o.allow_invalid_certs.unwrap_or(false))
+            .unwrap_or(false),
         otel_headers: otel
             .map(|o| {
                 o.headers
@@ -252,7 +262,7 @@ pub fn validate_metrics_tracing(cfg: &Config) -> Vec<String> {
         if let Err(plan_errors) = resolve_metrics_plan(Some(m)) {
             errors.extend(plan_errors);
         }
-        if m.enabled {
+        if m.enabled.unwrap_or(false) {
             if let Some(p) = &m.prometheus {
                 if !p.listen_address.is_empty()
                     && p.listen_address.parse::<std::net::SocketAddr>().is_err()
@@ -443,14 +453,14 @@ mod tests {
         let cfg = Config {
             schema_version: 1,
             metrics: Some(MetricsConfig {
-                enabled: true,
+                enabled: Some(true),
                 profile: "full".into(),
                 prometheus: None,
                 otel: Some(OtelMetricsConfig {
                     endpoint: "https://collector.example/v1/metrics".into(),
                     push_interval_ms: 5000,
                     resource_attributes: Default::default(),
-                    allow_invalid_certs: true,
+                    allow_invalid_certs: Some(true),
                     headers: [("X-Test".to_string(), "1".to_string())]
                         .into_iter()
                         .collect(),

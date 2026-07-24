@@ -1,7 +1,7 @@
 # Local checks aligned with .github/workflows/ci.yml
 #
 #   make test        — fmt-check, clippy, and unit tests (CI parity)
-#   make performance — optional local benchmarks (not CI; see Future below)
+#   make performance — optional local benchmarks (not CI)
 #   make fmt-check   — verify formatting only
 #   make clippy      — workspace clippy with warnings denied
 #   make unit        — cargo test --workspace
@@ -86,7 +86,7 @@ unit:
 	$(CARGO) test --workspace
 
 performance:
-	# Today: Rhai thread-local engine reuse only. See Makefile header "Future".
+	# Today: Rhai thread-local engine reuse only (expand later: dataplane, reload, scrape).
 	$(CARGO) bench -p conduit-script --bench thread_local_runtime --features test-util
 
 build:

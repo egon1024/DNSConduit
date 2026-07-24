@@ -35,6 +35,9 @@ pub fn control_setup(
     let state = ConfiguratorState {
         config_path,
         base_dir: base_dir.clone(),
+        metrics_hub: None,
+        export_controller: None,
+        events: None,
     };
     let configurator = spawn_configurator(snapshots.clone(), effective.clone(), state).handle();
     (snapshots, effective, configurator, tracing, base_dir)

@@ -9,13 +9,18 @@ use prometheus::{Encoder, IntCounterVec, Opts, Registry, TextEncoder};
 
 /// All metric families (built-in, user, event-sink) for scrape or OTLP conversion,
 /// filtered by the hub's compiled emit mask.
+///
+/// Loads the current hot components via `ArcSwap` — each call sees the latest
+/// swapped-in registries and plan.
 pub fn gather_prometheus_families(
     hub: &MetricsHub,
     event_sinks: &[SinkMetricsSnapshot],
 ) -> Vec<prometheus::proto::MetricFamily> {
-    let plan = &hub.compiled.plan;
-    let mut families = hub.builtin.gather();
-    families.extend(hub.user.gather());
+    // Load the hot components once to get a consistent snapshot.
+    let hot = hub.compiled();
+    let plan = &hot.compiled.plan;
+    let mut families = hot.builtin.gather();
+    families.extend(hot.user.gather());
     if plan.event_export_emit {
         families.extend(event_sink_families(event_sinks));
     }

@@ -142,7 +142,7 @@ impl Orchestrator {
             if let Some(hub) = self.metrics.as_ref() {
                 if hub.metrics_enabled() {
                     if let Some(started) = txn.suspend_phase_started_at.take() {
-                        hub.builtin.observe_phase(
+                        txn.builtin_registry(hub).observe_phase(
                             phase_name(Phase::Lookup),
                             started.elapsed().as_secs_f64(),
                         );
@@ -156,7 +156,7 @@ impl Orchestrator {
             if let Some(hub) = self.metrics.as_ref() {
                 if hub.metrics_enabled() {
                     if let Some(started) = txn.suspend_phase_started_at.take() {
-                        hub.builtin.observe_phase(
+                        txn.builtin_registry(hub).observe_phase(
                             phase_name(Phase::Lookup),
                             started.elapsed().as_secs_f64(),
                         );
@@ -214,6 +214,9 @@ impl Orchestrator {
         if !resumed {
             txn.snapshot_generation = snapshot.generation;
             txn.current_phase = Phase::Parse;
+            // Pin metrics registries for this txn so mid-flight plan swaps do not
+            // change label schemas or drop handles under an in-flight query.
+            txn.metrics_pin = self.metrics.as_ref().map(|h| h.acquire_pin());
         }
 
         loop {
@@ -247,7 +250,7 @@ impl Orchestrator {
             let outcome = stage.handle(txn, snapshot);
             if let Some(hub) = metrics {
                 if hub.metrics_enabled() && !skip_post_phase_observe {
-                    hub.builtin
+                    txn.builtin_registry(hub)
                         .observe_phase(phase_name(phase), phase_started.elapsed().as_secs_f64());
                 }
             }
@@ -267,7 +270,8 @@ impl Orchestrator {
                             match phase {
                                 Phase::Parse => {
                                     if let Some(reason) = txn.parse_reject_reason {
-                                        hub.builtin.record_parse_rejected(reason.as_str());
+                                        txn.builtin_registry(hub)
+                                            .record_parse_rejected(reason.as_str());
                                     }
                                 }
                                 Phase::RequestRules | Phase::ResponseRules => {
@@ -282,7 +286,7 @@ impl Orchestrator {
                                         Phase::ResponseRules => "response_rules",
                                         _ => unreachable!(),
                                     };
-                                    hub.builtin.record_query_dropped(
+                                    txn.builtin_registry(hub).record_query_dropped(
                                         listener,
                                         protocol,
                                         reason,
@@ -308,7 +312,7 @@ impl Orchestrator {
                                     crate::transaction::ClientProtocol::Tcp => "tcp",
                                 };
                                 let listener = txn.listener_label.as_deref().unwrap_or("unknown");
-                                hub.builtin.record_query(
+                                txn.builtin_registry(hub).record_query(
                                     listener,
                                     protocol,
                                     txn.qtype,
@@ -323,7 +327,7 @@ impl Orchestrator {
                             let retry_target =
                                 txn.retry_pool.as_ref().or(txn.selected_pool.as_ref());
                             if let Some(pool) = retry_target {
-                                hub.builtin.record_retry(pool);
+                                txn.builtin_registry(hub).record_retry(pool);
                             }
                         }
                     }
@@ -407,7 +411,8 @@ fn record_send_completion_metrics(hub: &MetricsHub, txn: &Transaction) {
         crate::transaction::ClientProtocol::Tcp => "tcp",
     };
     let listener = txn.listener_label.as_deref().unwrap_or("unknown");
-    hub.builtin.record_response(
+    let builtin = txn.builtin_registry(hub);
+    builtin.record_response(
         listener,
         protocol,
         txn.rcode(),
@@ -415,14 +420,14 @@ fn record_send_completion_metrics(hub: &MetricsHub, txn: &Transaction) {
         txn.answer_source.map(|s| s.as_str()),
     );
     if txn.udp_response_truncated_on_send {
-        hub.builtin.record_response_truncated(
+        builtin.record_response_truncated(
             listener,
             protocol,
             &txn.client_addr,
             txn.answer_source.map(|s| s.as_str()),
         );
     }
-    hub.builtin.observe_response_duration(
+    builtin.observe_response_duration(
         txn.answer_source.map(|s| s.as_str()),
         listener,
         protocol,

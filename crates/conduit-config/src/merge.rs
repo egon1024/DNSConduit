@@ -10,9 +10,15 @@
 //!   `name` when the overlay entry has a non-empty `name`, else by `address`.
 //!   Unknown overlay backend `name` is rejected. Overlay backends matched only by
 //!   `address` that are not present in a pool are appended.
+//! - **`metrics`**: deep merge (intentional exception to section replace). Nested
+//!   maps merge by key; scalars win when set; `categories.include`/`exclude`
+//!   replace only when `include_set`/`exclude_set`; `user_metrics` match-by-name.
 
 use crate::error::ConfigError;
-use conduit_proto::config::{Backend, Config, Pool};
+use conduit_proto::config::{
+    Backend, Config, MetricsCollectEmit, MetricsConfig, OtelMetricsConfig, Pool,
+    PrometheusMetricsConfig, UserMetricExportConfig,
+};
 
 #[derive(Debug, Clone)]
 pub struct EffectiveConfig {
@@ -86,6 +92,10 @@ pub fn merge_file_and_overlay(file: &Config, overlay: &Config) -> Result<Config,
         merged.caches = overlay.caches.clone();
     }
 
+    if let Some(overlay_metrics) = &overlay.metrics {
+        merged.metrics = Some(merge_metrics(merged.metrics.as_ref(), overlay_metrics));
+    }
+
     if !overlay.pools.is_empty() {
         merge_pools(&mut merged.pools, &overlay.pools)?;
     }
@@ -114,6 +124,7 @@ pub fn is_overlay_patch_empty(cfg: &Config) -> bool {
         && cfg.lookup.is_none()
         && cfg.caches.is_empty()
         && cfg.acls.is_none()
+        && cfg.metrics.is_none()
 }
 
 /// Merge one overlay patch into another (same rules as [`merge_file_and_overlay`]).
@@ -180,6 +191,137 @@ fn apply_backend_overlay(base: &mut Backend, overlay: &Backend) {
     }
     if overlay.weight.is_some() {
         base.weight = overlay.weight;
+    }
+}
+
+/// Deep-merge overlay metrics into a file baseline (or overlay-alone when base is None).
+fn merge_metrics(base: Option<&MetricsConfig>, overlay: &MetricsConfig) -> MetricsConfig {
+    let mut merged = base.cloned().unwrap_or_default();
+
+    if overlay.enabled.is_some() {
+        merged.enabled = overlay.enabled;
+    }
+    if !overlay.profile.is_empty() {
+        merged.profile = overlay.profile.clone();
+    }
+    if !overlay.base.is_empty() {
+        merged.base = overlay.base.clone();
+    }
+
+    for (key, overlay_ce) in &overlay.collection {
+        merged
+            .collection
+            .entry(key.clone())
+            .and_modify(|base_ce| merge_collect_emit(base_ce, overlay_ce))
+            .or_insert_with(|| *overlay_ce);
+    }
+
+    if let Some(overlay_g) = &overlay.granularity {
+        let mut g = merged.granularity.unwrap_or_default();
+        if !overlay_g.default.is_empty() {
+            g.default = overlay_g.default.clone();
+        }
+        for (family, dims) in &overlay_g.overrides {
+            g.overrides.insert(family.clone(), dims.clone());
+        }
+        merged.granularity = Some(g);
+    }
+
+    if let Some(overlay_cats) = &overlay.categories {
+        let mut cats = merged.categories.unwrap_or_default();
+        if overlay_cats.include_set {
+            cats.include = overlay_cats.include.clone();
+            cats.include_set = true;
+        }
+        if overlay_cats.exclude_set {
+            cats.exclude = overlay_cats.exclude.clone();
+            cats.exclude_set = true;
+        }
+        merged.categories = Some(cats);
+    }
+
+    if let Some(overlay_ee) = &overlay.event_export {
+        let mut ee = merged.event_export.unwrap_or_default();
+        if overlay_ee.collect.is_some() {
+            ee.collect = overlay_ee.collect;
+        }
+        if overlay_ee.emit.is_some() {
+            ee.emit = overlay_ee.emit;
+        }
+        merged.event_export = Some(ee);
+    }
+
+    if let Some(overlay_prom) = &overlay.prometheus {
+        merged.prometheus = Some(merge_prometheus(merged.prometheus.as_ref(), overlay_prom));
+    }
+
+    if let Some(overlay_otel) = &overlay.otel {
+        merged.otel = Some(merge_otel(merged.otel.as_ref(), overlay_otel));
+    }
+
+    merge_user_metrics(&mut merged.user_metrics, &overlay.user_metrics);
+
+    merged
+}
+
+fn merge_collect_emit(base: &mut MetricsCollectEmit, overlay: &MetricsCollectEmit) {
+    if overlay.collect.is_some() {
+        base.collect = overlay.collect;
+    }
+    if overlay.emit.is_some() {
+        base.emit = overlay.emit;
+    }
+}
+
+fn merge_prometheus(
+    base: Option<&PrometheusMetricsConfig>,
+    overlay: &PrometheusMetricsConfig,
+) -> PrometheusMetricsConfig {
+    let mut merged = base.cloned().unwrap_or_default();
+    if !overlay.listen_address.is_empty() {
+        merged.listen_address = overlay.listen_address.clone();
+    }
+    if !overlay.path.is_empty() {
+        merged.path = overlay.path.clone();
+    }
+    merged
+}
+
+fn merge_otel(base: Option<&OtelMetricsConfig>, overlay: &OtelMetricsConfig) -> OtelMetricsConfig {
+    let mut merged = base.cloned().unwrap_or_default();
+    if !overlay.endpoint.is_empty() {
+        merged.endpoint = overlay.endpoint.clone();
+    }
+    if overlay.push_interval_ms != 0 {
+        merged.push_interval_ms = overlay.push_interval_ms;
+    }
+    if overlay.allow_invalid_certs.is_some() {
+        merged.allow_invalid_certs = overlay.allow_invalid_certs;
+    }
+    for (k, v) in &overlay.resource_attributes {
+        merged.resource_attributes.insert(k.clone(), v.clone());
+    }
+    for (k, v) in &overlay.headers {
+        merged.headers.insert(k.clone(), v.clone());
+    }
+    merged
+}
+
+fn merge_user_metrics(base: &mut Vec<UserMetricExportConfig>, overlay: &[UserMetricExportConfig]) {
+    for overlay_entry in overlay {
+        if let Some(base_entry) = base.iter_mut().find(|u| u.name == overlay_entry.name) {
+            if !overlay_entry.export.is_empty() {
+                base_entry.export = overlay_entry.export.clone();
+            }
+            if overlay_entry.collect.is_some() {
+                base_entry.collect = overlay_entry.collect;
+            }
+            if overlay_entry.emit.is_some() {
+                base_entry.emit = overlay_entry.emit;
+            }
+        } else {
+            base.push(overlay_entry.clone());
+        }
     }
 }
 
@@ -352,5 +494,168 @@ pools:
         let overlay = load_yaml(overlay_yaml).unwrap();
         let merged = merge_file_and_overlay(&file_cfg, &overlay).unwrap();
         assert_eq!(merged.pools[0].backends.len(), 2);
+    }
+
+    #[test]
+    fn metrics_overlay_exclude_keeps_baseline_include_and_fields() {
+        use conduit_proto::config::{MetricsCategories, MetricsCollectEmit};
+
+        let file = Config {
+            schema_version: 1,
+            metrics: Some(MetricsConfig {
+                enabled: Some(true),
+                base: "standard".into(),
+                categories: Some(MetricsCategories {
+                    include: vec!["timing".into()],
+                    exclude: vec![],
+                    include_set: true,
+                    exclude_set: false,
+                }),
+                collection: [(
+                    "timing".into(),
+                    MetricsCollectEmit {
+                        collect: Some(true),
+                        emit: Some(true),
+                    },
+                )]
+                .into_iter()
+                .collect(),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let overlay = Config {
+            schema_version: 1,
+            metrics: Some(MetricsConfig {
+                categories: Some(MetricsCategories {
+                    include: vec![],
+                    exclude: vec!["process".into()],
+                    include_set: false,
+                    exclude_set: true,
+                }),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let merged = merge_file_and_overlay(&file, &overlay).unwrap();
+        let m = merged.metrics.as_ref().unwrap();
+        assert_eq!(m.enabled, Some(true));
+        assert_eq!(m.base, "standard");
+        let cats = m.categories.as_ref().unwrap();
+        assert_eq!(cats.include, vec!["timing".to_string()]);
+        assert!(cats.include_set);
+        assert_eq!(cats.exclude, vec!["process".to_string()]);
+        assert!(cats.exclude_set);
+        let timing = m.collection.get("timing").unwrap();
+        assert_eq!(timing.collect, Some(true));
+        assert_eq!(timing.emit, Some(true));
+    }
+
+    #[test]
+    fn metrics_collection_deep_merges_by_category() {
+        use conduit_proto::config::MetricsCollectEmit;
+
+        let file = Config {
+            schema_version: 1,
+            metrics: Some(MetricsConfig {
+                enabled: Some(true),
+                collection: [(
+                    "timing".into(),
+                    MetricsCollectEmit {
+                        collect: Some(true),
+                        emit: Some(false),
+                    },
+                )]
+                .into_iter()
+                .collect(),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let overlay = Config {
+            schema_version: 1,
+            metrics: Some(MetricsConfig {
+                collection: [(
+                    "process".into(),
+                    MetricsCollectEmit {
+                        collect: None,
+                        emit: Some(false),
+                    },
+                )]
+                .into_iter()
+                .collect(),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let merged = merge_file_and_overlay(&file, &overlay).unwrap();
+        let coll = &merged.metrics.as_ref().unwrap().collection;
+        let timing = coll.get("timing").unwrap();
+        assert_eq!(timing.emit, Some(false));
+        assert_eq!(timing.collect, Some(true));
+        let process = coll.get("process").unwrap();
+        assert_eq!(process.emit, Some(false));
+    }
+
+    #[test]
+    fn metrics_only_overlay_is_not_empty_patch() {
+        let cfg = Config {
+            schema_version: 1,
+            metrics: Some(MetricsConfig {
+                enabled: Some(false),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        assert!(!is_overlay_patch_empty(&cfg));
+    }
+
+    #[test]
+    fn metrics_user_metrics_match_by_name_and_append() {
+        let file = Config {
+            schema_version: 1,
+            metrics: Some(MetricsConfig {
+                enabled: Some(true),
+                user_metrics: vec![UserMetricExportConfig {
+                    name: "hits".into(),
+                    export: "full".into(),
+                    collect: Some(true),
+                    emit: Some(true),
+                }],
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let overlay = Config {
+            schema_version: 1,
+            metrics: Some(MetricsConfig {
+                user_metrics: vec![
+                    UserMetricExportConfig {
+                        name: "hits".into(),
+                        export: String::new(),
+                        collect: Some(true),
+                        emit: Some(false),
+                    },
+                    UserMetricExportConfig {
+                        name: "misses".into(),
+                        export: String::new(),
+                        collect: Some(true),
+                        emit: Some(true),
+                    },
+                ],
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let merged = merge_file_and_overlay(&file, &overlay).unwrap();
+        let users = &merged.metrics.as_ref().unwrap().user_metrics;
+        assert_eq!(users.len(), 2);
+        assert_eq!(users[0].name, "hits");
+        assert_eq!(users[0].export, "full");
+        assert_eq!(users[0].collect, Some(true));
+        assert_eq!(users[0].emit, Some(false));
+        assert_eq!(users[1].name, "misses");
+        assert_eq!(users[1].collect, Some(true));
+        assert_eq!(users[1].emit, Some(true));
     }
 }
