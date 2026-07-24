@@ -104,9 +104,13 @@ impl CompiledRules {
         metrics: Option<&MetricsHub>,
         routing_runtime: Option<Arc<RoutingRuntimeSnapshot>>,
     ) -> RuleEvalResult {
-        let user_export = metrics.map(|m| m.user.as_ref());
-        let builtin_profile = metrics.map(|m| m.compiled.profile);
-        let builtin = metrics.map(|m| Arc::clone(&m.builtin));
+        // Get metric handles from the hub. The user() and builtin() accessors
+        // return Arc clones (cheap); for user_export we need a reference so we
+        // clone the Arc and then call as_ref().
+        let user_arc = metrics.map(|m| m.user());
+        let user_export = user_arc.as_ref().map(|a| a.as_ref());
+        let builtin_profile = metrics.map(|m| m.compiled().compiled.profile);
+        let builtin = metrics.map(|m| m.builtin());
         let store = Arc::clone(&scripting.data_sources);
         for rule in self.rules.iter().filter(|r| r.hook == hook) {
             if rule.matches(txn, &store) {

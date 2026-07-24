@@ -1,0 +1,7 @@
+# G4 manual lab: plan-only overlay — excludes timing category.
+# Apply this overlay to verify that socket stays open (plan-only, no rebind).
+schema_version: 1
+metrics:
+  categories:
+    exclude:
+      - timing

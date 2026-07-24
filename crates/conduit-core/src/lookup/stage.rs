@@ -61,7 +61,7 @@ impl LookupStage {
     fn record_provider_outcome(&self, profile: &str, provider: &str, outcome: &str) {
         if let Some(hub) = self.metrics.as_ref() {
             if hub.metrics_enabled() {
-                hub.builtin
+                hub.builtin()
                     .record_lookup_provider_outcome(profile, provider, outcome);
             }
         }
@@ -70,7 +70,7 @@ impl LookupStage {
     fn record_cache_lookup_metric(&self, cache: &str, profile: &str, result: &str) {
         if let Some(hub) = self.metrics.as_ref() {
             if hub.metrics_enabled() {
-                hub.builtin.record_cache_lookup(cache, profile, result);
+                hub.builtin().record_cache_lookup(cache, profile, result);
             }
         }
     }
@@ -78,7 +78,7 @@ impl LookupStage {
     fn observe_cache_lookup_metric(&self, cache: &str, profile: &str, started: Instant) {
         if let Some(hub) = self.metrics.as_ref() {
             if hub.metrics_enabled() {
-                hub.builtin.observe_cache_lookup_duration(
+                hub.builtin().observe_cache_lookup_duration(
                     cache,
                     profile,
                     started.elapsed().as_secs_f64(),
@@ -90,7 +90,7 @@ impl LookupStage {
     fn observe_lookup_provider_duration(&self, profile: &str, provider: &str, started: Instant) {
         if let Some(hub) = self.metrics.as_ref() {
             if hub.metrics_enabled() {
-                hub.builtin.observe_lookup_duration(
+                hub.builtin().observe_lookup_duration(
                     profile,
                     provider,
                     started.elapsed().as_secs_f64(),
@@ -164,7 +164,7 @@ impl LookupStage {
         if let Some(hub) = self.metrics.as_ref() {
             if hub.metrics_enabled() {
                 if let Some(ref pool) = txn.selected_pool {
-                    hub.builtin.record_query_by_pool(pool);
+                    txn.builtin_registry(hub).record_query_by_pool(pool);
                 }
             }
         }

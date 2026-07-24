@@ -536,7 +536,7 @@ impl LookupCacheRegistry {
             .lookup_profile
             .as_deref()
             .unwrap_or(conduit_config::lookup::DEFAULT_LOOKUP_PROFILE);
-        hub.builtin.record_cache_fill(cache_name, profile);
+        hub.builtin().record_cache_fill(cache_name, profile);
     }
 
     fn record_singleflight_coalesced(
@@ -555,7 +555,7 @@ impl LookupCacheRegistry {
             .lookup_profile
             .as_deref()
             .unwrap_or(conduit_config::lookup::DEFAULT_LOOKUP_PROFILE);
-        hub.builtin
+        hub.builtin()
             .record_cache_singleflight_coalesced(cache_name, profile);
     }
 
@@ -570,7 +570,7 @@ impl LookupCacheRegistry {
         if !hub.metrics_enabled() {
             return;
         }
-        hub.builtin
+        hub.builtin()
             .record_cache_evictions(cache_name, reason, count);
     }
 }

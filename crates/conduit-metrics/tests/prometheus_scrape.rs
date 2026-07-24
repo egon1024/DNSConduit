@@ -61,9 +61,9 @@ impl PipelineStage for MockForwardStage {
                     .selected_backend
                     .map(|a| a.to_string())
                     .unwrap_or_else(|| "127.0.0.1:5300".into());
-                hub.builtin
-                    .record_forward_attempt(pool, &backend, "success");
-                hub.builtin.record_forward_duration(pool, &backend, 0.001);
+                let builtin = hub.builtin();
+                builtin.record_forward_attempt(pool, &backend, "success");
+                builtin.record_forward_duration(pool, &backend, 0.001);
             }
         }
         let mut msg = Message::new();
@@ -183,11 +183,11 @@ fn metrics_disabled_leaves_builtin_counters_at_zero() {
     let obs = EventHub::from_compiled(&snap.events);
     let orch = orchestrator_with_mock_forward(hub.clone());
 
-    let before = counter_value(&hub.builtin.gather(), "conduit_queries_total");
+    let before = counter_value(&hub.builtin().gather(), "conduit_queries_total");
     let mut txn = Transaction::new(3, "127.0.0.1:15353".parse().unwrap(), ClientProtocol::Udp)
         .with_query_wire(sample_query());
     let _ = orch.run(&mut txn, &snap, &SystemClock, None);
-    let after = counter_value(&hub.builtin.gather(), "conduit_queries_total");
+    let after = counter_value(&hub.builtin().gather(), "conduit_queries_total");
 
     assert_eq!(before, 0);
     assert_eq!(after, 0);
@@ -222,7 +222,7 @@ fn minimal_profile_includes_coarse_responses_total() {
     let cfg = load_yaml(yaml).unwrap();
     let hub = Arc::new(MetricsHub::from_config(&cfg));
     assert_eq!(
-        hub.builtin.profile(),
+        hub.builtin().profile(),
         conduit_metrics::BuiltinProfile::Minimal
     );
     let snap = Arc::new(RuntimeSnapshot::from_config(cfg));
@@ -390,7 +390,7 @@ fn collect_only_user_metric_increments_but_scrape_omits() {
     let _ = orch.run(&mut txn, &snap, &SystemClock, None);
 
     // Host store still holds the series (collect true).
-    let stored = encode_families(hub.user.gather());
+    let stored = encode_families(hub.user().gather());
     assert!(
         stored.contains("conduit_user_block_hits"),
         "collect-only must still record, stored:\n{stored}"
@@ -423,7 +423,7 @@ fn collect_only_timing_category_omitted_from_scrape() {
     let _ = orch.run(&mut txn, &snap, &SystemClock, None);
 
     // Timing was collected on the hot path.
-    let builtin_body = encode_families(hub.builtin.gather());
+    let builtin_body = encode_families(hub.builtin().gather());
     assert!(
         builtin_body.contains("conduit_forward_attempts_total"),
         "timing collect must still record, body:\n{builtin_body}"

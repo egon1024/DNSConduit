@@ -4,9 +4,10 @@ use crate::lookup::{AnswerSource, LookupForwardStep, LookupOutcome};
 use crate::parse_reject::ParseRejectReason;
 use crate::phase::Phase;
 use crate::routing::AttemptRecord;
-use conduit_metrics::TraceLog;
+use conduit_metrics::{MetricsPin, TraceLog};
 use std::collections::HashMap;
 use std::net::SocketAddr;
+use std::sync::Arc;
 use std::time::{Instant, SystemTime};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -100,6 +101,9 @@ pub struct Transaction {
     /// Start time of the in-flight forward attempt; set at send, cleared when RTT is recorded (`split_io` park/resume).
     pub forward_started_at: Option<Instant>,
     pub snapshot_generation: u64,
+    /// Metrics registries pinned at orchestrator start for this txn (Gate G4).
+    /// Keeps recording on the generation that started the query across plan swaps.
+    pub metrics_pin: Option<MetricsPin>,
     pub dropped: bool,
     /// Soft drop intent from `drop` / `drop_query()`; resolved at end of the current rule.
     pub soft_drop: bool,
@@ -185,6 +189,7 @@ impl Transaction {
             last_forward_ms: 0,
             forward_started_at: None,
             snapshot_generation: 0,
+            metrics_pin: None,
             dropped: false,
             soft_drop: false,
             source_override_v4: None,
@@ -205,6 +210,17 @@ impl Transaction {
             lookup_cache_fill: None,
             rcode: None,
         }
+    }
+
+    /// Builtin registry for this txn: pinned generation when set, else the hub's current.
+    pub fn builtin_registry(
+        &self,
+        hub: &conduit_metrics::MetricsHub,
+    ) -> Arc<conduit_metrics::BuiltinRegistry> {
+        self.metrics_pin
+            .as_ref()
+            .map(|p| Arc::clone(&p.builtin))
+            .unwrap_or_else(|| hub.builtin())
     }
 
     pub fn trace_record_phase(

@@ -57,6 +57,10 @@ async fn main() -> anyhow::Result<()> {
     let configurator_state = ConfiguratorState {
         config_path: PathBuf::from(&path),
         base_dir: base_dir.clone(),
+        metrics_hub: Some(metrics_hub.clone()),
+        // Export controller and events are set by RuntimeSupervisor after dataplane starts.
+        export_controller: None,
+        events: None,
     };
     let configurator = spawn_configurator(store.clone(), effective.clone(), configurator_state);
 

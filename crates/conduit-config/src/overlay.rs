@@ -12,11 +12,6 @@ pub fn validate_overlay_patch(patch: &Config) -> ValidationResult {
             "overlay patch must not include `rules` — edit the config file and reload".into(),
         );
     }
-    if patch.metrics.is_some() {
-        errors.push(
-            "overlay patch must not include `metrics` — edit the config file and reload".into(),
-        );
-    }
     if patch.tracing.is_some() {
         errors.push(
             "overlay patch must not include `tracing` — edit the config file and reload".into(),
@@ -51,13 +46,13 @@ mod tests {
     }
 
     #[test]
-    fn rejects_metrics_and_tracing_in_overlay_patch() {
+    fn accepts_metrics_rejects_tracing_in_overlay_patch() {
         use conduit_proto::config::{MetricsConfig, TracingConfig};
 
         let metrics_patch = Config {
             schema_version: 1,
             metrics: Some(MetricsConfig {
-                enabled: true,
+                enabled: Some(true),
                 profile: "full".into(),
                 prometheus: None,
                 otel: None,
@@ -70,7 +65,10 @@ mod tests {
             }),
             ..Default::default()
         };
-        assert!(!validate_overlay_patch(&metrics_patch).ok);
+        assert!(
+            validate_overlay_patch(&metrics_patch).ok,
+            "metrics overlays are eligible"
+        );
 
         let tracing_patch = Config {
             schema_version: 1,
@@ -82,6 +80,34 @@ mod tests {
             ..Default::default()
         };
         assert!(!validate_overlay_patch(&tracing_patch).ok);
+        assert!(validate_overlay_patch(&tracing_patch)
+            .errors
+            .iter()
+            .any(|e| e.contains("tracing")));
+    }
+
+    #[test]
+    fn metrics_only_overlay_patch_validates_ok() {
+        let yaml = r#"
+schema_version: 1
+metrics:
+  categories:
+    exclude: [process]
+"#;
+        let patch = load_overlay_patch(yaml).expect("metrics-only overlay");
+        assert!(patch.metrics.is_some());
+        let cats = patch
+            .metrics
+            .as_ref()
+            .unwrap()
+            .categories
+            .as_ref()
+            .expect("categories");
+        assert!(cats.exclude_set);
+        assert_eq!(cats.exclude, vec!["process".to_string()]);
+        assert!(!cats.include_set);
+        let v = validate_overlay_patch(&patch);
+        assert!(v.ok, "{:?}", v.errors);
     }
 
     #[test]

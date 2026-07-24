@@ -187,14 +187,12 @@ impl ForwardTransport {
         let backend_label = backend
             .map(|addr| backend_metric_label_for_addr(&snapshot.config.pools, pool, addr))
             .unwrap_or_else(|| "unknown".into());
-        hub.builtin
-            .record_forward_attempt(pool, &backend_label, outcome);
+        let builtin = txn.builtin_registry(hub);
+        builtin.record_forward_attempt(pool, &backend_label, outcome);
         if let Some(reason) = error_reason {
-            hub.builtin
-                .record_forward_error(pool, &backend_label, reason);
+            builtin.record_forward_error(pool, &backend_label, reason);
         }
-        hub.builtin
-            .record_forward_duration(pool, &backend_label, started.elapsed().as_secs_f64());
+        builtin.record_forward_duration(pool, &backend_label, started.elapsed().as_secs_f64());
     }
 
     fn timeout(&self) -> Duration {

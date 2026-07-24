@@ -539,7 +539,7 @@ pub fn resolve_metrics_plan(m: Option<&MetricsConfig>) -> Result<PlanResolution,
 
     let profile_set = !m.profile.is_empty();
     let mut base_str = m.base.clone();
-    let mut enabled = m.enabled;
+    let mut enabled = m.enabled.unwrap_or(false);
 
     if !enabled {
         let mut ignored = Vec::new();
@@ -871,7 +871,7 @@ mod tests {
 
     fn base_config() -> MetricsConfig {
         MetricsConfig {
-            enabled: true,
+            enabled: Some(true),
             profile: String::new(),
             prometheus: None,
             otel: None,
@@ -933,6 +933,8 @@ mod tests {
         cfg.categories = Some(MetricsCategories {
             include: vec!["volume".into()],
             exclude: vec![],
+            include_set: true,
+            exclude_set: true,
         });
         let res = resolve_metrics_plan(Some(&cfg)).unwrap();
         assert_eq!(res.plan.categories.len(), 1);
@@ -946,6 +948,8 @@ mod tests {
         cfg.categories = Some(MetricsCategories {
             include: vec!["timing".into()],
             exclude: vec!["failures".into()],
+            include_set: true,
+            exclude_set: true,
         });
         let res = resolve_metrics_plan(Some(&cfg)).unwrap();
         assert!(res.plan.categories.contains(&MetricCategory::Volume));
@@ -963,6 +967,8 @@ mod tests {
         cfg.categories = Some(MetricsCategories {
             include: vec!["bogus".into()],
             exclude: vec![],
+            include_set: true,
+            exclude_set: true,
         });
         let err = resolve_metrics_plan(Some(&cfg)).unwrap_err();
         assert!(err.iter().any(|e| e.contains("bogus")), "{err:?}");
@@ -1267,11 +1273,13 @@ mod tests {
     #[test]
     fn disabled_with_sibling_keys_warns_and_ignores() {
         let mut cfg = base_config();
-        cfg.enabled = false;
+        cfg.enabled = Some(false);
         cfg.base = "standard".into();
         cfg.categories = Some(MetricsCategories {
             include: vec![],
             exclude: vec!["process".into()],
+            include_set: true,
+            exclude_set: true,
         });
         let res = resolve_metrics_plan(Some(&cfg)).unwrap();
         assert!(!res.plan.enabled);
@@ -1310,7 +1318,7 @@ mod tests {
     fn profile_off_with_enabled_true_normalizes_to_disabled() {
         let mut cfg = base_config();
         cfg.profile = "off".into();
-        cfg.enabled = true;
+        cfg.enabled = Some(true);
         let res = resolve_metrics_plan(Some(&cfg)).unwrap();
         assert!(!res.plan.enabled);
         assert!(res.warnings.iter().any(|w| w.contains("enabled: false")));

@@ -262,7 +262,7 @@ acls:
         "{runtime}/{protocol}: ACL drop must not reply"
     );
     assert_no_txn_slot_consumed(&handle, &format!("{runtime}/{protocol} drop"));
-    let body = encode_builtin(metrics.builtin.gather());
+    let body = encode_builtin(metrics.builtin().gather());
     assert!(
         body.contains("conduit_acl_decisions_total") && body.contains(r#"action="drop""#),
         "{runtime}/{protocol}: expected drop metric, body:\n{body}"
@@ -423,7 +423,7 @@ acls:
         }
         other => panic!("{runtime}: unexpected TCP read after Tier 0 drop: {other:?}"),
     }
-    let body = encode_builtin(metrics.builtin.gather());
+    let body = encode_builtin(metrics.builtin().gather());
     assert!(
         body.contains("conduit_acl_decisions_total")
             && body.contains(r#"action="drop""#)
@@ -553,7 +553,7 @@ acls:
         client.recv_from(&mut buf).is_err(),
         "malformed must not reply"
     );
-    let body = encode_builtin(metrics.builtin.gather());
+    let body = encode_builtin(metrics.builtin().gather());
     assert!(
         body.contains("conduit_parse_rejected_total"),
         "expected parse rejection metric, body:\n{body}"
@@ -621,7 +621,7 @@ control:
         send_and_recv(listen_port, 10).is_none(),
         "{runtime}: per-listener replace deny must drop (not inherit global allow)"
     );
-    let body = encode_builtin(metrics.builtin.gather());
+    let body = encode_builtin(metrics.builtin().gather());
     assert!(
         body.contains(r#"action="drop""#),
         "{runtime}: expected drop metric, body:\n{body}"
@@ -969,7 +969,7 @@ acls:
         ResponseCode::Refused,
         "{runtime}: ECS must not drive ACL refuse"
     );
-    let body = encode_builtin(metrics.builtin.gather());
+    let body = encode_builtin(metrics.builtin().gather());
     assert!(
         !body.contains(r#"action="drop""#),
         "{runtime}: ECS must not drive ACL drop, body:\n{body}"

@@ -57,7 +57,7 @@ pub fn run_udp_ingress(
                 let parsed = match structural_parse(&query_bytes) {
                     Ok(parsed) => parsed,
                     Err(reason) => {
-                        metrics.builtin.record_parse_rejected(reason.as_str());
+                        metrics.builtin().record_parse_rejected(reason.as_str());
                         continue;
                     }
                 };
@@ -167,7 +167,7 @@ pub fn run_tcp_ingress(
                 let parsed = match structural_parse(&buf) {
                     Ok(parsed) => parsed,
                     Err(reason) => {
-                        metrics.builtin.record_parse_rejected(reason.as_str());
+                        metrics.builtin().record_parse_rejected(reason.as_str());
                         continue;
                     }
                 };

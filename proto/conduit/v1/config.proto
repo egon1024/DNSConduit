@@ -49,7 +49,9 @@ message ShutdownConfig {
 // Metrics configurability (design §Decisions 1-14): `base` + `categories` +
 // `granularity` + `collection` + `event_export` compile into a MetricsPlan.
 message MetricsConfig {
-  bool enabled = 1;
+  // Unset in sparse overlay patches means "keep baseline". File layer omits
+  // as false (serde default) unless explicitly set.
+  optional bool enabled = 1;
   // Deprecated: use `base` instead. Accepted as an alias for the entire `1.x`
   // line (not removed until `2.x`): "minimal" -> base "minimal"; "full" ->
   // base "standard" (deprecation warning); "off" with enabled true -> warns
@@ -72,9 +74,13 @@ message MetricsConfig {
 
 // Category include/exclude deltas applied on top of the `base` expansion:
 // `C = expand(base) ∪ include − exclude`.
+// `include_set` / `exclude_set` track YAML key presence for overlay deep merge
+// (list replace only when that key was present in the patch).
 message MetricsCategories {
   repeated string include = 1;
   repeated string exclude = 2;
+  bool include_set = 3;
+  bool exclude_set = 4;
 }
 
 // `default` expands to a maintainer dimension-list preset per family;
@@ -127,9 +133,11 @@ message PrometheusMetricsConfig {
 
 message OtelMetricsConfig {
   string endpoint = 1;             // OTLP HTTP endpoint (http:// or https://)
+  // 0 means unset in sparse overlay patches (keep baseline).
   uint32 push_interval_ms = 2;
   map<string, string> resource_attributes = 3;
-  bool allow_invalid_certs = 4;    // when true, accept invalid TLS server certs (https only)
+  // Unset in sparse overlay patches means "keep baseline".
+  optional bool allow_invalid_certs = 4;  // when true, accept invalid TLS server certs (https only)
   map<string, string> headers = 5; // optional OTLP HTTP headers (reserved for future auth)
 }
 

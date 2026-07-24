@@ -11,12 +11,8 @@ use conduit_config::{
 use conduit_core::configurator::{ConfiguratorHandle, ConfiguratorSpawn};
 use conduit_core::snapshot::SnapshotStore;
 use conduit_dataplane::DataplaneHandle;
-use conduit_metrics::{
-    spawn_otel_push, spawn_prometheus_server, MetricsHub, OtelPushHandle, OtelPushSettings,
-    PrometheusServerHandle, TracingHub,
-};
+use conduit_metrics::{MetricsExportController, MetricsHub, TracingHub};
 use conduit_proto::config::Config;
-use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -37,8 +33,8 @@ pub struct RuntimeSupervisorArgs {
 pub struct RuntimeSupervisor {
     dataplane: DataplaneHandle,
     control: Option<ControlHandle>,
-    prometheus: Option<PrometheusServerHandle>,
-    otel: Option<OtelPushHandle>,
+    /// Export controller for hot-rebinding Prometheus/OTLP sinks (G4 hot-rebind).
+    export_controller: Arc<MetricsExportController>,
     configurator: ConfiguratorSpawn,
     /// Live config snapshot, read at shutdown so drain settings (`shutdown.drain`,
     /// `shutdown.drain_timeout_ms`) reflect the latest applied/reloaded config
@@ -53,7 +49,7 @@ impl RuntimeSupervisor {
         let RuntimeSupervisorArgs {
             store,
             effective,
-            configurator,
+            mut configurator,
             metrics_hub,
             tracing_hub,
             file_cfg,
@@ -61,8 +57,6 @@ impl RuntimeSupervisor {
             #[cfg(unix)]
             sighup,
         } = args;
-
-        let configurator_handle = configurator.handle();
 
         // Keep a handle to the live snapshot so shutdown can read drain settings
         // dynamically (the `store` below is moved into the control plane).
@@ -77,33 +71,18 @@ impl RuntimeSupervisor {
         ));
         tracing::info!("dataplane listeners started");
 
-        let prometheus = if let Some(ref addr) = metrics_hub.compiled.prometheus_listen {
-            let listen: SocketAddr = addr.parse()?;
-            Some(spawn_prometheus_server(
-                listen,
-                metrics_hub.compiled.prometheus_path.clone(),
-                metrics_hub.clone(),
-                dataplane.events.clone(),
-            ))
-        } else {
-            None
-        };
+        // Create export controller for hot-rebinding Prometheus/OTLP sinks.
+        // Initial spawn uses the compiled config from startup.
+        let export_controller = Arc::new(MetricsExportController::new(metrics_hub.clone()));
+        let compiled = metrics_hub.compiled();
+        export_controller
+            .initial_spawn(&compiled, dataplane.events.clone())
+            .await;
 
-        let otel = if let Some(ref endpoint) = metrics_hub.compiled.otel_endpoint {
-            Some(spawn_otel_push(
-                OtelPushSettings {
-                    endpoint: endpoint.clone(),
-                    push_interval_ms: metrics_hub.compiled.otel_push_interval_ms,
-                    resource_attributes: metrics_hub.compiled.otel_resource_attributes.clone(),
-                    allow_invalid_certs: metrics_hub.compiled.otel_allow_invalid_certs,
-                    headers: metrics_hub.compiled.otel_headers.clone(),
-                },
-                metrics_hub.clone(),
-                dataplane.events.clone(),
-            ))
-        } else {
-            None
-        };
+        // Wire export controller into configurator state for hot-rebind on apply.
+        configurator.set_export_controller(export_controller.clone(), dataplane.events.clone());
+
+        let configurator_handle = configurator.handle();
 
         let control = match control_listen_addr(&file_cfg)? {
             None => {
@@ -130,8 +109,7 @@ impl RuntimeSupervisor {
         Ok(Self {
             dataplane,
             control,
-            prometheus,
-            otel,
+            export_controller,
             configurator,
             store: drain_store,
             #[cfg(unix)]
@@ -159,15 +137,9 @@ impl RuntimeSupervisor {
             tracing::debug!("control plane stopped");
         }
 
-        if let Some(handle) = self.prometheus {
-            handle.shutdown().await;
-            tracing::debug!("prometheus metrics stopped");
-        }
-
-        if let Some(handle) = self.otel {
-            handle.shutdown().await;
-            tracing::debug!("otel metrics push stopped");
-        }
+        // Shut down export sinks (Prometheus/OTLP) via the controller.
+        self.export_controller.shutdown().await;
+        tracing::debug!("metrics export sinks stopped");
 
         #[cfg(unix)]
         if let Some(task) = self.sighup {

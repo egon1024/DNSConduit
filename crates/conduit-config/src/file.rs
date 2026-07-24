@@ -725,8 +725,8 @@ pub(crate) struct YamlUserMetricExport {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub(crate) struct YamlMetrics {
-    #[serde(default)]
-    enabled: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    enabled: Option<bool>,
     /// Deprecated alias for `base`; empty means unset. Retained through the
     /// 1.x line (metrics-configurability design §Migration Plan).
     #[serde(default, skip_serializing_if = "String::is_empty")]
@@ -753,10 +753,10 @@ pub(crate) struct YamlMetrics {
 
 #[derive(Debug, Deserialize, Serialize, Default)]
 pub(crate) struct YamlMetricsCategories {
-    #[serde(default)]
-    include: Vec<String>,
-    #[serde(default)]
-    exclude: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    include: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    exclude: Option<Vec<String>>,
 }
 
 /// `default` is the granularity preset; any other key names a per-family
@@ -825,32 +825,31 @@ pub(crate) struct YamlCollectEmit {
     emit: Option<bool>,
 }
 
-fn default_metrics_path() -> String {
-    "/metrics".into()
-}
-
 #[derive(Debug, Deserialize, Serialize)]
 pub(crate) struct YamlPrometheusMetrics {
+    /// Empty means unset on overlay merge; file validate may still require it
+    /// when a prometheus block is present.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     listen_address: String,
-    #[serde(default = "default_metrics_path")]
+    /// Empty means unset on overlay merge; compile defaults empty to `/metrics`.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     path: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub(crate) struct YamlOtelMetrics {
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     endpoint: String,
-    #[serde(default = "default_otel_interval")]
-    push_interval_ms: u32,
-    #[serde(default)]
+    /// Omitted in sparse overlays means keep baseline (`None` → proto `0`).
+    /// File compile maps `0`/`None` to 15000.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    push_interval_ms: Option<u32>,
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     resource_attributes: std::collections::HashMap<String, String>,
-    #[serde(default)]
-    allow_invalid_certs: bool,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    allow_invalid_certs: Option<bool>,
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     headers: std::collections::HashMap<String, String>,
-}
-
-fn default_otel_interval() -> u32 {
-    15_000
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -1118,8 +1117,10 @@ impl From<YamlMetrics> for MetricsConfig {
                 .collect(),
             base: y.base,
             categories: y.categories.map(|c| MetricsCategories {
-                include: c.include,
-                exclude: c.exclude,
+                include_set: c.include.is_some(),
+                exclude_set: c.exclude.is_some(),
+                include: c.include.unwrap_or_default(),
+                exclude: c.exclude.unwrap_or_default(),
             }),
             granularity: y.granularity.map(|g| MetricsGranularity {
                 default: g.default,
@@ -1163,7 +1164,8 @@ impl From<YamlOtelMetrics> for OtelMetricsConfig {
     fn from(y: YamlOtelMetrics) -> Self {
         OtelMetricsConfig {
             endpoint: y.endpoint,
-            push_interval_ms: y.push_interval_ms,
+            // 0 means unset for overlay merge; compile maps 0 → 15000.
+            push_interval_ms: y.push_interval_ms.unwrap_or(0),
             resource_attributes: y.resource_attributes,
             allow_invalid_certs: y.allow_invalid_certs,
             headers: y.headers,
@@ -1744,8 +1746,16 @@ impl From<&MetricsConfig> for YamlMetrics {
                 .collect(),
             base: m.base.clone(),
             categories: m.categories.as_ref().map(|c| YamlMetricsCategories {
-                include: c.include.clone(),
-                exclude: c.exclude.clone(),
+                include: if c.include_set {
+                    Some(c.include.clone())
+                } else {
+                    None
+                },
+                exclude: if c.exclude_set {
+                    Some(c.exclude.clone())
+                } else {
+                    None
+                },
             }),
             granularity: m.granularity.as_ref().map(|g| YamlGranularity {
                 default: g.default.clone(),
@@ -1780,11 +1790,7 @@ impl From<&PrometheusMetricsConfig> for YamlPrometheusMetrics {
     fn from(p: &PrometheusMetricsConfig) -> Self {
         YamlPrometheusMetrics {
             listen_address: p.listen_address.clone(),
-            path: if p.path.is_empty() {
-                default_metrics_path()
-            } else {
-                p.path.clone()
-            },
+            path: p.path.clone(),
         }
     }
 }
@@ -1793,7 +1799,11 @@ impl From<&OtelMetricsConfig> for YamlOtelMetrics {
     fn from(o: &OtelMetricsConfig) -> Self {
         YamlOtelMetrics {
             endpoint: o.endpoint.clone(),
-            push_interval_ms: o.push_interval_ms,
+            push_interval_ms: if o.push_interval_ms == 0 {
+                None
+            } else {
+                Some(o.push_interval_ms)
+            },
             resource_attributes: o.resource_attributes.clone(),
             allow_invalid_certs: o.allow_invalid_certs,
             headers: o.headers.clone(),

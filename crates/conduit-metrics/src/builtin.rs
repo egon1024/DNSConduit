@@ -263,6 +263,10 @@ impl BuiltinRegistry {
     /// Legacy two-tier constructor, preserved for existing call sites and
     /// tests. `health` registration is tied to `profile == Full`, matching
     /// today's shipped behavior exactly.
+    ///
+    /// Uses an ephemeral `MetricStore` (counters start at zero). For
+    /// production use with handle continuity across swaps, use
+    /// [`Self::new_from_plan_with_store`].
     pub fn new(enabled: bool, profile: BuiltinProfile) -> Self {
         let health_enabled = enabled && profile == BuiltinProfile::Full;
         // Legacy `minimal` omits timing hot-path recording (today's profile split).
@@ -276,13 +280,38 @@ impl BuiltinRegistry {
             true,
             collect_timing,
             schemas,
+            None, // ephemeral store
         )
     }
 
     /// Plan-driven constructor (metrics-configurability design). Label schemas
     /// come from resolved `granularity` presets/overrides; `health` follows
     /// category collect (design §12 intentional minimal expansion).
+    ///
+    /// Uses an ephemeral `MetricStore` (counters start at zero). For
+    /// production use with handle continuity across swaps, use
+    /// [`Self::new_from_plan_with_store`].
     pub fn new_from_plan(plan: &crate::plan::CompiledMetricsPlan) -> Self {
+        Self::new_from_plan_internal(plan, None)
+    }
+
+    /// Plan-driven constructor with a shared `MetricStore` for handle reuse.
+    ///
+    /// When rebuilding after a config reload, passing the same `store` ensures
+    /// that overlapping series identities (same name + label schema) reuse
+    /// existing counter/histogram handles. This preserves cumulative values
+    /// across plan swaps (design §Decisions 6).
+    pub fn new_from_plan_with_store(
+        plan: &crate::plan::CompiledMetricsPlan,
+        store: &std::sync::Arc<crate::MetricStore>,
+    ) -> Self {
+        Self::new_from_plan_internal(plan, Some(store))
+    }
+
+    fn new_from_plan_internal(
+        plan: &crate::plan::CompiledMetricsPlan,
+        store: Option<&std::sync::Arc<crate::MetricStore>>,
+    ) -> Self {
         use crate::plan::{Granularity, MetricCategory};
 
         let enabled = plan.enabled;
@@ -306,6 +335,7 @@ impl BuiltinRegistry {
             collect_failures,
             collect_timing,
             schemas,
+            store,
         )
     }
 
@@ -318,6 +348,7 @@ impl BuiltinRegistry {
         collect_failures: bool,
         collect_timing: bool,
         schemas: FamilyLabelSchemas,
+        store: Option<&std::sync::Arc<crate::MetricStore>>,
     ) -> Self {
         let registry = Registry::new();
         let effective = enabled && profile != BuiltinProfile::Off;
@@ -334,23 +365,78 @@ impl BuiltinRegistry {
         let forward_attempt_labels = label_refs(&forward_attempt_dims);
         let forward_duration_labels = label_refs(&schemas.timing);
 
+        // Helper closures that use the store for handle reuse when available.
+        // If a store is provided and the series identity (name + label schema)
+        // matches an existing handle, the same counter/histogram is returned,
+        // preserving cumulative values across plan swaps.
+        let get_counter = |name: &str, help: &str, labels: &[&str]| -> IntCounterVec {
+            match store {
+                Some(s) => {
+                    let v = s.get_or_create_counter(name, help, labels);
+                    // Register with local Prometheus registry for gather().
+                    // If already registered (e.g., same schema re-registered),
+                    // Prometheus returns AlreadyReg error which we ignore.
+                    let _ = registry.register(Box::new(v.clone()));
+                    v
+                }
+                None => {
+                    let v = IntCounterVec::new(Opts::new(name, help), labels).expect("metric");
+                    registry.register(Box::new(v.clone())).expect("register");
+                    v
+                }
+            }
+        };
+
+        let get_histogram =
+            |name: &str, help: &str, labels: &[&str], buckets: Vec<f64>| -> HistogramVec {
+                match store {
+                    Some(s) => {
+                        let v = s.get_or_create_histogram(name, help, labels, buckets);
+                        let _ = registry.register(Box::new(v.clone()));
+                        v
+                    }
+                    None => {
+                        let v = HistogramVec::new(
+                            HistogramOpts::new(name, help).buckets(buckets),
+                            labels,
+                        )
+                        .expect("metric");
+                        registry.register(Box::new(v.clone())).expect("register");
+                        v
+                    }
+                }
+            };
+
+        let get_gauge = |name: &str, help: &str, labels: &[&str]| -> GaugeVec {
+            match store {
+                Some(s) => {
+                    let v = s.get_or_create_gauge(name, help, labels);
+                    let _ = registry.register(Box::new(v.clone()));
+                    v
+                }
+                None => {
+                    let v = GaugeVec::new(Opts::new(name, help), labels).expect("metric");
+                    registry.register(Box::new(v.clone())).expect("register");
+                    v
+                }
+            }
+        };
+
         let queries_total = {
-            let v = IntCounterVec::new(
-                Opts::new("conduit_queries_total", "DNS queries received"),
+            let v = get_counter(
+                "conduit_queries_total",
+                "DNS queries received",
                 &volume_labels,
-            )
-            .expect("metric");
-            registry.register(Box::new(v.clone())).expect("register");
+            );
             QueriesTotal::Vec(v)
         };
 
         let responses_total = if effective {
-            let v = IntCounterVec::new(
-                Opts::new("conduit_responses_total", "DNS responses sent to clients"),
+            let v = get_counter(
+                "conduit_responses_total",
+                "DNS responses sent to clients",
                 &responses_labels,
-            )
-            .expect("metric");
-            registry.register(Box::new(v.clone())).expect("register");
+            );
             Some(ResponsesTotal::Vec(v))
         } else {
             None
@@ -358,26 +444,18 @@ impl BuiltinRegistry {
 
         let responses_truncated_total = if effective {
             if schemas.volume_has_ip_family() {
-                let v = IntCounterVec::new(
-                    Opts::new(
-                        "conduit_responses_truncated_total",
-                        "UDP responses clipped to client payload size with TC set on send",
-                    ),
+                let v = get_counter(
+                    "conduit_responses_truncated_total",
+                    "UDP responses clipped to client payload size with TC set on send",
                     &["listener", "protocol", "ip_family", "answer_source"],
-                )
-                .expect("metric");
-                registry.register(Box::new(v.clone())).expect("register");
+                );
                 Some(ResponsesTruncatedTotal::Full(v))
             } else {
-                let v = IntCounterVec::new(
-                    Opts::new(
-                        "conduit_responses_truncated_total",
-                        "UDP responses clipped to client payload size with TC set on send",
-                    ),
+                let v = get_counter(
+                    "conduit_responses_truncated_total",
+                    "UDP responses clipped to client payload size with TC set on send",
                     &["listener", "protocol", "answer_source"],
-                )
-                .expect("metric");
-                registry.register(Box::new(v.clone())).expect("register");
+                );
                 Some(ResponsesTruncatedTotal::Minimal(v))
             }
         } else {
@@ -386,26 +464,18 @@ impl BuiltinRegistry {
 
         let queries_dropped_total = if effective {
             if schemas.volume_has_ip_family() {
-                let v = IntCounterVec::new(
-                    Opts::new(
-                        "conduit_queries_dropped_total",
-                        "Queries ended with no DNS reply after successful parse (policy drop)",
-                    ),
+                let v = get_counter(
+                    "conduit_queries_dropped_total",
+                    "Queries ended with no DNS reply after successful parse (policy drop)",
                     &["listener", "protocol", "reason", "ip_family"],
-                )
-                .expect("metric");
-                registry.register(Box::new(v.clone())).expect("register");
+                );
                 Some(QueriesDroppedTotal::Full(v))
             } else {
-                let v = IntCounterVec::new(
-                    Opts::new(
-                        "conduit_queries_dropped_total",
-                        "Queries ended with no DNS reply after successful parse (policy drop)",
-                    ),
+                let v = get_counter(
+                    "conduit_queries_dropped_total",
+                    "Queries ended with no DNS reply after successful parse (policy drop)",
                     &["listener", "protocol", "reason"],
-                )
-                .expect("metric");
-                registry.register(Box::new(v.clone())).expect("register");
+                );
                 Some(QueriesDroppedTotal::Minimal(v))
             }
         } else {
@@ -413,59 +483,44 @@ impl BuiltinRegistry {
         };
 
         let acl_decisions_total = if effective {
-            let v = IntCounterVec::new(
-                Opts::new(
-                    "conduit_acl_decisions_total",
-                    "Client IP ACL decisions by tier and action",
-                ),
+            let v = get_counter(
+                "conduit_acl_decisions_total",
+                "Client IP ACL decisions by tier and action",
                 &acl_labels,
-            )
-            .expect("metric");
-            registry.register(Box::new(v.clone())).expect("register");
+            );
             Some(AclDecisionsTotal::Vec(v))
         } else {
             None
         };
 
         let response_duration = if effective && is_full {
-            let v = HistogramVec::new(
-                HistogramOpts::new(
-                    "conduit_response_duration_seconds",
-                    "End-to-end client response time by answer source",
-                )
-                .buckets(phase_duration_buckets()),
+            let v = get_histogram(
+                "conduit_response_duration_seconds",
+                "End-to-end client response time by answer source",
                 &["answer_source", "listener", "protocol"],
-            )
-            .expect("metric");
-            registry.register(Box::new(v.clone())).expect("register");
+                phase_duration_buckets(),
+            );
             Some(ResponseDuration::Full(v))
         } else {
             None
         };
 
         let lookup_provider_outcomes = if effective {
-            let v = IntCounterVec::new(
-                Opts::new(
-                    "conduit_lookup_provider_outcomes_total",
-                    "Terminal lookup provider outcomes per attempt",
-                ),
+            Some(get_counter(
+                "conduit_lookup_provider_outcomes_total",
+                "Terminal lookup provider outcomes per attempt",
                 &["profile", "provider", "outcome"],
-            )
-            .expect("metric");
-            registry.register(Box::new(v.clone())).expect("register");
-            Some(v)
+            ))
         } else {
             None
         };
 
         let cache_lookups = if effective {
-            let v = IntCounterVec::new(
-                Opts::new("conduit_cache_lookups_total", "Cache read path results"),
+            Some(get_counter(
+                "conduit_cache_lookups_total",
+                "Cache read path results",
                 &["cache", "profile", "result"],
-            )
-            .expect("metric");
-            registry.register(Box::new(v.clone())).expect("register");
-            Some(v)
+            ))
         } else {
             None
         };
@@ -478,62 +533,38 @@ impl BuiltinRegistry {
             cache_evictions,
             cache_entries,
         ) = if effective && is_full {
-            let fills = IntCounterVec::new(
-                Opts::new(
-                    "conduit_cache_fills_total",
-                    "Successful cache stores after upstream answers",
-                ),
+            let fills = get_counter(
+                "conduit_cache_fills_total",
+                "Successful cache stores after upstream answers",
                 &["cache", "profile"],
-            )
-            .expect("metric");
-            let coalesced = IntCounterVec::new(
-                Opts::new(
-                    "conduit_cache_singleflight_coalesced_total",
-                    "Parallel identical cache misses answered from a shared in-progress fill",
-                ),
+            );
+            let coalesced = get_counter(
+                "conduit_cache_singleflight_coalesced_total",
+                "Parallel identical cache misses answered from a shared in-progress fill",
                 &["cache", "profile"],
-            )
-            .expect("metric");
-            let lookup_dur = HistogramVec::new(
-                HistogramOpts::new(
-                    "conduit_lookup_duration_seconds",
-                    "Wall time in lookup provider attempt",
-                )
-                .buckets(phase_duration_buckets()),
+            );
+            let lookup_dur = get_histogram(
+                "conduit_lookup_duration_seconds",
+                "Wall time in lookup provider attempt",
                 &["profile", "provider"],
-            )
-            .expect("metric");
-            let cache_dur = HistogramVec::new(
-                HistogramOpts::new(
-                    "conduit_cache_lookup_duration_seconds",
-                    "Cache read path latency",
-                )
-                .buckets(phase_duration_buckets()),
+                phase_duration_buckets(),
+            );
+            let cache_dur = get_histogram(
+                "conduit_cache_lookup_duration_seconds",
+                "Cache read path latency",
                 &["cache", "profile"],
-            )
-            .expect("metric");
-            let evictions = IntCounterVec::new(
-                Opts::new("conduit_cache_evictions_total", "Cache entry evictions"),
+                phase_duration_buckets(),
+            );
+            let evictions = get_counter(
+                "conduit_cache_evictions_total",
+                "Cache entry evictions",
                 &["cache", "reason"],
-            )
-            .expect("metric");
-            let entries = GaugeVec::new(
-                Opts::new(
-                    "conduit_cache_entries",
-                    "Approximate live cache entries per instance",
-                ),
+            );
+            let entries = get_gauge(
+                "conduit_cache_entries",
+                "Approximate live cache entries per instance",
                 &["cache"],
-            )
-            .expect("metric");
-            for m in [&fills, &coalesced, &evictions] {
-                registry.register(Box::new(m.clone())).expect("register");
-            }
-            for m in [&lookup_dur, &cache_dur] {
-                registry.register(Box::new(m.clone())).expect("register");
-            }
-            registry
-                .register(Box::new(entries.clone()))
-                .expect("register");
+            );
             (
                 Some(fills),
                 Some(coalesced),
@@ -547,100 +578,66 @@ impl BuiltinRegistry {
         };
 
         let parse_rejected_total = if effective {
-            let v = IntCounterVec::new(
-                Opts::new(
-                    "conduit_parse_rejected_total",
-                    "Queries rejected at parse stage",
-                ),
+            Some(get_counter(
+                "conduit_parse_rejected_total",
+                "Queries rejected at parse stage",
                 &["reason"],
-            )
-            .expect("metric");
-            registry.register(Box::new(v.clone())).expect("register");
-            Some(v)
+            ))
         } else {
             None
         };
 
-        let queries_by_pool_total = IntCounterVec::new(
-            Opts::new(
-                "conduit_queries_by_pool_total",
-                "Queries after route selection by pool",
-            ),
+        let queries_by_pool_total = get_counter(
+            "conduit_queries_by_pool_total",
+            "Queries after route selection by pool",
             &["pool"],
-        )
-        .expect("metric");
+        );
 
-        let phase_duration = HistogramVec::new(
-            HistogramOpts::new(
-                "conduit_phase_duration_seconds",
-                "Time spent in orchestrator phase",
-            )
-            .buckets(phase_duration_buckets()),
+        let phase_duration = get_histogram(
+            "conduit_phase_duration_seconds",
+            "Time spent in orchestrator phase",
             &["phase"],
-        )
-        .expect("metric");
-        let forward_attempts = IntCounterVec::new(
-            Opts::new(
-                "conduit_forward_attempts_total",
-                "Upstream forward attempts",
-            ),
+            phase_duration_buckets(),
+        );
+        let forward_attempts = get_counter(
+            "conduit_forward_attempts_total",
+            "Upstream forward attempts",
             &forward_attempt_labels,
-        )
-        .expect("metric");
-        let forward_errors = IntCounterVec::new(
-            Opts::new("conduit_forward_errors_total", "Forward errors"),
+        );
+        let forward_errors = get_counter(
+            "conduit_forward_errors_total",
+            "Forward errors",
             &forward_failure_labels,
-        )
-        .expect("metric");
-        let forward_duration = HistogramVec::new(
-            HistogramOpts::new(
-                "conduit_forward_duration_seconds",
-                "Upstream forward round-trip time",
-            )
-            .buckets(forward_duration_buckets()),
+        );
+        let forward_duration = get_histogram(
+            "conduit_forward_duration_seconds",
+            "Upstream forward round-trip time",
             &forward_duration_labels,
-        )
-        .expect("metric");
-        let retries_total = IntCounterVec::new(
-            Opts::new("conduit_retries_total", "Retry transitions"),
-            &["pool"],
-        )
-        .expect("metric");
+            forward_duration_buckets(),
+        );
+        let retries_total = get_counter("conduit_retries_total", "Retry transitions", &["pool"]);
         let script_errors_total = if effective {
-            let v = IntCounterVec::new(
-                Opts::new(
-                    "conduit_script_errors_total",
-                    "Rhai script errors and lookup faults",
-                ),
+            Some(get_counter(
+                "conduit_script_errors_total",
+                "Rhai script errors and lookup faults",
                 &["reason", "script", "table"],
-            )
-            .expect("metric");
-            registry.register(Box::new(v.clone())).expect("register");
-            Some(v)
+            ))
         } else {
             None
         };
-        let forward_outstanding = GaugeVec::new(
-            Opts::new(
-                "conduit_forward_outstanding",
-                "In-flight upstream forwards per backend",
-            ),
+        let forward_outstanding = get_gauge(
+            "conduit_forward_outstanding",
+            "In-flight upstream forwards per backend",
             &["pool", "backend"],
-        )
-        .expect("metric");
-        let pool_backends_configured = GaugeVec::new(
-            Opts::new(
-                "conduit_pool_backends_configured",
-                "Configured backends per pool",
-            ),
+        );
+        let pool_backends_configured = get_gauge(
+            "conduit_pool_backends_configured",
+            "Configured backends per pool",
             &["pool"],
-        )
-        .expect("metric");
-        let listener_info = GaugeVec::new(
-            Opts::new(
-                "conduit_listener_info",
-                "Configured listener identity; join on `listener` (and `protocol`)",
-            ),
+        );
+        let listener_info = get_gauge(
+            "conduit_listener_info",
+            "Configured listener identity; join on `listener` (and `protocol`)",
             &[
                 "listener",
                 "address",
@@ -649,41 +646,30 @@ impl BuiltinRegistry {
                 "ip_family",
                 "reuse_port",
             ],
-        )
-        .expect("metric");
-        let listener_ingress_threads = GaugeVec::new(
-            Opts::new(
-                "conduit_listener_ingress_threads",
-                "Resolved ingress worker threads per listener",
-            ),
+        );
+        let listener_ingress_threads = get_gauge(
+            "conduit_listener_ingress_threads",
+            "Resolved ingress worker threads per listener",
             &["listener", "protocol"],
-        )
-        .expect("metric");
-        let listener_rcvbuf_bytes = GaugeVec::new(
-            Opts::new(
-                "conduit_listener_rcvbuf_bytes",
-                "Resolved socket receive buffer per listener (0 = OS default)",
-            ),
+        );
+        let listener_rcvbuf_bytes = get_gauge(
+            "conduit_listener_rcvbuf_bytes",
+            "Resolved socket receive buffer per listener (0 = OS default)",
             &["listener", "protocol"],
-        )
-        .expect("metric");
-        let backend_info = GaugeVec::new(
-            Opts::new(
-                "conduit_backend_info",
-                "Configured backend identity; join on `pool` and the `backend` label",
-            ),
+        );
+        let backend_info = get_gauge(
+            "conduit_backend_info",
+            "Configured backend identity; join on `pool` and the `backend` label",
             &["pool", "backend", "address", "name"],
-        )
-        .expect("metric");
-        let backend_weight = GaugeVec::new(
-            Opts::new(
-                "conduit_backend_weight",
-                "Effective load-balancing weight per backend",
-            ),
+        );
+        let backend_weight = get_gauge(
+            "conduit_backend_weight",
+            "Effective load-balancing weight per backend",
             &["pool", "backend"],
-        )
-        .expect("metric");
+        );
 
+        // Process-lifetime metrics that should not use the store (they have
+        // const labels or need to be set once at startup).
         let mut build_info_opts = Opts::new("conduit_build_info", "Build information");
         for (name, value) in crate::build_metadata::label_pairs() {
             build_info_opts = build_info_opts.const_label(name, value);
@@ -708,45 +694,7 @@ impl BuiltinRegistry {
         ))
         .expect("metric");
 
-        registry
-            .register(Box::new(queries_by_pool_total.clone()))
-            .expect("register");
-        registry
-            .register(Box::new(phase_duration.clone()))
-            .expect("register");
-        registry
-            .register(Box::new(forward_attempts.clone()))
-            .expect("register");
-        registry
-            .register(Box::new(forward_errors.clone()))
-            .expect("register");
-        registry
-            .register(Box::new(forward_duration.clone()))
-            .expect("register");
-        registry
-            .register(Box::new(retries_total.clone()))
-            .expect("register");
-        registry
-            .register(Box::new(forward_outstanding.clone()))
-            .expect("register");
-        registry
-            .register(Box::new(pool_backends_configured.clone()))
-            .expect("register");
-        registry
-            .register(Box::new(listener_info.clone()))
-            .expect("register");
-        registry
-            .register(Box::new(listener_ingress_threads.clone()))
-            .expect("register");
-        registry
-            .register(Box::new(listener_rcvbuf_bytes.clone()))
-            .expect("register");
-        registry
-            .register(Box::new(backend_info.clone()))
-            .expect("register");
-        registry
-            .register(Box::new(backend_weight.clone()))
-            .expect("register");
+        // Register process-lifetime metrics (these aren't in the store).
         registry
             .register(Box::new(build_info.clone()))
             .expect("register");
@@ -801,86 +749,46 @@ impl BuiltinRegistry {
             pool_backends_active,
             probe_results,
         ) = if health_enabled {
-            let observed = GaugeVec::new(
-                Opts::new(
-                    "conduit_backend_health_observed",
-                    "Probe-derived health per backend (0=unknown, 1=up, 2=down)",
-                ),
+            let observed = get_gauge(
+                "conduit_backend_health_observed",
+                "Probe-derived health per backend (0=unknown, 1=up, 2=down)",
                 &["pool", "backend"],
-            )
-            .expect("metric");
-            let applied = GaugeVec::new(
-                Opts::new(
-                    "conduit_backend_health_applied",
-                    "Health applied to routing per backend (0=unknown, 1=up, 2=down)",
-                ),
+            );
+            let applied = get_gauge(
+                "conduit_backend_health_applied",
+                "Health applied to routing per backend (0=unknown, 1=up, 2=down)",
                 &["pool", "backend"],
-            )
-            .expect("metric");
-            let probe_automatic = GaugeVec::new(
-                Opts::new(
-                    "conduit_backend_health_probe_automatic",
-                    "Whether probe-driven transitions apply (1=automatic, 0=frozen)",
-                ),
+            );
+            let probe_automatic = get_gauge(
+                "conduit_backend_health_probe_automatic",
+                "Whether probe-driven transitions apply (1=automatic, 0=frozen)",
                 &["pool", "backend"],
-            )
-            .expect("metric");
-            let effective_weight = GaugeVec::new(
-                Opts::new(
-                    "conduit_backend_health_effective_weight",
-                    "Effective load-balancing weight Route uses for this backend",
-                ),
+            );
+            let effective_weight = get_gauge(
+                "conduit_backend_health_effective_weight",
+                "Effective load-balancing weight Route uses for this backend",
                 &["pool", "backend"],
-            )
-            .expect("metric");
-            let latency_ewma = GaugeVec::new(
-                Opts::new(
-                    "conduit_backend_health_latency_ewma_ms",
-                    "Probe latency EWMA in milliseconds",
-                ),
+            );
+            let latency_ewma = get_gauge(
+                "conduit_backend_health_latency_ewma_ms",
+                "Probe latency EWMA in milliseconds",
                 &["pool", "backend"],
-            )
-            .expect("metric");
-            let transitions = IntCounterVec::new(
-                Opts::new(
-                    "conduit_backend_health_transitions_total",
-                    "Cumulative observed or applied health transitions per backend",
-                ),
+            );
+            let transitions = get_counter(
+                "conduit_backend_health_transitions_total",
+                "Cumulative observed or applied health transitions per backend",
                 &["pool", "backend"],
-            )
-            .expect("metric");
-            let active = GaugeVec::new(
-                Opts::new(
-                    "conduit_pool_backends_active",
-                    "Eligible backends per pool (applied health up)",
-                ),
+            );
+            let active = get_gauge(
+                "conduit_pool_backends_active",
+                "Eligible backends per pool (applied health up)",
                 &["pool"],
-            )
-            .expect("metric");
-            let probe_results = IntCounterVec::new(
-                Opts::new(
-                    "conduit_probe_results_total",
-                    "Active health-probe outcomes per backend",
-                ),
+            );
+            let probe_results_counter = get_counter(
+                "conduit_probe_results_total",
+                "Active health-probe outcomes per backend",
                 &["pool", "backend", "outcome"],
-            )
-            .expect("metric");
-            for m in [
-                &observed,
-                &applied,
-                &probe_automatic,
-                &effective_weight,
-                &latency_ewma,
-                &active,
-            ] {
-                registry.register(Box::new(m.clone())).expect("register");
-            }
-            registry
-                .register(Box::new(transitions.clone()))
-                .expect("register");
-            registry
-                .register(Box::new(probe_results.clone()))
-                .expect("register");
+            );
             (
                 Some(observed),
                 Some(applied),
@@ -889,7 +797,7 @@ impl BuiltinRegistry {
                 Some(latency_ewma),
                 Some(transitions),
                 Some(active),
-                Some(probe_results),
+                Some(probe_results_counter),
             )
         } else {
             (None, None, None, None, None, None, None, None)
@@ -2162,7 +2070,7 @@ mod tests {
     fn minimal_plan() -> crate::plan::CompiledMetricsPlan {
         use conduit_proto::config::MetricsConfig;
         let cfg = MetricsConfig {
-            enabled: true,
+            enabled: Some(true),
             profile: String::new(),
             prometheus: None,
             otel: None,
@@ -2179,7 +2087,7 @@ mod tests {
     fn standard_plan() -> crate::plan::CompiledMetricsPlan {
         use conduit_proto::config::MetricsConfig;
         let cfg = MetricsConfig {
-            enabled: true,
+            enabled: Some(true),
             profile: String::new(),
             prometheus: None,
             otel: None,
@@ -2265,7 +2173,7 @@ mod tests {
             },
         );
         let cfg = MetricsConfig {
-            enabled: true,
+            enabled: Some(true),
             profile: String::new(),
             prometheus: None,
             otel: None,
@@ -2302,7 +2210,7 @@ mod tests {
     fn excluded_failures_category_suppresses_recording() {
         use conduit_proto::config::{MetricsCategories, MetricsConfig};
         let cfg = MetricsConfig {
-            enabled: true,
+            enabled: Some(true),
             profile: String::new(),
             prometheus: None,
             otel: None,
@@ -2311,6 +2219,8 @@ mod tests {
             categories: Some(MetricsCategories {
                 include: vec![],
                 exclude: vec!["failures".into()],
+                include_set: true,
+                exclude_set: true,
             }),
             granularity: None,
             collection: Default::default(),
@@ -2341,7 +2251,7 @@ mod tests {
             },
         );
         let cfg = MetricsConfig {
-            enabled: true,
+            enabled: Some(true),
             profile: String::new(),
             prometheus: None,
             otel: None,
@@ -2441,7 +2351,7 @@ mod tests {
             },
         );
         let cfg = MetricsConfig {
-            enabled: true,
+            enabled: Some(true),
             profile: String::new(),
             prometheus: None,
             otel: None,
