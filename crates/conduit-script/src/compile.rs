@@ -3,7 +3,11 @@ use crate::data_sources::{load_data_sources, DataSourceLimits, DataSourceStore};
 use crate::error::ScriptError;
 use crate::host::ScriptPhase;
 use crate::lookup_scan::validate_lookup_literals;
-use crate::metrics::{scan_metrics_from_source, MetricRegistry};
+use crate::metrics::{scan_metric_sites, MetricRegistry};
+use conduit_metrics::{
+    check_consumer_dependencies, resolve_metrics_plan, ConsumerKind, MetricConsumerGraph,
+    MetricConsumerRef,
+};
 use conduit_proto::config::{Config, RhaiConfig, Rule};
 use conduit_proto::paths::resolve_config_path;
 use rhai::AST;
@@ -78,6 +82,8 @@ pub struct CompiledScripting {
     pub snapshot_generation: u64,
     pub limits: ScriptLimits,
     pub metrics: MetricRegistry,
+    /// Static metric consumer sites from Rhai (and future stub sources).
+    pub metric_consumers: MetricConsumerGraph,
     pub rules_scripts: Vec<ScriptRef>,
     /// When true, forward stage parses upstream response wire for section/header metadata.
     pub needs_response_wire_meta: bool,
@@ -117,11 +123,13 @@ pub fn compile_from_config(
         snapshot_generation,
         limits,
         metrics: MetricRegistry::default(),
+        metric_consumers: MetricConsumerGraph::new(),
         rules_scripts: Vec::new(),
         needs_response_wire_meta: false,
     };
 
     let Some(rules) = config.rules.as_ref() else {
+        scripting.metric_consumers.extend_from_stub_registries();
         return Ok(scripting);
     };
 
@@ -132,6 +140,22 @@ pub fn compile_from_config(
     scripting
         .metrics
         .apply_user_metric_exports(config.metrics.as_ref())?;
+
+    scripting.metric_consumers.extend_from_stub_registries();
+
+    let plan = match resolve_metrics_plan(config.metrics.as_ref()) {
+        Ok(r) => r.plan,
+        Err(errs) => {
+            return Err(ScriptError::Metric {
+                name: String::new(),
+                message: errs.join("; "),
+            });
+        }
+    };
+    let consumer_errs = check_consumer_dependencies(&scripting.metric_consumers, &plan);
+    if !consumer_errs.is_empty() {
+        return Err(ScriptError::ConsumerDependency(consumer_errs.join("\n\n")));
+    }
 
     Ok(scripting)
 }
@@ -173,8 +197,21 @@ fn compile_rule_scripts(
             if hook == ScriptPhase::Response && script_needs_response_wire_meta(&source) {
                 scripting.needs_response_wire_meta = true;
             }
-            for (name, labels) in scan_metrics_from_source(&source)? {
-                scripting.metrics.register(&name, labels)?;
+            // Prefer the config-relative path for consumer errors when available.
+            let consumer_path = action.value.clone();
+            for site in scan_metric_sites(&source)? {
+                scripting
+                    .metrics
+                    .register(&site.name, site.label_keys.clone())?;
+                scripting.metric_consumers.record(
+                    site.name.clone(),
+                    MetricConsumerRef {
+                        kind: ConsumerKind::Rhai,
+                        path: consumer_path.clone(),
+                        line: Some(site.line),
+                        symbol: site.api.clone(),
+                    },
+                );
             }
             let engine = rhai::Engine::new();
             let ast = engine.compile(&source).map_err(|e| ScriptError::Script {

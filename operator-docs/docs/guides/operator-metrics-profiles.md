@@ -1,19 +1,17 @@
-# Operator metrics profiles
+# Operator metrics bases
 
-Hands-on comparison of **`metrics.profile: minimal`** vs **`full`** on the same DNS traffic. For the series catalog and profile table, see [Built-in metrics — Profiles](/observability/built-in-metrics.md#profiles). For enabling scrape and OTEL, see [Metrics](/observability/metrics.md).
+Hands-on comparison of **`metrics.base: minimal`** vs **`standard`** on the same DNS traffic. Membership and dimensions: [Built-in metric registry](/observability/built-in-metric-registry.md). Config model: [Metrics configurability](/observability/metrics-configurability.md). Scrape setup: [Metrics](/observability/metrics.md).
 
-**Prerequisites:** Conduit built; upstream on **`127.0.0.1:5300`**; Prometheus scrape available via `curl` (no Prometheus server required for this lab).
+**Prerequisites:** Conduit built; upstream on **`127.0.0.1:5300`**; Prometheus scrape available via `curl` (no Prometheus server required for this lab). Enable **`pools[].health`** if you want to confirm health series on **minimal**.
 
 ## What you will see
 
-| Profile | Hot-path emphasis | After a few `A` queries you should see… |
-|---------|-------------------|----------------------------------------|
-| **`minimal`** | Volume + failure counters | [`conduit_queries_total`](/observability/built-in-metrics.md#conduit_queries_total) with **`listener`** + **`protocol`** only; [`conduit_parse_rejected_total`](/observability/built-in-metrics.md#conduit_parse_rejected_total), [`conduit_queries_dropped_total`](/observability/built-in-metrics.md#conduit_queries_dropped_total), and [`conduit_forward_errors_total`](/observability/built-in-metrics.md#conduit_forward_errors_total) when failures or policy drops occur; **no** `conduit_phase_duration_seconds` |
-| **`full`** | Rich labels + timing | `conduit_queries_total` with **`qtype`**, **`qclass`**, **`ip_family`**; phase and forward histograms/counters |
+| Base | Hot-path emphasis | After a few `A` queries you should see… |
+|------|-------------------|----------------------------------------|
+| **`minimal`** | Volume + failures + lookup + health + topology + meta | [`conduit_queries_total`](/observability/built-in-metrics.md#conduit_queries_total) with **`listener`** + **`protocol`** only; failure counters when applicable; **no** `conduit_phase_duration_seconds`; health gauges when probes run |
+| **`standard`** | Rich labels + timing + process | `conduit_queries_total` with **`qtype`**, **`qclass`**, **`ip_family`**; phase and forward histograms/counters |
 
-Both profiles expose the same scrape-time gauges except Linux process memory/FD gauges (**`full`** only).
-
-## 1. Minimal profile
+## 1. Minimal base
 
 Save as `conduit-metrics-minimal.yaml`:
 
@@ -27,9 +25,12 @@ pools:
   - name: default
     backends:
       - address: "127.0.0.1:5300"
+    health:
+      enabled: true
+      interval_ms: 1000
 metrics:
   enabled: true
-  profile: minimal
+  base: minimal
   prometheus:
     listen_address: "127.0.0.1:9090"
     path: /metrics
@@ -53,7 +54,7 @@ Scrape and inspect query counters:
 curl -sS "http://127.0.0.1:9090/metrics" | grep '^conduit_queries_total'
 ```
 
-Expect lines with labels like `listener="127.0.0.1:15353"` and `protocol="udp"` — **without** `qtype="A"` on the same metric (minimal does not add qtype/qclass/ip_family on the hot path).
+Expect lines with labels like `listener="127.0.0.1:15353"` and `protocol="udp"` — **without** `qtype="A"` on the same metric (minimal coarse labels).
 
 Confirm phase histograms are absent:
 
@@ -61,59 +62,44 @@ Confirm phase histograms are absent:
 curl -sS "http://127.0.0.1:9090/metrics" | grep conduit_phase_duration || echo "no phase histograms (expected for minimal)"
 ```
 
-Stop Conduit before the next step.
+After ~1 health interval, confirm health series:
 
-## 2. Full profile
+```bash
+curl -sS "http://127.0.0.1:9090/metrics" | grep -E 'conduit_backend_health_observed|conduit_probe_results_total' | head
+```
 
-Copy the config to `conduit-metrics-full.yaml` and change only the profile:
+Stop Conduit before the next step (or use overlay apply if the control plane is enabled — see below).
+
+## 2. Standard base
+
+Copy the config to `conduit-metrics-standard.yaml` and change the base:
 
 ```yaml
 metrics:
   enabled: true
-  profile: full
+  base: standard
   prometheus:
     listen_address: "127.0.0.1:9090"
     path: /metrics
 ```
 
-!!! note "Restart required"
-    Profile changes take effect on the hot path only after a **process restart** — reload updates stored config but does not switch recording mode today. See [Metrics — Changing metrics config](/observability/metrics.md#changing-metrics-config).
+With a control plane enabled, you can apply an overlay that only changes `metrics.base` without restart. Otherwise restart Conduit with the new file.
 
 ```bash
-conduit /path/to/conduit-metrics-full.yaml
-```
-
-Repeat the same `dig` commands (or use new QNAMEs). Scrape again:
-
-```bash
+dig @127.0.0.1 -p 15353 +time=3 profiles-standard.example.com A
 curl -sS "http://127.0.0.1:9090/metrics" | grep '^conduit_queries_total'
-```
-
-Expect **`qtype`**, **`qclass`**, and **`ip_family`** labels on query counters. After several queries:
-
-```bash
 curl -sS "http://127.0.0.1:9090/metrics" | grep conduit_phase_duration | head
-curl -sS "http://127.0.0.1:9090/metrics" | grep conduit_forward_
 ```
 
-On Linux, **`full`** also exposes process gauges at scrape time:
+Expect qtype/qclass/ip_family on queries and phase/forward timing series present.
 
-```bash
-curl -sS "http://127.0.0.1:9090/metrics" | grep conduit_process_
-```
-
-## 3. Choosing a profile
-
-| Choose **`minimal`** when… | Choose **`full`** when… |
-|----------------------------|-------------------------|
-| You need query volume, pool mix, response mix, and alertable failure counters | You need per-qtype volume, forward RTT, per-backend attempt counts, or phase timing |
-| Cardinality and hot-path cost must stay low (no histograms) | You are operating or debugging upstream and pipeline latency in detail |
-| Coarse response buckets are enough | You need fine `rcode` labels and `ip_family` on responses |
-
-Default when `metrics:` is present and `profile` is omitted: **`full`**. Full series list: [Built-in metrics](/observability/built-in-metrics.md).
+!!! tip "Legacy profile alias"
+    `metrics.profile: full` still loads and maps to **`base: standard`** (with a deprecation warning). Prefer **`base:`** in new configs.
 
 ## Related topics
 
-- [Metrics](/observability/metrics.md) — export paths and OTEL
-- [Metrics and tracing](/guides/metrics-and-tracing.md) — combined metrics + tracing lab
-- [Troubleshooting — Metrics scrape](/troubleshooting/index.md#observability)
+- [Metrics configurability](/observability/metrics-configurability.md)
+- [Built-in metric registry](/observability/built-in-metric-registry.md)
+- [Built-in metrics](/observability/built-in-metrics.md)
+- [Metrics](/observability/metrics.md)
+- [Unreleased](/release-notes/unreleased.md) — profile → base migration

@@ -1,8 +1,8 @@
 # Config schema: metrics and tracing
 
-Field reference for the optional top-level **`metrics:`** and **`tracing:`** blocks. For operator guides, see [Metrics](/observability/metrics.md) and [Tracing](/observability/tracing.md).
+Field reference for the optional top-level **`metrics:`** and **`tracing:`** blocks. Guides: [Metrics](/observability/metrics.md), [Metrics configurability](/observability/metrics-configurability.md), [Tracing](/observability/tracing.md).
 
-Both blocks are **file-layer only** — [overlay](/glossary/index.md#overlay) patches that include `metrics` or `tracing` are rejected.
+**`metrics`** may appear in [overlay](/glossary/index.md#overlay) patches ([deep merge](/control-plane/overlay-merge-strategy.md#metrics-deep-merge)). **`tracing`** remains file-layer only.
 
 ## `metrics`
 
@@ -10,24 +10,38 @@ Both blocks are **file-layer only** — [overlay](/glossary/index.md#overlay) pa
 |----------|--------|
 | **Type** | Object |
 | **Required** | No — when omitted, built-in metrics are off |
-| **Location** | Top-level key in the [config file](/control-plane/config-file.md) |
+| **Location** | Top-level key in the [config file](/control-plane/config-file.md); also allowed in overlay |
 
 | Field {: .column-no-wrap } | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
 | `enabled` | boolean | no | **`false`** | Must be **`true`** for hot-path recording |
-| `profile` | string | no | **`full`** when enabled | **`minimal`**, **`full`**, or **`off`** |
+| `base` | string | no | **`standard`** when enabled | **`none`**, **`minimal`**, or **`standard`** |
+| `profile` | string | no | — | **Deprecated alias** (kept through 1.x): `minimal` → `base: minimal`; `full` → `base: standard`; `off` → `enabled: false` |
+| `categories` | object | no | — | `include` / `exclude` lists applied after `expand(base)` |
+| `collection` | map | no | — | Per-category `collect` / `emit` overrides |
+| `granularity` | object | no | from base | `default` (`coarse` \| `balanced` \| `fine`) plus per-family dimension lists / responses rcode |
+| `event_export` | object | no | collect+emit true | Controls `conduit_events_*` (not a dataplane category) |
 | `prometheus` | object | no | — | HTTP scrape listener |
 | `otel` | object | no | — | OTLP HTTP metrics push |
-| `user_metrics` | list | no | `[]` | Per-metric export tier overrides for Rhai `conduit_user_*` counters |
+| `user_metrics` | list | no | `[]` | Per-metric collect/emit (and deprecated `export`) for Rhai `conduit_user_*` |
 
-### `metrics.user_metrics[]`
+Validation highlights: empty resolved category set while enabled → error; `collect: false` with `emit: true` → error; stopping collect for a user metric still referenced by a Rhai script → error (script path listed). See [Metrics configurability](/observability/metrics-configurability.md).
 
-| Field | Type | Required | Default | Description |
-|-------|------|----------|---------|-------------|
-| `name` | string | yes | — | Metric name from `metric_inc` (without `conduit_user_` prefix) |
-| `export` | string | no | **`full`** | **`minimal`** (record on `minimal` and `full` profiles) or **`full`** (`full` profile only) |
+### `metrics.categories`
 
-Script-discovered metrics default to **`export: full`**. Override to **`minimal`** to record on the [minimal built-in profile](/observability/built-in-metrics.md#profiles). See [User metrics](/rhai/user-metrics.md#export-tier).
+| Field | Type | Description |
+|-------|------|-------------|
+| `include` | list of string | Category names added to the base expansion |
+| `exclude` | list of string | Category names removed after include |
+
+### `metrics.collection` / `metrics.event_export` / `metrics.user_metrics[]`
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `collect` | boolean | Record into the process store |
+| `emit` | boolean | Include in Prometheus / OTLP |
+| `name` | string | (`user_metrics` only) bare metric name |
+| `export` | string | **Deprecated** (`minimal` \| `full`); prefer collect/emit |
 
 ### `metrics.prometheus`
 
@@ -35,6 +49,8 @@ Script-discovered metrics default to **`export: full`**. Override to **`minimal`
 |-------|------|---------|-------------|
 | `listen_address` | string | — | Bind address for scrape (for example `127.0.0.1:9090`) |
 | `path` | string | **`/metrics`** | HTTP path for scrape |
+
+Hot-rebinds on apply when address or path changes; bind failure rejects apply.
 
 ### `metrics.otel`
 
@@ -52,7 +68,7 @@ Script-discovered metrics default to **`export: full`**. Override to **`minimal`
 |----------|--------|
 | **Type** | Object |
 | **Required** | No — when omitted, pipeline tracing is off |
-| **Location** | Top-level key in the [config file](/control-plane/config-file.md) |
+| **Location** | Top-level key in the [config file](/control-plane/config-file.md) (file-layer only) |
 
 | Field {: .column-no-wrap } | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
@@ -82,16 +98,19 @@ Evaluated after [Request rules](/concepts/architecture-and-packet-path.md#reques
 
 | Rule | Error if violated |
 |------|-------------------|
-| `metrics.profile` when enabled | Must be **`full`**, **`minimal`**, **`off`**, or empty (defaults to **`full`**) |
+| `metrics.base` when enabled | Must be **`none`**, **`minimal`**, **`standard`**, or empty (defaults to **`standard`**) |
+| `metrics.profile` (alias) | Must be **`minimal`**, **`full`**, **`off`**, or empty |
+| Resolved category set empty while enabled | Rejected |
+| `collect: false` with `emit: true` (category, event_export, or user metric) | Rejected |
+| User metric collect removed while Rhai still references it | Rejected (error lists script path) |
 | `metrics.prometheus.listen_address` | Must parse as socket address when non-empty |
 | `metrics.otel.endpoint` | Must be `http://` or `https://` when non-empty |
 | `metrics.otel.push_interval_ms` | Must be **≥ 1000** when non-zero |
 | `metrics.user_metrics[].name` | Must be non-empty; must match a Rhai-registered metric at snapshot build |
-| `metrics.user_metrics[].export` | Must be **`minimal`**, **`full`**, or empty (defaults to **`full`**) |
 | Duplicate `metrics.user_metrics[].name` | Rejected |
 | `tracing.activation.sample_percent` | Must be in **[0, 100]** |
 | Selector `type` in `tracing.activation.selectors` | Must be a known selector type |
-| `metrics` or `tracing` in overlay patch | Overlay rejected |
+| `tracing` in overlay patch | Overlay rejected |
 
 Validate with `conduitctl validate --file …` or load via the running process; see [Config file](/control-plane/config-file.md).
 
@@ -100,10 +119,11 @@ Validate with `conduitctl validate --file …` or load via the running process; 
 ```yaml
 metrics:
   enabled: true
-  profile: minimal
+  base: minimal
   user_metrics:
     - name: block_hits
-      export: minimal
+      collect: true
+      emit: true
   prometheus:
     listen_address: "127.0.0.1:9090"
     path: /metrics
@@ -126,7 +146,10 @@ tracing:
 
 ## Related topics
 
-- [Metrics](/observability/metrics.md) — profiles, scrape, OTEL push, restart semantics
+- [Metrics configurability](/observability/metrics-configurability.md) — bases, categories, collect/emit, overlay
+- [Metrics](/observability/metrics.md) — scrape and OTEL push
 - [Tracing](/observability/tracing.md) — activation, GetTrace, trace events
+- [Built-in metric registry](/observability/built-in-metric-registry.md)
 - [Built-in metrics](/observability/built-in-metrics.md) — exported series catalog
+- [Overlay merge strategy](/control-plane/overlay-merge-strategy.md)
 - [Configuration model](/control-plane/configuration-model.md) — file layer vs overlay

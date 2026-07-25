@@ -42,3 +42,24 @@ fn validate_rejects_rhai_syntax_error() {
         "expected script compile error in stderr: {stderr}"
     );
 }
+
+#[test]
+fn validate_rejects_metric_collect_removed_while_script_references() {
+    let bin = env!("CARGO_BIN_EXE_conduitctl");
+    let config = fixture("metrics-consumer-collect-removed.yaml");
+    let output = Command::new(bin)
+        .args(["validate", "--file"])
+        .arg(&config)
+        .output()
+        .expect("run conduitctl validate");
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("cannot stop collecting metric \"blat\""),
+        "expected consumer dependency error: {stderr}"
+    );
+    assert!(
+        stderr.contains("consumer-blat.rhai"),
+        "expected script path in error: {stderr}"
+    );
+}

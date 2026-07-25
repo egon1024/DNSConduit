@@ -13,15 +13,15 @@ The **`backend`** label on forward and health-probe metrics ([`conduit_forward_a
 
 ## Profiles { #profiles }
 
-Built-in recording uses a **`metrics.profile`** of **`minimal`** or **`full`** (see [Metrics](/observability/metrics.md) for enabling export, Prometheus scrape, OTEL push, and restart semantics). When the `metrics:` block is omitted, built-ins are off — no hot-path increments and no export.
+Prefer **`metrics.base`** (`minimal` / `standard`) — see [Metrics configurability](/observability/metrics-configurability.md) and [Built-in metric registry](/observability/built-in-metric-registry.md). Tables on this page still say **`minimal`** vs **`full`** for label richness: **`full`** means the fine / **`base: standard`** schema (same identity as former `profile: full` when granularity is unset).
 
-`minimal` and `full` control **what** Conduit records on the hot path, not **how** you export it. Prometheus scrape, OTEL push, and both together expose the same built-in series for the profile you chose.
+When the `metrics:` block is omitted, built-ins are off — no hot-path increments and no export. Base / categories / collect·emit choose **what** Conduit records; Prometheus and OTEL choose **how** you export it.
 
 ### `minimal` vs `full` (hot path)
 
-Both profiles record metrics **while handling queries** on listener workers (the **hot path**). The difference is **how much** is recorded and **how many label dimensions** are kept — a cardinality and overhead trade-off.
+Both bases record metrics **while handling queries** on listener workers (the **hot path**). The difference is **how much** is recorded and **how many label dimensions** are kept — a cardinality and overhead trade-off.
 
-**`minimal`** — low-cardinality volume and essential failure counters:
+**`minimal`** — low-cardinality volume and essential failure counters (plus health / topology / meta per the registry):
 
 - [`conduit_queries_total`](#conduit_queries_total) with `listener` and `protocol` only
 - [`conduit_queries_by_pool_total`](#conduit_queries_by_pool_total) per `pool`
@@ -31,7 +31,7 @@ Both profiles record metrics **while handling queries** on listener workers (the
 
 Use **`minimal`** when you want query volume, pool mix, response mix, and alertable failure signals without per-qtype detail, forward latency histograms, or per-phase timing on the hot path.
 
-**`full`** — complete built-in observability on the hot path:
+**`full`** / **`standard`** — complete built-in observability on the hot path:
 
 - Richer [`conduit_queries_total`](#conduit_queries_total) labels (`qtype`, `qclass`, `ip_family`)
 - Fine [`conduit_responses_total`](#conduit_responses_total) `rcode` labels and `ip_family`
@@ -40,9 +40,9 @@ Use **`minimal`** when you want query volume, pool mix, response mix, and alerta
 - Transaction slot-pool gauges ([`conduit_slots_in_use`](#conduit_slots_in_use), [`conduit_slots_capacity`](#conduit_slots_capacity)) at scrape time
 - Linux process gauges ([`conduit_process_resident_bytes`](#conduit_process_resident_bytes), [`conduit_process_open_fds`](#conduit_process_open_fds)) at scrape time
 
-Use **`full`** for day-two operations, SLO dashboards, and debugging upstream or pipeline behavior. Built-in labels still never include `qname`, client IP, or transaction id at either profile.
+Use **`standard`** for day-two operations, SLO dashboards, and debugging upstream or pipeline behavior. Built-in labels still never include `qname`, client IP, or transaction id at either base.
 
-**Scrape-time** series ([Scrape-time gauges](#scrape-time-gauges)) are largely the same for both profiles; the slot-pool gauges ([`conduit_slots_in_use`](#conduit_slots_in_use), [`conduit_slots_capacity`](#conduit_slots_capacity)) and the process gauges require **`full`**. The slot exhaustion counter ([`conduit_slot_pool_exhausted_total`](#conduit_slot_pool_exhausted_total)) is exported on both profiles.
+**Scrape-time** series ([Scrape-time gauges](#scrape-time-gauges)) depend on category membership: slot-pool and process gauges require categories present on **`standard`** (not on **`minimal`**). Health gauges are available on **`minimal`** when health is configured. The slot exhaustion counter ([`conduit_slot_pool_exhausted_total`](#conduit_slot_pool_exhausted_total)) is in the **failures** category (both bases).
 
 | Series | Hot path `minimal` | Hot path `full` | [Scrape-time](#scrape-time-gauges) only |
 |--------|-------------------|-----------------|-------------|
@@ -475,7 +475,7 @@ Only emitted for pools with health checking enabled. Compare to [`conduit_pool_b
 
 ## Backend health { #backend-health }
 
-Scrape-time gauges for [backend health](/policy-routing/backend-health.md). Exported only when **`metrics.profile: full`** and at least one pool has health enabled. Labels are **`pool`** and **`backend`** only — the `backend` label is the configured `name` when set, otherwise `address`. No per-qname or per-client dimensions.
+Scrape-time gauges for [backend health](/policy-routing/backend-health.md). Exported when the **`health`** category is in the active plan (included in **`base: minimal`** and **`standard`**) and at least one pool has health enabled. Labels are **`pool`** and **`backend`** only — the `backend` label is the configured `name` when set, otherwise `address`. No per-qname or per-client dimensions.
 
 Liveness encoding for observed/applied gauges:
 

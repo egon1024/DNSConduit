@@ -6,12 +6,12 @@ Built-in Prometheus-format metrics for the [dataplane](/glossary/index.md#datapl
 
 When the **`metrics:`** section is **omitted** from your [config file](/control-plane/config-file.md), built-ins are **off** — no hot-path recording and no scrape or push listener.
 
-To enable built-ins, add a block with **`enabled: true`**, choose a **`profile`**, and configure at least one way to read them out (Prometheus HTTP scrape and/or OTLP HTTP push):
+To enable built-ins, add a block with **`enabled: true`**, choose a **`base`** (or legacy **`profile`** alias), and configure at least one way to read them out (Prometheus HTTP scrape and/or OTLP HTTP push):
 
 ```yaml
 metrics:
   enabled: true
-  profile: full          # minimal | full | off
+  base: standard          # none | minimal | standard
   prometheus:
     listen_address: "127.0.0.1:9090"
     path: /metrics
@@ -27,13 +27,13 @@ metrics:
 | Setting {: .column-no-wrap } | Meaning |
 |---------|---------|
 | `metrics.enabled` | Must be `true` for hot-path recording and export |
-| `metrics.profile` | **`minimal`** or **`full`** (default **`full`** when enabled and profile is empty or omitted). **`off`** turns recording off even if `enabled` is true |
+| `metrics.base` | **`minimal`**, **`standard`** (default when enabled and unset), or **`none`** (requires `categories.include`). Legacy **`profile`**: `minimal` / `full`→`standard` / `off` |
 | `metrics.prometheus` | Optional HTTP scrape listener (`listen_address`, `path`; default path **`/metrics`**) |
 | `metrics.otel` | Optional OTLP **metrics** push (`endpoint`, `push_interval_ms`, `allow_invalid_certs`, `resource_attributes`; default interval **15000** ms, minimum **1000**) |
 
 Conduit does not require an export path at validation time — you can set `enabled: true` with no `prometheus` or `otel` block and pay hot-path cost without anywhere to scrape. In practice, configure at least one export path.
 
-Field reference: [Config schema: metrics and tracing](/reference/config-schema/metrics-and-tracing.md).
+What to record (categories, collect/emit, granularity): [Metrics configurability](/observability/metrics-configurability.md). Field reference: [Config schema: metrics and tracing](/reference/config-schema/metrics-and-tracing.md).
 
 ## Export architecture
 
@@ -66,17 +66,13 @@ metrics:
       Authorization: "Bearer <token>"
 ```
 
-## Profiles
+## Bases (what to record)
 
-**`minimal`** keeps hot-path cardinality low: query and per-pool counters, coarse response-code buckets, and essential failure counters (parse rejects, forward errors, retries, script errors). **`full`** adds per-qtype labels, fine response codes, forward latency, phase histograms, per-backend forward attempt counts, and Linux process gauges at scrape time.
-
-Both profiles expose the same scrape-time series except process memory/FD gauges (`full` only). Profile chooses **what** is recorded on the hot path, not **how** you export. Full comparison: [Built-in metrics — Profiles](/observability/built-in-metrics.md#profiles). Lab walkthrough: [Operator metrics profiles](/guides/operator-metrics-profiles.md).
+**`minimal`** keeps hot-path cardinality low: query and per-pool counters, coarse response-code buckets, essential failure counters, lookup, topology, meta, and **health** (when probes are configured). **`standard`** adds timing histograms, cache/forward detail, runtime gauges, and process gauges — a curated bundle, not every registry family. Details: [Metrics configurability](/observability/metrics-configurability.md). Membership tables: [Built-in metric registry](/observability/built-in-metric-registry.md). Lab: [Operator metrics bases](/guides/operator-metrics-profiles.md).
 
 ## Changing metrics config
 
-The **`metrics:`** block lives in the [file layer](/glossary/index.md#file-layer) only — [overlay](/glossary/index.md#overlay) patches that include `metrics` are rejected. Edit the file on disk, then **reload** or send **SIGHUP** so validation and the snapshot reflect the change.
-
-Prometheus and OTEL listeners, and which profile is active for hot-path recording, are established at **process start**. Turning built-ins on or off, switching `minimal` ↔ `full`, or changing scrape/push addresses requires a **process restart** after updating the file (reload updates stored config but does not rebind export today). See [Configuration model — What takes effect when](/control-plane/configuration-model.md#what-takes-effect-when) and [Reload and export](/control-plane/reload-and-export.md).
+The **`metrics:`** block may appear in [overlay](/glossary/index.md#overlay) patches and uses **deep merge** ([Overlay merge strategy](/control-plane/overlay-merge-strategy.md)). Plan knobs (base, categories, collect/emit, granularity) apply on snapshot apply without restart. Prometheus listen address/path **hot-rebinds**; OTLP endpoint/TLS **reconnects**. Bind or reconnect failure rejects the apply and keeps last-good export. See [Metrics configurability — Overlay and live apply](/observability/metrics-configurability.md#overlay-and-live-apply) and [Configuration model — What takes effect when](/control-plane/configuration-model.md#what-takes-effect-when).
 
 ## Where metrics fit the query path
 
@@ -91,6 +87,8 @@ Built-in labels never include `qname`, client IP, or transaction id. Use [Event 
 
 ## Related topics
 
+- [Metrics configurability](/observability/metrics-configurability.md) — base, categories, collect/emit, granularity, overlay
+- [Built-in metric registry](/observability/built-in-metric-registry.md) — membership and dimensions
 - [Built-in metrics](/observability/built-in-metrics.md) — series reference and PromQL examples
 - [Architecture and packet path](/concepts/architecture-and-packet-path.md) — phase-by-phase metric hooks
 - [Metrics and tracing](/guides/metrics-and-tracing.md) — end-to-end lab (metrics scrape + pipeline tracing)

@@ -7,7 +7,7 @@ use crate::tls::server_tls_config;
 use conduit_config::{export_yaml, validate, EffectiveConfig};
 use conduit_core::check_client_acl;
 use conduit_core::configurator::{ConfiguratorHandle, OverlayApplyMode, ProposalSource};
-use conduit_core::snapshot::SnapshotStore;
+use conduit_core::snapshot::{RuntimeSnapshot, SnapshotStore};
 use conduit_core::AclCheckError;
 use conduit_metrics::TracingHub;
 use conduit_proto::config::Config as RuntimeConfig;
@@ -36,6 +36,8 @@ pub struct ControlService {
     pub effective: Arc<Mutex<EffectiveConfig>>,
     pub configurator: ConfiguratorHandle,
     pub tracing: Arc<TracingHub>,
+    /// Config directory for resolving relative script / data-source paths during validate.
+    pub config_base_dir: Option<PathBuf>,
 }
 
 /// Map `config` module types to `control` module types (same protobuf schema, separate Rust paths).
@@ -79,7 +81,18 @@ impl ConduitControl for ControlService {
             .into_inner()
             .config
             .ok_or_else(|| Status::invalid_argument("missing config"))?;
-        let v = validate(&control_to_runtime(cfg));
+        let runtime = control_to_runtime(cfg);
+        let mut v = validate(&runtime);
+        // Same depth as `conduitctl validate`: structural checks plus script
+        // compile (metric consumer graph, lookup literals, etc.).
+        if v.ok {
+            if let Err(e) =
+                RuntimeSnapshot::try_from_config_with_base(runtime, self.config_base_dir.as_deref())
+            {
+                v.ok = false;
+                v.errors.push(e.to_string());
+            }
+        }
         log_control_outcome("ValidateConfig", v.ok, &v.errors);
         Ok(Response::new(ValidateConfigResponse {
             ok: v.ok,
@@ -242,6 +255,7 @@ fn build_servers(
     effective: Arc<Mutex<EffectiveConfig>>,
     configurator: ConfiguratorHandle,
     tracing: Arc<TracingHub>,
+    config_base_dir: Option<PathBuf>,
 ) -> ControlPlaneServices {
     let interceptor = ControlInterceptor::new(snapshots.clone());
     let control_inner = ConduitControlServer::with_interceptor(
@@ -250,6 +264,7 @@ fn build_servers(
             effective,
             configurator,
             tracing,
+            config_base_dir,
         },
         interceptor.clone(),
     );
@@ -320,7 +335,13 @@ where
         .control
         .as_ref()
         .is_some_and(|c| c.reflection_enabled);
-    let services = build_servers(snapshots.clone(), effective, configurator, tracing);
+    let services = build_servers(
+        snapshots.clone(),
+        effective,
+        configurator,
+        tracing,
+        config_base_dir.clone(),
+    );
     let listener = tokio::net::TcpListener::bind(addr).await?;
     let incoming = tokio_stream::wrappers::TcpListenerStream::new(listener);
     let base_dir = config_base_dir.as_deref();
@@ -408,7 +429,13 @@ pub async fn serve_on_listener(
         .unwrap_or(false);
     let listener = tokio::net::TcpListener::bind(addr).await?;
     let local_addr = listener.local_addr()?;
-    let services = build_servers(snapshots.clone(), effective, configurator, tracing);
+    let services = build_servers(
+        snapshots.clone(),
+        effective,
+        configurator,
+        tracing,
+        config_base_dir.clone(),
+    );
     let incoming = tokio_stream::wrappers::TcpListenerStream::new(listener);
     tokio::spawn(async move {
         let base_dir = config_base_dir.as_deref();

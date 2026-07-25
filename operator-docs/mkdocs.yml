@@ -94,6 +94,7 @@ nav:
   - Control plane:
       - Overview: control-plane/index.md
       - Configuration model: control-plane/configuration-model.md
+      - Overlay merge strategy: control-plane/overlay-merge-strategy.md
       - Config file: control-plane/config-file.md
       - Reload and export: control-plane/reload-and-export.md
       - gRPC and conduitctl: control-plane/grpc-and-conduitctl.md
@@ -113,6 +114,8 @@ nav:
   - Observability:
       - Overview: observability/index.md
       - Metrics: observability/metrics.md
+      - Metrics configurability: observability/metrics-configurability.md
+      - Built-in metric registry: observability/built-in-metric-registry.md
       - Built-in metrics: observability/built-in-metrics.md
       - Tracing: observability/tracing.md
       - Event export: observability/event-export.md
@@ -127,7 +130,7 @@ nav:
       - Control plane workflows: guides/control-plane-workflows.md
       - Metrics and tracing: guides/metrics-and-tracing.md
       - Event export and dnstap: guides/event-export-dnstap.md
-      - Operator metrics profiles: guides/operator-metrics-profiles.md
+      - Operator metrics bases: guides/operator-metrics-profiles.md
   - Security:
       - Overview: security/index.md
       - API keys: security/api-keys.md
