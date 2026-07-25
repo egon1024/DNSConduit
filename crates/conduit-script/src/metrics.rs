@@ -200,38 +200,118 @@ impl MetricRegistry {
     }
 }
 
-/// Scan script source for `metrics.inc("name"` / `metric_inc("name"` and optional label map keys.
-pub fn scan_metrics_from_source(
-    source: &str,
-) -> Result<Vec<(String, HashSet<String>)>, ScriptError> {
+/// Scan script source for `metrics.inc` / `metrics.inc_labels` / `metric_inc`
+/// (and future read APIs) with line numbers for the consumer dependency graph.
+pub fn scan_metric_sites(source: &str) -> Result<Vec<MetricScanSite>, ScriptError> {
     let mut found = Vec::new();
-    for line in source.lines() {
-        if let Some(name) = extract_metric_name(line) {
-            let labels = extract_label_keys(line);
-            for key in &labels {
-                validate_label_key(key)?;
-            }
-            found.push((name, labels));
+    for (line_idx, line) in source.lines().enumerate() {
+        let line_no = (line_idx + 1) as u32;
+        for site in scan_line_sites(line, line_no)? {
+            found.push(site);
         }
     }
     Ok(found)
 }
 
-fn extract_metric_name(line: &str) -> Option<String> {
-    let needle = if line.contains("metrics.inc") {
-        "metrics.inc"
-    } else if line.contains("metric_inc") {
-        "metric_inc"
-    } else {
+/// Scan script source for metric names and optional label map keys.
+///
+/// Prefer [`scan_metric_sites`] when line numbers / API kind are needed.
+pub fn scan_metrics_from_source(
+    source: &str,
+) -> Result<Vec<(String, HashSet<String>)>, ScriptError> {
+    Ok(scan_metric_sites(source)?
+        .into_iter()
+        .map(|s| (s.name, s.label_keys))
+        .collect())
+}
+
+/// One static reference site in a Rhai source file.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MetricScanSite {
+    pub name: String,
+    pub label_keys: HashSet<String>,
+    /// 1-based line number.
+    pub line: u32,
+    /// Call form as written (`metrics.inc`, `metrics.inc_labels`, …).
+    pub api: String,
+}
+
+/// Future read APIs (metric windows, etc.) — empty until those helpers ship.
+const FUTURE_READ_APIS: &[&str] = &[];
+
+fn scan_line_sites(line: &str, line_no: u32) -> Result<Vec<MetricScanSite>, ScriptError> {
+    let mut sites = Vec::new();
+
+    // Check longer / more specific names first so `metrics.inc` does not match
+    // inside `metrics.inc_labels`.
+    for (fn_name, api) in [
+        ("metrics.inc_labels", "metrics.inc_labels"),
+        ("metrics.inc", "metrics.inc"),
+        ("metric_inc", "metric_inc"),
+    ] {
+        for rest in find_calls(line, fn_name) {
+            if let Some(name) = extract_call_string_arg(rest) {
+                let labels = extract_label_keys(line);
+                for key in &labels {
+                    validate_label_key(key)?;
+                }
+                sites.push(MetricScanSite {
+                    name,
+                    label_keys: labels,
+                    line: line_no,
+                    api: api.into(),
+                });
+            }
+        }
+    }
+
+    for api in FUTURE_READ_APIS {
+        for rest in find_calls(line, api) {
+            if let Some(name) = extract_call_string_arg(rest) {
+                sites.push(MetricScanSite {
+                    name,
+                    label_keys: HashSet::new(),
+                    line: line_no,
+                    api: (*api).into(),
+                });
+            }
+        }
+    }
+
+    Ok(sites)
+}
+
+/// Word-boundary call finder (same approach as `lookup_scan`).
+fn find_calls<'a>(line: &'a str, fn_name: &str) -> Vec<&'a str> {
+    let bytes = line.as_bytes();
+    let mut out = Vec::new();
+    let mut start = 0;
+    while let Some(rel) = line[start..].find(fn_name) {
+        let idx = start + rel;
+        let after = idx + fn_name.len();
+        let before_ok = idx == 0 || !is_ident_byte(bytes[idx - 1]);
+        let after_ok = bytes.get(after).map(|b| !is_ident_byte(*b)).unwrap_or(true);
+        if before_ok && after_ok {
+            out.push(&line[after..]);
+        }
+        start = after;
+    }
+    out
+}
+
+fn is_ident_byte(b: u8) -> bool {
+    b.is_ascii_alphanumeric() || b == b'_'
+}
+
+fn extract_call_string_arg(rest: &str) -> Option<String> {
+    let after_open = rest.trim_start().strip_prefix('(')?;
+    let after_paren = after_open.trim_start();
+    let quote = after_paren.chars().next()?;
+    if quote != '"' && quote != '\'' {
         return None;
-    };
-    let idx = line.find(needle)?;
-    let rest = &line[idx..];
-    let open = rest.find('(')?;
-    let after = &rest[open + 1..];
-    let quote = after.find('"')?;
-    let after_quote = &after[quote + 1..];
-    let end = after_quote.find('"')?;
+    }
+    let after_quote = &after_paren[quote.len_utf8()..];
+    let end = after_quote.find(quote)?;
     Some(after_quote[..end].to_string())
 }
 
@@ -277,6 +357,25 @@ mod tests {
         let metrics = scan_metrics_from_source(src).unwrap();
         assert_eq!(metrics[0].0, "block_hits");
         assert!(metrics[0].1.contains("category"));
+    }
+
+    #[test]
+    fn scan_metric_sites_inc_labels_with_line() {
+        let src = "let x = 1;\nmetrics.inc_labels(\"block_hits\", 1, #{ category: \"eu\" });\n";
+        let sites = scan_metric_sites(src).unwrap();
+        assert_eq!(sites.len(), 1);
+        assert_eq!(sites[0].name, "block_hits");
+        assert_eq!(sites[0].line, 2);
+        assert_eq!(sites[0].api, "metrics.inc_labels");
+        assert!(sites[0].label_keys.contains("category"));
+    }
+
+    #[test]
+    fn scan_inc_does_not_double_match_inc_labels() {
+        let src = r#"metrics.inc_labels("hits", 1, #{ category: "x" });"#;
+        let sites = scan_metric_sites(src).unwrap();
+        assert_eq!(sites.len(), 1);
+        assert_eq!(sites[0].api, "metrics.inc_labels");
     }
 
     #[test]

@@ -1,0 +1,7 @@
+# Consumer validation lab: overlay — stop collecting blat (must be rejected).
+schema_version: 1
+metrics:
+  user_metrics:
+    - name: blat
+      collect: false
+      emit: false

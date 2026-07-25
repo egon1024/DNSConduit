@@ -857,4 +857,56 @@ pools:
             .await
             .expect("configurator shutdown hung — state_tx likely still open");
     }
+
+    #[tokio::test]
+    async fn apply_rejects_collect_removal_while_script_references_metric() {
+        use conduit_proto::config::{MetricsConfig, UserMetricExportConfig};
+
+        let yaml = include_str!("../../../tests/fixtures/config/metrics-consumer-blat-base.yaml");
+        let file_cfg = load_yaml(yaml).unwrap();
+        let base_dir =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/config");
+        let store = Arc::new(SnapshotStore::new(RuntimeSnapshot::from_config_with_base(
+            file_cfg.clone(),
+            Some(&base_dir),
+        )));
+        let effective = Arc::new(Mutex::new(EffectiveConfig::new(file_cfg)));
+        let state = ConfiguratorState {
+            config_path: base_dir.join("metrics-consumer-blat-base.yaml"),
+            base_dir: Some(base_dir),
+            metrics_hub: None,
+            export_controller: None,
+            events: None,
+        };
+        let handle = spawn(store.clone(), effective, state).handle();
+        let gen0 = store.generation();
+
+        let patch = Config {
+            schema_version: 1,
+            metrics: Some(MetricsConfig {
+                user_metrics: vec![UserMetricExportConfig {
+                    name: "blat".into(),
+                    export: String::new(),
+                    collect: Some(false),
+                    emit: Some(false),
+                }],
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let result = handle
+            .apply_overlay(Some(patch), OverlayApplyMode::Merge, None)
+            .await;
+        assert!(!result.ok, "expected consumer dependency rejection");
+        let joined = result.errors.join("\n");
+        assert!(
+            joined.contains("cannot stop collecting metric \"blat\""),
+            "errors: {joined}"
+        );
+        assert!(
+            joined.contains("consumer-blat.rhai") || joined.contains("blat"),
+            "errors should list script path: {joined}"
+        );
+        assert_eq!(store.generation(), gen0);
+    }
 }

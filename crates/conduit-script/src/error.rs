@@ -10,4 +10,7 @@ pub enum ScriptError {
     Metric { name: String, message: String },
     #[error("rule '{rule_name}': {message}")]
     Rule { rule_name: String, message: String },
+    /// Consumer dependency rejection (may be multi-line).
+    #[error("{0}")]
+    ConsumerDependency(String),
 }

@@ -33,7 +33,7 @@ The **file layer** is the YAML file you pass as the first argument to `conduit` 
 
 - **`schema_version`** is required. The only accepted value is **`1`**.
 - You can author a **sparse** file — Conduit supplies defaults for omitted top-level blocks at load time. The smallest runnable file needs only `schema_version`, `listeners`, and `pools`; see [Minimal configuration](/getting-started/minimal-configuration.md).
-- Blocks such as **`rules:`**, **`metrics:`**, and **`tracing:`** live only in the file layer today. Changing them requires a **file reload**, not an API overlay.
+- Blocks such as **`rules:`** and **`tracing:`** live only in the file layer today. Changing them requires a **file reload**, not an API overlay. **`metrics:`** may be changed via overlay ([deep merge](/control-plane/overlay-merge-strategy.md#metrics-deep-merge)).
 
 Validate a file without a running server:
 
@@ -103,7 +103,8 @@ Merge rules (current release):
 | **`listeners`**, **`forward`**, **`orchestrator`**, **`events`**, **`rhai`**, **`control`**, **`logging`** | If the overlay includes the section, it **replaces** the file-layer section entirely |
 | **`data_sources`** | Non-empty overlay list replaces the file-layer list |
 | **`pools`** | Match pools by `name`. Within a pool, match a [backend](/glossary/index.md#backend) by `name` when the overlay entry sets one, otherwise by `address`; matched fields are updated. A new pool — or an address-matched backend not already in the pool — is **appended**; an overlay backend whose `name` is not found in the pool is **rejected** (the apply fails). See [Targeting a backend by name or address](#targeting-a-backend-by-name-or-address). Unset `weight` in the overlay does **not** clear a file-layer weight |
-| **`rules`**, **`metrics`**, **`tracing`** | **File layer only** — not allowed in overlay patches; apply is rejected if the patch includes these keys |
+| **`metrics`** | **Deep merge** — nested maps by key; `categories.include` / `exclude` list-replace when present; `user_metrics` match-by-name. See [Overlay merge strategy](/control-plane/overlay-merge-strategy.md) |
+| **`rules`**, **`tracing`** | **File layer only** — not allowed in overlay patches; apply is rejected if the patch includes these keys |
 
 Example — shift weight on one backend without editing the main file (full merge/replace/clear walkthrough with sparse patches: [Reload and export — worked example](/control-plane/reload-and-export.md#worked-example-pool-weights)):
 
@@ -169,10 +170,11 @@ These updates apply to **later** queries as soon as the new snapshot is installe
 - [Backend health](/policy-routing/backend-health.md) probe configuration (`pools[].health` and per-backend probe overrides); health **runtime** state is preserved separately (see [Runtime snapshot](#runtime-snapshot))
 - [Rules](/policy-routing/rules-and-actions.md) and [Rhai](/rhai/index.md) scripts (file reload)
 - `orchestrator` limits, `events` sinks, `data_sources` tables
+- **Metrics plan** (base, categories, collect/emit, granularity, user metrics, event_export) via file reload or overlay; Prometheus listen **rebind** and OTLP **reconnect** when those export settings change ([Metrics configurability](/observability/metrics-configurability.md))
 
 In-flight [transactions](/glossary/index.md#transaction) still finish on the snapshot they began with.
 
-**`metrics:`** and **`tracing:`** blocks are validated and stored in the new snapshot, but Prometheus scrape and OTEL push listeners are started from the config present at **process start** today. Enabling export, changing scrape addresses, or turning built-in recording on after startup requires a **process restart**. See [Metrics](/observability/metrics.md).
+**`tracing:`** is validated and stored in the new snapshot; pipeline-trace behavior follows the tracing docs. Export listener details for metrics: [Metrics](/observability/metrics.md).
 
 ### Pending reconcile (restart required)
 

@@ -302,23 +302,27 @@ fn rhai_user_metric_records_on_minimal_when_export_tier_minimal() {
 }
 
 #[test]
-fn rhai_user_metric_skipped_on_minimal_without_export_override() {
+fn rhai_user_metric_on_minimal_without_collect_is_rejected() {
+    // Design: write sites (`metrics.inc` / `inc_labels`) must not quietly no-op.
+    // Under `base: minimal`, default user-metric collect is false, so a script
+    // that references the metric without an explicit collect/export override
+    // must fail snapshot compile / validate.
     let yaml =
         include_str!("../../../tests/fixtures/config/with-rhai-block-hits-minimal-default.yaml");
     let cfg = load_yaml(yaml).unwrap();
     let base = fixtures_config_base();
-    let snap = Arc::new(RuntimeSnapshot::try_from_config_with_base(cfg, Some(&base)).unwrap());
-    let hub = Arc::new(MetricsHub::from_config(&snap.config));
-    let orch = orchestrator_with_mock_forward(hub.clone());
-
-    let mut txn = Transaction::new(11, "127.0.0.1:15353".parse().unwrap(), ClientProtocol::Udp)
-        .with_query_wire(query_for("eu.example."));
-    let _ = orch.run(&mut txn, &snap, &SystemClock, None);
-
-    let body = render_prometheus(hub.as_ref(), &[]);
+    let err = match RuntimeSnapshot::try_from_config_with_base(cfg, Some(&base)) {
+        Ok(_) => panic!("expected consumer dependency rejection"),
+        Err(e) => e,
+    };
+    let msg = err.to_string();
     assert!(
-        !body.contains("conduit_user_block_hits"),
-        "default full-tier user metrics must not record on minimal, body:\n{body}"
+        msg.contains("cannot stop collecting metric \"block_hits\""),
+        "expected consumer dependency rejection, got: {msg}"
+    );
+    assert!(
+        msg.contains("block-hits.rhai"),
+        "expected script path in error, got: {msg}"
     );
 }
 

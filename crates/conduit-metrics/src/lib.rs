@@ -16,6 +16,7 @@
 mod build_metadata;
 mod builtin;
 mod compile;
+mod consumer;
 mod export;
 mod export_controller;
 mod labels;
@@ -37,6 +38,10 @@ pub use builtin::{
 pub use compile::{
     compile_from_config, trace_activation_matches, validate_metrics_tracing, BuiltinProfile,
     CompiledMetrics, CompiledTraceActivation, CompiledTracing,
+};
+pub use consumer::{
+    check_consumer_dependencies, conduit_user_metric_name, ConsumerKind, MetricConsumerGraph,
+    MetricConsumerRef, SidecarConsumerRegistry, WasmConsumerRegistry,
 };
 pub use export::{gather_prometheus_families, render_prometheus};
 pub use export_controller::{
