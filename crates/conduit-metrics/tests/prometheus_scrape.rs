@@ -260,6 +260,27 @@ fn full_profile_includes_qtype_on_queries() {
 }
 
 #[test]
+fn rhai_user_metric_custom_help_in_scrape() {
+    let yaml = include_str!("../../../tests/fixtures/config/with-rhai-block-hits-help.yaml");
+    let cfg = load_yaml(yaml).unwrap();
+    let base = fixtures_config_base();
+    let snap = Arc::new(RuntimeSnapshot::try_from_config_with_base(cfg, Some(&base)).unwrap());
+    let hub = Arc::new(MetricsHub::from_config(&snap.config));
+    let orch = orchestrator_with_mock_forward(hub.clone());
+
+    let mut txn = Transaction::new(10, "127.0.0.1:15353".parse().unwrap(), ClientProtocol::Udp)
+        .with_query_wire(query_for("eu.example."));
+    let _ = orch.run(&mut txn, &snap, &SystemClock, None);
+
+    let body = render_prometheus(hub.as_ref(), &[]);
+    assert!(
+        body.contains("# HELP conduit_user_block_hits Policy block hits by category"),
+        "expected custom HELP in scrape, body:\n{body}"
+    );
+    assert!(body.contains("conduit_user_block_hits"), "body:\n{body}");
+}
+
+#[test]
 fn rhai_user_metric_accumulates_across_queries() {
     let yaml = include_str!("../../../tests/fixtures/config/with-rhai-block-hits.yaml");
     let cfg = load_yaml(yaml).unwrap();
@@ -302,27 +323,38 @@ fn rhai_user_metric_records_on_minimal_when_export_tier_minimal() {
 }
 
 #[test]
-fn rhai_user_metric_on_minimal_without_collect_is_rejected() {
-    // Design: write sites (`metrics.inc` / `inc_labels`) must not quietly no-op.
-    // Under `base: minimal`, default user-metric collect is false, so a script
-    // that references the metric without an explicit collect/export override
-    // must fail snapshot compile / validate.
+fn rhai_user_metric_on_minimal_without_collect_warns_and_does_not_record() {
+    // Write sites (`metrics.inc` / `inc_labels`) no-op when collect is off —
+    // same as a built-in category with collect off. Snapshot compile succeeds
+    // with a warning; scrape omits the series.
     let yaml =
         include_str!("../../../tests/fixtures/config/with-rhai-block-hits-minimal-default.yaml");
     let cfg = load_yaml(yaml).unwrap();
     let base = fixtures_config_base();
-    let err = match RuntimeSnapshot::try_from_config_with_base(cfg, Some(&base)) {
-        Ok(_) => panic!("expected consumer dependency rejection"),
-        Err(e) => e,
-    };
-    let msg = err.to_string();
-    assert!(
-        msg.contains("cannot stop collecting metric \"block_hits\""),
-        "expected consumer dependency rejection, got: {msg}"
+    let snap = Arc::new(
+        RuntimeSnapshot::try_from_config_with_base(cfg, Some(&base))
+            .expect("collect-off write sites must compile"),
     );
     assert!(
-        msg.contains("block-hits.rhai"),
-        "expected script path in error, got: {msg}"
+        snap.scripting
+            .compile_warnings
+            .iter()
+            .any(|w| w.contains("collect is off") && w.contains("block_hits")),
+        "expected collect-off warning, got: {:?}",
+        snap.scripting.compile_warnings
+    );
+
+    let hub = Arc::new(MetricsHub::from_config(&snap.config));
+    let orch = orchestrator_with_mock_forward(hub.clone());
+
+    let mut txn = Transaction::new(10, "127.0.0.1:15353".parse().unwrap(), ClientProtocol::Udp)
+        .with_query_wire(query_for("eu.example."));
+    let _ = orch.run(&mut txn, &snap, &SystemClock, None);
+
+    let body = render_prometheus(hub.as_ref(), &[]);
+    assert!(
+        !body.contains("conduit_user_block_hits"),
+        "collect-off must not record user metric, body:\n{body}"
     );
 }
 

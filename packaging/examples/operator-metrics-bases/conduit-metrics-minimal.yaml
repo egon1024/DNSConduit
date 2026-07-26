@@ -1,0 +1,21 @@
+# Lab example for the Operator metrics bases guide (minimal base).
+# Change metrics.base to standard for the guide's second step.
+# Default ports: DNS 15353, metrics 9090; upstream :5300.
+schema_version: 1
+listeners:
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+pools:
+  - name: default
+    backends:
+      - address: "127.0.0.1:5300"
+    health:
+      enabled: true
+      interval_ms: 1000
+metrics:
+  enabled: true
+  base: minimal
+  prometheus:
+    listen_address: "127.0.0.1:9090"
+    path: /metrics

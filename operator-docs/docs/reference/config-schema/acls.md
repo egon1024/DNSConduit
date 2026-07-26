@@ -1,6 +1,6 @@
 # Config schema: acls
 
-Field reference for optional top-level **`acls:`** and per-listener **`acls:`**. Operator behavior: [Client ACLs](/policy-routing/client-acls.md).
+This page lists the fields for optional top-level **`acls:`** and per-listener **`acls:`**. For when to use ACLs and how they run on ingress, see [Client ACLs](/policy-routing/client-acls.md).
 
 ## `acls` (top-level)
 

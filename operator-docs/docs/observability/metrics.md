@@ -1,6 +1,6 @@
 # Metrics
 
-Built-in Prometheus-format metrics for the [dataplane](/glossary/index.md#dataplane): query volume, pool mix, forward health, pipeline timing, and process gauges. Recording and export run off the DNS query path — export backlog does not delay client responses.
+Conduit exposes built-in Prometheus-format metrics for the [dataplane](/glossary/index.md#dataplane) — query volume, pool mix, forward health, pipeline timing, and process gauges. Recording and export run off the DNS query path, so export backlog does not delay client responses.
 
 ## Enabling export
 
@@ -33,7 +33,7 @@ metrics:
 
 Conduit does not require an export path at validation time — you can set `enabled: true` with no `prometheus` or `otel` block and pay hot-path cost without anywhere to scrape. In practice, configure at least one export path.
 
-What to record (categories, collect/emit, granularity): [Metrics configurability](/observability/metrics-configurability.md). Field reference: [Config schema: metrics and tracing](/reference/config-schema/metrics-and-tracing.md).
+Configure categories, collect/emit, and granularity in [Metrics configurability](/observability/metrics-configurability.md). Exact keys are in [Config schema: metrics and tracing](/reference/config-schema/metrics-and-tracing.md).
 
 ## Export architecture
 
@@ -47,15 +47,15 @@ flowchart LR
 
 Hot-path counters and histograms are updated on listener workers while queries run. Scrape-time gauges (config generation, pool layout, optional process stats) are refreshed when export runs. The same registry backs both Prometheus scrape and OTEL push.
 
-**Prometheus** — bind `listen_address` (for example loopback in production). The endpoint has **no built-in authentication**; restrict reachability with firewall or bind address. Smoke test after start:
+For Prometheus scrape, set `listen_address` to where the HTTP `/metrics` listener should bind — typically loopback in production so only local scrapers can reach it. The endpoint has **no built-in authentication**; restrict reachability with a firewall or a tight bind address. After start, confirm the scrape path responds:
 
 ```bash
 curl -sS "http://127.0.0.1:9090/metrics" | head
 ```
 
-**OTEL** — `endpoint` must be an `http://` or `https://` URL for OTLP HTTP (typically ending in `/v1/metrics`). Conduit pushes built-in metrics on `push_interval_ms` over plain HTTP or HTTPS. **`https://`** endpoints validate server certificates against public roots by default; set **`allow_invalid_certs: true`** only for lab collectors with self-signed or otherwise invalid certificates. Optional `resource_attributes` attach resource labels to pushed metrics. Optional **`metrics.otel.headers`** (map of string keys to values) are sent as HTTP headers on each OTLP push — use for collector bearer tokens or API keys. This is **OTLP metrics only** — not distributed trace or log export (see [Tracing](/observability/tracing.md) for in-process pipeline traces).
+For OTLP push, `endpoint` must be an `http://` or `https://` URL for OTLP HTTP (typically ending in `/v1/metrics`). Conduit pushes built-in metrics on `push_interval_ms` over plain HTTP or HTTPS. **`https://`** endpoints validate server certificates against public roots by default; set **`allow_invalid_certs: true`** only for lab collectors with self-signed or otherwise invalid certificates. Optional `resource_attributes` attach resource labels to pushed metrics. Optional **`metrics.otel.headers`** (map of string keys to values) are sent as HTTP headers on each OTLP push — use for collector bearer tokens or API keys. This is **OTLP metrics only** — not distributed trace or log export (see [Tracing](/observability/tracing.md) for in-process pipeline traces).
 
-Example (lab collector with bearer auth):
+For a lab collector that expects a bearer token:
 
 ```yaml
 metrics:
@@ -68,7 +68,7 @@ metrics:
 
 ## Bases (what to record)
 
-**`minimal`** keeps hot-path cardinality low: query and per-pool counters, coarse response-code buckets, essential failure counters, lookup, topology, meta, and **health** (when probes are configured). **`standard`** adds timing histograms, cache/forward detail, runtime gauges, and process gauges — a curated bundle, not every registry family. Details: [Metrics configurability](/observability/metrics-configurability.md). Membership tables: [Built-in metric registry](/observability/built-in-metric-registry.md). Lab: [Operator metrics bases](/guides/operator-metrics-profiles.md).
+**`minimal`** keeps hot-path cardinality low: query and per-pool counters, coarse response-code buckets, essential failure counters, lookup, topology, meta, and **health** (when probes are configured). **`standard`** adds timing histograms, cache/forward detail, runtime gauges, and process gauges — a curated bundle, not every registry family. Tune further in [Metrics configurability](/observability/metrics-configurability.md); see [Built-in metric registry](/observability/built-in-metric-registry.md) for membership tables and [Operator metrics bases](/guides/operator-metrics-bases.md) for a lab walkthrough.
 
 ## Changing metrics config
 
@@ -78,7 +78,7 @@ The **`metrics:`** block may appear in [overlay](/glossary/index.md#overlay) pat
 
 Counters and histograms attach to [pipeline phases](/concepts/architecture-and-packet-path.md#pipeline-phases) ([Parse](/concepts/architecture-and-packet-path.md#parse) through [Send](/concepts/architecture-and-packet-path.md#send)). The architecture page links each phase to the relevant series.
 
-Exhaustive list — every built-in name, label, and **when** it increments: **[Built-in metrics](/observability/built-in-metrics.md)**. The same scrape or push payload also includes [event-export counters](/observability/built-in-metrics.md#event-export) when `events:` is configured. [Rhai](/rhai/index.md) scripts can register **`conduit_user_*`** series via [User metrics](/rhai/user-metrics.md); each metric's export tier (default **`full`**) controls whether it records on **`minimal`** profile.
+Every built-in name, label, and **when** it increments is listed in **[Built-in metrics](/observability/built-in-metrics.md)**. The same scrape or push payload also includes [event-export counters](/observability/built-in-metrics.md#event-export) when `events:` is configured. [Rhai](/rhai/index.md) scripts can register **`conduit_user_*`** series via [User metrics](/rhai/user-metrics.md); per-metric **collect** / **emit** (and legacy **`export`**) control recording and export — on **`base: minimal`**, unlisted script metrics stay off (increments no-op with a warning) until you opt them in.
 
 Built-in labels never include `qname`, client IP, or transaction id. Use [Event export](/observability/event-export.md) or [Tracing](/observability/tracing.md) for per-query detail.
 
@@ -92,4 +92,6 @@ Built-in labels never include `qname`, client IP, or transaction id. Use [Event 
 - [Built-in metrics](/observability/built-in-metrics.md) — series reference and PromQL examples
 - [Architecture and packet path](/concepts/architecture-and-packet-path.md) — phase-by-phase metric hooks
 - [Metrics and tracing](/guides/metrics-and-tracing.md) — end-to-end lab (metrics scrape + pipeline tracing)
+- [Operator metrics bases](/guides/operator-metrics-bases.md) — **`minimal`** vs **`standard`** on the same traffic
+- [Metrics beyond bases](/guides/metrics-beyond-bases.md) — categories, collect/emit, granularity, overlay rebind
 - [Event export and dnstap](/guides/event-export-dnstap.md) — wire-level tap lab

@@ -319,6 +319,9 @@ fn merge_user_metrics(base: &mut Vec<UserMetricExportConfig>, overlay: &[UserMet
             if overlay_entry.emit.is_some() {
                 base_entry.emit = overlay_entry.emit;
             }
+            if !overlay_entry.help.is_empty() {
+                base_entry.help = overlay_entry.help.clone();
+            }
         } else {
             base.push(overlay_entry.clone());
         }
@@ -621,6 +624,7 @@ pools:
                     export: "full".into(),
                     collect: Some(true),
                     emit: Some(true),
+                    help: String::new(),
                 }],
                 ..Default::default()
             }),
@@ -635,12 +639,14 @@ pools:
                         export: String::new(),
                         collect: Some(true),
                         emit: Some(false),
+                        help: String::new(),
                     },
                     UserMetricExportConfig {
                         name: "misses".into(),
                         export: String::new(),
                         collect: Some(true),
                         emit: Some(true),
+                        help: String::new(),
                     },
                 ],
                 ..Default::default()
@@ -657,5 +663,43 @@ pools:
         assert_eq!(users[1].name, "misses");
         assert_eq!(users[1].collect, Some(true));
         assert_eq!(users[1].emit, Some(true));
+    }
+
+    #[test]
+    fn metrics_user_metrics_merge_help_by_name() {
+        let file = Config {
+            schema_version: 1,
+            metrics: Some(MetricsConfig {
+                enabled: Some(true),
+                user_metrics: vec![UserMetricExportConfig {
+                    name: "hits".into(),
+                    export: String::new(),
+                    collect: Some(true),
+                    emit: Some(true),
+                    help: "from file".into(),
+                }],
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let overlay = Config {
+            schema_version: 1,
+            metrics: Some(MetricsConfig {
+                user_metrics: vec![UserMetricExportConfig {
+                    name: "hits".into(),
+                    export: String::new(),
+                    collect: None,
+                    emit: None,
+                    help: "from overlay".into(),
+                }],
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let merged = merge_file_and_overlay(&file, &overlay).unwrap();
+        let users = &merged.metrics.as_ref().unwrap().user_metrics;
+        assert_eq!(users[0].help, "from overlay");
+        assert_eq!(users[0].collect, Some(true));
+        assert_eq!(users[0].emit, Some(true));
     }
 }

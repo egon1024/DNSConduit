@@ -1,8 +1,16 @@
 # Operator metrics bases
 
-Hands-on comparison of **`metrics.base: minimal`** vs **`standard`** on the same DNS traffic. Membership and dimensions: [Built-in metric registry](/observability/built-in-metric-registry.md). Config model: [Metrics configurability](/observability/metrics-configurability.md). Scrape setup: [Metrics](/observability/metrics.md).
+[`metrics.base`](/observability/metrics-configurability.md) sets how rich Conduit's built-in metrics are when you scrape the Prometheus metrics endpoint. A value of **`minimal`** keeps query labels coarse and skips timing histograms which constitutes metrics with lower metric cardinality. **`standard`** adds fine labels (`qtype`, `qclass`, `ip_family`), phase and forward timing series, and process gauges — more detail, more series.
 
-**Prerequisites:** Conduit built; upstream on **`127.0.0.1:5300`**; Prometheus scrape available via `curl` (no Prometheus server required for this lab). Enable **`pools[].health`** if you want to confirm health series on **minimal**.
+Operators usually need to answer: “Is **minimal** enough for my dashboards, or do I need **standard**?” This walkthrough runs the **same DNS traffic** under each base, scrapes `/metrics`, and shows the concrete differences so you can choose a base (or confirm a reload changed cardinality as you expected).
+
+**Prerequisites:** Conduit built; upstream DNS resolver listening on **`127.0.0.1:5300`**; Prometheus scrape available via `curl` (no Prometheus server required for this lab). Enable **`pools[].health`** if you want to confirm health series on **minimal**.
+
+## What you will practice
+
+1. Start Conduit with **`base: minimal`**, send a few queries, and read the scrape
+2. Switch to **`base: standard`** (restart or overlay) and repeat under the same traffic pattern
+3. Compare label sets on [`conduit_queries_total`](/observability/built-in-metrics.md#conduit_queries_total) and whether phase/forward timing series appear
 
 ## What you will see
 
@@ -99,7 +107,8 @@ Expect qtype/qclass/ip_family on queries and phase/forward timing series present
 ## Related topics
 
 - [Metrics configurability](/observability/metrics-configurability.md)
+- [Metrics beyond bases](/guides/metrics-beyond-bases.md) — categories, collect/emit, granularity after you pick a base
 - [Built-in metric registry](/observability/built-in-metric-registry.md)
 - [Built-in metrics](/observability/built-in-metrics.md)
 - [Metrics](/observability/metrics.md)
-- [Unreleased](/release-notes/unreleased.md) — profile → base migration
+- [Metrics configurability — Legacy aliases](/observability/metrics-configurability.md#legacy-profile-alias)

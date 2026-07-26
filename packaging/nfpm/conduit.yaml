@@ -25,10 +25,9 @@ contents:
     dst: /lib/systemd/system/conduit.service
   - src: LICENSE
     dst: /usr/share/doc/conduit/copyright
-  - src: packaging/examples/conduit.minimal.yaml
-    dst: /usr/share/doc/conduit/examples/conduit.minimal.yaml
-  - src: packaging/examples/conduit.reference.yaml
-    dst: /usr/share/doc/conduit/examples/conduit.reference.yaml
+  - src: packaging/examples
+    dst: /usr/share/doc/conduit/examples
+    type: tree
   - src: packaging/examples/conduit.minimal.yaml
     dst: /etc/conduit/conduit.yaml
     type: config

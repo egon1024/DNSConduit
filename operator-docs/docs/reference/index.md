@@ -1,6 +1,6 @@
 # Reference
 
-Field lists, gRPC API reference, and schema detail for operators integrating with Conduit.
+This section holds field lists, gRPC API reference, and schema detail for operators integrating with Conduit.
 
 | Area | Page |
 |------|------|

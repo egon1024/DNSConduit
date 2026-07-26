@@ -1,6 +1,6 @@
 # Config schema: rhai
 
-Field reference for the optional top-level **`rhai:`** block (sandbox limits for [Rule Rhai](/rhai/rule-rhai.md)). For what each limit means, fail-open behavior, host API costing, and safe patterns, see [Sandbox limits](/rhai/sandbox-limits.md).
+This page lists the fields for the optional top-level **`rhai:`** block (sandbox limits for [Rule Rhai](/rhai/rule-rhai.md)). For what each limit means, fail-open behavior, host API costing, and safe patterns, see [Sandbox limits](/rhai/sandbox-limits.md).
 
 ## `rhai`
 

@@ -1,6 +1,6 @@
 # Reference: rules
 
-Schema reference for the top-level `rules:` block. Operator-oriented behavior: [Rules and actions](/policy-routing/rules-and-actions.md).
+This page is the schema reference for the top-level `rules:` block. For selectors, actions, and evaluation order, see [Rules and actions](/policy-routing/rules-and-actions.md).
 
 ## `rules`
 

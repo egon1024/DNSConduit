@@ -1,6 +1,6 @@
 # Reference: gRPC and CLI
 
-Field-level reference for the **`ConduitControl`** gRPC service and how **`conduitctl`** maps to it. Connection, authentication, and operator-oriented command help: [gRPC and conduitctl](/control-plane/grpc-and-conduitctl.md). Proto source: `proto/conduit/v1/control.proto` and `proto/conduit/v1/config.proto` in the repository.
+This page is a field-level reference for the **`ConduitControl`** gRPC service and how **`conduitctl`** maps to it. Connection, authentication, and operator-oriented command help: [gRPC and conduitctl](/control-plane/grpc-and-conduitctl.md). Proto source: `proto/conduit/v1/control.proto` and `proto/conduit/v1/config.proto` in the repository.
 
 ## Service: `ConduitControl`
 

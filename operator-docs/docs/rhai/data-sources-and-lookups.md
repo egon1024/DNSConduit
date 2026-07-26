@@ -6,7 +6,7 @@ toc_depth: 3
 
 **`lookup(table, key)`** and **`lookup_ip(name, addr)`** are global functions in [Rhai for rules](/rhai/rule-rhai.md) that read named tables and views declared under **`data_sources:`** — exact-key CSV with **`lookup`**, longest-prefix CIDR with **`lookup_ip`**. The config, file formats, load-safety limits, and reload behavior live on [Data sources](/policy-routing/data-sources.md); this page covers the Rhai calling surface and patterns.
 
-Both are global functions — **not** methods on **`txn`** — and they read **`data_sources:`** policy tables, **not** the [Lookup](/concepts/architecture-and-packet-path.md#lookup) pipeline phase. See [Glossary — Lookup vs lookup(table, key)](/glossary/index.md#lookup-vs-lookuptable-key). Hook availability: [Hooks and phases — phase guards](/rhai/hooks-and-phases.md#phase-guards).
+Both are global functions — **not** methods on **`txn`** — and they read **`data_sources:`** policy tables, **not** the [Lookup](/concepts/architecture-and-packet-path.md#lookup) pipeline phase. See [Glossary — Lookup vs lookup(table, key)](/glossary/index.md#lookup-vs-lookuptable-key). Which hooks may call them is covered under [Hooks and phases — phase guards](/rhai/hooks-and-phases.md#phase-guards).
 
 ## Overview
 

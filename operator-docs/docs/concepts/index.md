@@ -1,6 +1,6 @@
 # Concepts
 
-Mental models for how Conduit handles DNS — the query path on the [dataplane](/glossary/index.md#dataplane) and where policy plugs in. Read these before diving into config field lists and runbooks; YAML syntax and operational detail are described in other sections.
+This section covers mental models for how Conduit handles DNS — the query path on the [dataplane](/glossary/index.md#dataplane) and where policy plugs in. Read these before diving into config field lists and runbooks; YAML syntax and operational detail are described in other sections.
 
 **Read in order:**
 

@@ -1,6 +1,6 @@
 # Dataplane runtime tuning
 
-Practical guidance for choosing a [dataplane runtime model](/concepts/runtime-and-concurrency.md#runtime-models) and sizing its worker pools for production. This guide is task-oriented: when to stay on **`sync`**, when to move to **`split_io`**, how to size ingress/policy/I/O workers and the slot pool, and how to confirm the result with metrics. For *how* each runtime executes a query, see [Runtime and concurrency](/concepts/runtime-and-concurrency.md); for field defaults and validation, see [Reference: dataplane](/reference/config-schema/dataplane.md), [Reference: listeners](/reference/config-schema/listeners.md), and [Reference: forward](/reference/config-schema/forward.md).
+This guide walks through choosing a [dataplane runtime model](/concepts/runtime-and-concurrency.md#runtime-models) and sizing its worker pools for production. It is task-oriented: when to stay on **`sync`**, when to move to **`split_io`**, how to size ingress/policy/I/O workers and the slot pool, and how to confirm the result with metrics. For *how* each runtime executes a query, see [Runtime and concurrency](/concepts/runtime-and-concurrency.md); for field defaults and validation, see [Reference: dataplane](/reference/config-schema/dataplane.md), [Reference: listeners](/reference/config-schema/listeners.md), and [Reference: forward](/reference/config-schema/forward.md).
 
 !!! note "Every setting on this page needs a restart"
     `dataplane:`, `listeners:`, and `forward:` are **start-time** settings. A [reload](/glossary/index.md#reload-from-disk) or `conduitctl apply` updates the stored [snapshot](/glossary/index.md#runtime-snapshot) so [export](/control-plane/reload-and-export.md) reflects your intent, but the running runtime model, worker counts, sockets, and `max_inflight` do **not** change until you **restart** `conduit`. See [Configuration model — Pending reconcile](/control-plane/configuration-model.md#pending-reconcile-restart-required).
@@ -110,7 +110,7 @@ listeners:
 
 ## Verify with metrics
 
-Run the **`full`** [metrics profile](/observability/built-in-metrics.md#profiles) while tuning so the slot gauges and phase histograms are available, and scrape with `curl` (a Prometheus server is not required):
+Run **`metrics.base: standard`** (or legacy **`profile: full`**) while tuning so the slot gauges and phase histograms are available, and scrape with `curl` (a Prometheus server is not required):
 
 ```bash
 curl -sS "http://127.0.0.1:9090/metrics" \
@@ -153,4 +153,4 @@ histogram_quantile(0.99, sum(rate(conduit_phase_duration_seconds_bucket{phase="l
 - [Reference: forward](/reference/config-schema/forward.md) — `timeout_ms`, `outstanding_per_backend`
 - [Reference: pools](/reference/config-schema/pools.md#per-pool-in-flight-limit) — `max_inflight`
 - [Built-in metrics](/observability/built-in-metrics.md) — slot gauges, `forward_outstanding`, phase histograms
-- [Operator metrics profiles](/guides/operator-metrics-profiles.md) — `minimal` vs `full` on the same traffic
+- [Operator metrics bases](/guides/operator-metrics-bases.md) — `minimal` vs `standard` on the same traffic

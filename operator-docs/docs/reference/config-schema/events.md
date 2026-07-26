@@ -1,6 +1,6 @@
 # Config schema: events
 
-Field reference for the top-level **`events:`** block and each [event sink](/glossary/index.md#event-sink). For behavior — dnstap export, filters, overload, and lab validation — see [Event export](/observability/event-export.md).
+This page lists the fields for the top-level **`events:`** block and each [event sink](/glossary/index.md#event-sink). For behavior — dnstap export, filters, overload, and lab validation — see [Event export](/observability/event-export.md).
 
 ## `events`
 

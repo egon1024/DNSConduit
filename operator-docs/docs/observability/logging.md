@@ -1,6 +1,6 @@
 # Logging
 
-Process logs for Conduit — startup, configuration changes, control-plane RPCs, export health, and (at **`debug`**) per-query summaries. Logs are plain text on **stderr** or **stdout**, suitable for journald, Docker log drivers, or a sidecar tail.
+Conduit writes process logs for startup, configuration changes, control-plane RPCs, export health, and (at **`debug`**) per-query summaries. Logs are plain text on **stderr** or **stdout**, suitable for journald, Docker log drivers, or a sidecar tail.
 
 Configure **`logging:`** to set process log severity and whether lines go to **stderr** or **stdout**. The subscriber is always active — omitting **`logging:`** still yields **`info`** on stderr for lifecycle events (startup, reload, control RPC access). Per-query **`query complete`** and **`query dropped`** lines are emitted at **`debug`**, so default **`info`** stays quiet under load. For traffic volume and latency, use [Metrics](/observability/metrics.md). For full wire copies or phase-by-phase detail on selected queries, see [Event export](/observability/event-export.md) and [Tracing](/observability/tracing.md).
 

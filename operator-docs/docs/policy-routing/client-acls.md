@@ -2,9 +2,7 @@
 
 Host-managed allow/deny (and tag) for client socket IPs using named **`type: cidr`** data sources. Use this when you want different policy on public vs internal listeners without scripting exact-key CSV lookups on every query.
 
-Omit top-level **`acls:`** and Conduit admits every client — same behavior as a config with no ACL keys.
-
-Field reference: [Config schema: acls](/reference/config-schema/acls.md). CIDR tables: [Data sources — CIDR sources](/policy-routing/data-sources.md#cidr-sources) and [Config schema: data sources](/reference/config-schema/data-sources.md).
+Omit top-level **`acls:`** and Conduit admits every client — same behavior as a config with no ACL keys. CIDR table format is under [Data sources — CIDR sources](/policy-routing/data-sources.md#cidr-sources); ACL field lists are in [Config schema: acls](/reference/config-schema/acls.md) and [Config schema: data sources](/reference/config-schema/data-sources.md).
 
 ## How it fits the query path
 

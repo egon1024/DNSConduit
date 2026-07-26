@@ -1,6 +1,6 @@
 # Troubleshooting
 
-Symptom-oriented pointers for common operator issues. Each section links to the canonical topic page — this hub does not duplicate full configuration reference.
+This hub collects symptom-oriented pointers for common operator issues. Each section links to the canonical topic page — it does not duplicate full configuration reference.
 
 | Section | Covers |
 |---------|--------|
@@ -86,7 +86,7 @@ For probes, passive fast-trip, eligibility, and operator controls, see [Backend 
 | Drained backend returns to rotation unexpectedly | Scope not [frozen](/glossary/index.md#freeze), or **`health resume`** snapped applied to observed | `conduitctl health show`; drain is `health set down` (implies freeze) — [Operator controls](/policy-routing/backend-health.md#operator-controls-freeze-drain-resume) |
 | Applied health stale after clear/freeze sequence | Clear-while-frozen footgun | Prefer atomic **`conduitctl health resume`** — [Clear-while-frozen](/policy-routing/backend-health.md#clear-while-frozen-footgun) |
 | `conduitctl health` fails | No control plane at process start | Same as [conduitctl cannot connect](#conduitctl-cannot-connect) |
-| Health gauges missing from scrape | Profile not **`full`**, or health not enabled | `metrics.profile: full` and at least one pool with health — [Built-in metrics — Backend health](/observability/built-in-metrics.md#backend-health) |
+| Health gauges missing from scrape | Health category excluded, metrics disabled, or health not enabled on the pool | `metrics.enabled: true` with **`health`** in the plan (`base: minimal` or **`standard`** include it) and at least one pool with health — [Built-in metrics — Backend health](/observability/built-in-metrics.md#backend-health), [Metrics configurability](/observability/metrics-configurability.md) |
 | High probe load on upstreams | Low `interval_ms` × many backends | Raise interval; size for upstream tolerance — [Probe behavior](/policy-routing/backend-health.md#probe-behavior-operator-view) |
 
 ```bash
@@ -108,7 +108,7 @@ For runtime models, worker pools, and the [transaction](/glossary/index.md#trans
 | [`conduit_slots_in_use`](/observability/built-in-metrics.md#conduit_slots_in_use) sits near [`conduit_slots_capacity`](/observability/built-in-metrics.md#conduit_slots_capacity) | Concurrency near the ceiling — under **`split_io`**, parked upstream waits hold slots while waiting | Size capacity ≈ peak query rate × transaction duration, with headroom — [Dataplane runtime tuning — slot pool](/guides/dataplane-runtime-tuning.md#sizing-the-slot-pool-and-concurrency-caps) |
 | **`SERVFAIL`** spikes on **one pool** only under load | **`pools[].max_inflight`** concurrent-forward cap reached (`split_io`) | Raise or remove the pool `max_inflight` and **restart** — [Reference: pools — Per-pool in-flight limit](/reference/config-schema/pools.md#per-pool-in-flight-limit) |
 
-Slot gauges require the **`full`** [metrics profile](/observability/built-in-metrics.md#profiles); the exhaustion counter is exported on both profiles:
+Slot gauges require the **`runtime`** category ([`base: standard`](/observability/metrics-configurability.md)); the exhaustion counter is in **`failures`** (both **`minimal`** and **`standard`**):
 
 ```bash
 curl -sS "http://127.0.0.1:9090/metrics" \
@@ -238,5 +238,5 @@ Bind Prometheus scrape to loopback or restrict with firewall — scrape has **no
 - [Dataplane runtime tuning](/guides/dataplane-runtime-tuning.md) — `sync` vs `split_io`, worker sizing, slot pool
 - [Observability](/observability/index.md) — which signal to use, OTEL naming, reload matrix
 - [Metrics and tracing](/guides/metrics-and-tracing.md) — metrics + tracing lab
+- [Operator metrics bases](/guides/operator-metrics-bases.md) — **`minimal`** vs **`standard`** scrape comparison
 - [Event export and dnstap](/guides/event-export-dnstap.md) — dnstap lab
-- [Operator metrics profiles](/guides/operator-metrics-profiles.md) — **`minimal`** vs **`full`** scrape comparison

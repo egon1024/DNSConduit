@@ -1,6 +1,6 @@
 # Release notes
 
-Operator-facing changes by release. For the full list of merged pull requests, see the
+This section lists operator-facing changes by release. For the full list of merged pull requests, see the
 [GitHub releases](https://github.com/egon1024/DNSConduit/releases) page.
 
 ## Releases

@@ -253,6 +253,8 @@ You can adjust response metadata before [Send](/concepts/architecture-and-packet
 ## Related topics
 
 - [Rules and actions](/policy-routing/rules-and-actions.md) — `retry`, `retry_now`, `set_retry_pool`, `set_rcode`, response [selectors](/glossary/index.md#selector)
+- [Declarative failover](/guides/declarative-failover.md) — end-to-end SERVFAIL / timeout failover lab
+- [Rule action order](/guides/rule-action-order.md) — soft vs hard drop/retry; request stash on first Route
 - [Pools and backends](/policy-routing/pools-and-backends.md) — pool names, weights, default pool
 - [Backend health](/policy-routing/backend-health.md) — eligibility and fail-open at [Route](/concepts/architecture-and-packet-path.md#route)
 - [Architecture and packet path](/concepts/architecture-and-packet-path.md) — [Response rules](/concepts/architecture-and-packet-path.md#response-rules), [Send](/concepts/architecture-and-packet-path.md#send), timeouts

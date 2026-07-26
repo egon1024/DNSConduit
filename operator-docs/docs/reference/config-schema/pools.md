@@ -1,6 +1,6 @@
 # Config schema: pools
 
-Field reference for the top-level `pools:` list and each [pool](/glossary/index.md#pool) / [backend](/glossary/index.md#backend) object. For behavior — selection, weights, multiple pools, retries — see [Pools and backends](/policy-routing/pools-and-backends.md).
+This page lists the fields for the top-level `pools:` list and each [pool](/glossary/index.md#pool) / [backend](/glossary/index.md#backend) object. For behavior — selection, weights, multiple pools, retries — see [Pools and backends](/policy-routing/pools-and-backends.md).
 
 ## `pools`
 

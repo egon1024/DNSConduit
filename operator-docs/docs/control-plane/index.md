@@ -1,6 +1,6 @@
 # Control plane
 
-How Conduit loads configuration, how you change it on a running process, and how **`conduitctl`** talks to the optional gRPC API.
+This section covers how Conduit loads configuration, how you change it on a running process, and how **`conduitctl`** talks to the optional gRPC API.
 
 **Read in order:**
 

@@ -1,0 +1,31 @@
+# Lab example for the Metrics and tracing guide.
+# Default ports: DNS 15353, metrics 9090, control 5199; upstream :5300.
+schema_version: 1
+listeners:
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+pools:
+  - name: default
+    backends:
+      - address: "127.0.0.1:5300"
+control:
+  listen_address: "127.0.0.1:5199"
+metrics:
+  enabled: true
+  base: standard
+  prometheus:
+    listen_address: "127.0.0.1:9090"
+    path: /metrics
+tracing:
+  enabled: true
+  activation:
+    selectors:
+      - type: qtype
+        value: A
+    sample_percent: 100
+  output:
+    log_json: false
+logging:
+  level: info
+  output: stderr

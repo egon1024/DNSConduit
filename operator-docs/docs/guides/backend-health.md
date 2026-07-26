@@ -1,8 +1,8 @@
 # Backend health
 
-Enable per-pool health, watch probes mark a dead backend down, and practice a maintenance [drain](/glossary/index.md#drain) with **`conduitctl health`**. Behavioral detail: [Backend health](/policy-routing/backend-health.md). Config fields: [Reference: health](/reference/config-schema/health.md).
+Enable per-pool health, watch probes mark a dead backend down, and practice a maintenance [drain](/glossary/index.md#drain) with **`conduitctl health`**. For the mental model and fail-open behavior, see [Backend health](/policy-routing/backend-health.md); probe and drain fields are in [Reference: health](/reference/config-schema/health.md).
 
-**Prerequisites:** Conduit installed ([Install and run](/getting-started/install-and-run.md)); a working baseline ([Minimal configuration](/getting-started/minimal-configuration.md)); **`control:`** at process start so **`conduitctl health`** works; **`metrics.profile: full`** if you want health gauges and probe counters.
+**Prerequisites:** Conduit installed ([Install and run](/getting-started/install-and-run.md)); a working baseline ([Minimal configuration](/getting-started/minimal-configuration.md)); **`control:`** at process start so **`conduitctl health`** works; **`metrics.enabled: true`** with a base that includes **`health`** (default **`standard`**, or **`minimal`**) if you want health gauges and probe counters.
 
 ## Lab layout
 
@@ -45,7 +45,8 @@ pools:
 control:
   listen_address: "127.0.0.1:5199"
 metrics:
-  profile: full
+  enabled: true
+  base: standard
   prometheus:
     listen_address: "127.0.0.1:9090"
 ```

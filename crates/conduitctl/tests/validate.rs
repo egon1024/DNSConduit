@@ -44,7 +44,7 @@ fn validate_rejects_rhai_syntax_error() {
 }
 
 #[test]
-fn validate_rejects_metric_collect_removed_while_script_references() {
+fn validate_warns_metric_collect_off_while_script_references() {
     let bin = env!("CARGO_BIN_EXE_conduitctl");
     let config = fixture("metrics-consumer-collect-removed.yaml");
     let output = Command::new(bin)
@@ -52,14 +52,19 @@ fn validate_rejects_metric_collect_removed_while_script_references() {
         .arg(&config)
         .output()
         .expect("run conduitctl validate");
-    assert!(!output.status.success());
+    assert!(
+        output.status.success(),
+        "collect-off write sites must not fail validate; stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("cannot stop collecting metric \"blat\""),
-        "expected consumer dependency error: {stderr}"
+        stderr.contains("collect is off"),
+        "expected collect-off warning: {stderr}"
     );
     assert!(
         stderr.contains("consumer-blat.rhai"),
-        "expected script path in error: {stderr}"
+        "expected script path in warning: {stderr}"
     );
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "ok");
 }

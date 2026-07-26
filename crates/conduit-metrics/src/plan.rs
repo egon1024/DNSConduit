@@ -282,11 +282,13 @@ pub fn default_granularity_for_base(base: MetricsBase) -> Granularity {
     }
 }
 
-/// Per-user-metric collect/emit flags (design §Decisions 4, §11).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Per-user-metric collect/emit flags and optional HELP (design §Decisions 4, §11).
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UserMetricMode {
     pub collect: bool,
     pub emit: bool,
+    /// Prometheus HELP / OTel description; empty → default at export time.
+    pub help: String,
 }
 
 /// Compiled, generation-scoped metrics plan (design §Runtime architecture).
@@ -384,6 +386,24 @@ impl CompiledMetricsPlan {
             return m.emit;
         }
         self.user_metrics_standard_tier()
+    }
+
+    /// Prometheus HELP / OTel description for a Rhai user metric (bare name).
+    /// Empty when unset (export uses the default HELP string).
+    pub fn user_help_for(&self, name: &str) -> &str {
+        self.user_metrics
+            .get(name)
+            .map(|m| m.help.as_str())
+            .unwrap_or("")
+    }
+
+    /// Bare name → non-empty HELP overrides for [`crate::UserRegistry`].
+    pub fn user_helps(&self) -> std::collections::HashMap<String, String> {
+        self.user_metrics
+            .iter()
+            .filter(|(_, m)| !m.help.is_empty())
+            .map(|(n, m)| (n.clone(), m.help.clone()))
+            .collect()
     }
 
     /// Whether a gathered Prometheus family name should be exported under
@@ -490,13 +510,16 @@ pub fn builtin_metric_category(family_name: &str) -> Option<MetricCategory> {
         | "conduit_backend_info"
         | "conduit_backend_weight" => Some(MetricCategory::Topology),
 
-        "conduit_process_resident_bytes" | "conduit_process_open_fds" => {
-            Some(MetricCategory::Process)
-        }
+        "conduit_process_resident_bytes"
+        | "conduit_process_open_fds"
+        | "conduit_process_max_fds"
+        | "conduit_process_threads"
+        | "conduit_process_cpu_seconds_total" => Some(MetricCategory::Process),
 
-        "conduit_build_info" | "conduit_start_time_seconds" | "conduit_config_generation" => {
-            Some(MetricCategory::Meta)
-        }
+        "conduit_build_info"
+        | "conduit_start_time_seconds"
+        | "conduit_uptime_seconds"
+        | "conduit_config_generation" => Some(MetricCategory::Meta),
 
         _ => None,
     }
@@ -640,10 +663,12 @@ pub fn resolve_metrics_plan(m: Option<&MetricsConfig>) -> Result<PlanResolution,
     let mut categories = expand_base(base);
 
     if let Some(c) = &m.categories {
+        let mut included = BTreeSet::new();
         for name in &c.include {
             match MetricCategory::from_str_opt(name) {
                 Some(cat) => {
                     categories.insert(cat);
+                    included.insert(cat);
                 }
                 None => errors.push(format!(
                     "metrics.categories.include '{name}' is not a known category"
@@ -662,6 +687,14 @@ pub fn resolve_metrics_plan(m: Option<&MetricsConfig>) -> Result<PlanResolution,
             }
         }
         for cat in &excluded {
+            if included.contains(cat) {
+                warnings.push(format!(
+                    "metrics.categories: '{}' appears in both include and exclude; \
+                     that is contradictory, so exclude wins and '{}' is not in the active set",
+                    cat.as_str(),
+                    cat.as_str()
+                ));
+            }
             categories.remove(cat);
         }
         if excluded.contains(&MetricCategory::Failures) {
@@ -832,7 +865,14 @@ pub fn resolve_metrics_plan(m: Option<&MetricsConfig>) -> Result<PlanResolution,
             (standard_tier, standard_tier)
         };
 
-        user_metrics.insert(u.name.clone(), UserMetricMode { collect, emit });
+        user_metrics.insert(
+            u.name.clone(),
+            UserMetricMode {
+                collect,
+                emit,
+                help: u.help.clone(),
+            },
+        );
     }
     if export_alias_used {
         warnings.push(USER_METRIC_EXPORT_DEPRECATION_WARNING.to_string());
@@ -959,6 +999,37 @@ mod tests {
             .warnings
             .iter()
             .any(|w| w.contains("failures") && w.contains("blind spot")));
+        assert!(
+            !res.warnings
+                .iter()
+                .any(|w| w.contains("both include and exclude")),
+            "distinct include/exclude names must not emit an overlap warning: {:?}",
+            res.warnings
+        );
+    }
+
+    #[test]
+    fn category_in_both_include_and_exclude_warns_and_exclude_wins() {
+        let mut cfg = base_config();
+        cfg.base = "none".into();
+        cfg.categories = Some(MetricsCategories {
+            include: vec!["timing".into(), "volume".into()],
+            exclude: vec!["timing".into()],
+            include_set: true,
+            exclude_set: true,
+        });
+        let res = resolve_metrics_plan(Some(&cfg)).unwrap();
+        assert!(res.plan.categories.contains(&MetricCategory::Volume));
+        assert!(!res.plan.categories.contains(&MetricCategory::Timing));
+        assert!(
+            res.warnings.iter().any(|w| {
+                w.contains("timing")
+                    && w.contains("both include and exclude")
+                    && w.contains("exclude wins")
+            }),
+            "{:?}",
+            res.warnings
+        );
     }
 
     #[test]
@@ -1365,6 +1436,30 @@ mod tests {
     }
 
     #[test]
+    fn user_metric_help_carried_in_plan() {
+        use conduit_proto::config::UserMetricExportConfig;
+        let mut cfg = base_config();
+        cfg.user_metrics = vec![UserMetricExportConfig {
+            name: "block_hits".into(),
+            export: String::new(),
+            collect: Some(true),
+            emit: Some(true),
+            help: "Policy block hits by category".into(),
+        }];
+        let res = resolve_metrics_plan(Some(&cfg)).unwrap();
+        assert_eq!(
+            res.plan.user_help_for("block_hits"),
+            "Policy block hits by category"
+        );
+        let helps = res.plan.user_helps();
+        assert_eq!(
+            helps.get("block_hits").map(String::as_str),
+            Some("Policy block hits by category")
+        );
+        assert_eq!(res.plan.user_help_for("unknown"), "");
+    }
+
+    #[test]
     fn user_metric_collect_only_explicit() {
         use conduit_proto::config::UserMetricExportConfig;
         let mut cfg = base_config();
@@ -1373,6 +1468,7 @@ mod tests {
             export: String::new(),
             collect: Some(true),
             emit: Some(false),
+            help: String::new(),
         }];
         let res = resolve_metrics_plan(Some(&cfg)).unwrap();
         assert!(res.plan.user_collect_for("block_hits"));
@@ -1391,6 +1487,7 @@ mod tests {
             export: "minimal".into(),
             collect: None,
             emit: None,
+            help: String::new(),
         }];
         let res = resolve_metrics_plan(Some(&cfg)).unwrap();
         assert!(res.plan.user_collect_for("block_hits"));
@@ -1418,6 +1515,7 @@ mod tests {
             export: String::new(),
             collect: Some(false),
             emit: Some(true),
+            help: String::new(),
         }];
         let err = resolve_metrics_plan(Some(&cfg)).unwrap_err();
         assert!(
@@ -1441,6 +1539,51 @@ mod tests {
         assert!(res.plan.collect_for(MetricCategory::Timing));
         assert!(!res.plan.emit_for(MetricCategory::Timing));
         assert!(!res.plan.emits_family("conduit_forward_attempts_total"));
+        assert!(res.plan.emits_family("conduit_queries_total"));
+    }
+
+    #[test]
+    fn meta_families_map_to_meta_category() {
+        for name in [
+            "conduit_build_info",
+            "conduit_start_time_seconds",
+            "conduit_uptime_seconds",
+            "conduit_config_generation",
+        ] {
+            assert_eq!(
+                builtin_metric_category(name),
+                Some(MetricCategory::Meta),
+                "{name}"
+            );
+        }
+    }
+
+    #[test]
+    fn process_families_map_to_process_category() {
+        for name in [
+            "conduit_process_resident_bytes",
+            "conduit_process_open_fds",
+            "conduit_process_max_fds",
+            "conduit_process_threads",
+            "conduit_process_cpu_seconds_total",
+        ] {
+            assert_eq!(
+                builtin_metric_category(name),
+                Some(MetricCategory::Process),
+                "{name}"
+            );
+        }
+        let mut cfg = base_config();
+        cfg.collection.insert(
+            "process".into(),
+            MetricsCollectEmit {
+                collect: Some(true),
+                emit: Some(false),
+            },
+        );
+        let res = resolve_metrics_plan(Some(&cfg)).unwrap();
+        assert!(!res.plan.emits_family("conduit_process_max_fds"));
+        assert!(!res.plan.emits_family("conduit_process_cpu_seconds_total"));
         assert!(res.plan.emits_family("conduit_queries_total"));
     }
 

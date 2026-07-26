@@ -1,6 +1,6 @@
 # Config schema: dataplane
 
-Field reference for the top-level **`dataplane:`** block — the **dataplane runtime model** Conduit uses to spread the per-query [pipeline](/concepts/architecture-and-packet-path.md#pipeline-phases) across OS threads. For the behavior in context — what each runtime does, the worker roles, and the slot pool — see [Runtime and concurrency](/concepts/runtime-and-concurrency.md).
+This page lists the fields for the top-level **`dataplane:`** block — the **dataplane runtime model** Conduit uses to spread the per-query [pipeline](/concepts/architecture-and-packet-path.md#pipeline-phases) across OS threads. For the behavior in context — what each runtime does, the worker roles, and the slot pool — see [Runtime and concurrency](/concepts/runtime-and-concurrency.md).
 
 The runtime is chosen **once at process startup**. Changing `dataplane:` requires a **restart** to take effect; it does not apply on [reload](/glossary/index.md#reload-from-disk).
 

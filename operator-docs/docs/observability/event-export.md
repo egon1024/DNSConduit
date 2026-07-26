@@ -1,6 +1,6 @@
 # Event export
 
-Per-query DNS observation for the [dataplane](/glossary/index.md#dataplane): client queries, responses, and optional retry markers exported as [dnstap](/glossary/index.md#dnstap) frames to one or more collectors. Export runs **off** the DNS hot path — a full export queue drops events rather than delaying client replies.
+Event export records per-query DNS observation for the [dataplane](/glossary/index.md#dataplane): client queries, responses, and optional retry markers exported as [dnstap](/glossary/index.md#dnstap) frames to one or more collectors. Export runs **off** the DNS hot path — a full export queue drops events rather than delaying client replies.
 
 Use event export when you need qname-level detail, client addresses, or policy [tags](/glossary/index.md#tags) in a log analytics pipeline or tap collector. For aggregate volume and latency, use [Metrics](/observability/metrics.md). For in-process pipeline timing on selected queries, use [Tracing](/observability/tracing.md).
 

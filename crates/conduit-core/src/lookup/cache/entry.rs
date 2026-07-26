@@ -28,7 +28,7 @@ impl EntryKind {
 pub struct CacheEntry {
     pub kind: EntryKind,
     pub wire: Arc<[u8]>,
-    /// Wall-clock instant when this entry was stored (used to age RR TTLs on serve).
+    /// Monotonic instant when this entry was stored (used to age RR TTLs on serve).
     pub filled_at: Instant,
     pub expires_at: Instant,
 }

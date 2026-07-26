@@ -1,0 +1,66 @@
+# Lab example for the Rule action order guide.
+# Keep set-vip-pool.rhai beside this file. Default ports: DNS 15353; upstream :5300.
+schema_version: 1
+listeners:
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+pools:
+  - name: default
+    backends:
+      - address: "127.0.0.1:5300"
+  - name: vip
+    backends:
+      - address: "127.0.0.1:5300"
+  - name: backup
+    backends:
+      - address: "127.0.0.1:5300"
+rules:
+  match_mode: first_match
+  rules:
+    - name: soft-drop-then-tag
+      hook: request
+      selectors:
+        - type: qname_suffix
+          value: ".soft-drop.example."
+      actions:
+        - type: drop
+        - type: set_tag
+          value: audited=true
+    - name: hard-drop
+      hook: request
+      selectors:
+        - type: qname_suffix
+          value: ".hard-drop.example."
+      actions:
+        - type: drop_now
+        - type: set_tag
+          value: skipped=true
+    - name: clear-soft-drop
+      hook: request
+      selectors:
+        - type: qname_suffix
+          value: ".clear-drop.example."
+      actions:
+        - type: drop
+        - type: clear_drop
+    - name: stash-retry-pool
+      hook: request
+      selectors:
+        - type: qname_suffix
+          value: ".retry-stash.example."
+      actions:
+        - type: set_pool
+          value: default
+        - type: set_retry_pool
+          value: backup
+    - name: rhai-then-set-pool
+      hook: request
+      selectors:
+        - type: qname_suffix
+          value: ".order-demo.example."
+      actions:
+        - type: rhai
+          value: set-vip-pool.rhai
+        - type: set_pool
+          value: default

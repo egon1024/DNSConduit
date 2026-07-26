@@ -1,8 +1,10 @@
 //! Metric consumer dependency graph (metrics-configurability Phase E / Gate G5).
 //!
 //! At snapshot compile, Rhai (and future WASM/sidecar) sites that reference user
-//! metrics are recorded here. Validate/apply reject plans that stop collecting a
-//! metric still referenced by any consumer.
+//! metrics are recorded here. **Write** sites (`metrics.inc*`) with collect or
+//! emit off produce warnings (increments no-op / series stay out of export —
+//! same model as built-in categories). **Read** sites (future window/rate APIs)
+//! still reject plans that stop collecting a referenced metric.
 
 use crate::plan::CompiledMetricsPlan;
 use std::collections::BTreeMap;
@@ -114,48 +116,116 @@ pub fn conduit_user_metric_name(bare: &str) -> String {
     format!("conduit_user_{bare}")
 }
 
-/// Reject proposed plans that stop collecting a user metric still referenced by
-/// any consumer in `graph`. Returns formatted error strings (may be multi-line).
+/// Result of checking consumer dependencies against a proposed plan.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ConsumerDependencyReport {
+    /// Hard failures (e.g. read APIs still reference a metric with collect off).
+    pub errors: Vec<String>,
+    /// Soft notices (write sites with collect and/or emit off).
+    pub warnings: Vec<String>,
+}
+
+impl ConsumerDependencyReport {
+    pub fn is_ok(&self) -> bool {
+        self.errors.is_empty()
+    }
+}
+
+/// True for Rhai (and legacy) write APIs — collect off is a no-op, not a reject.
+pub fn is_write_consumer_symbol(symbol: &str) -> bool {
+    matches!(
+        symbol,
+        "metrics.inc" | "metrics.inc_labels" | "metric_inc" | "metric_inc_labels"
+    )
+}
+
+fn format_consumer_list(consumers: &[&MetricConsumerRef]) -> Vec<String> {
+    let mut lines = vec!["  Referenced by:".to_string()];
+    for c in consumers {
+        let loc = match c.line {
+            Some(line) => format!("{} (line {line}, {})", c.path, c.symbol),
+            None => format!("{} ({})", c.path, c.symbol),
+        };
+        lines.push(format!("    - {}: {loc}", c.kind.label()));
+    }
+    lines
+}
+
+/// Check proposed plans against the consumer graph.
+///
+/// - **Write** sites (`metrics.inc*`) with collect off → **warning** (increments
+///   no-op, like built-in categories). Collect on / emit off → **warning**.
+/// - **Read** sites (future window/rate helpers, non-write symbols) with collect
+///   off → **error**.
 ///
 /// When metrics are disabled (`plan.enabled == false`), collection is off for
-/// the whole subsystem and script `inc` sites are inert — no dependency error.
+/// the whole subsystem and script sites are inert — no dependency findings.
 pub fn check_consumer_dependencies(
     graph: &MetricConsumerGraph,
     plan: &CompiledMetricsPlan,
-) -> Vec<String> {
+) -> ConsumerDependencyReport {
     if !plan.enabled {
-        return Vec::new();
+        return ConsumerDependencyReport::default();
     }
-    let mut errors = Vec::new();
+    let mut report = ConsumerDependencyReport::default();
     for (metric, consumers) in &graph.refs {
-        if plan.user_collect_for(metric) {
-            continue;
-        }
+        let writes: Vec<&MetricConsumerRef> = consumers
+            .iter()
+            .filter(|c| is_write_consumer_symbol(&c.symbol))
+            .collect();
+        let reads: Vec<&MetricConsumerRef> = consumers
+            .iter()
+            .filter(|c| !is_write_consumer_symbol(&c.symbol))
+            .collect();
+
+        let collect = plan.user_collect_for(metric);
+        let emit = plan.user_emit_for(metric);
         let family = conduit_user_metric_name(metric);
-        let mut lines = Vec::with_capacity(4 + consumers.len());
-        lines.push(format!(
-            "metrics configuration rejected: cannot stop collecting metric \"{metric}\""
-        ));
-        lines.push(format!("  Metric: {family}"));
-        lines.push("  Requested change: collect removed".to_string());
-        lines.push("  Referenced by:".to_string());
-        for c in consumers {
-            let loc = match c.line {
-                Some(line) => format!("{} (line {line}, {})", c.path, c.symbol),
-                None => format!("{} ({})", c.path, c.symbol),
-            };
-            lines.push(format!("    - {}: {loc}", c.kind.label()));
+
+        if !collect && !reads.is_empty() {
+            let mut lines = Vec::with_capacity(4 + reads.len());
+            lines.push(format!(
+                "metrics configuration rejected: cannot stop collecting metric \"{metric}\""
+            ));
+            lines.push(format!("  Metric: {family}"));
+            lines.push("  Requested change: collect removed".to_string());
+            lines.extend(format_consumer_list(&reads));
+            let msg = lines.join("\n");
+            tracing::warn!(
+                metric = %metric,
+                family = %family,
+                consumers = reads.len(),
+                "metrics consumer dependency check failed (read sites require collect)"
+            );
+            report.errors.push(msg);
         }
-        let msg = lines.join("\n");
-        tracing::warn!(
-            metric = %metric,
-            family = %family,
-            consumers = consumers.len(),
-            "metrics consumer dependency check failed"
-        );
-        errors.push(msg);
+
+        if !writes.is_empty() && (!collect || !emit) {
+            let mut lines = Vec::with_capacity(4 + writes.len());
+            if !collect {
+                lines.push(format!(
+                    "metrics: user metric \"{metric}\" ({family}) is referenced by scripts but collect is off — increments are not recorded (same as a built-in category with collect off)"
+                ));
+            } else {
+                // collect on, emit off
+                lines.push(format!(
+                    "metrics: user metric \"{metric}\" ({family}) is referenced by scripts but emit is off — series stay out of Prometheus scrape and OTLP push"
+                ));
+            }
+            lines.extend(format_consumer_list(&writes));
+            let msg = lines.join("\n");
+            tracing::warn!(
+                metric = %metric,
+                family = %family,
+                collect,
+                emit,
+                consumers = writes.len(),
+                "user metric referenced while collect and/or emit is off"
+            );
+            report.warnings.push(msg);
+        }
     }
-    errors
+    report
 }
 
 #[cfg(test)]
@@ -174,7 +244,7 @@ mod tests {
     }
 
     #[test]
-    fn accepts_when_collect_enabled() {
+    fn accepts_when_collect_and_emit_enabled() {
         let mut graph = MetricConsumerGraph::new();
         graph.record("blat", rhai_ref("rules/a.rhai", 3, "metrics.inc"));
         let cfg = MetricsConfig {
@@ -183,11 +253,13 @@ mod tests {
             ..Default::default()
         };
         let plan = resolve_metrics_plan(Some(&cfg)).unwrap().plan;
-        assert!(check_consumer_dependencies(&graph, &plan).is_empty());
+        let report = check_consumer_dependencies(&graph, &plan);
+        assert!(report.errors.is_empty());
+        assert!(report.warnings.is_empty());
     }
 
     #[test]
-    fn rejects_collect_removed_with_script_path() {
+    fn write_collect_off_warns_does_not_reject() {
         let mut graph = MetricConsumerGraph::new();
         graph.record("blat", rhai_ref("rules/blocklist.rhai", 42, "metrics.inc"));
         let cfg = MetricsConfig {
@@ -198,18 +270,74 @@ mod tests {
                 export: String::new(),
                 collect: Some(false),
                 emit: Some(false),
+                help: String::new(),
             }],
             ..Default::default()
         };
         let plan = resolve_metrics_plan(Some(&cfg)).unwrap().plan;
         assert!(!plan.user_collect_for("blat"));
-        let errs = check_consumer_dependencies(&graph, &plan);
-        assert_eq!(errs.len(), 1);
-        assert!(errs[0].contains("cannot stop collecting metric \"blat\""));
-        assert!(errs[0].contains("conduit_user_blat"));
-        assert!(errs[0].contains("rules/blocklist.rhai"));
-        assert!(errs[0].contains("line 42"));
-        assert!(errs[0].contains("metrics.inc"));
+        let report = check_consumer_dependencies(&graph, &plan);
+        assert!(
+            report.errors.is_empty(),
+            "writes must not reject: {:?}",
+            report.errors
+        );
+        assert_eq!(report.warnings.len(), 1);
+        assert!(report.warnings[0].contains("collect is off"));
+        assert!(report.warnings[0].contains("conduit_user_blat"));
+        assert!(report.warnings[0].contains("rules/blocklist.rhai"));
+        assert!(report.warnings[0].contains("line 42"));
+        assert!(report.warnings[0].contains("metrics.inc"));
+    }
+
+    #[test]
+    fn write_emit_off_warns_when_collecting() {
+        let mut graph = MetricConsumerGraph::new();
+        graph.record("blat", rhai_ref("rules/a.rhai", 1, "metrics.inc"));
+        let cfg = MetricsConfig {
+            enabled: Some(true),
+            base: "standard".into(),
+            user_metrics: vec![UserMetricExportConfig {
+                name: "blat".into(),
+                export: String::new(),
+                collect: Some(true),
+                emit: Some(false),
+                help: String::new(),
+            }],
+            ..Default::default()
+        };
+        let plan = resolve_metrics_plan(Some(&cfg)).unwrap().plan;
+        let report = check_consumer_dependencies(&graph, &plan);
+        assert!(report.errors.is_empty());
+        assert_eq!(report.warnings.len(), 1);
+        assert!(report.warnings[0].contains("emit is off"));
+    }
+
+    #[test]
+    fn read_collect_off_rejects() {
+        let mut graph = MetricConsumerGraph::new();
+        graph.record(
+            "blat",
+            rhai_ref("rules/blocklist.rhai", 42, "metrics.window_rate"),
+        );
+        let cfg = MetricsConfig {
+            enabled: Some(true),
+            base: "standard".into(),
+            user_metrics: vec![UserMetricExportConfig {
+                name: "blat".into(),
+                export: String::new(),
+                collect: Some(false),
+                emit: Some(false),
+                help: String::new(),
+            }],
+            ..Default::default()
+        };
+        let plan = resolve_metrics_plan(Some(&cfg)).unwrap().plan;
+        let report = check_consumer_dependencies(&graph, &plan);
+        assert_eq!(report.errors.len(), 1);
+        assert!(report.errors[0].contains("cannot stop collecting metric \"blat\""));
+        assert!(report.errors[0].contains("metrics.window_rate"));
+        assert!(report.warnings.is_empty());
     }
 
     #[test]
@@ -233,6 +361,7 @@ mod tests {
             UserMetricMode {
                 collect: true,
                 emit: true,
+                help: String::new(),
             },
         );
         assert!(plan.user_collect_for("x"));

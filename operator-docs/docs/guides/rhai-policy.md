@@ -1,6 +1,6 @@
 # Rhai policy
 
-End-to-end lab for **Rhai for rules** — two request-hook patterns where scripts add value over built-in actions alone. Each example uses self-contained YAML, a `.rhai` script, and `dig` checks. API detail is described in [Host API overview](/rhai/host-api.md), [Rhai for rules](/rhai/rule-rhai.md), and [Hooks and phases](/rhai/hooks-and-phases.md).
+This guide is an end-to-end lab for **Rhai for rules** — two request-hook patterns where scripts add value over built-in actions alone. Each example uses self-contained YAML, a `.rhai` script, and `dig` checks. API detail is described in [Host API overview](/rhai/host-api.md), [Rhai for rules](/rhai/rule-rhai.md), and [Hooks and phases](/rhai/hooks-and-phases.md).
 
 **Prerequisites:** Conduit on your `PATH` ([Install and run](/getting-started/install-and-run.md)); **`dig`**; optional **`dnsmasq`** as a loopback upstream mock ([First query](/getting-started/first-query.md)). Read [Rules and actions](/policy-routing/rules-and-actions.md) for selectors and built-in actions first.
 
@@ -83,7 +83,7 @@ data_sources:
     value_column: action
 metrics:
   enabled: true
-  profile: full
+  base: standard
   prometheus:
     listen_address: "127.0.0.1:9090"
     path: /metrics
@@ -100,7 +100,7 @@ rules:
           value: scripts/blocklist.rhai
 ```
 
-**Metrics (minimum for scrape):** **`metrics.enabled: true`** turns on recording; **`profile: full`** includes script-discovered user metrics (default export tier). **`prometheus.listen_address`** exposes **`GET /metrics`** for local scrape — no OTLP block required for this lab.
+**Metrics (minimum for scrape):** **`metrics.enabled: true`** turns on recording; **`base: standard`** (default when enabled and unset) includes script-discovered user metrics with collect+emit on. On **`base: minimal`**, list each script metric under **`user_metrics`** with **`collect: true`** when you want them recorded (otherwise increments no-op with a warning). **`prometheus.listen_address`** exposes **`GET /metrics`** for local scrape — no OTLP block required for this lab.
 
 Validate:
 
@@ -321,6 +321,8 @@ Compile-time checks (unknown **`lookup`** table name, Rhai syntax, **`data_sourc
 ## Related topics
 
 - [Rhai for rules](/rhai/rule-rhai.md) — when to use scripts vs built-in actions
+- [Declarative failover](/guides/declarative-failover.md) — SERVFAIL / timeout failover without Rhai
+- [Rule action order](/guides/rule-action-order.md) — soft vs hard drop and action-list order
 - [Data sources](/policy-routing/data-sources.md) — CSV / CIDR formats and grant model
 - [Rhai lookups](/rhai/data-sources-and-lookups.md) — `lookup()` / `lookup_ip()` surface
 - [Retries and transactions](/policy-routing/retries-and-transactions.md) — limits and pool lifecycle

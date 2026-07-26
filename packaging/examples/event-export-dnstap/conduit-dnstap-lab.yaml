@@ -1,0 +1,26 @@
+# Lab example for the Event export and dnstap guide.
+# Start conduit-dnstap-tracer on /tmp/conduit-dnstap.sock before Conduit.
+# Default ports: DNS 15353; upstream :5300.
+schema_version: 1
+listeners:
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+pools:
+  - name: default
+    backends:
+      - address: "127.0.0.1:5300"
+events:
+  queue_depth: 8192
+  drop_policy: drop_oldest
+  sinks:
+    - type: dnstap
+      name: lab-tap
+      destinations:
+        - "unix:/tmp/conduit-dnstap.sock"
+      emit:
+        - query
+        - response
+      extra_fields:
+        - pool
+        - backend

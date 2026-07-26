@@ -1,6 +1,6 @@
 # CZ.NIC
 
-CZ.NIC products under test for DNSConduit correctness. No peer is preferred or recommended. See the [interop overview](/interop/index.md).
+This page lists **CZ.NIC** products under test for DNSConduit correctness. No peer is preferred or recommended. See the [interop overview](/interop/index.md).
 
 *Last tested 2026-07-21 · All executed cases passed*
 

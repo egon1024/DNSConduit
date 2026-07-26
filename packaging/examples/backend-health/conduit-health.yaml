@@ -1,0 +1,30 @@
+# Lab example for the Backend health guide.
+# Default ports: DNS 15353, control 5199, metrics 9090; live :5300, dead :5399.
+schema_version: 1
+listeners:
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+pools:
+  - name: default
+    health:
+      enabled: true
+      interval_ms: 1000
+      rise: 3
+      fall: 2
+      passive_fast_trip: true
+      passive_fall: 2
+    backends:
+      - address: "127.0.0.1:5300"
+        name: live
+        weight: 100
+      - address: "127.0.0.1:5399"
+        name: dead
+        weight: 100
+control:
+  listen_address: "127.0.0.1:5199"
+metrics:
+  enabled: true
+  base: standard
+  prometheus:
+    listen_address: "127.0.0.1:9090"

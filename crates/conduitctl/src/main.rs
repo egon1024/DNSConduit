@@ -388,10 +388,13 @@ async fn main() -> anyhow::Result<()> {
                 anyhow::bail!("validation failed");
             }
             let base_dir = file.parent();
-            RuntimeSnapshot::try_from_config_with_base(cfg, base_dir).map_err(|e| {
+            let snap = RuntimeSnapshot::try_from_config_with_base(cfg, base_dir).map_err(|e| {
                 eprintln!("{e}");
                 anyhow::anyhow!("compile failed")
             })?;
+            for w in &snap.scripting.compile_warnings {
+                eprintln!("warning: {w}");
+            }
             println!("ok");
         }
         Commands::Reload => {

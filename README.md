@@ -5,16 +5,10 @@ DNS forwarding and observability platform (Rust).
 ## AI-assisted development
 
 This project was built with extensive assistance from AI tools. Some operators
-and contributors prefer software written without that involvement — a view I
-respect. I am not seeking to change how DNS Conduit was developed, and I will
-not engage in arguments about that decision here.
+and contributors prefer software written without that involvement — a view I 
+can respect, even if I don't agree with it. I am not currently planning to reevaluate how
+DNS Conduit is developed, and I will not engage in arguments about that decision.
 
-## Development
-
-```bash
-make test         # fmt-check, clippy, unit tests (CI parity)
-make performance  # optional local benchmarks (not CI)
-```
 
 ## Documentation
 

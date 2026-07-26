@@ -37,8 +37,8 @@ When the `metrics` section is **omitted**, export is disabled (no scrape listene
 | Phase / forward-attempt / forward-duration histograms | no | yes | — |
 | `conduit_forward_outstanding` | — | — | yes |
 | `conduit_pool_backends_configured` | — | — | yes |
-| `conduit_build_info`, `conduit_start_time_seconds`, `conduit_config_generation` | — | — | yes |
-| `conduit_process_resident_bytes`, `conduit_process_open_fds` | — | — | yes (`full` only, Linux `/proc`) |
+| `conduit_build_info`, `conduit_start_time_seconds`, `conduit_uptime_seconds`, `conduit_config_generation` | — | — | yes |
+| `conduit_process_resident_bytes`, `conduit_process_open_fds`, `conduit_process_max_fds`, `conduit_process_threads`, `conduit_process_cpu_seconds_total` | — | — | yes (`process` / Linux `/proc`) |
 
 **Cardinality policy:** built-in labels never include `qname`, client IP, or `txn_id`. Use dnstap/events or tracing for per-name detail.
 
@@ -57,7 +57,8 @@ When the `metrics` section is **omitted**, export is disabled (no scrape listene
 | `conduit_forward_attempts_total`, `conduit_forward_duration_seconds` | (phase 4) | `full` profile only |
 | `conduit_forward_errors_total`, `conduit_retries_total`, `conduit_script_errors_total` | see profile table | `minimal` and `full` |
 | `conduit_build_info` | `version`, `revision`, `dirty`, `profile` | Scrape-only; value `1`. See [Build metadata](#build-metadata). |
-| `conduit_start_time_seconds` | — | Unix timestamp when the process started |
+| `conduit_start_time_seconds` | — | Unix timestamp when the process started (wall clock) |
+| `conduit_uptime_seconds` | — | Seconds since process start (monotonic clock; scrape-refreshed) |
 | `conduit_config_generation` | — | Active config generation (from scrape snapshot) |
 
 Histogram `le` boundaries are cumulative upper bounds in seconds (Prometheus convention):
@@ -79,7 +80,7 @@ sum(rate(conduit_responses_truncated_total[5m])) by (listener, answer_source)
 sum(rate(conduit_forward_errors_total[5m])) by (pool, reason)
 sum(rate(conduit_script_errors_total[5m])) by (reason)
 sum(rate(conduit_responses_total[5m])) by (rcode, ip_family)   # full profile only
-time() - conduit_start_time_seconds
+conduit_uptime_seconds
 conduit_config_generation
 conduit_build_info{revision="abc1234",dirty="true",profile="debug"}
 ```
@@ -101,7 +102,7 @@ Per-sink event export counters (`conduit_events_*`) are included at scrape time 
 
 ### User metrics (Rhai)
 
-Rhai `metric_inc` / `metric_inc_labels` flush into the export registry after each successful hook. Series are prefixed `conduit_user_<name>`.
+Rhai `metric_inc` / `metric_inc_labels` flush into the export registry after each successful hook. Series are prefixed `conduit_user_<name>`. Optional `metrics.user_metrics[].help` sets Prometheus HELP / OTel description (default: `Rhai user-defined metric`).
 
 ### Metrics-path parity (Prometheus + OTEL)
 

@@ -1,6 +1,6 @@
 # Config schema: orchestrator
 
-Field reference for the top-level **`orchestrator:`** block — global limits on [retries](/glossary/index.md#retry), [transaction](/glossary/index.md#transaction) duration, and in-flight transaction capacity. For when retries fire, pool selection on re-entry, and client-visible outcomes, see [Retries and transactions](/policy-routing/retries-and-transactions.md).
+This page lists the fields for the top-level **`orchestrator:`** block — global limits on [retries](/glossary/index.md#retry), [transaction](/glossary/index.md#transaction) duration, and in-flight transaction capacity. For when retries fire, pool selection on re-entry, and client-visible outcomes, see [Retries and transactions](/policy-routing/retries-and-transactions.md).
 
 ## `orchestrator`
 

@@ -1,18 +1,18 @@
 # Observability
 
-Metrics, tracing, event export, and logging for Conduit — how you observe the [dataplane](/glossary/index.md#dataplane) without changing query behavior. Observation runs off the DNS query path: export backlog or full queues drop data rather than delaying client responses.
+Conduit exposes metrics, tracing, event export, and process logging so you can observe the [dataplane](/glossary/index.md#dataplane) without changing query behavior. Observation runs off the DNS query path: the export backlog or full observability queues drop data rather than delaying client responses.
 
-## Which signal to use
+## For further information
 
-| You need… | Use | Config block |
-|-----------|-----|--------------|
-| Aggregate QPS, pool mix, forward errors, [backend health](/observability/built-in-metrics.md#backend-health) gauges, SLO dashboards | [Metrics](/observability/metrics.md) | `metrics:` |
-| Choose base, categories, collect/emit, granularity, overlay | [Metrics configurability](/observability/metrics-configurability.md) | `metrics:` |
-| Category membership and dimension vocabularies | [Built-in metric registry](/observability/built-in-metric-registry.md) | (same `metrics:`) |
-| Every built-in series name, label, and PromQL examples | [Built-in metrics](/observability/built-in-metrics.md) | (same `metrics:`) |
+| You need… | Page | Config block |
+|-----------|------|--------------|
+| Aggregate QPS, pool mix, forward errors, [backend health](/observability/built-in-metrics.md#backend-health) gauges, or SLO dashboards | [Metrics](/observability/metrics.md) | `metrics:` |
+| To tune which built-in series are recorded and exported | [Metrics configurability](/observability/metrics-configurability.md) | `metrics:` |
+| Which categories a metric belongs to, and dimension vocabularies | [Built-in metric registry](/observability/built-in-metric-registry.md) | (same `metrics:`) |
+| Names, labels, and PromQL examples for every built-in series | [Built-in metrics](/observability/built-in-metrics.md) | (same `metrics:`) |
 | Per-query wire copies to a log analytics or tap collector | [Event export](/observability/event-export.md) | `events:` |
 | Per-query pipeline phases (lookup, forward internals, retries) on selected queries | [Tracing](/observability/tracing.md) | `tracing:` |
-| Startup, reload, control RPC access, optional query summaries | [Logging](/observability/logging.md) | `logging:` |
+| Process logs for startup, reload, control RPC access, or optional query summaries | [Logging](/observability/logging.md) | `logging:` |
 
 ```mermaid
 flowchart TD
@@ -59,7 +59,7 @@ Reload and restart rules differ by block. After editing the file, **reload** (SI
 
 | Block | Overlay allowed? | Reload updates snapshot? | Restart required for… |
 |-------|------------------|--------------------------|------------------------|
-| **`metrics:`** | No | Yes (stored config) | Enabling/disabling export, profile change, Prometheus/OTEL bind addresses, hot-path recording |
+| **`metrics:`** | Yes (deep merge) | Yes | Rare cold cases only — plan knobs and Prometheus/OTLP bind apply live; see [Metrics configurability — Overlay](/observability/metrics-configurability.md#overlay-and-live-apply) |
 | **`tracing:`** | No | Yes (stored config) | Enabling tracing, activation rules, `log_json` |
 | **`events:`** | Yes | Yes | Adding/removing sinks, destinations, `queue_depth` (filter/emit/extra_fields on existing sinks reload) |
 | **`logging:`** | Yes | Yes (stored config) | `level` or `output` (subscriber binds at process start) |
@@ -74,6 +74,6 @@ Details: [Configuration model — What takes effect when](/control-plane/configu
 4. [Event export](/observability/event-export.md) — [dnstap](/glossary/index.md#dnstap) sinks
 5. [Logging](/observability/logging.md) — process log level, stderr/stdout, [lab smoke test](/observability/logging.md#lab-smoke-test)
 
-**Lab guides:** [Metrics and tracing](/guides/metrics-and-tracing.md) · [Event export and dnstap](/guides/event-export-dnstap.md) · [Operator metrics profiles](/guides/operator-metrics-profiles.md)
+**Lab guides:** [Metrics and tracing](/guides/metrics-and-tracing.md) · [Operator metrics bases](/guides/operator-metrics-bases.md) · [Metrics beyond bases](/guides/metrics-beyond-bases.md) · [Event export and dnstap](/guides/event-export-dnstap.md)
 
 Symptom-oriented help: [Troubleshooting](/troubleshooting/index.md#observability).
