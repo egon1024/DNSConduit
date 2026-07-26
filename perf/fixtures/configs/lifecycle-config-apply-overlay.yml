@@ -1,0 +1,4 @@
+# Sparse overlay — logging level bump for config apply timing.
+schema_version: 1
+logging:
+  level: info

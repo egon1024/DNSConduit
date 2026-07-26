@@ -1,0 +1,17 @@
+schema_version: 1
+id: feature-tax-metrics-minimal-scrape-forward-fast
+suite: feature_tax
+curated: true
+intent: |
+  Metrics base minimal with Prometheus scrape (collect+emit) under forward_fast.
+  Ladder cell between metrics-off and standard scrape.
+axes:
+  runtime: sync
+  load_shape: forward_fast
+  obs_posture: metrics_minimal_scrape
+  ingress_workers: 2
+recipe:
+  config: feature-tax-metrics-minimal-scrape.yml
+  upstream: fast
+  loadgen: dnsperf
+  query_file: perf-a.txt

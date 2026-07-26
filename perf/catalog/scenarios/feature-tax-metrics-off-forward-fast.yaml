@@ -1,0 +1,17 @@
+schema_version: 1
+id: feature-tax-metrics-off-forward-fast
+suite: feature_tax
+curated: true
+intent: |
+  Observability-off baseline under forward_fast — metrics disabled, no dnstap sinks.
+  Ladder pair for minimal/standard scrape tax deltas.
+axes:
+  runtime: sync
+  load_shape: forward_fast
+  obs_posture: metrics_off
+  ingress_workers: 2
+recipe:
+  config: feature-tax-metrics-off.yml
+  upstream: fast
+  loadgen: dnsperf
+  query_file: perf-a.txt

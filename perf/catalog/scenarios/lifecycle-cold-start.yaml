@@ -1,0 +1,16 @@
+schema_version: 1
+id: lifecycle-cold-start
+suite: lifecycle
+curated: true
+intent: |
+  Cold-start wall time from process start to first successful DNS answer.
+axes:
+  runtime: sync
+  load_shape: forward_fast
+  obs_posture: metrics_off
+  ingress_workers: 2
+recipe:
+  config: lifecycle-cold-start.yml
+  upstream: fast
+  loadgen: none
+  lifecycle: cold_start

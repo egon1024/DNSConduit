@@ -1,0 +1,17 @@
+schema_version: 1
+id: feature-tax-metrics-standard-dnstap-full-forward-fast
+suite: feature_tax
+curated: false
+intent: |
+  Combined tax — metrics standard scrape plus fuller dnstap under forward_fast.
+axes:
+  runtime: sync
+  load_shape: forward_fast
+  obs_posture: metrics_standard_dnstap_full
+  ingress_workers: 2
+recipe:
+  config: feature-tax-metrics-standard-dnstap-full.yml
+  upstream: fast
+  loadgen: dnsperf
+  query_file: perf-a.txt
+  dnstap_receiver: true

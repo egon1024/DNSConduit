@@ -1,0 +1,19 @@
+schema_version: 1
+id: feature-tax-metrics-otlp-push-forward-fast
+suite: feature_tax
+curated: false
+intent: |
+  OTLP HTTP metrics push under forward_fast. Skips cleanly until
+  conduit-otlp-metrics-tracer is available (Phase E); scrape ladder does not wait.
+axes:
+  runtime: sync
+  load_shape: forward_fast
+  obs_posture: metrics_otlp_push
+  ingress_workers: 2
+recipe:
+  config: feature-tax-metrics-otlp-push.yml
+  upstream: fast
+  loadgen: dnsperf
+  query_file: perf-a.txt
+  otlp_receiver: true
+  skip_unless: otlp_tracer

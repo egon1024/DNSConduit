@@ -22,6 +22,8 @@
 #   make perf-list             — list scenario catalog
 #   make perf-run-scale        — run scale suite (CONDUIT= path to binary)
 #   make perf-run-shutdown-drain — run shutdown_drain suite
+#   make perf-run-feature-tax  — run feature_tax suite (scrape/dnstap; OTLP may skip)
+#   make perf-run-lifecycle    — run lifecycle suite (cold start / apply)
 #   make perf-render           — render FROM=… FORMAT=plain|fancy|yaml|json|html
 #   make performance           — remains Criterion microbench (distinct from suite run)
 #
@@ -46,7 +48,8 @@ PERF_FORMAT ?= plain
 	docs-serve docs-build docs-version docs-versions-preview \
 	interop-image interop-unit interop-fingerprint interop-smoke interop-auth \
 	interop-docs interop-refresh \
-	perf-unit perf-list perf-run-scale perf-run-shutdown-drain perf-render
+	perf-unit perf-list perf-run-scale perf-run-shutdown-drain \
+	perf-run-feature-tax perf-run-lifecycle perf-render
 
 help:
 	@echo "DNSConduit Makefile targets:"
@@ -75,6 +78,8 @@ help:
 	@echo "  make perf-list            List scenario catalog"
 	@echo "  make perf-run-scale       Run scale suite (CONDUIT=$(CONDUIT))"
 	@echo "  make perf-run-shutdown-drain  Run shutdown_drain suite (CONDUIT=$(CONDUIT))"
+	@echo "  make perf-run-feature-tax Run feature_tax suite (CONDUIT=$(CONDUIT))"
+	@echo "  make perf-run-lifecycle   Run lifecycle suite (CONDUIT=$(CONDUIT))"
 	@echo "  make perf-render          Render FROM=run.json FORMAT=$(PERF_FORMAT)"
 
 # Write the header version label only. The Versions list now lives on a single global
@@ -161,6 +166,12 @@ perf-run-scale:
 
 perf-run-shutdown-drain:
 	PYTHONPATH=. $(PYTHON) -m perf.runner run --conduit $(CONDUIT) --suite shutdown_drain --render plain
+
+perf-run-feature-tax:
+	PYTHONPATH=. $(PYTHON) -m perf.runner run --conduit $(CONDUIT) --suite feature_tax --render plain
+
+perf-run-lifecycle:
+	PYTHONPATH=. $(PYTHON) -m perf.runner run --conduit $(CONDUIT) --suite lifecycle --render plain
 
 perf-render:
 	@test -n "$(PERF_FROM)" || (echo "Set PERF_FROM=path/to/run.json" >&2; exit 1)

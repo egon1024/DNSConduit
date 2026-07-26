@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-07-26T22:39:13Z",
+  "lab_profile": {
+    "id": "local",
+    "display_name": "Local run (local)",
+    "cpu_model": "Intel(R) Core(TM) i9-14900K",
+    "physical_cores": 32,
+    "logical_cores": 32,
+    "os": "Linux 6.8.0-136-generic",
+    "kernel": "6.8.0-136-generic",
+    "memory_total_mb": 128572
+  },
+  "provenance": {
+    "conduit_path": "target/release/conduit",
+    "conduit_version": "unknown",
+    "runner": "perf.runner/0.1.0",
+    "loadgen": {
+      "tool": "dnsperf",
+      "mode": "docker",
+      "image": "dnsconduit-dnsperf:2.14.0"
+    },
+    "git_sha": "f69d7d1a6ed789c238e7d0c1889dffef007c3fbb"
+  },
+  "quality": {
+    "warmup_seconds": 2.0,
+    "duration_seconds": 5.0
+  },
+  "scenarios": [
+    {
+      "id": "feature-tax-metrics-minimal-scrape-forward-fast",
+      "suite": "feature_tax",
+      "intent": "Metrics base minimal with Prometheus scrape (collect+emit) under forward_fast.\nLadder cell between metrics-off and standard scrape.",
+      "status": "ok",
+      "axes": {
+        "runtime": "sync",
+        "load_shape": "forward_fast",
+        "obs_posture": "metrics_minimal_scrape",
+        "ingress_workers": 2
+      },
+      "metrics": {
+        "achieved_qps": 46390.797364,
+        "queries_sent": 232065,
+        "queries_completed": 232065,
+        "queries_lost": 0,
+        "latency_ms": {
+          "avg": 2.149
+        }
+      },
+      "quality": {
+        "warmup_seconds": 2.0,
+        "duration_seconds": 5.0
+      }
+    }
+  ]
+}
