@@ -1,0 +1,17 @@
+schema_version: 1
+id: feature-tax-metrics-standard-scrape-forward-fast
+suite: feature_tax
+curated: true
+intent: |
+  Metrics base standard with Prometheus scrape (collect+emit) under forward_fast.
+  Scrape-only ladder top; also the collect+emit pole of the collect pair.
+axes:
+  runtime: sync
+  load_shape: forward_fast
+  obs_posture: metrics_standard_scrape
+  ingress_workers: 2
+recipe:
+  config: feature-tax-metrics-standard-scrape.yml
+  upstream: fast
+  loadgen: dnsperf
+  query_file: perf-a.txt

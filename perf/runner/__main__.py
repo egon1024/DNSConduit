@@ -63,6 +63,8 @@ def cmd_run(args: argparse.Namespace) -> int:
         return 1
 
     otlp = Path(args.otlp_tracer) if args.otlp_tracer else None
+    dnstap = Path(args.dnstap_tracer) if args.dnstap_tracer else None
+    ctl = Path(args.conduitctl) if args.conduitctl else None
     results = []
     for sc in scenarios:
         print(f"running {sc.id} …", file=sys.stderr)
@@ -75,6 +77,8 @@ def cmd_run(args: argparse.Namespace) -> int:
                 time_s=args.time,
                 warmup_s=args.warmup,
                 otlp_tracer=otlp,
+                dnstap_tracer=dnstap,
+                conduitctl=ctl,
                 zdu=args.zdu,
             )
         )
@@ -137,6 +141,14 @@ def build_parser() -> argparse.ArgumentParser:
     run_p.add_argument("--time", type=int, default=10, help="dnsperf -l seconds")
     run_p.add_argument("--warmup", type=float, default=2.0)
     run_p.add_argument("--otlp-tracer", help="Path to conduit-otlp-metrics-tracer")
+    run_p.add_argument(
+        "--dnstap-tracer",
+        help="Path to conduit-dnstap-tracer (default: sibling of --conduit)",
+    )
+    run_p.add_argument(
+        "--conduitctl",
+        help="Path to conduitctl (default: sibling of --conduit)",
+    )
     run_p.add_argument(
         "--zdu",
         action="store_true",

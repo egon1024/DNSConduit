@@ -1,0 +1,17 @@
+schema_version: 1
+id: feature-tax-dnstap-sampled-forward-fast
+suite: feature_tax
+curated: true
+intent: |
+  Dnstap sampled (~10 percent response frames) under forward_fast with lab tracer.
+axes:
+  runtime: sync
+  load_shape: forward_fast
+  obs_posture: dnstap_sampled
+  ingress_workers: 2
+recipe:
+  config: feature-tax-dnstap-sampled.yml
+  upstream: fast
+  loadgen: dnsperf
+  query_file: perf-a.txt
+  dnstap_receiver: true

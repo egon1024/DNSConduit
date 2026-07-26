@@ -1,0 +1,17 @@
+schema_version: 1
+id: feature-tax-metrics-no-collect-forward-fast
+suite: feature_tax
+curated: false
+intent: |
+  No-collect on hot-path categories under forward_fast — neither record nor export
+  for volume/failures/lookup/timing. Paired with collect-only and collect+emit.
+axes:
+  runtime: sync
+  load_shape: forward_fast
+  obs_posture: metrics_no_collect
+  ingress_workers: 2
+recipe:
+  config: feature-tax-metrics-no-collect.yml
+  upstream: fast
+  loadgen: dnsperf
+  query_file: perf-a.txt

@@ -1,0 +1,40 @@
+# feature_tax — dnstap/events off (no sinks); metrics off.
+schema_version: 1
+listeners:
+  threads: 2
+  reuse_port: true
+  listeners:
+    - address: "127.0.2.1:15353"
+      protocol: udp
+      name: perf-udp
+forward:
+  outstanding_per_backend: 256
+  timeout_ms: 2000
+orchestrator:
+  max_attempts: 2
+  max_txn_duration_ms: 5000
+  txn_table_capacity: 4096
+pools:
+  - name: default
+    backends:
+      - address: "127.0.2.1:15300"
+        weight: 100
+rules:
+  match_mode: first_match
+  rules:
+    - name: default-pool
+      hook: request
+      selectors: []
+      actions:
+        - type: set_pool
+          value: default
+control:
+  listen_address: "127.0.2.1:5199"
+  reflection_enabled: false
+logging:
+  level: warn
+events:
+  queue_depth: 4096
+  drop_policy: drop_oldest
+metrics:
+  enabled: false

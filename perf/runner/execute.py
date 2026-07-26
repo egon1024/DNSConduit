@@ -2,14 +2,23 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 import signal
+import subprocess
 import time
 from pathlib import Path
 from typing import Any
 
 from .. import __version__
 from .catalog import Scenario
+from .companions import (
+    CompanionProcess,
+    resolve_conduitctl,
+    resolve_dnstap_tracer,
+    resolve_otlp_tracer,
+    start_dnstap_tracer,
+)
 from .conduit import conduit_version, probe_dns_answer, start_conduit
 from .loadgen import DEFAULT_IMAGE, DnsperfResult, run_dnsperf, start_dnsperf
 from .paths import CONFIGS, QUERIES
@@ -27,6 +36,16 @@ def _resolve_config(recipe: dict[str, Any]) -> Path:
     return path
 
 
+def _resolve_overlay(recipe: dict[str, Any]) -> Path:
+    rel = recipe.get("overlay")
+    if not rel:
+        raise ValueError("scenario recipe missing overlay")
+    path = CONFIGS / rel
+    if not path.is_file():
+        raise FileNotFoundError(f"fixture overlay not found: {path}")
+    return path
+
+
 def _start_upstream(kind: str | None) -> StubUpstream | None:
     if not kind or kind == "none":
         return None
@@ -37,8 +56,15 @@ def _start_upstream(kind: str | None) -> StubUpstream | None:
     raise ValueError(f"unknown upstream recipe: {kind}")
 
 
-def _skip_reason(scenario: Scenario, *, otlp_tracer: Path | None, zdu: bool) -> str | None:
-    gate = (scenario.recipe or {}).get("skip_unless")
+def _skip_reason(
+    scenario: Scenario,
+    *,
+    otlp_tracer: Path | None,
+    dnstap_tracer: Path | None,
+    zdu: bool,
+) -> str | None:
+    recipe = scenario.recipe or {}
+    gate = recipe.get("skip_unless")
     if gate == "otlp_tracer":
         if otlp_tracer is None or not Path(otlp_tracer).is_file():
             return "conduit-otlp-metrics-tracer not available"
@@ -47,6 +73,9 @@ def _skip_reason(scenario: Scenario, *, otlp_tracer: Path | None, zdu: bool) -> 
             return "zero-downtime upgrade not available in this binary"
     if scenario.suite == "lossless_upgrade" and not zdu:
         return "zero-downtime upgrade not available in this binary"
+    if recipe.get("dnstap_receiver"):
+        if dnstap_tracer is None or not Path(dnstap_tracer).is_file():
+            return "conduit-dnstap-tracer not available"
     return None
 
 
@@ -76,6 +105,8 @@ def run_scenario(
     time_s: int = 10,
     warmup_s: float = 2.0,
     otlp_tracer: Path | None = None,
+    dnstap_tracer: Path | None = None,
+    conduitctl: Path | None = None,
     zdu: bool = False,
     annotation_ids: list[str] | None = None,
 ) -> dict[str, Any]:
@@ -89,7 +120,13 @@ def run_scenario(
     if annotation_ids:
         result["annotation_ids"] = list(annotation_ids)
 
-    skip = _skip_reason(scenario, otlp_tracer=otlp_tracer, zdu=zdu)
+    otlp = resolve_otlp_tracer(otlp_tracer, conduit=conduit)
+    dnstap = resolve_dnstap_tracer(dnstap_tracer, conduit=conduit)
+    ctl = resolve_conduitctl(conduitctl, conduit=conduit)
+
+    skip = _skip_reason(
+        scenario, otlp_tracer=otlp, dnstap_tracer=dnstap, zdu=zdu
+    )
     if skip:
         result["status"] = "skip"
         result["skip_reason"] = skip
@@ -100,6 +137,7 @@ def run_scenario(
         return _run_lifecycle(
             scenario,
             conduit=conduit,
+            conduitctl=ctl,
             warmup_s=warmup_s,
             result=result,
         )
@@ -117,7 +155,12 @@ def run_scenario(
 
     upstream = None
     cp = None
+    companion: CompanionProcess | None = None
     try:
+        if recipe.get("dnstap_receiver"):
+            assert dnstap is not None
+            companion = start_dnstap_tracer(dnstap)
+
         upstream = _start_upstream(recipe.get("upstream"))
         config = _resolve_config(recipe)
         cp = start_conduit(conduit, config)
@@ -165,6 +208,11 @@ def run_scenario(
                 pass
         if upstream is not None:
             upstream.stop()
+        if companion is not None:
+            try:
+                companion.stop()
+            except Exception:
+                pass
 
 
 def _run_shutdown_drain(
@@ -264,6 +312,7 @@ def _run_lifecycle(
     scenario: Scenario,
     *,
     conduit: Path,
+    conduitctl: Path | None,
     warmup_s: float,
     result: dict[str, Any],
 ) -> dict[str, Any]:
@@ -271,14 +320,46 @@ def _run_lifecycle(
     cp = None
     try:
         recipe = scenario.recipe
+        kind = recipe.get("lifecycle") or "cold_start"
         upstream = _start_upstream(recipe.get("upstream") or "fast")
         config = _resolve_config(recipe)
-        t0 = time.monotonic()
-        cp = start_conduit(conduit, config)
-        cold_ms = (time.monotonic() - t0) * 1000.0
-        result["metrics"] = {"cold_start_ms": round(cold_ms, 3)}
-        result["quality"] = {"warmup_seconds": warmup_s}
-        return result
+
+        if kind == "cold_start":
+            t0 = time.monotonic()
+            cp = start_conduit(conduit, config)
+            cold_ms = (time.monotonic() - t0) * 1000.0
+            result["metrics"] = {"cold_start_ms": round(cold_ms, 3)}
+            result["quality"] = {"warmup_seconds": warmup_s}
+            return result
+
+        if kind == "config_apply":
+            if conduitctl is None or not Path(conduitctl).is_file():
+                result["status"] = "skip"
+                result["skip_reason"] = "conduitctl not available"
+                return result
+            overlay = _resolve_overlay(recipe)
+            cp = start_conduit(conduit, config)
+            if warmup_s > 0:
+                time.sleep(min(warmup_s, 1.0))
+            env = os.environ.copy()
+            env["CONDUIT_CONTROL"] = "http://127.0.2.1:5199"
+            t0 = time.monotonic()
+            subprocess.check_call(
+                [str(conduitctl), "apply", "--file", str(overlay)],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+                timeout=30,
+                env=env,
+            )
+            apply_ms = (time.monotonic() - t0) * 1000.0
+            # Confirm dataplane still answers after apply.
+            if not probe_dns_answer(cp.listen_host, cp.listen_port):
+                raise RuntimeError("DNS probe failed after config apply")
+            result["metrics"] = {"apply_latency_ms": round(apply_ms, 3)}
+            result["quality"] = {"warmup_seconds": warmup_s}
+            return result
+
+        raise ValueError(f"unknown lifecycle recipe: {kind!r}")
     except Exception as exc:  # noqa: BLE001
         result["status"] = "error"
         result["error"] = str(exc)

@@ -44,8 +44,16 @@ fields:
       loadgen: { enum: [dnsperf, none] }
       query_file: { type: string }
       otlp_receiver: { type: boolean, default: false }
+      dnstap_receiver: { type: boolean, default: false }
       cache_warm: { type: boolean, default: false }
       shutdown: { type: boolean, default: false }
+      lifecycle:
+        type: string
+        enum: [cold_start, config_apply]
+        description: "lifecycle suite recipe kind"
+      overlay:
+        type: string
+        description: "Sparse overlay under perf/fixtures/configs/ (config_apply)"
       establish_load_s:
         type: number
         description: "Seconds of concurrent load before SIGTERM (shutdown_drain)"

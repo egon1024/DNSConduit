@@ -94,14 +94,15 @@ The harness will attempt this build on first Docker run if the image is missing.
 |-------|-------|
 | `scale` | Runtime models × load shapes (`forward_fast`, `forward_slow`, `cache_hit`) |
 | `shutdown_drain` | Three drain policies (`drain_complete` / `drain_budgeted` / `drain_minimal`) under `forward_slow` load; records `drain_duration_ms` and `client_failures_during_stop` |
-| `feature_tax` | Metrics / dnstap / OTLP observability cost |
-| `lifecycle` | Cold start / config apply (thin) |
+| `feature_tax` | Metrics ladder (off / minimal / standard scrape), collect vs emit pairs, dnstap off/sampled/fuller, OTLP push (skips until `conduit-otlp-metrics-tracer`) |
+| `lifecycle` | Cold start to first answer; thin config apply via `conduitctl` |
 | `lossless_upgrade` | Gated on zero-downtime upgrade — skipped until available |
 
 ## Lab ports
 
 Matches the maintainer lab map: Conduit DNS **127.0.2.1:15353**, stub upstream
-**127.0.2.1:15300**, control **127.0.2.1:5199**.
+**127.0.2.1:15300**, control **127.0.2.1:5199**, Prometheus scrape **127.0.2.1:19090**,
+dnstap socket **unix:/tmp/conduit-perf-dnstap.sock**.
 
 ## Make targets
 
@@ -110,6 +111,8 @@ make perf-unit          # harness unit tests (no live loadgen)
 make perf-list          # list catalog
 make perf-run-scale     # run scale suite (requires CONDUIT=)
 make perf-run-shutdown-drain  # run shutdown_drain suite
+make perf-run-feature-tax     # run feature_tax suite
+make perf-run-lifecycle       # run lifecycle suite
 make perf-render        # render FROM=… FORMAT=plain|fancy|yaml|json|html
 ```
 

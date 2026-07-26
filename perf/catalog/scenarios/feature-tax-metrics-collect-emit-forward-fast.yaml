@@ -1,0 +1,17 @@
+schema_version: 1
+id: feature-tax-metrics-collect-emit-forward-fast
+suite: feature_tax
+curated: false
+intent: |
+  Collect+emit on standard base under forward_fast — paired with collect-only and
+  no-collect for emit-path secondary comparison.
+axes:
+  runtime: sync
+  load_shape: forward_fast
+  obs_posture: metrics_collect_emit
+  ingress_workers: 2
+recipe:
+  config: feature-tax-metrics-collect-emit.yml
+  upstream: fast
+  loadgen: dnsperf
+  query_file: perf-a.txt

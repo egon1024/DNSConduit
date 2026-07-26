@@ -105,6 +105,33 @@ class CatalogTests(unittest.TestCase):
                 {"drain_complete", "drain_budgeted", "drain_minimal"},
             )
 
+    def test_load_feature_tax_scenarios(self):
+        scenarios = filter_scenarios(load_scenarios(), suite="feature_tax")
+        ids = {s.id for s in scenarios}
+        self.assertIn("feature-tax-metrics-off-forward-fast", ids)
+        self.assertIn("feature-tax-metrics-minimal-scrape-forward-fast", ids)
+        self.assertIn("feature-tax-metrics-standard-scrape-forward-fast", ids)
+        self.assertIn("feature-tax-metrics-collect-only-forward-fast", ids)
+        self.assertIn("feature-tax-metrics-otlp-push-forward-fast", ids)
+        self.assertIn("feature-tax-dnstap-off-forward-fast", ids)
+        self.assertIn("feature-tax-dnstap-sampled-forward-fast", ids)
+        otlp = next(s for s in scenarios if s.id.endswith("otlp-push-forward-fast"))
+        self.assertEqual(otlp.recipe.get("skip_unless"), "otlp_tracer")
+        curated = {s.id for s in scenarios if s.curated}
+        self.assertIn("feature-tax-metrics-off-forward-fast", curated)
+        self.assertIn("feature-tax-dnstap-sampled-forward-fast", curated)
+
+    def test_load_lifecycle_scenarios(self):
+        scenarios = filter_scenarios(load_scenarios(), suite="lifecycle")
+        ids = {s.id for s in scenarios}
+        self.assertEqual(ids, {"lifecycle-cold-start", "lifecycle-config-apply"})
+        cold = next(s for s in scenarios if s.id == "lifecycle-cold-start")
+        self.assertTrue(cold.curated)
+        self.assertEqual(cold.recipe.get("lifecycle"), "cold_start")
+        apply = next(s for s in scenarios if s.id == "lifecycle-config-apply")
+        self.assertEqual(apply.recipe.get("lifecycle"), "config_apply")
+        self.assertTrue(apply.recipe.get("overlay"))
+
     def test_suite_filter(self):
         scenarios = filter_scenarios(load_scenarios(), suite="scale")
         self.assertTrue(scenarios)
@@ -197,6 +224,49 @@ class RenderTests(unittest.TestCase):
         self.assertIn("Drain ms", html)
         self.assertIn("260.5", html)
         self.assertIn("42", html)
+
+    def test_render_lifecycle_metrics(self):
+        doc = _minimal_run_doc(
+            scenarios=[
+                {
+                    "id": "lifecycle-cold-start",
+                    "suite": "lifecycle",
+                    "status": "ok",
+                    "axes": {"runtime": "sync"},
+                    "metrics": {"cold_start_ms": 42.5},
+                },
+                {
+                    "id": "lifecycle-config-apply",
+                    "suite": "lifecycle",
+                    "status": "ok",
+                    "axes": {"runtime": "sync"},
+                    "metrics": {"apply_latency_ms": 12.25},
+                },
+            ]
+        )
+        plain = render(doc, "plain")
+        self.assertIn("cold_start=42.5ms", plain)
+        self.assertIn("apply=12.2ms", plain)
+        html = render(doc, "html")
+        self.assertIn("Cold start ms", html)
+        self.assertIn("42.5", html)
+        self.assertIn("12.2", html)
+
+    def test_render_otlp_skip(self):
+        doc = _minimal_run_doc(
+            scenarios=[
+                {
+                    "id": "feature-tax-metrics-otlp-push-forward-fast",
+                    "suite": "feature_tax",
+                    "status": "skip",
+                    "skip_reason": "conduit-otlp-metrics-tracer not available",
+                    "axes": {"obs_posture": "metrics_otlp_push"},
+                }
+            ]
+        )
+        plain = render(doc, "plain")
+        self.assertIn("SKIP", plain)
+        self.assertIn("conduit-otlp-metrics-tracer not available", plain)
 
 
 class DnsperfParseTests(unittest.TestCase):

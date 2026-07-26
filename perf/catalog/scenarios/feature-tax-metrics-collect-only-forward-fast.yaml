@@ -1,0 +1,17 @@
+schema_version: 1
+id: feature-tax-metrics-collect-only-forward-fast
+suite: feature_tax
+curated: false
+intent: |
+  Collect hot-path categories with emit false under forward_fast — records without
+  scrape/OTLP export. Paired with collect+emit and no-collect.
+axes:
+  runtime: sync
+  load_shape: forward_fast
+  obs_posture: metrics_collect_only
+  ingress_workers: 2
+recipe:
+  config: feature-tax-metrics-collect-only.yml
+  upstream: fast
+  loadgen: dnsperf
+  query_file: perf-a.txt
