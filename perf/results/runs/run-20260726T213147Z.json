@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-07-26T21:31:47Z",
+  "lab_profile": {
+    "id": "local",
+    "display_name": "Local run (local)",
+    "cpu_model": "Intel(R) Core(TM) i9-14900K",
+    "physical_cores": 32,
+    "logical_cores": 32,
+    "os": "Linux 6.8.0-136-generic",
+    "kernel": "6.8.0-136-generic"
+  },
+  "provenance": {
+    "conduit_path": "/home/egon/git_repos/DNSConduit/target/release/conduit",
+    "conduit_version": "unknown",
+    "runner": "perf.runner/0.1.0",
+    "loadgen": {
+      "tool": "dnsperf",
+      "mode": "docker",
+      "image": "dnsconduit-dnsperf:2.14.0"
+    },
+    "git_sha": "95bc4f59ea5cd9f89aabb55f42939c2c170c83b6"
+  },
+  "quality": {
+    "warmup_seconds": 1.0,
+    "duration_seconds": 5.0
+  },
+  "scenarios": [
+    {
+      "id": "shutdown-drain-minimal-forward-slow",
+      "suite": "shutdown_drain",
+      "intent": "Drain-minimal policy (shutdown.drain false \u2014 no wait) under forward_slow load.\nRecords drain duration and client loss during the stop window. Paired with\ncomplete and budgeted policies for relative comparison.",
+      "status": "error",
+      "axes": {
+        "runtime": "sync",
+        "load_shape": "forward_slow",
+        "drain_policy": "drain_minimal",
+        "ingress_workers": 2
+      },
+      "error": "dnsperf failed (exit -9): "
+    }
+  ]
+}

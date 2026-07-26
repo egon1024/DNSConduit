@@ -1,0 +1,16 @@
+schema_version: 1
+id: scale-sync-forward-fast
+suite: scale
+curated: true
+intent: |
+  Compare sync runtime under a fast stub upstream (forward_fast load shape).
+  Thin curated spine pair with scale-split-io-forward-fast.
+axes:
+  runtime: sync
+  load_shape: forward_fast
+  ingress_workers: 2
+recipe:
+  config: scale-sync-obs-off.yml
+  upstream: fast
+  loadgen: dnsperf
+  query_file: perf-a.txt

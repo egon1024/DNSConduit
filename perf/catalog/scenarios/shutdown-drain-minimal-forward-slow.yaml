@@ -1,0 +1,21 @@
+schema_version: 1
+id: shutdown-drain-minimal-forward-slow
+suite: shutdown_drain
+curated: true
+intent: |
+  Drain-minimal policy (shutdown.drain false — no wait) under forward_slow load.
+  Records drain duration and client loss during the stop window. Paired with
+  complete and budgeted policies for relative comparison.
+axes:
+  runtime: sync
+  load_shape: forward_slow
+  drain_policy: drain_minimal
+  ingress_workers: 2
+recipe:
+  config: shutdown-drain-minimal-forward-slow.yml
+  upstream: slow
+  loadgen: dnsperf
+  query_file: perf-a.txt
+  shutdown: true
+  stop_wait_s: 10
+  load_time_s: 8

@@ -1,0 +1,62 @@
+# Scenario catalog document schema (descriptive; validated by the runner).
+# Each file under catalog/scenarios/*.yaml is one scenario.
+#
+# Required fields:
+#   schema_version: 1
+#   id: stable scenario id (kebab-case)
+#   suite: scale | feature_tax | lifecycle | shutdown_drain | lossless_upgrade | micro
+#   intent: human-readable purpose (available to docs/HTML renderers)
+#   axes: declared dimensions (runtime, load_shape, drain_policy, obs_posture, topology, …)
+#   recipe: hooks naming fixture configs / upstream / loadgen / optional companions
+schema_version: 1
+description: >
+  One YAML file per scenario. Intent text feeds published documentation.
+  Suite membership drives --suite filters. Axes are recorded into run JSON.
+required:
+  - schema_version
+  - id
+  - suite
+  - intent
+  - axes
+  - recipe
+fields:
+  schema_version: { type: integer, const: 1 }
+  id: { type: string, pattern: "^[a-z0-9][a-z0-9_-]*$" }
+  suite:
+    type: string
+    enum: [micro, scale, feature_tax, lifecycle, shutdown_drain, lossless_upgrade]
+  intent: { type: string }
+  axes:
+    type: object
+    properties:
+      runtime: { enum: [sync, split_io, tokio] }
+      load_shape: { enum: [cache_hit, forward_fast, forward_slow] }
+      drain_policy: { enum: [drain_complete, drain_budgeted, drain_minimal] }
+      obs_posture: { type: string }
+      ingress_workers: { type: integer, minimum: 1 }
+      policy_workers: { type: integer, minimum: 1 }
+      io_workers: { type: integer, minimum: 1 }
+  recipe:
+    type: object
+    properties:
+      config: { type: string, description: "Relative path under perf/fixtures/configs/" }
+      upstream: { enum: [fast, slow, none] }
+      loadgen: { enum: [dnsperf, none] }
+      query_file: { type: string }
+      otlp_receiver: { type: boolean, default: false }
+      cache_warm: { type: boolean, default: false }
+      shutdown: { type: boolean, default: false }
+      establish_load_s:
+        type: number
+        description: "Seconds of concurrent load before SIGTERM (shutdown_drain)"
+      stop_wait_s:
+        type: number
+        description: "Max seconds to wait for Conduit exit after SIGTERM"
+      load_time_s:
+        type: integer
+        description: "dnsperf -l seconds for shutdown_drain overlap window"
+      skip_unless: { type: string, description: "Optional gate key, e.g. otlp_tracer or zdu" }
+  curated:
+    type: boolean
+    default: false
+    description: "True when part of the thin curated publish spine."

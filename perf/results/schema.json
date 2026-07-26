@@ -1,0 +1,223 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dnsconduit.local/perf/results.schema.json",
+  "title": "DNSConduit performance run document",
+  "description": "Canonical machine record for one performance harness run. Multiple distinct lab_profile.id values are allowed across runs (D14).",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "generated_at",
+    "lab_profile",
+    "provenance",
+    "scenarios"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "UTC timestamp when the run document was written."
+    },
+    "lab_profile": {
+      "$ref": "#/$defs/lab_profile"
+    },
+    "provenance": {
+      "$ref": "#/$defs/provenance"
+    },
+    "annotation_ids": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Run-level annotation ids from perf/catalog/annotations/."
+    },
+    "quality": {
+      "$ref": "#/$defs/quality"
+    },
+    "scenarios": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/scenario_result" }
+    }
+  },
+  "$defs": {
+    "lab_profile": {
+      "type": "object",
+      "required": [
+        "id",
+        "display_name",
+        "cpu_model",
+        "physical_cores",
+        "logical_cores",
+        "os"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Stable profile identifier. Multiple ids are first-class; v1 curated publish uses one blessed id."
+        },
+        "display_name": { "type": "string", "minLength": 1 },
+        "cpu_model": { "type": "string", "minLength": 1 },
+        "physical_cores": { "type": "integer", "minimum": 1 },
+        "logical_cores": { "type": "integer", "minimum": 1 },
+        "os": { "type": "string", "minLength": 1 },
+        "kernel": { "type": "string" },
+        "pinning_notes": { "type": "string" },
+        "numa_notes": { "type": "string" }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "required": [
+        "conduit_path",
+        "conduit_version",
+        "loadgen"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "conduit_path": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Binary identity for the run. Prefer a path relative to the process cwd (no absolute home directory). Basename-only when the binary is outside the working tree."
+        },
+        "conduit_version": { "type": "string", "minLength": 1 },
+        "git_sha": { "type": "string" },
+        "runner": { "type": "string" },
+        "loadgen": { "$ref": "#/$defs/loadgen" }
+      }
+    },
+    "loadgen": {
+      "type": "object",
+      "required": ["tool", "mode"],
+      "additionalProperties": false,
+      "properties": {
+        "tool": {
+          "type": "string",
+          "const": "dnsperf"
+        },
+        "mode": {
+          "type": "string",
+          "enum": ["docker", "native"]
+        },
+        "image": { "type": "string" },
+        "image_digest": { "type": "string" },
+        "native_version": { "type": "string" },
+        "flags": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "quality": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "warmup_seconds": { "type": "number", "minimum": 0 },
+        "duration_seconds": { "type": "number", "minimum": 0 },
+        "repeat": { "type": "integer", "minimum": 1 },
+        "dirty": { "type": "boolean" },
+        "notes": { "type": "string" }
+      }
+    },
+    "scenario_result": {
+      "type": "object",
+      "required": ["id", "suite", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "suite": {
+          "type": "string",
+          "enum": [
+            "micro",
+            "scale",
+            "feature_tax",
+            "lifecycle",
+            "shutdown_drain",
+            "lossless_upgrade"
+          ]
+        },
+        "intent": { "type": "string" },
+        "status": {
+          "type": "string",
+          "enum": ["ok", "skip", "error"]
+        },
+        "skip_reason": { "type": "string" },
+        "error": { "type": "string" },
+        "axes": { "$ref": "#/$defs/axes" },
+        "metrics": { "$ref": "#/$defs/metrics" },
+        "secondary": { "$ref": "#/$defs/secondary" },
+        "annotation_ids": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "quality": { "$ref": "#/$defs/quality" }
+      }
+    },
+    "axes": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "runtime": {
+          "type": "string",
+          "enum": ["sync", "split_io", "tokio"]
+        },
+        "load_shape": {
+          "type": "string",
+          "enum": ["cache_hit", "forward_fast", "forward_slow"]
+        },
+        "drain_policy": {
+          "type": "string",
+          "enum": ["drain_complete", "drain_budgeted", "drain_minimal"]
+        },
+        "obs_posture": { "type": "string" },
+        "ingress_workers": { "type": "integer", "minimum": 1 },
+        "policy_workers": { "type": "integer", "minimum": 1 },
+        "io_workers": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "offered_qps": { "type": "number" },
+        "achieved_qps": { "type": "number" },
+        "latency_ms": { "$ref": "#/$defs/latency" },
+        "queries_sent": { "type": "integer", "minimum": 0 },
+        "queries_completed": { "type": "integer", "minimum": 0 },
+        "queries_lost": { "type": "integer", "minimum": 0 },
+        "cpu_percent": { "type": "number" },
+        "drain_duration_ms": { "type": "number", "minimum": 0 },
+        "cold_start_ms": { "type": "number", "minimum": 0 },
+        "apply_latency_ms": { "type": "number", "minimum": 0 },
+        "upgrade_gap_ms": { "type": "number", "minimum": 0 },
+        "child_ready_ms": { "type": "number", "minimum": 0 }
+      }
+    },
+    "latency": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "p50": { "type": "number" },
+        "p90": { "type": "number" },
+        "p95": { "type": "number" },
+        "p99": { "type": "number" },
+        "avg": { "type": "number" },
+        "min": { "type": "number" },
+        "max": { "type": "number" }
+      }
+    },
+    "secondary": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "otlp_accepts": { "type": "integer", "minimum": 0 },
+        "otlp_failures": { "type": "integer", "minimum": 0 },
+        "scrape_bytes": { "type": "integer", "minimum": 0 },
+        "client_failures_during_stop": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

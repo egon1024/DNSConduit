@@ -1,0 +1,14 @@
+# Template for the blessed maintainer workstation lab profile (D14).
+# Copy to maintainer-ws-1.yaml and fill real hardware strings when promoting
+# the first reference run — do not invent CPU model details before a real run.
+schema_version: 1
+id: maintainer-ws-1
+display_name: Maintainer workstation (template)
+template: true
+cpu_model: FILL_ME_ON_FIRST_PROMOTE
+physical_cores: 0
+logical_cores: 0
+os: FILL_ME_ON_FIRST_PROMOTE
+kernel: FILL_ME_ON_FIRST_PROMOTE
+pinning_notes: ""
+numa_notes: ""

@@ -17,6 +17,14 @@
 #   make interop-docs          — regenerate operator-docs matrix from latest.json
 #   make interop-refresh       — full smoke + auth refresh; write results + docs
 #
+# Performance harness (local / lab only — not run by GitHub Actions load suites):
+#   make perf-unit             — harness unit tests (no live loadgen)
+#   make perf-list             — list scenario catalog
+#   make perf-run-scale        — run scale suite (CONDUIT= path to binary)
+#   make perf-run-shutdown-drain — run shutdown_drain suite
+#   make perf-render           — render FROM=… FORMAT=plain|fancy|yaml|json|html
+#   make performance           — remains Criterion microbench (distinct from suite run)
+#
 
 CARGO ?= cargo
 CLIPPY_FLAGS := --workspace --all-targets -- -D warnings
@@ -29,15 +37,21 @@ DOCS_PORT ?= 8000
 CONDUIT_IMAGE ?= conduit:local
 DOCKERFILE ?= Dockerfile
 
+# Performance harness binary path (override: make perf-run-scale CONDUIT=./target/release/conduit)
+CONDUIT ?= ./target/release/conduit
+PERF_FROM ?=
+PERF_FORMAT ?= plain
+
 .PHONY: help test performance fmt fmt-check clippy unit build \
 	docs-serve docs-build docs-version docs-versions-preview \
 	interop-image interop-unit interop-fingerprint interop-smoke interop-auth \
-	interop-docs interop-refresh
+	interop-docs interop-refresh \
+	perf-unit perf-list perf-run-scale perf-run-shutdown-drain perf-render
 
 help:
 	@echo "DNSConduit Makefile targets:"
 	@echo "  make test         Run fmt-check, clippy, and unit tests (same order as CI)"
-	@echo "  make performance  Run optional local benchmarks (release; not CI)"
+	@echo "  make performance  Run optional microbenchmarks (release; not CI; not load suites)"
 	@echo "  make fmt-check    Check formatting (cargo fmt --check)"
 	@echo "  make fmt          Apply rustfmt"
 	@echo "  make clippy       Run clippy (-D warnings)"
@@ -55,6 +69,13 @@ help:
 	@echo "  make interop-auth         Run fixture-auth-a (auth peers; no results write)"
 	@echo "  make interop-docs         Regenerate matrix docs from interop/results/latest.json"
 	@echo "  make interop-refresh      Smoke + auth; write results and regenerate docs"
+	@echo ""
+	@echo "Performance harness (local/lab — load suites not run by GitHub Actions):"
+	@echo "  make perf-unit            Harness unit tests (no live loadgen)"
+	@echo "  make perf-list            List scenario catalog"
+	@echo "  make perf-run-scale       Run scale suite (CONDUIT=$(CONDUIT))"
+	@echo "  make perf-run-shutdown-drain  Run shutdown_drain suite (CONDUIT=$(CONDUIT))"
+	@echo "  make perf-render          Render FROM=run.json FORMAT=$(PERF_FORMAT)"
 
 # Write the header version label only. The Versions list now lives on a single global
 # page published to the site root; it is no longer generated per build.
@@ -126,3 +147,21 @@ interop-refresh: interop-image
 		--conduit-image $(CONDUIT_IMAGE) --write-results --merge --generate-matrix
 	$(PYTHON) -m interop.runner run --suite full --profile forward-split-io \
 		--conduit-image $(CONDUIT_IMAGE) --write-results --merge --generate-matrix
+
+# --- Performance harness (local only; docs CI must not invoke load suites) ------
+
+perf-unit:
+	PYTHONPATH=. $(PYTHON) -m unittest discover -s perf/runner -p 'test_*.py'
+
+perf-list:
+	PYTHONPATH=. $(PYTHON) -m perf.runner list
+
+perf-run-scale:
+	PYTHONPATH=. $(PYTHON) -m perf.runner run --conduit $(CONDUIT) --suite scale --render plain
+
+perf-run-shutdown-drain:
+	PYTHONPATH=. $(PYTHON) -m perf.runner run --conduit $(CONDUIT) --suite shutdown_drain --render plain
+
+perf-render:
+	@test -n "$(PERF_FROM)" || (echo "Set PERF_FROM=path/to/run.json" >&2; exit 1)
+	PYTHONPATH=. $(PYTHON) -m perf.runner render --from $(PERF_FROM) --format $(PERF_FORMAT)

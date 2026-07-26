@@ -1,0 +1,26 @@
+# Lab host profile schema (descriptive; validated when writing run JSON).
+# Machinery is multi-profile (D14): many filled instances may exist.
+# v1 curated publish promotes from one blessed profile only.
+schema_version: 1
+required:
+  - schema_version
+  - id
+  - display_name
+  - cpu_model
+  - physical_cores
+  - logical_cores
+  - os
+fields:
+  schema_version: { type: integer, const: 1 }
+  id:
+    type: string
+    description: Stable profile id (e.g. maintainer-ws-1). Distinct across labs.
+  display_name: { type: string }
+  cpu_model: { type: string }
+  physical_cores: { type: integer, minimum: 1 }
+  logical_cores: { type: integer, minimum: 1 }
+  os: { type: string }
+  kernel: { type: string }
+  pinning_notes: { type: string }
+  numa_notes: { type: string }
+  template: { type: boolean, description: "True for unfilled templates; false for real runs." }
