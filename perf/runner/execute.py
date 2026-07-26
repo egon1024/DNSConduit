@@ -14,10 +14,12 @@ from .. import __version__
 from .catalog import Scenario
 from .companions import (
     CompanionProcess,
+    fetch_otlp_stats,
     resolve_conduitctl,
     resolve_dnstap_tracer,
     resolve_otlp_tracer,
     start_dnstap_tracer,
+    start_otlp_tracer,
 )
 from .conduit import conduit_version, probe_dns_answer, start_conduit
 from .loadgen import DEFAULT_IMAGE, DnsperfResult, run_dnsperf, start_dnsperf
@@ -73,6 +75,9 @@ def _skip_reason(
             return "zero-downtime upgrade not available in this binary"
     if scenario.suite == "lossless_upgrade" and not zdu:
         return "zero-downtime upgrade not available in this binary"
+    if recipe.get("otlp_receiver"):
+        if otlp_tracer is None or not Path(otlp_tracer).is_file():
+            return "conduit-otlp-metrics-tracer not available"
     if recipe.get("dnstap_receiver"):
         if dnstap_tracer is None or not Path(dnstap_tracer).is_file():
             return "conduit-dnstap-tracer not available"
@@ -155,11 +160,14 @@ def run_scenario(
 
     upstream = None
     cp = None
-    companion: CompanionProcess | None = None
+    companions: list[CompanionProcess] = []
     try:
+        if recipe.get("otlp_receiver"):
+            assert otlp is not None
+            companions.append(start_otlp_tracer(otlp))
         if recipe.get("dnstap_receiver"):
             assert dnstap is not None
-            companion = start_dnstap_tracer(dnstap)
+            companions.append(start_dnstap_tracer(dnstap))
 
         upstream = _start_upstream(recipe.get("upstream"))
         config = _resolve_config(recipe)
@@ -193,8 +201,19 @@ def run_scenario(
             )
             metrics = _metrics_from_dnsperf(dp)
 
+        secondary: dict[str, Any] = {}
+        for companion in companions:
+            if companion.kind == "otlp_tracer" and companion.listen:
+                # Allow one more push interval after load before sampling.
+                time.sleep(2.5)
+                stats = fetch_otlp_stats(companion.listen)
+                if stats:
+                    secondary.update(stats)
+
         result["metrics"] = metrics
         result["quality"] = quality
+        if secondary:
+            result["secondary"] = secondary
         return result
     except Exception as exc:  # noqa: BLE001 — record per-scenario error
         result["status"] = "error"
@@ -208,7 +227,7 @@ def run_scenario(
                 pass
         if upstream is not None:
             upstream.stop()
-        if companion is not None:
+        for companion in companions:
             try:
                 companion.stop()
             except Exception:

@@ -221,6 +221,7 @@ jobs:
           test -x /usr/bin/conduit
           test -x /usr/bin/conduitctl
           test -x /usr/bin/conduit-dnstap-tracer
+          test -x /usr/bin/conduit-otlp-metrics-tracer
           test -f /etc/conduit/conduit.yaml
           systemctl is-enabled conduit.service
           [[ "$(systemctl is-active conduit.service)" == "inactive" ]]

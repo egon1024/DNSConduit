@@ -12,6 +12,7 @@ members = [
     "crates/conduit",
     "crates/conduitctl",
     "crates/conduit-dnstap-tracer",
+    "crates/conduit-otlp-metrics-tracer",
     "crates/conduit-script",
 ]
 

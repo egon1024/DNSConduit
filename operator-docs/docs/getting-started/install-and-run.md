@@ -16,11 +16,12 @@ Each stable release publishes:
 | `conduit-<version>.spdx.json` | Software bill of materials (SBOM) |
 | `conduit-<version>.image-digest.txt` | Container image reference and content digest |
 
-Every tarball and package includes three binaries:
+Every tarball and package includes four binaries:
 
 - **`conduit`** — DNS [dataplane](/glossary/index.md#dataplane) (the service)
 - **`conduitctl`** — [control plane](/glossary/index.md#control-plane) CLI (`validate` offline; `apply`, `export`, `reload`, `trace`, and `health` when control is enabled)
 - **`conduit-dnstap-tracer`** — development/troubleshooting dnstap listener (decodes export to stdout). **Not** part of the production systemd service; use only for debugging dnstap sinks.
+- **`conduit-otlp-metrics-tracer`** — lab OTLP HTTP metrics receiver (`/v1/metrics`). **Not** part of the production systemd service; use for OTLP push smoke labs and the performance harness.
 
 Production vs debug differs only by **stripped vs unstripped** binaries. Use production artifacts on servers; use debug artifacts when you need symbols for `gdb` or postmortem analysis.
 
@@ -69,7 +70,7 @@ cd "conduit-${VERSION}"
 ls -l
 ```
 
-The directory contains `conduit`, `conduitctl`, `conduit-dnstap-tracer`, `LICENSE`, and an **`examples/`** tree (minimal and reference YAML plus guide lab configs).
+The directory contains `conduit`, `conduitctl`, `conduit-dnstap-tracer`, `conduit-otlp-metrics-tracer`, `LICENSE`, and an **`examples/`** tree (minimal and reference YAML plus guide lab configs).
 
 Run with a config file (first argument is the YAML path only):
 
@@ -114,7 +115,7 @@ For unstripped binaries on a troubleshooting host:
 sudo dpkg -i "conduit-dbg_${VERSION}_amd64.deb"
 ```
 
-This overwrites `/usr/bin/conduit`, `conduitctl`, and `conduit-dnstap-tracer` with unstripped builds. Install the production package first on servers that use systemd; use `-dbg` only when you need debug symbols.
+This overwrites `/usr/bin/conduit`, `conduitctl`, `conduit-dnstap-tracer`, and `conduit-otlp-metrics-tracer` with unstripped builds. Install the production package first on servers that use systemd; use `-dbg` only when you need debug symbols.
 
 ## Build from source
 
@@ -123,7 +124,7 @@ Requires Rust 1.78+ (see workspace `rust-version` in `Cargo.toml`):
 ```bash
 git clone https://github.com/egon1024/DNSConduit.git
 cd DNSConduit
-cargo build --release -p conduit -p conduitctl -p conduit-dnstap-tracer
+cargo build --release -p conduit -p conduitctl -p conduit-dnstap-tracer -p conduit-otlp-metrics-tracer
 ```
 
 Binaries are in `target/release/`. Packaged example configs (minimal, reference, and guide labs) live in `packaging/examples/` and are what release tarballs and the production `.deb` install under `examples/`.

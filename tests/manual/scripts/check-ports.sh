@@ -3,7 +3,7 @@
 set -euo pipefail
 
 UDP_PORTS=(15353 15356 15300 15399)
-TCP_PORTS=(5199 19090)
+TCP_PORTS=(5199 19090 4318)
 
 check_udp() {
   local port=$1

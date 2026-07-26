@@ -268,6 +268,27 @@ class RenderTests(unittest.TestCase):
         self.assertIn("SKIP", plain)
         self.assertIn("conduit-otlp-metrics-tracer not available", plain)
 
+    def test_render_otlp_secondary(self):
+        doc = _minimal_run_doc(
+            scenarios=[
+                {
+                    "id": "feature-tax-metrics-otlp-push-forward-fast",
+                    "suite": "feature_tax",
+                    "status": "ok",
+                    "axes": {"obs_posture": "metrics_otlp_push"},
+                    "metrics": {"achieved_qps": 1000.0, "latency_ms": {"avg": 1.5}},
+                    "secondary": {"otlp_accepts": 6, "otlp_failures": 0},
+                }
+            ]
+        )
+        plain = render(doc, "plain")
+        self.assertIn("otlp_accepts=6", plain)
+        self.assertIn("otlp_failures=0", plain)
+        html = render(doc, "html")
+        self.assertIn("OTLP accepts", html)
+        self.assertIn("OTLP failures", html)
+        self.assertIn("<td>6</td><td>0</td>", html)
+
 
 class DnsperfParseTests(unittest.TestCase):
     def test_parse_sample(self):

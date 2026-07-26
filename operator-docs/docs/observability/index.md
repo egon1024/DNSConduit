@@ -24,7 +24,7 @@ flowchart TD
   M --> BM[Built-in metrics catalog]
 ```
 
-For a lab walkthrough that enables metrics and tracing together, see [Metrics and tracing](/guides/metrics-and-tracing.md). For dnstap export with **`conduit-dnstap-tracer`**, see [Event export and dnstap](/guides/event-export-dnstap.md). Config fields: [Reference: metrics and tracing](/reference/config-schema/metrics-and-tracing.md), [Reference: events](/reference/config-schema/events.md).
+For a lab walkthrough that enables metrics and tracing together, see [Metrics and tracing](/guides/metrics-and-tracing.md). For OTLP HTTP metrics push with **`conduit-otlp-metrics-tracer`**, see [OTLP metrics push smoke](/guides/otlp-metrics-push.md). For dnstap export with **`conduit-dnstap-tracer`**, see [Event export and dnstap](/guides/event-export-dnstap.md). Config fields: [Reference: metrics and tracing](/reference/config-schema/metrics-and-tracing.md), [Reference: events](/reference/config-schema/events.md).
 
 ## OTEL and tracing names
 
@@ -74,6 +74,6 @@ Details: [Configuration model — What takes effect when](/control-plane/configu
 4. [Event export](/observability/event-export.md) — [dnstap](/glossary/index.md#dnstap) sinks
 5. [Logging](/observability/logging.md) — process log level, stderr/stdout, [lab smoke test](/observability/logging.md#lab-smoke-test)
 
-**Lab guides:** [Metrics and tracing](/guides/metrics-and-tracing.md) · [Operator metrics bases](/guides/operator-metrics-bases.md) · [Metrics beyond bases](/guides/metrics-beyond-bases.md) · [Event export and dnstap](/guides/event-export-dnstap.md)
+**Lab guides:** [Metrics and tracing](/guides/metrics-and-tracing.md) · [Operator metrics bases](/guides/operator-metrics-bases.md) · [Metrics beyond bases](/guides/metrics-beyond-bases.md) · [OTLP metrics push smoke](/guides/otlp-metrics-push.md) · [Event export and dnstap](/guides/event-export-dnstap.md)
 
 Symptom-oriented help: [Troubleshooting](/troubleshooting/index.md#observability).
