@@ -94,7 +94,7 @@ The harness will attempt this build on first Docker run if the image is missing.
 |-------|-------|
 | `scale` | Runtime models × load shapes (`forward_fast`, `forward_slow`, `cache_hit`) |
 | `shutdown_drain` | Three drain policies (`drain_complete` / `drain_budgeted` / `drain_minimal`) under `forward_slow` load; records `drain_duration_ms` and `client_failures_during_stop` |
-| `feature_tax` | Metrics ladder (off / minimal / standard scrape), collect vs emit pairs, dnstap off/sampled/fuller, OTLP push (skips until `conduit-otlp-metrics-tracer`) |
+| `feature_tax` | Metrics ladder (off / minimal / standard scrape), collect vs emit pairs, dnstap off/sampled/fuller, OTLP push via `conduit-otlp-metrics-tracer` (skips if the companion binary is absent) |
 | `lifecycle` | Cold start to first answer; thin config apply via `conduitctl` |
 | `lossless_upgrade` | Gated on zero-downtime upgrade — skipped until available |
 
@@ -102,7 +102,21 @@ The harness will attempt this build on first Docker run if the image is missing.
 
 Matches the maintainer lab map: Conduit DNS **127.0.2.1:15353**, stub upstream
 **127.0.2.1:15300**, control **127.0.2.1:5199**, Prometheus scrape **127.0.2.1:19090**,
-dnstap socket **unix:/tmp/conduit-perf-dnstap.sock**.
+dnstap socket **unix:/tmp/conduit-perf-dnstap.sock**, OTLP HTTP
+**http://127.0.2.1:4318/v1/metrics**.
+
+## Companion: OTLP metrics tracer
+
+OTLP `feature_tax` scenarios start **`conduit-otlp-metrics-tracer`** automatically when
+the binary is next to `--conduit` (or passed via `--otlp-tracer`). Scrape-only scenarios
+do not require it. Build from a source checkout:
+
+```zsh
+cargo build -p conduit-otlp-metrics-tracer --release
+```
+
+Release tarballs and packages include the prebuilt companion alongside
+`conduit-dnstap-tracer`. See `perf/helpers/README.md`.
 
 ## Make targets
 

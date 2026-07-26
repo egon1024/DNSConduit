@@ -62,13 +62,18 @@ def _scenario_lines(doc: dict[str, Any], *, fancy: bool) -> list[str]:
         secondary = sc.get("secondary") or {}
         loss = secondary.get("client_failures_during_stop")
         loss_s = f"loss={loss}" if isinstance(loss, int) else ""
+        otlp_a = secondary.get("otlp_accepts")
+        otlp_f = secondary.get("otlp_failures")
+        otlp_s = ""
+        if isinstance(otlp_a, int) or isinstance(otlp_f, int):
+            otlp_s = f"otlp_accepts={otlp_a if isinstance(otlp_a, int) else '-'} otlp_failures={otlp_f if isinstance(otlp_f, int) else '-'}"
         axes = sc.get("axes") or {}
         axis_bits = []
         for key in ("runtime", "load_shape", "drain_policy", "obs_posture"):
             if key in axes:
                 axis_bits.append(f"{key}={axes[key]}")
         axis_s = (" [" + ", ".join(axis_bits) + "]") if axis_bits else ""
-        bits = [qps_s, lat_s, drain_s, cold_s, apply_s, loss_s]
+        bits = [qps_s, lat_s, drain_s, cold_s, apply_s, loss_s, otlp_s]
         extra = "  " + " ".join(b for b in bits if b)
         lines.append(f"  {mark} {sc.get('id')} ({sc.get('suite')}){axis_s}{extra.rstrip()}")
         if status == "skip" and sc.get("skip_reason"):
@@ -147,6 +152,8 @@ def render_html(doc: dict[str, Any]) -> str:
         drain = metrics.get("drain_duration_ms")
         drain_cell = f"{drain:.1f}" if isinstance(drain, (int, float)) else ""
         loss = secondary.get("client_failures_during_stop")
+        otlp_a = secondary.get("otlp_accepts")
+        otlp_f = secondary.get("otlp_failures")
         cold = metrics.get("cold_start_ms")
         cold_cell = f"{cold:.1f}" if isinstance(cold, (int, float)) else ""
         apply = metrics.get("apply_latency_ms")
@@ -160,12 +167,14 @@ def render_html(doc: dict[str, Any]) -> str:
             f"<td>{_esc(lat_cell)}</td>"
             f"<td>{_esc(drain_cell)}</td>"
             f"<td>{_esc(loss)}</td>"
+            f"<td>{_esc(otlp_a)}</td>"
+            f"<td>{_esc(otlp_f)}</td>"
             f"<td>{_esc(cold_cell)}</td>"
             f"<td>{_esc(apply_cell)}</td>"
             f"<td>{_esc(anns)}</td>"
             "</tr>"
         )
-    body_rows = "\n".join(rows) if rows else "<tr><td colspan='10'>No scenarios</td></tr>"
+    body_rows = "\n".join(rows) if rows else "<tr><td colspan='12'>No scenarios</td></tr>"
     mem = profile.get("memory_total_mb")
     mem_html = (
         f"    <p><strong>Memory:</strong> {_esc(mem)} MiB</p>\n" if mem is not None else ""
@@ -199,6 +208,7 @@ def render_html(doc: dict[str, Any]) -> str:
         <th>Scenario</th><th>Suite</th><th>Status</th>
         <th>Achieved QPS</th><th>avg ms</th>
         <th>Drain ms</th><th>Loss at stop</th>
+        <th>OTLP accepts</th><th>OTLP failures</th>
         <th>Cold start ms</th><th>Apply ms</th><th>Annotations</th>
       </tr>
     </thead>

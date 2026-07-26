@@ -3,8 +3,8 @@ id: feature-tax-metrics-otlp-push-forward-fast
 suite: feature_tax
 curated: false
 intent: |
-  OTLP HTTP metrics push under forward_fast. Skips cleanly until
-  conduit-otlp-metrics-tracer is available (Phase E); scrape ladder does not wait.
+  OTLP HTTP metrics push under forward_fast. Requires conduit-otlp-metrics-tracer;
+  records secondary otlp_accepts / otlp_failures from the lab receiver.
 axes:
   runtime: sync
   load_shape: forward_fast

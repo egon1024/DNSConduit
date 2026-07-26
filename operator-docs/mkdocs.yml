@@ -134,6 +134,7 @@ nav:
       - Operator metrics bases: guides/operator-metrics-bases.md
       - Metrics beyond bases: guides/metrics-beyond-bases.md
       - Event export and dnstap: guides/event-export-dnstap.md
+      - OTLP metrics push smoke: guides/otlp-metrics-push.md
       - Dataplane runtime tuning: guides/dataplane-runtime-tuning.md
   - Security:
       - Overview: security/index.md

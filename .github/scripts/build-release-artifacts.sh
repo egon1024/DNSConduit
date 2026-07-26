@@ -16,9 +16,9 @@ rm -rf packaging/staging packaging/staging-dbg
 mkdir -p packaging/staging/usr/bin packaging/staging-dbg/usr/bin
 
 echo "Building release binaries for ${VERSION}..."
-cargo build --release -p conduit -p conduitctl -p conduit-dnstap-tracer
+cargo build --release -p conduit -p conduitctl -p conduit-dnstap-tracer -p conduit-otlp-metrics-tracer
 
-BINARIES=(conduit conduitctl conduit-dnstap-tracer)
+BINARIES=(conduit conduitctl conduit-dnstap-tracer conduit-otlp-metrics-tracer)
 for bin in "${BINARIES[@]}"; do
   cp "target/release/${bin}" "packaging/staging-dbg/usr/bin/${bin}"
   cp "target/release/${bin}" "packaging/staging/usr/bin/${bin}"

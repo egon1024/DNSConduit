@@ -16,6 +16,7 @@ page in the operator documentation (same YAML / scripts as the walkthrough).
 | `operator-metrics-bases/` | Operator metrics bases |
 | `metrics-beyond-bases/` | Metrics beyond bases |
 | `event-export-dnstap/` | Event export and dnstap |
+| `otlp-metrics-push/` | OTLP metrics push smoke |
 | `rhai-policy/blocklist/` | Rhai policy (CSV blocklist lab) |
 
 Lab defaults use loopback DNS on **`127.0.0.1:15353`** and upstream

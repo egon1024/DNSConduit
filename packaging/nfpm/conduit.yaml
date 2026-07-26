@@ -21,6 +21,8 @@ contents:
     dst: /usr/bin/conduitctl
   - src: packaging/staging/usr/bin/conduit-dnstap-tracer
     dst: /usr/bin/conduit-dnstap-tracer
+  - src: packaging/staging/usr/bin/conduit-otlp-metrics-tracer
+    dst: /usr/bin/conduit-otlp-metrics-tracer
   - src: packaging/conduit.service
     dst: /lib/systemd/system/conduit.service
   - src: LICENSE

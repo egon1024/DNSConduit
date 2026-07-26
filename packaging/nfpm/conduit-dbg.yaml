@@ -8,7 +8,7 @@ priority: optional
 maintainer: "DNS Conduit Maintainers <cole@tuininga.org>"
 description: |
   DNS Conduit debug binaries (unstripped) for troubleshooting.
-  Includes conduit, conduitctl, and conduit-dnstap-tracer.
+  Includes conduit, conduitctl, conduit-dnstap-tracer, and conduit-otlp-metrics-tracer.
 license: Apache-2.0
 homepage: https://github.com/egon1024/DNSConduit
 contents:
@@ -18,3 +18,5 @@ contents:
     dst: /usr/bin/conduitctl
   - src: packaging/staging-dbg/usr/bin/conduit-dnstap-tracer
     dst: /usr/bin/conduit-dnstap-tracer
+  - src: packaging/staging-dbg/usr/bin/conduit-otlp-metrics-tracer
+    dst: /usr/bin/conduit-otlp-metrics-tracer

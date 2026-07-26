@@ -194,7 +194,7 @@ Adjust host, scrape port, and listener port to your config.
 | Symptom | Likely cause | What to check |
 |---------|--------------|---------------|
 | Log line `failed to build OTLP metric exporter` at startup | Invalid `metrics.otel.endpoint` (not `http://` or `https://`) | [Metrics — Export architecture](/observability/metrics.md#export-architecture); validate with `conduitctl validate --file` |
-| Periodic `otel metrics push failed` at **`warn`** | Collector down, TLS verify failure, or network block | Endpoint reachable; for self-signed HTTPS use `allow_invalid_certs: true` (lab only) or fix collector cert |
+| Periodic `otel metrics push failed` at **`warn`** | Collector down, TLS verify failure, or network block | Endpoint reachable; for self-signed HTTPS use `allow_invalid_certs: true` (lab only) or fix collector cert; local smoke: [OTLP metrics push smoke](/guides/otlp-metrics-push.md) with **`conduit-otlp-metrics-tracer`** |
 | No push logs | Push interval default **15s**; successes log at **`debug`** only | Set `logging.level: debug` briefly to see `otel metrics push ok` |
 | Enabled OTEL after process start — no push | OTEL task starts at **process start** | **Restart** after adding or changing `metrics.otel` |
 | Push rejected with **401** / **403** | Collector requires auth | Set **`metrics.otel.headers`** (for example `Authorization: Bearer …`) — [Metrics — OTEL](/observability/metrics.md#export-architecture) |

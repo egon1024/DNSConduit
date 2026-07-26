@@ -1,6 +1,6 @@
 # Metrics and tracing
 
-This guide is an end-to-end lab: enable built-in [metrics](/observability/metrics.md) (Prometheus scrape), optional [pipeline tracing](/observability/tracing.md), and the [control plane](/glossary/index.md#control-plane) so you can fetch traces with `conduitctl trace`. This guide does not cover [event export](/observability/event-export.md) or OTEL push — see [Metrics](/observability/metrics.md) for OTLP configuration.
+This guide is an end-to-end lab: enable built-in [metrics](/observability/metrics.md) (Prometheus scrape), optional [pipeline tracing](/observability/tracing.md), and the [control plane](/glossary/index.md#control-plane) so you can fetch traces with `conduitctl trace`. For OTLP HTTP metrics push, see [OTLP metrics push smoke](/guides/otlp-metrics-push.md). For [event export](/observability/event-export.md), see [Event export and dnstap](/guides/event-export-dnstap.md).
 
 **Prerequisites:** Conduit built and on your `PATH`; an upstream DNS listener on **`127.0.0.1:5300`** (or adjust the pool backend below). Follow [Install and run](/getting-started/install-and-run.md) if you have not started Conduit yet.
 

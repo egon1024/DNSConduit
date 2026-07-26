@@ -38,6 +38,7 @@ After your first successful query ([First query](/getting-started/first-query.md
 | [Operator metrics bases](/guides/operator-metrics-bases.md) | **`minimal`** vs **`standard`** built-in metrics on the same traffic |
 | [Metrics beyond bases](/guides/metrics-beyond-bases.md) | Categories, collect vs emit, granularity, live overlay and scrape rebind |
 | [Event export and dnstap](/guides/event-export-dnstap.md) | dnstap sinks with `conduit-dnstap-tracer` |
+| [OTLP metrics push smoke](/guides/otlp-metrics-push.md) | OTLP HTTP push with `conduit-otlp-metrics-tracer` |
 
 ### Performance
 

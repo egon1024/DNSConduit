@@ -1,0 +1,22 @@
+# Lab config for the OTLP metrics push smoke guide.
+# Start conduit-otlp-metrics-tracer on 127.0.0.1:4318 before Conduit.
+schema_version: 1
+listeners:
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+pools:
+  - name: default
+    backends:
+      - address: "127.0.0.1:5300"
+metrics:
+  enabled: true
+  base: standard
+  otel:
+    endpoint: "http://127.0.0.1:4318/v1/metrics"
+    push_interval_ms: 2000
+    resource_attributes:
+      service.name: conduit-otlp-lab
+logging:
+  level: info
+  output: stderr
