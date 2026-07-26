@@ -65,6 +65,11 @@
         "logical_cores": { "type": "integer", "minimum": 1 },
         "os": { "type": "string", "minLength": 1 },
         "kernel": { "type": "string" },
+        "memory_total_mb": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Optional host MemTotal in whole MiB (from /proc/meminfo when available)."
+        },
         "pinning_notes": { "type": "string" },
         "numa_notes": { "type": "string" }
       }

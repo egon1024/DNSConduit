@@ -22,6 +22,22 @@ def utc_now_iso() -> str:
     )
 
 
+def detect_meminfo_total_mb() -> int | None:
+    """Return MemTotal from /proc/meminfo in whole MiB, or None if unavailable."""
+    try:
+        text = Path("/proc/meminfo").read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    for line in text.splitlines():
+        if line.startswith("MemTotal:"):
+            parts = line.split()
+            if len(parts) >= 2 and parts[1].isdigit():
+                # Kernel reports KiB; store whole MiB for a stable, compact field.
+                return int(parts[1]) // 1024
+            return None
+    return None
+
+
 def detect_lab_profile_runtime(
     *,
     profile_id: str = "local",
@@ -40,7 +56,7 @@ def detect_lab_profile_runtime(
         pass
 
     logical = os_cpu_count()
-    return {
+    profile: dict[str, Any] = {
         "id": profile_id,
         "display_name": display_name or f"Local run ({profile_id})",
         "cpu_model": cpu,
@@ -49,6 +65,10 @@ def detect_lab_profile_runtime(
         "os": f"{platform.system()} {platform.release()}",
         "kernel": platform.release(),
     }
+    mem_mb = detect_meminfo_total_mb()
+    if mem_mb is not None:
+        profile["memory_total_mb"] = mem_mb
+    return profile
 
 
 def os_cpu_count() -> int:
