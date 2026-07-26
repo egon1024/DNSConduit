@@ -146,7 +146,10 @@ jobs:
               build_args+=( -t "${HUB_IMAGE}:latest" )
             fi
           fi
-          docker build "${build_args[@]}" -f Dockerfile .
+          # --pull refreshes debian:bookworm-slim (and the Rust builder) so the
+          # Dockerfile's apt-get upgrade applies against current security archives
+          # rather than a stale cached base layer.
+          docker build --pull "${build_args[@]}" -f Dockerfile .
 
           docker push "${GHCR_IMAGE}:${RELEASE_VERSION}"
           if [[ "${DOCKERHUB_ENABLED}" == "true" ]]; then

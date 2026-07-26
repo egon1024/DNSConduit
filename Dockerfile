@@ -13,7 +13,10 @@ RUN cargo build --release -p conduit \
     && strip target/release/conduit
 
 FROM debian:bookworm-slim AS runtime
+# Upgrade base packages at build time so release images pick up Debian
+# security fixes that landed after the bookworm-slim snapshot was published.
 RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
     && apt-get install -y --no-install-recommends ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --system --no-create-home --uid 10001 conduit
