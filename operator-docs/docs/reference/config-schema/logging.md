@@ -1,6 +1,6 @@
 # Config schema: logging
 
-Field reference for the optional top-level **`logging:`** block. For log format, choosing a level, `RUST_LOG`, and lab smoke tests, see [Logging](/observability/logging.md).
+This page lists the fields for the optional top-level **`logging:`** block. For log format, choosing a level, `RUST_LOG`, and lab smoke tests, see [Logging](/observability/logging.md).
 
 ## `logging`
 

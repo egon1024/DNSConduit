@@ -1,6 +1,6 @@
 # Policy & routing
 
-How Conduit decides **where** each client query goes upstream, **what** to change on the way out, and **when** to try again. This section covers declarative `rules:`, upstream `pools:` and [backends](/glossary/index.md#backend), and [retry](/glossary/index.md#retry) limits on the [dataplane](/glossary/index.md#dataplane).
+This section covers how Conduit decides **where** each client query goes upstream, **what** to change on the way out, and **when** to try again — declarative `rules:`, upstream `pools:` and [backends](/glossary/index.md#backend), and [retry](/glossary/index.md#retry) limits on the [dataplane](/glossary/index.md#dataplane).
 
 Read [Architecture and packet path](/concepts/architecture-and-packet-path.md) first for pipeline phases and hook placement; YAML field lists are described on the topic pages below and in [Reference](/reference/config-schema/rules.md).
 
@@ -71,6 +71,8 @@ Rule and pool changes load into the configuration [runtime snapshot](/glossary/i
 ## Related
 
 - [Guide: Backend health](/guides/backend-health.md) — enable probes, drain, and resume in a lab
+- [Rule action order](/guides/rule-action-order.md) — soft vs hard drop, action-list order
+- [Declarative failover](/guides/declarative-failover.md) — SERVFAIL / timeout retry without Rhai
 - [Dual-stack forwarding](/guides/dual-stack-forwarding.md) — `forward.sources_*`, pool `sources_*`, per-query `set_source_v4` / `set_source_v6`
 - [Rhai](/rhai/index.md) — Rhai for rules
 - [Rhai for rules](/rhai/rule-rhai.md) — scripted policy on request and response hooks

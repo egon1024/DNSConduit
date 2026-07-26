@@ -1,6 +1,6 @@
 # Config schema: listeners
 
-Field reference for the top-level **`listeners:`** block — [dataplane](/glossary/index.md#dataplane) **ingress** where clients send DNS queries. For the query path after a packet arrives, see [Architecture and packet path — Receive](/concepts/architecture-and-packet-path.md#receive). For a minimal runnable example, see [Minimal configuration](/getting-started/minimal-configuration.md).
+This page lists the fields for the top-level **`listeners:`** block — [dataplane](/glossary/index.md#dataplane) **ingress** where clients send DNS queries. For the query path after a packet arrives, see [Architecture and packet path — Receive](/concepts/architecture-and-packet-path.md#receive). For a minimal runnable example, see [Minimal configuration](/getting-started/minimal-configuration.md).
 
 DNS listeners are separate from the optional gRPC **`control:`** listener — see [Security](/security/index.md) and [Reference: control](/reference/config-schema/control.md).
 

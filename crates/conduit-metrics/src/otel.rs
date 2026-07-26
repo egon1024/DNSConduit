@@ -373,8 +373,11 @@ fn unit_from_metric_name(name: &str) -> &'static str {
         ("_ratio", "1"),
         ("_ms", "ms"),
     ];
+    // Strip a trailing `_total` so `…_seconds_total` / `…_bytes_total` keep
+    // their unit (Prometheus counter naming) instead of falling through to "1".
+    let base = name.strip_suffix("_total").unwrap_or(name);
     for (suffix, unit) in SUFFIXES {
-        if name.ends_with(suffix) {
+        if base.ends_with(suffix) {
             return unit;
         }
     }
@@ -501,6 +504,10 @@ mod tests {
         assert_eq!(
             unit_from_metric_name("conduit_process_resident_bytes"),
             "By"
+        );
+        assert_eq!(
+            unit_from_metric_name("conduit_process_cpu_seconds_total"),
+            "s"
         );
         assert_eq!(
             unit_from_metric_name("conduit_backend_health_latency_ewma_ms"),
@@ -670,6 +677,7 @@ mod tests {
             "conduit_build_info",
             "conduit_config_generation",
             "conduit_start_time_seconds",
+            "conduit_uptime_seconds",
         ] {
             assert!(prom_names.contains(family), "prom missing {family}");
             assert!(otel_names.contains(family), "otel missing {family}");

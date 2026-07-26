@@ -36,8 +36,8 @@ pack_tarball() {
   mkdir -p "${tmp}/conduit-${VERSION}"
   cp "${staging}/usr/bin/"* "${tmp}/conduit-${VERSION}/"
   cp LICENSE "${tmp}/conduit-${VERSION}/"
-  cp packaging/examples/conduit.minimal.yaml "${tmp}/conduit-${VERSION}/"
-  cp packaging/examples/conduit.reference.yaml "${tmp}/conduit-${VERSION}/"
+  mkdir -p "${tmp}/conduit-${VERSION}/examples"
+  cp -a packaging/examples/. "${tmp}/conduit-${VERSION}/examples/"
   tar -C "${tmp}" -czf "${output}" "conduit-${VERSION}"
   rm -rf "${tmp}"
 }

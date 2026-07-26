@@ -1,0 +1,39 @@
+# Lab example for the Rhai policy guide (CSV blocklist lab).
+# Paths are relative to this file's directory (data/, scripts/).
+# Default ports: DNS 15353, metrics 9090; upstream :5300.
+schema_version: 1
+listeners:
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+pools:
+  - name: default
+    backends:
+      - address: "127.0.0.1:5300"
+rhai:
+  max_operations: 10000
+  max_call_depth: 32
+  hook_timeout_ms: 50
+data_sources:
+  - name: blocklist
+    type: csv
+    path: data/blocklist.csv
+    key_column: qname
+    value_column: action
+metrics:
+  enabled: true
+  base: standard
+  prometheus:
+    listen_address: "127.0.0.1:9090"
+    path: /metrics
+rules:
+  match_mode: first_match
+  rules:
+    - name: blocklist-check
+      hook: request
+      selectors:
+        - type: qname_suffix
+          value: "bad.example."
+      actions:
+        - type: rhai
+          value: scripts/blocklist.rhai

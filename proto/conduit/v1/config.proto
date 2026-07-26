@@ -124,6 +124,9 @@ message UserMetricExportConfig {
   string export = 2;
   optional bool collect = 3;
   optional bool emit = 4;
+  // Prometheus HELP / OTel instrument description. Empty means the default
+  // "Rhai user-defined metric" text at export time.
+  string help = 5;
 }
 
 message PrometheusMetricsConfig {

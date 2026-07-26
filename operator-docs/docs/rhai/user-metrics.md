@@ -8,7 +8,7 @@ Rhai scripts publish custom counters through the **`metrics`** scope object: **`
 
 **`metrics`** is separate from **`txn`** — counters are not per-query policy state. See [Host API overview](/rhai/host-api.md) for how the scopes fit together.
 
-Built-in [metrics profiles](/observability/metrics.md#profiles) (`minimal` / `full`) also control **whether** each user metric is recorded on the hot path. See [Export tier](#export-tier) below.
+[Collect vs emit](/observability/metrics-configurability.md#collect-vs-emit) on the metrics plan controls whether each user metric is recorded and whether it appears in Prometheus / OTLP. See [Collect and emit](#export-tier) below.
 
 ## Declaring metrics in scripts
 
@@ -28,56 +28,68 @@ metrics.inc_labels("block_hits", 1, #{ category: "eu" });
 
 Scripts always **write** metrics; they cannot read counter values back. Use [tags](/rhai/txn-api.md#tags), [lookups](/rhai/data-sources-and-lookups.md), or **`txn`** state for per-query policy.
 
-## Export tier { #export-tier }
+## Collect and emit { #export-tier }
 
-Each user metric has an **export tier** that decides when increments reach the Prometheus/OTEL registry:
+Each user metric has **collect** (record into the process store) and **emit** (include in Prometheus scrape / OTLP push):
 
-| Tier | Recorded when `metrics.profile` is… |
-|------|-------------------------------------|
-| **`full`** (default) | **`full`** only |
-| **`minimal`** | **`minimal`** or **`full`** |
+| collect | emit | Effect |
+|---------|------|--------|
+| true | true | Record and export (usual default when the metric is on) |
+| true | false | Record only — scrape/OTLP omit the series; still pays hot-path cost |
+| false | false | Neither record nor export |
+| false | true | **Invalid** — rejected at validate |
 
-Unlisted script-discovered metrics default to **`full`**. On a **`minimal`** deployment, they are **not** recorded unless you opt them in under **`metrics.user_metrics`**.
+**Defaults when a metric is not listed under `user_metrics[]`:**
 
-`metrics.inc` still succeeds when a metric is filtered out — increments are dropped silently at export (no script error).
+| Active plan | Default for unlisted script metrics |
+|-------------|-------------------------------------|
+| **`base: standard`** (fine granularity) | collect + emit **on** |
+| **`base: minimal`** (coarse granularity) | collect + emit **off** |
+
+On **`minimal`**, unlisted script metrics default to collect and emit **off**. Scripts may still call `metrics.inc` / `metrics.inc_labels`; increments **no-op** (same as a built-in category with collect off). Validate and apply **succeed** and emit a **warning** that lists the script path and line. List each metric under **`metrics.user_metrics`** with collect (and usually emit) on when you want them recorded and scraped — or use **`base: standard`**.
 
 ### Config overrides
 
 ```yaml
 metrics:
   enabled: true
-  profile: minimal
+  base: minimal
   user_metrics:
     - name: block_hits
-      export: minimal
+      help: Policy block hits by category
+      collect: true
+      emit: true
 ```
 
 | Field | Meaning |
 |-------|---------|
 | `name` | Metric name from `metrics.inc` (without `conduit_user_` prefix) |
-| `export` | **`minimal`** or **`full`** (empty = **`full`**) |
+| `help` | Optional Prometheus HELP / OTel description; omit for the default **"Rhai user-defined metric"** |
+| `collect` / `emit` | Preferred controls (see table above) |
+| `export` | **Deprecated** alias: **`minimal`** → collect+emit always on; **`full`** → collect+emit only on a standard-tier plan |
 
 Validation:
 
 - Each `name` must match a metric registered by at least one Rhai script at compile time.
 - Duplicate `name` entries are rejected.
 - Unknown names fail snapshot build (`conduitctl validate`).
+- Collect or emit off while scripts still write the metric is allowed; Conduit warns (script path listed). Future read APIs will reject collect-off while they still reference the metric.
 
-Fixture: `tests/fixtures/config/with-rhai-block-hits-minimal-export.yaml`.
+Prefer **`base: standard`** (or an explicit **`user_metrics`** collect override) for labs that scrape `conduit_user_*` series. Details: [Metrics configurability](/observability/metrics-configurability.md).
 
 ## Export path
 
-When `metrics.enabled` is true, successful hook runs flush allowed user-metric deltas into the process-wide user registry. [Prometheus scrape](/observability/metrics.md) and [OTEL push](/observability/metrics.md) include `conduit_user_*` series alongside built-ins.
+When `metrics.enabled` is true, successful hook runs flush **collecting** user-metric deltas into the process-wide user registry. [Prometheus scrape](/observability/metrics.md) and [OTEL push](/observability/metrics.md) include `conduit_user_*` series that also have **emit** true, alongside built-ins. Optional **`help`** on `user_metrics[]` sets the Prometheus `# HELP` line and the OTel instrument description (same string on both sinks); the metric **name** stays `conduit_user_<name>`.
 
-Recording does not require an export listener — counters accumulate in memory. Configure `prometheus` and/or `otel` to observe them externally.
+Recording does not require an export listener — counters accumulate in memory when collect is true. Configure `prometheus` and/or `otel` to observe them externally.
 
 ## Examples
 
-| Script | Config | Notes |
-|--------|--------|-------|
-| `block-hits.rhai` | `with-rhai-block-hits.yaml` | `block_hits` with `category` label; **`full`** profile |
-| `block-hits.rhai` | `with-rhai-block-hits-minimal-export.yaml` | `block_hits` opted into **`minimal`** |
-| `slow-login-alert.rhai` | `with-rhai-slow-login.yaml` | `slow_login` when `txn.last_forward_ms() > 500` |
+| Script | Config intent | Notes |
+|--------|---------------|-------|
+| `block-hits.rhai` | `base: standard` | `block_hits` with `category` label; default collect+emit |
+| `block-hits.rhai` | `base: minimal` + `user_metrics` collect true | `block_hits` opted in on a minimal base |
+| `slow-login-alert.rhai` | `base: standard` | `slow_login` when `txn.last_forward_ms() > 500` |
 
 ## Cache hits and on_hit skip { #cache-hits-and-on_hit-skip }
 
@@ -93,6 +105,7 @@ See [DNS answer cache — on_hit tradeoff](/guides/dns-answer-cache.md#on_hit-re
 
 ## Related topics
 
+- [Metrics configurability](/observability/metrics-configurability.md) — bases, collect/emit, collect-off warnings
 - [Built-in metrics — User metrics](/observability/built-in-metrics.md#user-metrics-rhai)
 - [Host API overview](/rhai/host-api.md) — **`metrics`** vs **`txn`**
 - [Config schema: metrics](/reference/config-schema/metrics-and-tracing.md)

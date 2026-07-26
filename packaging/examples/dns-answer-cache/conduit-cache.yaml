@@ -1,0 +1,22 @@
+# Lab example for the DNS answer cache guide (full runnable form).
+# Default ports: DNS 15353; upstream :5300.
+schema_version: 1
+listeners:
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+pools:
+  - name: default
+    backends:
+      - address: "127.0.0.1:5300"
+caches:
+  - name: global
+    type: memory
+    max_entries: 100000
+lookup:
+  profiles:
+    default:
+      providers:
+        - type: cache
+          cache: global
+        - type: forward

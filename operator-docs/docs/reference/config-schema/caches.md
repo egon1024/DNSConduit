@@ -1,6 +1,6 @@
 # Config schema: caches
 
-Field reference for the top-level **`caches:`** list — named in-memory DNS answer cache instances referenced by **cache** providers in [Reference: lookup](/reference/config-schema/lookup.md). For behavior — hit path, negative cache, single-flight, and `on_hit` — see [DNS answer cache](/guides/dns-answer-cache.md).
+This page lists the fields for the top-level **`caches:`** list — named in-memory DNS answer cache instances referenced by **cache** providers in [Reference: lookup](/reference/config-schema/lookup.md). For behavior — hit path, negative cache, single-flight, and `on_hit` — see [DNS answer cache](/guides/dns-answer-cache.md).
 
 ## `caches`
 

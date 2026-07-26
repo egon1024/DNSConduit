@@ -1,0 +1,56 @@
+schema_version: 1
+listeners:
+  threads: 2
+  reuse_port: true
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+forward:
+  outstanding_per_backend: 100
+  timeout_ms: 2000
+orchestrator:
+  max_attempts: 3
+  max_txn_duration_ms: 5000
+  txn_table_capacity: 1024
+events:
+  queue_depth: 4096
+  drop_policy: drop_oldest
+rhai:
+  max_operations: 10000
+  max_call_depth: 32
+  hook_timeout_ms: 50
+data_sources:
+  - name: geo
+    type: csv
+    path: ../data/geo.csv
+    key_column: qname
+    value_column: region
+pools:
+  - name: default
+    backends:
+      - address: "127.0.0.1:15300"
+        weight: 100
+control:
+  listen_address: "127.0.0.1:5199"
+metrics:
+  enabled: true
+  base: standard
+  user_metrics:
+    - name: block_hits
+      help: Policy block hits by category
+      collect: true
+      emit: true
+  prometheus:
+    listen_address: "127.0.0.1:19090"
+    path: /metrics
+rules:
+  match_mode: first_match
+  rules:
+    - name: geo-metrics
+      hook: request
+      selectors:
+        - type: qname_suffix
+          value: ".example."
+      actions:
+        - type: rhai
+          value: ../rhai/block-hits.rhai

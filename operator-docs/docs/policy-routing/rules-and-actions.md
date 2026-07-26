@@ -428,6 +428,8 @@ Full validation rules: [Reference: rules](/reference/config-schema/rules.md).
 - [Architecture and packet path](/concepts/architecture-and-packet-path.md) — [Request rules](/concepts/architecture-and-packet-path.md#request-rules) and [Response rules](/concepts/architecture-and-packet-path.md#response-rules) in the pipeline
 - [Pools and backends](/policy-routing/pools-and-backends.md) — `set_pool`, default pool, backend weights
 - [Retries and transactions](/policy-routing/retries-and-transactions.md) — [Pool selection lifecycle](/policy-routing/retries-and-transactions.md#pool-selection-lifecycle), `set_retry_pool`, `retry`, attempt limits; full request/response rule examples
+- [Rule action order](/guides/rule-action-order.md) — soft vs hard drop, list order, first-forward ignore of `set_retry_pool`
+- [Declarative failover](/guides/declarative-failover.md) — SERVFAIL / timeout failover without Rhai
 - [Event export](/observability/event-export.md) — request `set_tag` plus sink filters
 - [Tracing](/observability/tracing.md) — `activation.sample_percent` and selectors without a matching rule
 - [Dual-stack forwarding](/guides/dual-stack-forwarding.md) — `set_source_v4` / `set_source_v6`

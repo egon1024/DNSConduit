@@ -69,15 +69,15 @@ cd "conduit-${VERSION}"
 ls -l
 ```
 
-The directory contains `conduit`, `conduitctl`, `conduit-dnstap-tracer`, `LICENSE`, `conduit.minimal.yaml`, and `conduit.reference.yaml`.
+The directory contains `conduit`, `conduitctl`, `conduit-dnstap-tracer`, `LICENSE`, and an **`examples/`** tree (minimal and reference YAML plus guide lab configs).
 
 Run with a config file (first argument is the YAML path only):
 
 ```bash
-./conduit conduit.minimal.yaml
+./conduit examples/conduit.minimal.yaml
 ```
 
-Edit the pool backend address in the minimal file before expecting successful forwarding. For a full field reference, see `conduit.reference.yaml` and [Reference: config schema](/reference/config-schema/index.md).
+Edit the pool backend address in the minimal file before expecting successful forwarding. For a full field reference, see `examples/conduit.reference.yaml` and [Reference: config schema](/reference/config-schema/index.md). Guide walkthroughs that ship a primary lab config also appear under `examples/<guide>/` (for example `examples/backend-health/`).
 
 ## Install from .deb (production)
 
@@ -92,8 +92,8 @@ The package:
 
 - Installs binaries to `/usr/bin/`
 - Creates system user and group **`conduit`**
-- Installs **`/etc/conduit/conduit.yaml`** (conffile — preserved on upgrade)
-- Installs examples under **`/usr/share/doc/conduit/examples/`**
+- Installs **`/etc/conduit/conduit.yaml`** (conffile — preserved on upgrade; copy of the minimal example)
+- Installs examples under **`/usr/share/doc/conduit/examples/`** — minimal and reference YAML plus primary lab configs for the [Guides](/guides/index.md) that ship a full runnable sample (see `examples/README.md` in that directory)
 - **Enables** `conduit.service` but does **not** start it
 
 Edit the config, then start the service:
@@ -126,7 +126,7 @@ cd DNSConduit
 cargo build --release -p conduit -p conduitctl -p conduit-dnstap-tracer
 ```
 
-Binaries are in `target/release/`. Example configs for packaging live in `packaging/examples/`.
+Binaries are in `target/release/`. Packaged example configs (minimal, reference, and guide labs) live in `packaging/examples/` and are what release tarballs and the production `.deb` install under `examples/`.
 
 ## Validate before run
 

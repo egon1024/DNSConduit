@@ -1,6 +1,6 @@
 # Config schema: forward
 
-Field reference for the top-level **`forward:`** block — upstream transport, timeouts, concurrency limits, and global egress source addresses. For behavior — how Conduit binds when forwarding, transport fallback, and rule overrides — see [Architecture and packet path — Forward](/concepts/architecture-and-packet-path.md#forward) and [Dual-stack forwarding](/guides/dual-stack-forwarding.md).
+This page lists the fields for the top-level **`forward:`** block — upstream transport, timeouts, concurrency limits, and global egress source addresses. For behavior — how Conduit binds when forwarding, transport fallback, and rule overrides — see [Architecture and packet path — Forward](/concepts/architecture-and-packet-path.md#forward) and [Dual-stack forwarding](/guides/dual-stack-forwarding.md).
 
 Per-pool egress overrides are described in [Reference: pools](/reference/config-schema/pools.md) (`sources_v4` / `sources_v6`).
 

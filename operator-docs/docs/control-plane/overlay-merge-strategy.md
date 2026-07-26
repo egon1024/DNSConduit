@@ -1,8 +1,6 @@
 # Overlay merge strategy
 
-How Conduit merges an [overlay](/glossary/index.md#overlay) patch into the [file layer](/glossary/index.md#file-layer). Most top-level sections use **section replace**; a few surfaces use **deep merge** with documented list and match-by-name rules.
-
-Background: [Configuration model](/control-plane/configuration-model.md). Apply workflows: [Reload and export](/control-plane/reload-and-export.md).
+Conduit merges a configuration [overlay](/glossary/index.md#overlay) into the on-disk [file layer](/glossary/index.md#file-layer) using **section replace** for most top-level configuration keys; a few surfaces use **deep merge** with documented list and match-by-name rules. For how layers fit together, see [Configuration model](/control-plane/configuration-model.md); for apply and reload steps, see [Reload and export](/control-plane/reload-and-export.md).
 
 ## Section replace (default)
 
@@ -48,11 +46,94 @@ metrics:
 conduitctl apply --file metrics-exclude-timing.yaml
 ```
 
+## Examples
+
+### A complete overlay document
+
+An overlay is ordinary Conduit YAML with **`schema_version`** and only the top-level keys you intend to change. Omitted keys leave the [file layer](/glossary/index.md#file-layer) alone. Here a single apply lowers one backend’s weight and raises orchestrator retry budget:
+
+```yaml
+schema_version: 1
+pools:
+  - name: default
+    backends:
+      - address: "10.0.0.1:53"
+        weight: 10
+orchestrator:
+  max_attempts: 5
+  max_txn_duration_ms: 8000
+  txn_table_capacity: 2048
+```
+
+```bash
+conduitctl apply --file maintenance-overlay.yaml
+```
+
+**`pools`** uses match-by-name (only the listed backend fields update). **`orchestrator`** is **section replace** — the overlay must carry every orchestrator field you want to keep from the file layer (see below). Confirm with **`conduitctl export`**. Drop the overlay later with **`conduitctl apply --clear`** or [reload from disk](/glossary/index.md#reload-from-disk).
+
+### Unintentional clobber (section replace)
+
+Suppose the on-disk file already tunes more than retry count:
+
+```yaml
+# fragment of the file layer
+orchestrator:
+  max_attempts: 3
+  max_txn_duration_ms: 8000
+  txn_table_capacity: 2048
+```
+
+An operator who only wants a higher retry count might apply:
+
+```yaml
+schema_version: 1
+orchestrator:
+  max_attempts: 5
+```
+
+Because **`orchestrator`** is section replace, that patch becomes the **entire** effective orchestrator block. **`max_txn_duration_ms`** and **`txn_table_capacity`** fall back to built-in defaults (**5000** and **1024**), not the file-layer values — even though those keys were never mentioned in the patch.
+
+The same trap applies to other section-replace surfaces (`listeners`, `forward`, `events`, `rhai`, `control`, `logging`, and a non-empty **`data_sources`** list). Sparse patches are safe only when omitting a **top-level** key; within a replaced section, omitted nested keys are not “keep file.”
+
+### Augment a section safely (export, mutate, apply)
+
+For section-replace topics, treat the overlay section as a full replacement: start from what is already effective, change only what you need, and send the whole section back.
+
+**1 — Export** the running [effective config](/glossary/index.md#effective-config):
+
+```bash
+conduitctl export --output /tmp/conduit-effective.yaml
+```
+
+**2 — Copy** the section you will change (here **`orchestrator:`**) into a new patch file. Keep **`schema_version: 1`**. Leave every other top-level key out of the patch so those file-layer sections stay untouched.
+
+**3 — Edit** only the fields you intend to change, leaving the rest of the section as exported:
+
+```yaml
+schema_version: 1
+orchestrator:
+  max_attempts: 5          # raised
+  max_txn_duration_ms: 8000
+  txn_table_capacity: 2048
+```
+
+**4 — Apply** and verify:
+
+```bash
+conduitctl apply --file orchestrator-augmented.yaml
+conduitctl export | grep -A5 '^orchestrator:'
+```
+
+Export may omit fields that equal built-in defaults — that is normal normalization, not a missing setting. See [Reload and export — export](/control-plane/reload-and-export.md#export-effective-configuration).
+
+**`metrics`** is the usual exception: deep merge lets you send a sparse nested patch (as in [Metrics deep merge](#metrics-deep-merge)) without rewriting sibling maps. **`pools`** patches update matched pools/backends without replacing the whole list.
+
 ## Choosing a strategy as an operator
 
-- Prefer **sparse overlays** that only set the keys you intend to change.
-- For **section-replace** topics, include the full section you want effective (missing nested keys are not “keep file” — the overlay section replaces the file section).
+- Prefer **sparse overlays** that only set the **top-level** keys you intend to change.
+- For **section-replace** topics, include the **full section** you want effective — use [export, mutate, apply](#augment-a-section-safely-export-mutate-apply) when augmenting an existing section. Missing nested keys are not “keep file.”
 - For **`metrics`**, nested maps keep file-layer siblings; lists under `categories` replace only when you send that list key.
+- For **`pools`**, match-by-name patches can stay sparse at the backend field level; see [Configuration model — pools](/control-plane/configuration-model.md#how-file-and-overlay-merge).
 
 ## Related topics
 

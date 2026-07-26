@@ -40,8 +40,9 @@ pub use compile::{
     CompiledMetrics, CompiledTraceActivation, CompiledTracing,
 };
 pub use consumer::{
-    check_consumer_dependencies, conduit_user_metric_name, ConsumerKind, MetricConsumerGraph,
-    MetricConsumerRef, SidecarConsumerRegistry, WasmConsumerRegistry,
+    check_consumer_dependencies, conduit_user_metric_name, is_write_consumer_symbol,
+    ConsumerDependencyReport, ConsumerKind, MetricConsumerGraph, MetricConsumerRef,
+    SidecarConsumerRegistry, WasmConsumerRegistry,
 };
 pub use export::{gather_prometheus_families, render_prometheus};
 pub use export_controller::{
@@ -59,7 +60,7 @@ pub use prometheus_http::{spawn_prometheus_server, PrometheusServer};
 pub use store::{MetricStore, SeriesIdentity};
 pub use task::{OtelPushHandle, PrometheusServerHandle};
 pub use trace::{TraceEvent, TraceLog, TraceStore};
-pub use user::{UserMetricDelta, UserRegistry};
+pub use user::{UserMetricDelta, UserRegistry, DEFAULT_USER_METRIC_HELP};
 
 /// `reason` label values for [`BuiltinRegistry::record_script_error`].
 pub const SCRIPT_ERROR_LOOKUP_UNKNOWN_TABLE: &str = "lookup_unknown_table";
@@ -162,7 +163,10 @@ impl MetricsHub {
             &compiled.plan,
             &store,
         ));
-        let user = Arc::new(UserRegistry::new(compiled.enabled));
+        let user = Arc::new(UserRegistry::new_with_helps(
+            compiled.enabled,
+            compiled.plan.user_helps(),
+        ));
         let hot = HotMetrics {
             builtin,
             user,
@@ -191,7 +195,10 @@ impl MetricsHub {
             &compiled.plan,
             &self.store,
         ));
-        let user = Arc::new(UserRegistry::new(compiled.enabled));
+        let user = Arc::new(UserRegistry::new_with_helps(
+            compiled.enabled,
+            compiled.plan.user_helps(),
+        ));
 
         // Re-apply scrape snapshot function to the new builtin registry.
         if let Some(f) = self.scrape_fn.read().clone() {

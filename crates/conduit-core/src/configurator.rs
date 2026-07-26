@@ -859,7 +859,7 @@ pools:
     }
 
     #[tokio::test]
-    async fn apply_rejects_collect_removal_while_script_references_metric() {
+    async fn apply_accepts_collect_off_while_script_references_metric() {
         use conduit_proto::config::{MetricsConfig, UserMetricExportConfig};
 
         let yaml = include_str!("../../../tests/fixtures/config/metrics-consumer-blat-base.yaml");
@@ -889,6 +889,7 @@ pools:
                     export: String::new(),
                     collect: Some(false),
                     emit: Some(false),
+                    help: String::new(),
                 }],
                 ..Default::default()
             }),
@@ -897,16 +898,11 @@ pools:
         let result = handle
             .apply_overlay(Some(patch), OverlayApplyMode::Merge, None)
             .await;
-        assert!(!result.ok, "expected consumer dependency rejection");
-        let joined = result.errors.join("\n");
         assert!(
-            joined.contains("cannot stop collecting metric \"blat\""),
-            "errors: {joined}"
+            result.ok,
+            "collect-off write sites must apply; errors: {}",
+            result.errors.join("\n")
         );
-        assert!(
-            joined.contains("consumer-blat.rhai") || joined.contains("blat"),
-            "errors should list script path: {joined}"
-        );
-        assert_eq!(store.generation(), gen0);
+        assert!(store.generation() > gen0);
     }
 }

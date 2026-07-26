@@ -1,6 +1,6 @@
 # Tracing
 
-Optional per-query **[pipeline traces](/glossary/index.md#pipeline-trace)** for the [dataplane](/glossary/index.md#dataplane): which [phases](/concepts/architecture-and-packet-path.md#pipeline-phases) ran, cumulative elapsed time, and selected pool/backend at each step. Tracing is **off by default** — when disabled, Conduit does not allocate trace buffers on the query path.
+Tracing records optional per-query **[pipeline traces](/glossary/index.md#pipeline-trace)** for the [dataplane](/glossary/index.md#dataplane): which [phases](/concepts/architecture-and-packet-path.md#pipeline-phases) ran, cumulative elapsed time, and selected pool/backend at each step. Tracing is **off by default** — when disabled, Conduit does not allocate trace buffers on the query path.
 
 Use tracing when you need to debug routing, forwarding, or retries on **specific** queries. For aggregate volume and latency, use [Metrics](/observability/metrics.md). For wire-level query/response export to a collector, use [Event export](/observability/event-export.md).
 

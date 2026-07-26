@@ -1,6 +1,6 @@
 # Config schema: health
 
-Field reference for the optional `health:` block on a [pool](/glossary/index.md#pool) and per-[backend](/glossary/index.md#backend) probe overrides. For behavior — probes, passive fast-trip, Route eligibility, operator controls — see [Backend health](/policy-routing/backend-health.md).
+This page lists the fields for the optional `health:` block on a [pool](/glossary/index.md#pool) and per-[backend](/glossary/index.md#backend) probe overrides. For behavior — probes, passive fast-trip, Route eligibility, operator controls — see [Backend health](/policy-routing/backend-health.md).
 
 ## Location
 

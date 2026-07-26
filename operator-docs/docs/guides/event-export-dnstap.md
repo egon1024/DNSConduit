@@ -1,6 +1,6 @@
 # Event export and dnstap
 
-End-to-end lab setup: export per-query DNS observation as [dnstap](/glossary/index.md#dnstap) frames using **`conduit-dnstap-tracer`** as a local collector. This verifies [event export](/observability/event-export.md) wiring in development — production deployments use your own framestream-compatible collector instead of the tracer.
+This guide is an end-to-end lab: export per-query DNS observation as [dnstap](/glossary/index.md#dnstap) frames using **`conduit-dnstap-tracer`** as a local collector. This verifies [event export](/observability/event-export.md) wiring in development — production deployments use your own framestream-compatible collector instead of the tracer.
 
 **Prerequisites:** `conduit` and **`conduit-dnstap-tracer`** built or installed ([Install and run](/getting-started/install-and-run.md)); an upstream DNS listener on **`127.0.0.1:5300`** (or adjust the pool backend below).
 
@@ -112,7 +112,7 @@ In **terminal A**, expect **two** frames (query + response) with message types *
 ## What to do next
 
 - [Metrics and tracing](/guides/metrics-and-tracing.md) — aggregate metrics and pipeline traces
-- [Operator metrics profiles](/guides/operator-metrics-profiles.md) — **`minimal`** vs **`full`** scrape comparison
+- [Operator metrics bases](/guides/operator-metrics-bases.md) — **`minimal`** vs **`standard`** scrape comparison
 - Symptom help — [Troubleshooting — Event export](/troubleshooting/index.md#observability)
 
 ## Related topics

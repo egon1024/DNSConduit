@@ -1,6 +1,6 @@
 # Config schema: data sources
 
-Field reference for the optional top-level **`data_sources:`** list and **`data_source_limits:`** block. For CSV / CIDR file formats, load-safety limits, and reload semantics, see [Data sources](/policy-routing/data-sources.md); for `lookup(table, key)` / `lookup_ip(name, addr)` behavior and patterns, see [Rhai lookups](/rhai/data-sources-and-lookups.md).
+This page lists the fields for the optional top-level **`data_sources:`** list and **`data_source_limits:`** block. For CSV / CIDR file formats, load-safety limits, and reload semantics, see [Data sources](/policy-routing/data-sources.md); for `lookup(table, key)` / `lookup_ip(name, addr)` behavior and patterns, see [Rhai lookups](/rhai/data-sources-and-lookups.md).
 
 These tables feed **`lookup(table, key)`** (CSV) and **`lookup_ip(name, addr)`** (CIDR) in Rule Rhai, and named CIDR views for [Client ACLs](/policy-routing/client-acls.md). They are **not** the [Lookup](/concepts/architecture-and-packet-path.md#lookup) pipeline phase. See [Glossary — Lookup vs lookup(table, key)](/glossary/index.md#lookup-vs-lookuptable-key).
 

@@ -1,6 +1,6 @@
 # Metrics and tracing
 
-End-to-end lab setup: enable built-in [metrics](/observability/metrics.md) (Prometheus scrape), optional [pipeline tracing](/observability/tracing.md), and the [control plane](/glossary/index.md#control-plane) so you can fetch traces with `conduitctl trace`. This guide does not cover [event export](/observability/event-export.md) or OTEL push — see [Metrics](/observability/metrics.md) for OTLP configuration.
+This guide is an end-to-end lab: enable built-in [metrics](/observability/metrics.md) (Prometheus scrape), optional [pipeline tracing](/observability/tracing.md), and the [control plane](/glossary/index.md#control-plane) so you can fetch traces with `conduitctl trace`. This guide does not cover [event export](/observability/event-export.md) or OTEL push — see [Metrics](/observability/metrics.md) for OTLP configuration.
 
 **Prerequisites:** Conduit built and on your `PATH`; an upstream DNS listener on **`127.0.0.1:5300`** (or adjust the pool backend below). Follow [Install and run](/getting-started/install-and-run.md) if you have not started Conduit yet.
 
@@ -28,7 +28,7 @@ control:
   listen_address: "127.0.0.1:5199"
 metrics:
   enabled: true
-  profile: full
+  base: standard
   prometheus:
     listen_address: "127.0.0.1:9090"
     path: /metrics
@@ -67,8 +67,8 @@ conduit /path/to/conduit-obs-lab.yaml
 
 Confirm startup in the log: **`dataplane startup summary`**, listener on **`15353`**, and no bind errors for **`9090`** or **`5199`**.
 
-!!! note "Restart after observability changes"
-    Metrics export listeners and tracing activation are established at **process start**. If you change `metrics:`, `tracing:`, or add `control:` later, **restart** Conduit — reload alone does not rebind scrape or recompile tracing. See [Observability — Changing observability config](/observability/index.md#changing-observability-config).
+!!! note "Observability changes"
+    Pipeline **`tracing:`** activation is established at process start — change it with a **restart**. **`metrics:`** plan knobs (base, categories, collect/emit, granularity) and Prometheus listen address apply live via reload or overlay — [Metrics beyond bases](/guides/metrics-beyond-bases.md), [Metrics configurability — Overlay](/observability/metrics-configurability.md#overlay-and-live-apply).
 
 ## 3. Smoke-test metrics
 
@@ -84,7 +84,7 @@ Send a query:
 dig @127.0.0.1 -p 15353 +time=3 lab.example.com A
 ```
 
-Scrape again and look for query counters (names depend on profile — **`full`** includes `qtype` labels):
+Scrape again and look for query counters (names depend on base — **`standard`** includes `qtype` labels):
 
 ```bash
 curl -sS "http://127.0.0.1:9090/metrics" | grep conduit_queries
@@ -109,12 +109,13 @@ Traces are stored in memory (**5 minute** TTL, **1000** entry cap). Activation m
 | Check | Command / action |
 |-------|------------------|
 | Config generation gauge | `curl -sS http://127.0.0.1:9090/metrics \| grep conduit_config_generation` |
-| Phase histograms (**`full`** profile) | `grep conduit_phase_duration` on scrape output after several queries |
+| Phase histograms (**`base: standard`**) | `grep conduit_phase_duration` on scrape output after several queries |
 | JSON trace on stderr | Set `tracing.output.log_json: true`, restart, send a matching query; look for `conduit::trace` at **`info`** |
 
 ## What to do next
 
-- Compare **`minimal`** vs **`full`** profiles — [Operator metrics profiles](/guides/operator-metrics-profiles.md)
+- Compare **`minimal`** vs **`standard`** bases — [Operator metrics bases](/guides/operator-metrics-bases.md)
+- Trim categories, collect/emit, and granularity — [Metrics beyond bases](/guides/metrics-beyond-bases.md)
 - Add [dnstap event export](/guides/event-export-dnstap.md) for wire-level taps
 - Add OTEL push under `metrics.otel` — [Metrics — OTEL](/observability/metrics.md#enabling-export)
 - Symptom help — [Troubleshooting — Observability](/troubleshooting/index.md#observability)

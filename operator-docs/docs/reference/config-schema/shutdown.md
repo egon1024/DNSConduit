@@ -1,6 +1,6 @@
 # Config schema: shutdown
 
-Field reference for the top-level **`shutdown:`** block — how Conduit drains in-flight [transactions](/glossary/index.md#transaction) when the process is asked to stop. For the behavior in context, see [Runtime and concurrency — Graceful drain on shutdown](/concepts/runtime-and-concurrency.md#graceful-drain-on-shutdown).
+This page lists the fields for the top-level **`shutdown:`** block — how Conduit drains in-flight [transactions](/glossary/index.md#transaction) when the process is asked to stop. For the behavior in context, see [Runtime and concurrency — Graceful drain on shutdown](/concepts/runtime-and-concurrency.md#graceful-drain-on-shutdown).
 
 ## `shutdown`
 

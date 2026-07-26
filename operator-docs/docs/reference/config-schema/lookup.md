@@ -1,6 +1,6 @@
 # Config schema: lookup
 
-Field reference for the top-level **`lookup:`** block — named **lookup profiles** and ordered **providers** that produce DNS answers after [Request rules](/concepts/architecture-and-packet-path.md#request-rules). For behavior — provider chain, cache hits, and retry re-entry — see [Architecture and packet path — Lookup](/concepts/architecture-and-packet-path.md#lookup) and [DNS answer cache](/guides/dns-answer-cache.md).
+This page lists the fields for the top-level **`lookup:`** block — named **lookup profiles** and ordered **providers** that produce DNS answers after [Request rules](/concepts/architecture-and-packet-path.md#request-rules). For behavior — provider chain, cache hits, and retry re-entry — see [Architecture and packet path — Lookup](/concepts/architecture-and-packet-path.md#lookup) and [DNS answer cache](/guides/dns-answer-cache.md).
 
 Cache instance fields are described in [Reference: caches](/reference/config-schema/caches.md).
 

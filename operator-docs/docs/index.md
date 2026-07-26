@@ -9,7 +9,4 @@ Use the **[Versions](https://egon1024.github.io/DNSConduit/versions/)** page to 
 DNS Conduit is licensed under the [Apache License, Version 2.0](license.md).
 
 !!! note "AI-assisted development"
-    This project was built with extensive assistance from AI tools. Some operators
-    and contributors prefer software written without that involvement — a view I can 
-    respect. That said, I am not seeking to change how DNS Conduit is developed, and I will
-    not be engaging in arguments about that decision.
+    This project was built with extensive assistance from AI tools. Some operators and contributors prefer software written without that involvement — a view I can respect, even if I don't agree with it. I am not currently planning to reevaluate how DNS Conduit is developed, and I will not engage in arguments about that decision.

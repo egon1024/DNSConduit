@@ -1,0 +1,44 @@
+# Lab example for the Declarative failover guide.
+# Default ports: DNS 15353, metrics 9090; dead :5399, live :5300.
+schema_version: 1
+listeners:
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+forward:
+  timeout_ms: 500
+orchestrator:
+  max_attempts: 3
+  max_txn_duration_ms: 5000
+pools:
+  - name: primary
+    backends:
+      - address: "127.0.0.1:5399"
+        name: dead
+  - name: secondary
+    backends:
+      - address: "127.0.0.1:5300"
+        name: live
+rules:
+  match_mode: first_match
+  rules:
+    - name: prefer-primary
+      hook: request
+      selectors: []
+      actions:
+        - type: set_pool
+          value: primary
+        - type: set_retry_pool
+          value: secondary
+    - name: servfail-failover
+      hook: response
+      selectors:
+        - type: rcode
+          value: SERVFAIL
+      actions:
+        - type: retry
+metrics:
+  enabled: true
+  base: minimal
+  prometheus:
+    listen_address: "127.0.0.1:9090"

@@ -5,7 +5,7 @@ toc_collapsible: true
 
 # Glossary
 
-Brief definitions of terminology used in this documentation. Each entry links to the canonical topic page for detail.
+This glossary gives brief definitions of terminology used in this documentation. Each entry links to the canonical topic page for detail.
 
 When writing other pages, link here often — for example `[overlay](/glossary/index.md#overlay)` or `[Rhai](/rhai/index.md)`.
 

@@ -1,8 +1,6 @@
 # DNS answer cache
 
-Optional in-memory DNS answer caching stores upstream response wire bytes and serves repeat queries without a forward attempt. This guide covers when to enable caching, how hits and misses flow through the pipeline, and policy interactions with [Response rules](/concepts/architecture-and-packet-path.md#response-rules) and [Rhai](/rhai/index.md).
-
-Field reference: [Reference: caches](/reference/config-schema/caches.md), [Reference: lookup](/reference/config-schema/lookup.md). Pipeline placement: [Architecture and packet path — Lookup](/concepts/architecture-and-packet-path.md#lookup).
+Optional in-memory DNS answer caching stores upstream response wire bytes and serves repeat queries without a forward attempt. This guide covers when to enable caching, how hits and misses flow through the [Lookup](/concepts/architecture-and-packet-path.md#lookup) phase, and policy interactions with [Response rules](/concepts/architecture-and-packet-path.md#response-rules) and [Rhai](/rhai/index.md). Exact fields are in [Reference: caches](/reference/config-schema/caches.md) and [Reference: lookup](/reference/config-schema/lookup.md).
 
 ## When to enable caching
 
@@ -16,7 +14,18 @@ Caching is **in-memory only**. Entries are lost on process restart. **`max_entri
 
 ## Minimal cache-enabled config
 
+Save as `conduit-cache.yaml` (or use the packaged copy under `/usr/share/doc/conduit/examples/dns-answer-cache/` after install):
+
 ```yaml
+schema_version: 1
+listeners:
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+pools:
+  - name: default
+    backends:
+      - address: "127.0.0.1:5300"
 caches:
   - name: global
     type: memory
@@ -33,7 +42,7 @@ lookup:
 Validate before reload:
 
 ```bash
-conduitctl validate --file /path/to/config.yaml
+conduitctl validate --file conduit-cache.yaml
 ```
 
 ## Hit and miss path

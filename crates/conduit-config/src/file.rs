@@ -721,6 +721,9 @@ pub(crate) struct YamlUserMetricExport {
     collect: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     emit: Option<bool>,
+    /// Prometheus HELP / OTel description; empty means default at export.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    help: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -1113,6 +1116,7 @@ impl From<YamlMetrics> for MetricsConfig {
                     export: u.export,
                     collect: u.collect,
                     emit: u.emit,
+                    help: u.help,
                 })
                 .collect(),
             base: y.base,
@@ -1742,6 +1746,7 @@ impl From<&MetricsConfig> for YamlMetrics {
                     export: u.export.clone(),
                     collect: u.collect,
                     emit: u.emit,
+                    help: u.help.clone(),
                 })
                 .collect(),
             base: m.base.clone(),

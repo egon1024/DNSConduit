@@ -4,12 +4,20 @@ use crate::compile::BuiltinProfile;
 use crate::labels::{ip_family_label, qclass_label, qtype_label, rcode_class_label, rcode_label};
 use parking_lot::RwLock;
 use prometheus::{
-    Encoder, Gauge, GaugeVec, HistogramOpts, HistogramVec, IntCounter, IntCounterVec, IntGauge,
-    Opts, Registry, TextEncoder,
+    Counter, Encoder, Gauge, GaugeVec, HistogramOpts, HistogramVec, IntCounter, IntCounterVec,
+    IntGauge, Opts, Registry, TextEncoder,
 };
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::sync::{Arc, OnceLock};
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
+
+/// Monotonic process start for [`conduit_uptime_seconds`]. Survives
+/// [`BuiltinRegistry`] rebuilds on metrics plan hot-swap (unlike a per-registry
+/// `Instant::now()` at construction).
+fn process_started_at() -> Instant {
+    static START: OnceLock<Instant> = OnceLock::new();
+    *START.get_or_init(Instant::now)
+}
 
 /// Cumulative histogram upper bounds (seconds) for upstream forward RTT.
 fn forward_duration_buckets() -> Vec<f64> {
@@ -253,9 +261,15 @@ pub struct BuiltinRegistry {
     build_info: IntGauge,
     #[allow(dead_code)]
     start_time_seconds: Gauge,
+    uptime_seconds: Gauge,
     config_generation: Gauge,
     process_resident_bytes: Option<Gauge>,
     process_open_fds: Option<Gauge>,
+    process_max_fds: Option<Gauge>,
+    process_threads: Option<Gauge>,
+    process_cpu_seconds_total: Option<Counter>,
+    /// Last observed CPU time in microseconds (for scrape deltas into the counter).
+    last_cpu_micros: AtomicU64,
     scrape_fn: RwLock<Option<ScrapeSnapshotFn>>,
 }
 
@@ -271,6 +285,7 @@ impl BuiltinRegistry {
         let health_enabled = enabled && profile == BuiltinProfile::Full;
         // Legacy `minimal` omits timing hot-path recording (today's profile split).
         let collect_timing = profile == BuiltinProfile::Full;
+        let collect_process = enabled && profile == BuiltinProfile::Full;
         let schemas = FamilyLabelSchemas::for_legacy_profile(profile);
         Self::new_internal(
             enabled,
@@ -279,6 +294,7 @@ impl BuiltinRegistry {
             true,
             true,
             collect_timing,
+            collect_process,
             schemas,
             None, // ephemeral store
         )
@@ -326,6 +342,7 @@ impl BuiltinRegistry {
         let collect_volume = plan.collect_for(MetricCategory::Volume);
         let collect_failures = plan.collect_for(MetricCategory::Failures);
         let collect_timing = plan.collect_for(MetricCategory::Timing);
+        let collect_process = plan.collect_for(MetricCategory::Process);
         let schemas = FamilyLabelSchemas::from_plan(plan);
         Self::new_internal(
             enabled,
@@ -334,6 +351,7 @@ impl BuiltinRegistry {
             collect_volume,
             collect_failures,
             collect_timing,
+            collect_process,
             schemas,
             store,
         )
@@ -347,6 +365,7 @@ impl BuiltinRegistry {
         collect_volume: bool,
         collect_failures: bool,
         collect_timing: bool,
+        collect_process: bool,
         schemas: FamilyLabelSchemas,
         store: Option<&std::sync::Arc<crate::MetricStore>>,
     ) -> Self {
@@ -688,6 +707,13 @@ impl BuiltinRegistry {
             .unwrap_or(0.0);
         start_time_seconds.set(start_unix);
 
+        let uptime_seconds = Gauge::with_opts(Opts::new(
+            "conduit_uptime_seconds",
+            "Seconds since process start (monotonic clock)",
+        ))
+        .expect("metric");
+        uptime_seconds.set(process_started_at().elapsed().as_secs_f64());
+
         let config_generation = Gauge::with_opts(Opts::new(
             "conduit_config_generation",
             "Active configuration generation",
@@ -700,6 +726,9 @@ impl BuiltinRegistry {
             .expect("register");
         registry
             .register(Box::new(start_time_seconds.clone()))
+            .expect("register");
+        registry
+            .register(Box::new(uptime_seconds.clone()))
             .expect("register");
         registry
             .register(Box::new(config_generation.clone()))
@@ -803,7 +832,13 @@ impl BuiltinRegistry {
             (None, None, None, None, None, None, None, None)
         };
 
-        let (process_resident_bytes, process_open_fds) = if effective && is_full {
+        let (
+            process_resident_bytes,
+            process_open_fds,
+            process_max_fds,
+            process_threads,
+            process_cpu_seconds_total,
+        ) = if effective && collect_process {
             let rss = Gauge::with_opts(Opts::new(
                 "conduit_process_resident_bytes",
                 "Process resident set size in bytes",
@@ -814,11 +849,39 @@ impl BuiltinRegistry {
                 "Open file descriptors",
             ))
             .expect("metric");
+            let max_fds = Gauge::with_opts(Opts::new(
+                "conduit_process_max_fds",
+                "Soft limit on open file descriptors (Linux /proc/self/limits)",
+            ))
+            .expect("metric");
+            let threads = Gauge::with_opts(Opts::new(
+                "conduit_process_threads",
+                "Number of threads in this process",
+            ))
+            .expect("metric");
+            let cpu = Counter::with_opts(Opts::new(
+                "conduit_process_cpu_seconds_total",
+                "Total user and system CPU time spent in seconds",
+            ))
+            .expect("metric");
             registry.register(Box::new(rss.clone())).expect("register");
             registry.register(Box::new(fds.clone())).expect("register");
-            (Some(rss), Some(fds))
+            registry
+                .register(Box::new(max_fds.clone()))
+                .expect("register");
+            registry
+                .register(Box::new(threads.clone()))
+                .expect("register");
+            registry.register(Box::new(cpu.clone())).expect("register");
+            (
+                Some(rss),
+                Some(fds),
+                Some(max_fds),
+                Some(threads),
+                Some(cpu),
+            )
         } else {
-            (None, None)
+            (None, None, None, None, None)
         };
 
         Self {
@@ -874,9 +937,14 @@ impl BuiltinRegistry {
             last_exhaustion_synced: AtomicU64::new(0),
             build_info,
             start_time_seconds,
+            uptime_seconds,
             config_generation,
             process_resident_bytes,
             process_open_fds,
+            process_max_fds,
+            process_threads,
+            process_cpu_seconds_total,
+            last_cpu_micros: AtomicU64::new(0),
             scrape_fn: RwLock::new(None),
         }
     }
@@ -1333,6 +1401,8 @@ impl BuiltinRegistry {
 
         self.config_generation
             .set(snapshot.config_generation as f64);
+        self.uptime_seconds
+            .set(process_started_at().elapsed().as_secs_f64());
 
         self.forward_outstanding.reset();
         for (pool, backend, count) in &snapshot.forward_outstanding {
@@ -1406,12 +1476,29 @@ impl BuiltinRegistry {
             }
         }
 
-        if self.profile == BuiltinProfile::Full {
-            if let Some(ref rss) = self.process_resident_bytes {
-                rss.set(read_resident_bytes().unwrap_or(0) as f64);
-            }
-            if let Some(ref fds) = self.process_open_fds {
-                fds.set(read_open_fds().unwrap_or(0) as f64);
+        if let Some(ref rss) = self.process_resident_bytes {
+            rss.set(read_resident_bytes().unwrap_or(0) as f64);
+        }
+        if let Some(ref fds) = self.process_open_fds {
+            fds.set(read_open_fds().unwrap_or(0) as f64);
+        }
+        if let Some(ref max_fds) = self.process_max_fds {
+            max_fds.set(read_max_fds().unwrap_or(0) as f64);
+        }
+        if let Some(ref threads) = self.process_threads {
+            threads.set(read_threads().unwrap_or(0) as f64);
+        }
+        if let Some(ref cpu) = self.process_cpu_seconds_total {
+            if let Some(secs) = read_cpu_seconds() {
+                let micros = (secs * 1_000_000.0).round() as u64;
+                let prev = self.last_cpu_micros.load(Ordering::Relaxed);
+                if micros >= prev {
+                    let delta = (micros - prev) as f64 / 1_000_000.0;
+                    if delta > 0.0 {
+                        cpu.inc_by(delta);
+                    }
+                    self.last_cpu_micros.store(micros, Ordering::Relaxed);
+                }
             }
         }
     }
@@ -1448,8 +1535,7 @@ impl BuiltinRegistry {
     }
 }
 
-fn read_resident_bytes() -> Option<u64> {
-    let status = std::fs::read_to_string("/proc/self/status").ok()?;
+fn parse_resident_bytes(status: &str) -> Option<u64> {
     for line in status.lines() {
         if let Some(kb) = line.strip_prefix("VmRSS:") {
             let kb: u64 = kb.trim().trim_end_matches(" kB").parse().ok()?;
@@ -1459,10 +1545,75 @@ fn read_resident_bytes() -> Option<u64> {
     None
 }
 
+fn parse_threads(status: &str) -> Option<u64> {
+    for line in status.lines() {
+        if let Some(rest) = line.strip_prefix("Threads:") {
+            return rest.trim().parse().ok();
+        }
+    }
+    None
+}
+
+fn parse_max_fds(limits: &str) -> Option<u64> {
+    for line in limits.lines() {
+        if let Some(rest) = line.strip_prefix("Max open files") {
+            let mut parts = rest.split_whitespace();
+            let soft = parts.next()?;
+            if soft.eq_ignore_ascii_case("unlimited") {
+                return None;
+            }
+            return soft.parse().ok();
+        }
+    }
+    None
+}
+
+/// Parse `/proc/self/stat` CPU time (utime + stime) into seconds.
+///
+/// After the `)` that closes `comm`, fields are: state, ppid, …, utime (index 11),
+/// stime (index 12) — see `man 5 proc`.
+fn parse_cpu_seconds(stat: &str, ticks_per_sec: u64) -> Option<f64> {
+    if ticks_per_sec == 0 {
+        return None;
+    }
+    let end = stat.rfind(')')?;
+    let rest = stat.get(end + 1..)?;
+    let fields: Vec<&str> = rest.split_whitespace().collect();
+    let utime: u64 = fields.get(11)?.parse().ok()?;
+    let stime: u64 = fields.get(12)?.parse().ok()?;
+    Some((utime + stime) as f64 / ticks_per_sec as f64)
+}
+
+fn read_resident_bytes() -> Option<u64> {
+    let status = std::fs::read_to_string("/proc/self/status").ok()?;
+    parse_resident_bytes(&status)
+}
+
+fn read_threads() -> Option<u64> {
+    let status = std::fs::read_to_string("/proc/self/status").ok()?;
+    parse_threads(&status)
+}
+
 fn read_open_fds() -> Option<u64> {
     std::fs::read_dir("/proc/self/fd")
         .ok()
         .map(|d| d.count() as u64)
+}
+
+fn read_max_fds() -> Option<u64> {
+    let limits = std::fs::read_to_string("/proc/self/limits").ok()?;
+    parse_max_fds(&limits)
+}
+
+/// Linux `USER_HZ` / `CLK_TCK` is 100 on essentially all production kernels we
+/// target; avoid a libc dependency just for `sysconf(_SC_CLK_TCK)`.
+fn linux_ticks_per_second() -> u64 {
+    100
+}
+
+fn read_cpu_seconds() -> Option<f64> {
+    let stat = std::fs::read_to_string("/proc/self/stat").ok()?;
+    parse_cpu_seconds(&stat, linux_ticks_per_second())
 }
 
 pub fn encode_builtin(families: Vec<prometheus::proto::MetricFamily>) -> String {
@@ -1747,7 +1898,130 @@ mod tests {
         let body = encode_builtin(reg.gather());
         assert!(body.contains("conduit_build_info"));
         assert!(body.contains("conduit_start_time_seconds"));
+        assert!(body.contains("conduit_uptime_seconds"));
         assert!(body.contains("conduit_config_generation"));
+        assert!(
+            body.lines()
+                .any(|l| l.starts_with("conduit_uptime_seconds ")
+                    && l.split_whitespace()
+                        .nth(1)
+                        .and_then(|v| v.parse::<f64>().ok())
+                        .is_some_and(|v| v >= 0.0)),
+            "uptime must be a non-negative gauge; body:\n{body}"
+        );
+        // Linux /proc process gauges + CPU counter (full / process category).
+        #[cfg(target_os = "linux")]
+        {
+            assert!(
+                body.contains("conduit_process_resident_bytes"),
+                "body:\n{body}"
+            );
+            assert!(body.contains("conduit_process_open_fds"), "body:\n{body}");
+            assert!(body.contains("conduit_process_max_fds"), "body:\n{body}");
+            assert!(body.contains("conduit_process_threads"), "body:\n{body}");
+            assert!(
+                body.contains("conduit_process_cpu_seconds_total"),
+                "body:\n{body}"
+            );
+            assert!(
+                body.contains("# TYPE conduit_process_cpu_seconds_total counter"),
+                "body:\n{body}"
+            );
+            // Live /proc reads (independent of scrape body — thread count can race
+            // between gather and a second read under cargo's test harness).
+            assert!(read_max_fds().expect("max fds") > 0);
+            assert!(read_open_fds().expect("open fds") > 0);
+            assert!(read_threads().expect("threads") >= 1);
+            assert!(
+                body.lines()
+                    .any(|l| l.starts_with("conduit_process_max_fds ")
+                        && l.split_whitespace()
+                            .nth(1)
+                            .and_then(|v| v.parse::<f64>().ok())
+                            .is_some_and(|v| v > 0.0)),
+                "body:\n{body}"
+            );
+            assert!(
+                body.lines()
+                    .any(|l| l.starts_with("conduit_process_threads ")
+                        && l.split_whitespace()
+                            .nth(1)
+                            .and_then(|v| v.parse::<f64>().ok())
+                            .is_some_and(|v| v >= 1.0)),
+                "body:\n{body}"
+            );
+        }
+    }
+
+    fn gauge_sample(body: &str, name: &str) -> f64 {
+        body.lines()
+            .find(|l| l.starts_with(&format!("{name} ")))
+            .and_then(|l| l.split_whitespace().nth(1))
+            .and_then(|v| v.parse().ok())
+            .unwrap_or_else(|| panic!("missing gauge {name} in:\n{body}"))
+    }
+
+    #[test]
+    fn uptime_seconds_increases_across_gathers() {
+        let reg = BuiltinRegistry::new(true, BuiltinProfile::Minimal);
+        let first = gauge_sample(&encode_builtin(reg.gather()), "conduit_uptime_seconds");
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        let second = gauge_sample(&encode_builtin(reg.gather()), "conduit_uptime_seconds");
+        assert!(
+            second > first,
+            "expected uptime to increase after sleep: first={first} second={second}"
+        );
+    }
+
+    #[test]
+    fn process_metrics_absent_on_minimal() {
+        let reg = BuiltinRegistry::new(true, BuiltinProfile::Minimal);
+        let body = encode_builtin(reg.gather());
+        for name in [
+            "conduit_process_resident_bytes",
+            "conduit_process_open_fds",
+            "conduit_process_max_fds",
+            "conduit_process_threads",
+            "conduit_process_cpu_seconds_total",
+        ] {
+            assert!(
+                !body.contains(name),
+                "minimal must omit {name}, body:\n{body}"
+            );
+        }
+    }
+
+    #[test]
+    fn parse_proc_status_threads_and_rss() {
+        let status = "Name:\tconduit\nVmRSS:\t    4096 kB\nThreads:\t7\n";
+        assert_eq!(parse_resident_bytes(status), Some(4096 * 1024));
+        assert_eq!(parse_threads(status), Some(7));
+    }
+
+    #[test]
+    fn parse_proc_limits_max_open_files() {
+        let limits =
+            "Limit                     Soft Limit           Hard Limit           Units     \n\
+Max cpu time              unlimited            unlimited            seconds   \n\
+Max open files            1024                 1048576             files     \n\
+Max locked memory         8388608              8388608              bytes     \n";
+        assert_eq!(parse_max_fds(limits), Some(1024));
+        assert_eq!(
+            parse_max_fds(
+                "Max open files            unlimited            unlimited            files"
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn parse_proc_stat_cpu_seconds() {
+        // Field layout after (comm): state ppid ... then utime(14) stime(15) as
+        // 1-based positions in the full /proc/pid/stat line — we parse via the
+        // post-comm remainder. utime=50, stime=25 → 75 ticks → 0.75s at 100 Hz.
+        let stat = "123 (conduit) R 1 1 1 0 -1 0 0 0 0 0 50 25 0 0 20 0 1 0 0 0 0\n";
+        assert_eq!(parse_cpu_seconds(stat, 100), Some(0.75));
+        assert_eq!(parse_cpu_seconds("bad", 100), None);
     }
 
     #[test]

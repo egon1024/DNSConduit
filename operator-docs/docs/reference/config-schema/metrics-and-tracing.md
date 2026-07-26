@@ -1,6 +1,6 @@
 # Config schema: metrics and tracing
 
-Field reference for the optional top-level **`metrics:`** and **`tracing:`** blocks. Guides: [Metrics](/observability/metrics.md), [Metrics configurability](/observability/metrics-configurability.md), [Tracing](/observability/tracing.md).
+This page lists the fields for the optional top-level **`metrics:`** and **`tracing:`** blocks. For recording, bases, and export behavior, see [Metrics](/observability/metrics.md), [Metrics configurability](/observability/metrics-configurability.md), and [Tracing](/observability/tracing.md).
 
 **`metrics`** may appear in [overlay](/glossary/index.md#overlay) patches ([deep merge](/control-plane/overlay-merge-strategy.md#metrics-deep-merge)). **`tracing`** remains file-layer only.
 
@@ -23,16 +23,16 @@ Field reference for the optional top-level **`metrics:`** and **`tracing:`** blo
 | `event_export` | object | no | collect+emit true | Controls `conduit_events_*` (not a dataplane category) |
 | `prometheus` | object | no | — | HTTP scrape listener |
 | `otel` | object | no | — | OTLP HTTP metrics push |
-| `user_metrics` | list | no | `[]` | Per-metric collect/emit (and deprecated `export`) for Rhai `conduit_user_*` |
+| `user_metrics` | list | no | `[]` | Per-metric collect/emit, optional **`help`**, and deprecated `export` for Rhai `conduit_user_*` |
 
-Validation highlights: empty resolved category set while enabled → error; `collect: false` with `emit: true` → error; stopping collect for a user metric still referenced by a Rhai script → error (script path listed). See [Metrics configurability](/observability/metrics-configurability.md).
+Validation highlights: empty resolved category set while enabled → error; `collect: false` with `emit: true` → error; user metric collect or emit off while scripts still write → warning (script path listed; increments no-op / series stay out of export). See [Metrics configurability](/observability/metrics-configurability.md).
 
 ### `metrics.categories`
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `include` | list of string | Category names added to the base expansion |
-| `exclude` | list of string | Category names removed after include |
+| `exclude` | list of string | Category names removed after include; if a name appears in both lists, exclude wins (with a warning) |
 
 ### `metrics.collection` / `metrics.event_export` / `metrics.user_metrics[]`
 
@@ -41,6 +41,7 @@ Validation highlights: empty resolved category set while enabled → error; `col
 | `collect` | boolean | Record into the process store |
 | `emit` | boolean | Include in Prometheus / OTLP |
 | `name` | string | (`user_metrics` only) bare metric name |
+| `help` | string | (`user_metrics` only) Prometheus HELP / OTel description; omit for the default text |
 | `export` | string | **Deprecated** (`minimal` \| `full`); prefer collect/emit |
 
 ### `metrics.prometheus`
@@ -102,7 +103,8 @@ Evaluated after [Request rules](/concepts/architecture-and-packet-path.md#reques
 | `metrics.profile` (alias) | Must be **`minimal`**, **`full`**, **`off`**, or empty |
 | Resolved category set empty while enabled | Rejected |
 | `collect: false` with `emit: true` (category, event_export, or user metric) | Rejected |
-| User metric collect removed while Rhai still references it | Rejected (error lists script path) |
+| User metric collect or emit off while Rhai still writes it | Warning (script path listed); validate/apply succeed |
+| Future read API still references metric with collect off | Rejected (error lists script path) |
 | `metrics.prometheus.listen_address` | Must parse as socket address when non-empty |
 | `metrics.otel.endpoint` | Must be `http://` or `https://` when non-empty |
 | `metrics.otel.push_interval_ms` | Must be **≥ 1000** when non-zero |
@@ -122,6 +124,7 @@ metrics:
   base: minimal
   user_metrics:
     - name: block_hits
+      help: Policy block hits by category
       collect: true
       emit: true
   prometheus:

@@ -5,7 +5,7 @@ toc_collapsible: true
 
 # Built-in metrics
 
-Catalog of **built-in** Prometheus series exported by Conduit (not Rhai `conduit_user_*` metrics). For enabling scrape, profiles, and OTEL push, see [Metrics](/observability/metrics.md). For how metrics map to the query path, see [Architecture and packet path](/concepts/architecture-and-packet-path.md).
+Conduit exports **built-in** Prometheus series (not Rhai `conduit_user_*` metrics) with fixed names and labels. For enabling scrape, profiles, and OTEL push, see [Metrics](/observability/metrics.md). For how metrics map to the query path, see [Architecture and packet path](/concepts/architecture-and-packet-path.md).
 
 Built-in labels never include `qname`, client IP, or transaction id — use [event export](/observability/event-export.md) or [tracing](/observability/tracing.md) for per-name detail.
 
@@ -36,13 +36,14 @@ Use **`minimal`** when you want query volume, pool mix, response mix, and alerta
 - Richer [`conduit_queries_total`](#conduit_queries_total) labels (`qtype`, `qclass`, `ip_family`)
 - Fine [`conduit_responses_total`](#conduit_responses_total) `rcode` labels and `ip_family`
 - Forward attempt counts, forward RTT histograms, per-phase timing histograms (see table below)
-- Active health-probe outcome counts ([`conduit_probe_results_total`](#conduit_probe_results_total)) when health is enabled
 - Transaction slot-pool gauges ([`conduit_slots_in_use`](#conduit_slots_in_use), [`conduit_slots_capacity`](#conduit_slots_capacity)) at scrape time
-- Linux process gauges ([`conduit_process_resident_bytes`](#conduit_process_resident_bytes), [`conduit_process_open_fds`](#conduit_process_open_fds)) at scrape time
+- Linux process series ([`conduit_process_resident_bytes`](#conduit_process_resident_bytes), [`conduit_process_open_fds`](#conduit_process_open_fds), [`conduit_process_max_fds`](#conduit_process_max_fds), [`conduit_process_threads`](#conduit_process_threads), [`conduit_process_cpu_seconds_total`](#conduit_process_cpu_seconds_total)) at scrape time
+
+Both **`minimal`** and **`standard`** include the **`health`** category: when pool health is enabled, probe outcome counts ([`conduit_probe_results_total`](#conduit_probe_results_total)) and health gauges export on either base.
 
 Use **`standard`** for day-two operations, SLO dashboards, and debugging upstream or pipeline behavior. Built-in labels still never include `qname`, client IP, or transaction id at either base.
 
-**Scrape-time** series ([Scrape-time gauges](#scrape-time-gauges)) depend on category membership: slot-pool and process gauges require categories present on **`standard`** (not on **`minimal`**). Health gauges are available on **`minimal`** when health is configured. The slot exhaustion counter ([`conduit_slot_pool_exhausted_total`](#conduit_slot_pool_exhausted_total)) is in the **failures** category (both bases).
+**Scrape-time** series ([Scrape-time gauges](#scrape-time-gauges)) depend on category membership: slot-pool and process series require categories present on **`standard`** (not on **`minimal`**). Health gauges are available on **`minimal`** and **`standard`** when health is configured. The slot exhaustion counter ([`conduit_slot_pool_exhausted_total`](#conduit_slot_pool_exhausted_total)) is in the **failures** category (both bases).
 
 | Series | Hot path `minimal` | Hot path `full` | [Scrape-time](#scrape-time-gauges) only |
 |--------|-------------------|-----------------|-------------|
@@ -59,14 +60,14 @@ Use **`standard`** for day-two operations, SLO dashboards, and debugging upstrea
 | Phase / forward-attempt / forward-duration / lookup-cache histograms below | no | yes | — |
 | [`conduit_lookup_provider_outcomes_total`](#conduit_lookup_provider_outcomes_total), [`conduit_cache_lookups_total`](#conduit_cache_lookups_total) | yes | yes | — |
 | [`conduit_cache_fills_total`](#conduit_cache_fills_total), [`conduit_cache_singleflight_coalesced_total`](#conduit_cache_singleflight_coalesced_total), lookup/cache duration histograms | no | yes | — |
-| [`conduit_probe_results_total`](#conduit_probe_results_total) | no | yes (`full` only) | — |
-| [`conduit_forward_outstanding`](#conduit_forward_outstanding) | — | — | yes |
+| [`conduit_probe_results_total`](#conduit_probe_results_total) | yes (health enabled) | yes | — |
+| [`conduit_forward_outstanding`](#conduit_forward_outstanding) | — | — | yes (`standard`) |
 | [`conduit_pool_backends_configured`](#conduit_pool_backends_configured) | — | — | yes |
-| Backend health gauges ([`conduit_backend_health_*`](#backend-health), [`conduit_pool_backends_active`](#conduit_pool_backends_active)) | — | — | yes (`full` only) |
-| [`conduit_slots_in_use`](#conduit_slots_in_use), [`conduit_slots_capacity`](#conduit_slots_capacity) | — | — | yes (`full` only) |
+| Backend health gauges ([`conduit_backend_health_*`](#backend-health), [`conduit_pool_backends_active`](#conduit_pool_backends_active)) | — | — | yes (`minimal` and `standard`, health enabled) |
+| [`conduit_slots_in_use`](#conduit_slots_in_use), [`conduit_slots_capacity`](#conduit_slots_capacity) | — | — | yes (`standard` / `full`) |
 | [`conduit_slot_pool_exhausted_total`](#conduit_slot_pool_exhausted_total) | — | — | yes |
-| [`conduit_build_info`](#conduit_build_info), [`conduit_start_time_seconds`](#conduit_start_time_seconds), [`conduit_config_generation`](#conduit_config_generation) | — | — | yes |
-| [`conduit_process_resident_bytes`](#conduit_process_resident_bytes), [`conduit_process_open_fds`](#conduit_process_open_fds) | — | — | yes (`full` only, Linux `/proc`) |
+| [`conduit_build_info`](#conduit_build_info), [`conduit_start_time_seconds`](#conduit_start_time_seconds), [`conduit_uptime_seconds`](#conduit_uptime_seconds), [`conduit_config_generation`](#conduit_config_generation) | — | — | yes |
+| [`conduit_process_resident_bytes`](#conduit_process_resident_bytes), [`conduit_process_open_fds`](#conduit_process_open_fds), [`conduit_process_max_fds`](#conduit_process_max_fds), [`conduit_process_threads`](#conduit_process_threads), [`conduit_process_cpu_seconds_total`](#conduit_process_cpu_seconds_total) | — | — | yes (`process` category / `standard`, Linux `/proc`) |
 
 **Hot path** — incremented while handling queries on listener workers. **Scrape-time only** — refreshed when metrics are exported (Prometheus scrape or OTEL push), not on the hot path; see [Scrape-time gauges](#scrape-time-gauges). A dash (—) means the series is not updated in that mode.
 
@@ -417,7 +418,7 @@ A forward counts as outstanding from the moment it is submitted upstream until t
 |--|--|
 | **Type** | Gauge |
 | **Labels** | — |
-| **Profile** | `full` only |
+| **Profile** | `full` / `standard` only (`runtime` category) |
 | **Meaning** | [Transaction slots](/concepts/runtime-and-concurrency.md#transaction-slot-pool) currently acquired (not `Free`) at scrape time |
 
 Every in-flight transaction holds one slot for its whole lifetime, including while parked in [Wait for response](/concepts/architecture-and-packet-path.md#wait-for-response) under `split_io`. Compare against [`conduit_slots_capacity`](#conduit_slots_capacity) to gauge headroom; sustained `in_use` near `capacity` precedes slot-pool exhaustion.
@@ -428,7 +429,7 @@ Every in-flight transaction holds one slot for its whole lifetime, including whi
 |--|--|
 | **Type** | Gauge |
 | **Labels** | — |
-| **Profile** | `full` only |
+| **Profile** | `full` / `standard` only (`runtime` category) |
 | **Meaning** | Configured transaction slot-pool capacity (`orchestrator.txn_table_capacity`) at scrape time |
 
 ### conduit_slot_pool_exhausted_total { #conduit_slot_pool_exhausted_total }
@@ -466,7 +467,7 @@ Useful after reload/apply to confirm which config generation is live. See [Runti
 |--|--|
 | **Type** | Gauge |
 | **Labels** | `pool` |
-| **Profile** | `full` only |
+| **Profile** | `minimal` and `full` (`health` category) |
 | **Meaning** | Count of backends in the pool with **applied** health **up** (eligible for Route) at scrape time |
 
 Only emitted for pools with health checking enabled. Compare to [`conduit_pool_backends_configured`](#conduit_pool_backends_configured) for how many backends are down or unknown.
@@ -491,7 +492,7 @@ Liveness encoding for observed/applied gauges:
 |--|--|
 | **Type** | Gauge |
 | **Labels** | `pool`, `backend` |
-| **Profile** | `full` only |
+| **Profile** | `minimal` and `full` (`health` category) |
 | **Meaning** | Health from probes and passive fast-trip (what Conduit observes before operator overrides) |
 
 ### conduit_backend_health_applied { #conduit_backend_health_applied }
@@ -500,7 +501,7 @@ Liveness encoding for observed/applied gauges:
 |--|--|
 | **Type** | Gauge |
 | **Labels** | `pool`, `backend` |
-| **Profile** | `full` only |
+| **Profile** | `minimal` and `full` (`health` category) |
 | **Meaning** | Health [Route](/concepts/architecture-and-packet-path.md#route) uses for eligibility |
 
 May differ from [`conduit_backend_health_observed`](#conduit_backend_health_observed) when a backend is [frozen](/glossary/index.md#freeze) or [drained](/glossary/index.md#drain).
@@ -511,7 +512,7 @@ May differ from [`conduit_backend_health_observed`](#conduit_backend_health_obse
 |--|--|
 | **Type** | Gauge |
 | **Labels** | `pool`, `backend` |
-| **Profile** | `full` only |
+| **Profile** | `minimal` and `full` (`health` category) |
 | **Meaning** | `1` = probe-driven transitions apply; `0` = [frozen](/glossary/index.md#freeze) at this backend's resolved scope |
 
 ### conduit_backend_health_effective_weight { #conduit_backend_health_effective_weight }
@@ -520,7 +521,7 @@ May differ from [`conduit_backend_health_observed`](#conduit_backend_health_obse
 |--|--|
 | **Type** | Gauge |
 | **Labels** | `pool`, `backend` |
-| **Profile** | `full` only |
+| **Profile** | `minimal` and `full` (`health` category) |
 | **Meaning** | Effective load-balancing weight Route uses (0 when applied down) |
 
 ### conduit_backend_health_latency_ewma_ms { #conduit_backend_health_latency_ewma_ms }
@@ -529,7 +530,7 @@ May differ from [`conduit_backend_health_observed`](#conduit_backend_health_obse
 |--|--|
 | **Type** | Gauge |
 | **Labels** | `pool`, `backend` |
-| **Profile** | `full` only |
+| **Profile** | `minimal` and `full` (`health` category) |
 | **Meaning** | Probe round-trip EWMA in milliseconds |
 
 ### conduit_backend_health_transitions_total { #conduit_backend_health_transitions_total }
@@ -538,7 +539,7 @@ May differ from [`conduit_backend_health_observed`](#conduit_backend_health_obse
 |--|--|
 | **Type** | Counter |
 | **Labels** | `pool`, `backend` |
-| **Profile** | `full` only |
+| **Profile** | `minimal` and `full` (`health` category) |
 | **Meaning** | Cumulative observed or applied health transitions |
 
 ### conduit_probe_results_total { #conduit_probe_results_total }
@@ -547,7 +548,7 @@ May differ from [`conduit_backend_health_observed`](#conduit_backend_health_obse
 |--|--|
 | **Type** | Counter |
 | **Labels** | `pool`, `backend`, `outcome` |
-| **Profile** | `full` only (not incremented on `minimal`) |
+| **Profile** | `minimal` and `full` (`health` category) |
 | **When** | Each active health probe completes (success, failure, timeout, or send error) |
 
 `outcome` values:
@@ -599,17 +600,31 @@ Rebuild after pulling or editing sources so `revision` and `dirty` match the bin
 |--|--|
 | **Type** | Gauge |
 | **Labels** | — |
-| **Meaning** | Unix timestamp when the process started |
+| **Category** | `meta` |
+| **Meaning** | Unix timestamp when the process started (wall clock) |
 
-PromQL example: `time() - conduit_start_time_seconds` for uptime.
+Useful for correlating restarts with absolute time. Prefer [`conduit_uptime_seconds`](#conduit_uptime_seconds) for how long the process has been running — wall-clock jumps (NTP, VM pause/resume) can make `time() - conduit_start_time_seconds` wrong.
+
+### conduit_uptime_seconds { #conduit_uptime_seconds }
+
+| | |
+|--|--|
+| **Type** | Gauge |
+| **Labels** | — |
+| **Category** | `meta` |
+| **Meaning** | Seconds since process start, from a monotonic clock |
+
+Refreshed on each Prometheus scrape or OTLP push gather. Immune to wall-clock skew. Survives metrics plan hot-swaps within the same process.
+
+PromQL example: `conduit_uptime_seconds` (alert when unexpectedly low after a restart, or graph directly).
 
 ### conduit_process_resident_bytes { #conduit_process_resident_bytes }
 
 | | |
 |--|--|
 | **Type** | Gauge |
-| **Profile** | `full` only |
-| **Platform** | Linux (`/proc`) |
+| **Category** | `process` (`standard`; not on `minimal` unless included) |
+| **Platform** | Linux (`/proc/self/status`) |
 | **Meaning** | Process resident set size in bytes |
 
 ### conduit_process_open_fds { #conduit_process_open_fds }
@@ -617,9 +632,42 @@ PromQL example: `time() - conduit_start_time_seconds` for uptime.
 | | |
 |--|--|
 | **Type** | Gauge |
-| **Profile** | `full` only |
-| **Platform** | Linux (`/proc`) |
+| **Category** | `process` (`standard`; not on `minimal` unless included) |
+| **Platform** | Linux (`/proc/self/fd`) |
 | **Meaning** | Open file descriptors |
+
+### conduit_process_max_fds { #conduit_process_max_fds }
+
+| | |
+|--|--|
+| **Type** | Gauge |
+| **Category** | `process` (`standard`; not on `minimal` unless included) |
+| **Platform** | Linux (`/proc/self/limits`) |
+| **Meaning** | Soft limit on open file descriptors |
+
+Use with [`conduit_process_open_fds`](#conduit_process_open_fds) for headroom alerts (`open_fds / max_fds`). When the soft limit is `unlimited`, the gauge is `0`.
+
+PromQL example: `conduit_process_open_fds / conduit_process_max_fds`.
+
+### conduit_process_threads { #conduit_process_threads }
+
+| | |
+|--|--|
+| **Type** | Gauge |
+| **Category** | `process` (`standard`; not on `minimal` unless included) |
+| **Platform** | Linux (`/proc/self/status`) |
+| **Meaning** | Number of threads in this process |
+
+### conduit_process_cpu_seconds_total { #conduit_process_cpu_seconds_total }
+
+| | |
+|--|--|
+| **Type** | Counter |
+| **Category** | `process` (`standard`; not on `minimal` unless included) |
+| **Platform** | Linux (`/proc/self/stat`) |
+| **Meaning** | Cumulative user + system CPU time for this process, in seconds |
+
+PromQL example: `rate(conduit_process_cpu_seconds_total[5m])` for CPU cores used.
 
 ---
 
@@ -663,7 +711,7 @@ Per-sink counters are included at scrape time from `EventHub` snapshots (not inc
 
 ## User metrics (Rhai)
 
-Scripts can call `metric_inc` / `metric_inc_labels` from [Rhai](/rhai/index.md) hooks. Series are prefixed `conduit_user_<name>` and flushed into the export registry after each successful hook when the metric's [export tier](/rhai/user-metrics.md#export-tier) matches the active `metrics.profile`. Details: [User metrics](/rhai/user-metrics.md).
+Scripts can call `metric_inc` / `metric_inc_labels` from [Rhai](/rhai/index.md) hooks. Series are prefixed `conduit_user_<name>` and flush after each successful hook when that metric's **collect** mask is on. **Emit** controls whether the series appears in Prometheus / OTLP. Optional **`help`** on `metrics.user_metrics[]` sets scrape `# HELP` and the OTel description. On **`base: minimal`**, unlisted script metrics stay off (increments no-op with a warning) until you opt them in — see [User metrics — Collect and emit](/rhai/user-metrics.md#export-tier).
 
 ---
 
@@ -675,7 +723,7 @@ sum(rate(conduit_queries_by_pool_total[5m])) by (pool)
 sum(rate(conduit_queries_dropped_total[5m])) by (reason)
 sum(rate(conduit_parse_rejected_total[5m])) by (reason)
 sum(rate(conduit_responses_total[5m])) by (rcode)
-sum(rate(conduit_responses_total[5m])) by (rcode, ip_family)   # full profile only
+sum(rate(conduit_responses_total[5m])) by (rcode, ip_family)   # fine / base: standard labels
 sum(rate(conduit_responses_truncated_total[5m])) by (listener, answer_source)
 sum(rate(conduit_responses_total[5m])) by (listener, answer_source)
 sum(rate(conduit_lookup_provider_outcomes_total[5m])) by (profile, provider, outcome)
@@ -685,9 +733,10 @@ sum(rate(conduit_forward_errors_total[5m])) by (pool, backend, reason)
 sum(rate(conduit_script_errors_total[5m])) by (reason)
 histogram_quantile(0.99, sum(rate(conduit_forward_duration_seconds_bucket[5m])) by (le, pool))
 sum(conduit_forward_outstanding) by (pool, backend)                 # concurrent upstream waits (split_io)
-conduit_slots_in_use / conduit_slots_capacity                       # slot-pool utilization (full profile)
+conduit_slots_in_use / conduit_slots_capacity                       # slot-pool utilization (base: standard)
 sum(rate(conduit_slot_pool_exhausted_total[5m]))                    # slot exhaustion (alert on > 0)
 conduit_config_generation
+conduit_uptime_seconds
 conduit_pool_backends_active
 conduit_backend_health_applied{pool="default"}
 conduit_build_info{revision="abc1234", dirty="false", profile="release"}

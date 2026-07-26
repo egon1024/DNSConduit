@@ -84,6 +84,8 @@ pub struct CompiledScripting {
     pub metrics: MetricRegistry,
     /// Static metric consumer sites from Rhai (and future stub sources).
     pub metric_consumers: MetricConsumerGraph,
+    /// Non-fatal consumer notices (e.g. write sites with collect/emit off).
+    pub compile_warnings: Vec<String>,
     pub rules_scripts: Vec<ScriptRef>,
     /// When true, forward stage parses upstream response wire for section/header metadata.
     pub needs_response_wire_meta: bool,
@@ -124,6 +126,7 @@ pub fn compile_from_config(
         limits,
         metrics: MetricRegistry::default(),
         metric_consumers: MetricConsumerGraph::new(),
+        compile_warnings: Vec::new(),
         rules_scripts: Vec::new(),
         needs_response_wire_meta: false,
     };
@@ -152,9 +155,12 @@ pub fn compile_from_config(
             });
         }
     };
-    let consumer_errs = check_consumer_dependencies(&scripting.metric_consumers, &plan);
-    if !consumer_errs.is_empty() {
-        return Err(ScriptError::ConsumerDependency(consumer_errs.join("\n\n")));
+    let consumer = check_consumer_dependencies(&scripting.metric_consumers, &plan);
+    scripting.compile_warnings = consumer.warnings;
+    if !consumer.errors.is_empty() {
+        return Err(ScriptError::ConsumerDependency(
+            consumer.errors.join("\n\n"),
+        ));
     }
 
     Ok(scripting)

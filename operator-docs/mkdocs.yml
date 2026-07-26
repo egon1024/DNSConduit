@@ -53,6 +53,7 @@ extra_css:
   - assets/stylesheets/txn-api.css
   - assets/stylesheets/toc-collapse.css
   - assets/stylesheets/interop-outcomes.css
+  - assets/stylesheets/membership-yes-no.css
 
 extra_javascript:
   - assets/javascripts/doc-version.js
@@ -122,15 +123,18 @@ nav:
       - Logging: observability/logging.md
   - Guides:
       - Overview: guides/index.md
-      - Rhai policy: guides/rhai-policy.md
       - Backend health: guides/backend-health.md
       - DNS answer cache: guides/dns-answer-cache.md
       - Dual-stack forwarding: guides/dual-stack-forwarding.md
-      - Dataplane runtime tuning: guides/dataplane-runtime-tuning.md
+      - Rule action order: guides/rule-action-order.md
+      - Declarative failover: guides/declarative-failover.md
+      - Rhai policy: guides/rhai-policy.md
       - Control plane workflows: guides/control-plane-workflows.md
       - Metrics and tracing: guides/metrics-and-tracing.md
+      - Operator metrics bases: guides/operator-metrics-bases.md
+      - Metrics beyond bases: guides/metrics-beyond-bases.md
       - Event export and dnstap: guides/event-export-dnstap.md
-      - Operator metrics bases: guides/operator-metrics-profiles.md
+      - Dataplane runtime tuning: guides/dataplane-runtime-tuning.md
   - Security:
       - Overview: security/index.md
       - API keys: security/api-keys.md

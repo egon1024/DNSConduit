@@ -33,6 +33,7 @@ metrics:
   base: standard
   user_metrics:
     - name: blat
+      help: Consumer validation lab counter
       collect: true
       emit: true
   prometheus:

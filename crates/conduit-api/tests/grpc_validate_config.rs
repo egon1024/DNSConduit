@@ -12,7 +12,7 @@ fn runtime_to_control(cfg: conduit_proto::config::Config) -> conduit_proto::cont
 }
 
 #[tokio::test]
-async fn validate_config_rejects_collect_removal_with_script_path() {
+async fn validate_config_accepts_collect_off_with_script_warning_path() {
     let yaml = include_str!("../../../tests/fixtures/config/metrics-consumer-blat-base.yaml");
     let file_cfg = load_yaml(yaml).expect("parse");
     let (snapshots, effective, configurator, tracing, base_dir) = support::control_setup(
@@ -31,27 +31,22 @@ async fn validate_config_rejects_collect_removal_with_script_path() {
         .await
         .expect("connect");
 
-    let bad = load_yaml(include_str!(
+    let collect_off = load_yaml(include_str!(
         "../../../tests/fixtures/config/metrics-consumer-collect-removed.yaml"
     ))
-    .expect("parse bad");
+    .expect("parse collect-off");
     let resp: ValidateConfigResponse = client
         .validate_config(ValidateConfigRequest {
-            config: Some(runtime_to_control(bad)),
+            config: Some(runtime_to_control(collect_off)),
         })
         .await
         .expect("validate rpc")
         .into_inner();
 
-    assert!(!resp.ok, "expected validation failure");
-    let joined = resp.errors.join("\n");
     assert!(
-        joined.contains("cannot stop collecting metric \"blat\""),
-        "errors: {joined}"
-    );
-    assert!(
-        joined.contains("consumer-blat.rhai"),
-        "errors should list script path: {joined}"
+        resp.ok,
+        "collect-off write sites must validate ok; errors: {}",
+        resp.errors.join("\n")
     );
 }
 
