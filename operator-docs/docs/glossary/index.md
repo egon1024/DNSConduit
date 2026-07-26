@@ -212,9 +212,15 @@ Configured `min_eligible` threshold: when too few backends in a [pool](/glossary
 
 → [Runtime API — `latency_ewma_ms`](/rhai/runtime-api.md#backendruntimelatency_ewma_ms), [`min_latency_ewma_ms`](/rhai/runtime-api.md#poolruntimemin_latency_ewma_ms), [Backend health](/policy-routing/backend-health.md)
 
+### Rule
+
+Named policy entry under **`rules:`** with a hook (`request` or `response`), [selectors](/glossary/index.md#selector), and an ordered list of [actions](/glossary/index.md#action). Conduit evaluates rules in first-match order on each hook; when a rule matches, its actions run top to bottom.
+
+→ [Rules and actions](/policy-routing/rules-and-actions.md)
+
 ### Selector
 
-Condition on a [rule](/policy-routing/rules-and-actions.md) that tests query or response fields (for example query name, type, response code, or [tag](/glossary/index.md#tags) presence). Conduit evaluates rules in first-match order on each hook.
+Condition on a [rule](/glossary/index.md#rule) that tests query or response fields (for example query name, type, response code, or [tag](/glossary/index.md#tags) presence). Conduit evaluates rules in first-match order on each hook.
 
 → [Rules and actions](/policy-routing/rules-and-actions.md)
 
