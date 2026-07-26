@@ -21,6 +21,10 @@ fields:
   logical_cores: { type: integer, minimum: 1 }
   os: { type: string }
   kernel: { type: string }
+  memory_total_mb:
+    type: integer
+    minimum: 1
+    description: Optional host MemTotal in whole MiB.
   pinning_notes: { type: string }
   numa_notes: { type: string }
   template: { type: boolean, description: "True for unfilled templates; false for real runs." }

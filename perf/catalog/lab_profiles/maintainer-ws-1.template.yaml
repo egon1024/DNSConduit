@@ -10,5 +10,6 @@ physical_cores: 0
 logical_cores: 0
 os: FILL_ME_ON_FIRST_PROMOTE
 kernel: FILL_ME_ON_FIRST_PROMOTE
+memory_total_mb: 0
 pinning_notes: ""
 numa_notes: ""

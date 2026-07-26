@@ -83,6 +83,16 @@ def render_plain(doc: dict[str, Any]) -> str:
         f"cpu: {profile.get('cpu_model')}",
         f"cores: physical={profile.get('physical_cores')} logical={profile.get('logical_cores')}",
         f"os: {profile.get('os')}",
+        *(
+            [f"kernel: {profile.get('kernel')}"]
+            if profile.get("kernel")
+            else []
+        ),
+        *(
+            [f"memory_total_mb: {profile.get('memory_total_mb')}"]
+            if profile.get("memory_total_mb") is not None
+            else []
+        ),
         f"conduit: {prov.get('conduit_path')} ({prov.get('conduit_version')})",
         f"loadgen: {((prov.get('loadgen') or {}).get('tool'))} "
         f"mode={((prov.get('loadgen') or {}).get('mode'))}",
@@ -104,6 +114,11 @@ def render_fancy(doc: dict[str, Any]) -> str:
         f"🖥  {profile.get('id')} — {profile.get('display_name')}",
         f"   CPU {profile.get('cpu_model')}  "
         f"({profile.get('physical_cores')}p/{profile.get('logical_cores')}l)",
+        *(
+            [f"   RAM {profile.get('memory_total_mb')} MiB"]
+            if profile.get("memory_total_mb") is not None
+            else []
+        ),
         f"📦  {prov.get('conduit_version')} @ {prov.get('conduit_path')}",
         "── scenarios ──",
         *_scenario_lines(doc, fancy=True),
@@ -137,6 +152,10 @@ def render_html(doc: dict[str, Any]) -> str:
             "</tr>"
         )
     body_rows = "\n".join(rows) if rows else "<tr><td colspan='8'>No scenarios</td></tr>"
+    mem = profile.get("memory_total_mb")
+    mem_html = (
+        f"    <p><strong>Memory:</strong> {_esc(mem)} MiB</p>\n" if mem is not None else ""
+    )
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -157,7 +176,7 @@ def render_html(doc: dict[str, Any]) -> str:
     <p><strong>Lab profile:</strong> {_esc(profile.get('id'))}
        — {_esc(profile.get('display_name'))}</p>
     <p><strong>CPU:</strong> {_esc(profile.get('cpu_model'))}</p>
-    <p><strong>Conduit:</strong> {_esc(prov.get('conduit_version'))}
+{mem_html}    <p><strong>Conduit:</strong> {_esc(prov.get('conduit_version'))}
        ({_esc(prov.get('conduit_path'))})</p>
   </div>
   <table>

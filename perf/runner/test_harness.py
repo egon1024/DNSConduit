@@ -12,7 +12,12 @@ from perf.runner.catalog import filter_scenarios, load_annotations, load_scenari
 from perf.runner.execute import public_conduit_path
 from perf.runner.loadgen import DEFAULT_IMAGE, docker_dnsperf_cmd, parse_dnsperf_output
 from perf.runner.paths import RESULTS_SCHEMA, load_json
-from perf.runner.run_record import validate_run_document, write_run_document
+from perf.runner.run_record import (
+    detect_lab_profile_runtime,
+    detect_meminfo_total_mb,
+    validate_run_document,
+    write_run_document,
+)
 
 
 SAMPLE_DNSPERF = """
@@ -244,6 +249,26 @@ class ProvenancePathTests(unittest.TestCase):
             cwd = root / "workdir"
             cwd.mkdir()
             self.assertEqual(public_conduit_path(binary, cwd=cwd), "conduit")
+
+
+class LabProfileDetectTests(unittest.TestCase):
+    def test_meminfo_parse(self):
+        mb = detect_meminfo_total_mb()
+        # Linux CI/dev hosts expose /proc/meminfo; value must be positive.
+        if Path("/proc/meminfo").is_file():
+            self.assertIsInstance(mb, int)
+            self.assertGreater(mb, 0)
+
+    def test_runtime_profile_includes_memory_when_available(self):
+        profile = detect_lab_profile_runtime(profile_id="unit")
+        self.assertEqual(profile["id"], "unit")
+        self.assertTrue(profile["cpu_model"])
+        if Path("/proc/meminfo").is_file():
+            self.assertIn("memory_total_mb", profile)
+            self.assertGreater(profile["memory_total_mb"], 0)
+            validate_run_document(
+                _minimal_run_doc(lab_profile={**profile, "cpu_model": "Test CPU"})
+            )
 
 
 if __name__ == "__main__":
