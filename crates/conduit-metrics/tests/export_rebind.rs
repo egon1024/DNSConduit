@@ -104,13 +104,7 @@ async fn prometheus_rebind_success() {
     let resp1_after = reqwest::get(format!("http://127.0.0.1:{}/metrics", port1))
         .await
         .ok()
-        .and_then(|r| {
-            if r.status().is_success() {
-                Some(r)
-            } else {
-                None
-            }
-        });
+        .filter(|r| r.status().is_success());
     assert!(
         resp1_after.is_none(),
         "old port should not be serving after rebind"
