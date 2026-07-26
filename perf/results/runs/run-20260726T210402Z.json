@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-07-26T21:04:02Z",
+  "lab_profile": {
+    "id": "local",
+    "display_name": "Local run (local)",
+    "cpu_model": "Intel(R) Core(TM) i9-14900K",
+    "physical_cores": 32,
+    "logical_cores": 32,
+    "os": "Linux 6.8.0-136-generic",
+    "kernel": "6.8.0-136-generic"
+  },
+  "provenance": {
+    "conduit_path": "/home/egon/git_repos/DNSConduit/target/release/conduit",
+    "conduit_version": "unknown",
+    "runner": "perf.runner/0.1.0",
+    "loadgen": {
+      "tool": "dnsperf",
+      "mode": "docker",
+      "image": "dnsconduit-dnsperf:2.14.0"
+    },
+    "git_sha": "95bc4f59ea5cd9f89aabb55f42939c2c170c83b6"
+  },
+  "quality": {
+    "warmup_seconds": 2.0,
+    "duration_seconds": 5.0
+  },
+  "scenarios": [
+    {
+      "id": "scale-sync-forward-fast",
+      "suite": "scale",
+      "intent": "Compare sync runtime under a fast stub upstream (forward_fast load shape).\nThin curated spine pair with scale-split-io-forward-fast.",
+      "status": "error",
+      "axes": {
+        "runtime": "sync",
+        "load_shape": "forward_fast",
+        "ingress_workers": 2
+      },
+      "error": "dnsperf failed (exit 1): unexpected argument dnsperf\nUsage: dnsperf [-f family] [-m mode] [-s server_addr] [-p port]\n               [-a local_addr] [-x local_port] [-d datafile] [-c clients]\n               [-T threads] [-n maxruns] [-l timelimit] [-b buffer_size]\n               [-t timeout] [-e] [-E code:value] [-D]\n               [-y [alg:]name:secret] [-q num_queries] [-Q max_qps]\n               [-S stats_interval] [-u] [-B] [-v] [-W] [-h] [-H] [-O]\n  -f address family of DNS transport, inet or inet6 (default: any)\n  -m set transport mode: udp, tcp, dot or doh (default: udp)\n  -s the server to query (default: 127.0.0.1)\n  -p the port on which to query the server (default: udp/tcp 53, DoT 853 or DoH 443)\n  -a the local address from which to send queries\n  -x the local port from which to send queries (default: 0)\n  -d the input data file (default: stdin)\n  -c the number of clients to act as\n  -T the number of threads to run\n  -n run through input at most N times\n  -l run for at most this many seconds\n  -b socket send/receive buffer size in kilobytes\n  -t the timeout for query completion in seconds (default: 5)\n  -e enable EDNS 0\n  -E send EDNS option\n  -D set the DNSSEC OK bit (implies EDNS)\n  -y the TSIG algorithm, name and secret (base64)\n  -q the maximum number of queries outstanding (default: 100)\n  -Q limit the number of queries per second\n  -S print qps statistics every N seconds\n  -u send dynamic updates instead of queries\n  -B read input file as TCP-stream binary format\n  -v verbose: report each query and additional information to stdout\n  -W log warnings and errors to stdout instead of stderr\n  -h print this help\n  -H print long options help\n  -O set long options: <name>=<value>\n"
+    }
+  ]
+}

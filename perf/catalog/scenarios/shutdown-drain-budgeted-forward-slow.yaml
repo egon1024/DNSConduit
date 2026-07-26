@@ -1,0 +1,21 @@
+schema_version: 1
+id: shutdown-drain-budgeted-forward-slow
+suite: shutdown_drain
+curated: true
+intent: |
+  Drain-budgeted policy (short drain_timeout_ms) under forward_slow load.
+  Records drain duration and client loss during the stop window. Paired with
+  complete and minimal policies for relative comparison.
+axes:
+  runtime: sync
+  load_shape: forward_slow
+  drain_policy: drain_budgeted
+  ingress_workers: 2
+recipe:
+  config: shutdown-drain-budgeted-forward-slow.yml
+  upstream: slow
+  loadgen: dnsperf
+  query_file: perf-a.txt
+  shutdown: true
+  stop_wait_s: 10
+  load_time_s: 8

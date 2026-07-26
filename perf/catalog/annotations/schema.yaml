@@ -1,0 +1,31 @@
+# Annotation catalog schema (descriptive; validated by the runner).
+# One YAML file per annotation under catalog/annotations/*.yaml
+schema_version: 1
+required:
+  - schema_version
+  - id
+  - tone
+  - title
+  - body
+fields:
+  schema_version: { type: integer, const: 1 }
+  id:
+    type: string
+    pattern: "^[a-z0-9][a-z0-9_-]*$"
+    description: Stable annotation id (e.g. ann-scale-slow-upstream-2026-07).
+  tone:
+    type: string
+    enum:
+      - improved_because
+      - regressed_because
+      - context
+      - known_noise
+  title: { type: string }
+  body: { type: string, description: "Release-tied prose; authored in git." }
+  related_scenarios:
+    type: array
+    items: { type: string }
+  related_releases:
+    type: array
+    items: { type: string }
+    description: "Product version strings or release tags this note applies to."

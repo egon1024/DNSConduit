@@ -1,0 +1,11 @@
+schema_version: 1
+id: ann-example-context
+tone: context
+title: Example annotation for harness wiring
+body: |
+  Example release-tied footnote. Replace or extend with real notes when promoting
+  reference runs. Authored in git under perf/catalog/annotations/.
+related_scenarios:
+  - scale-sync-forward-fast
+related_releases:
+  - "1.2.0"

@@ -16,6 +16,10 @@ Operator documentation (install, configure, operate, troubleshoot):
 
 **https://egon1024.github.io/DNSConduit/**
 
+## Performance harness (lab)
+
+Binary-driven load suites live under [perf/](perf/) (`python3 -m perf.runner`). Replay against a Conduit binary with Docker-pinned dnsperf by default — no rustc required for suite replay. See [perf/README.md](perf/README.md). Microbenchmarks remain `make performance` (distinct from suite runs).
+
 ## License
 
 Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for the

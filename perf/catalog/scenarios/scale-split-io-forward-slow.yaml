@@ -1,0 +1,18 @@
+schema_version: 1
+id: scale-split-io-forward-slow
+suite: scale
+curated: true
+intent: |
+  Compare split_io runtime under an artificially slow upstream (forward_slow).
+  Paired with scale-sync-forward-slow; slow upstream is where split_io should shine.
+axes:
+  runtime: split_io
+  load_shape: forward_slow
+  ingress_workers: 2
+  policy_workers: 2
+  io_workers: 2
+recipe:
+  config: scale-split-io-obs-off.yml
+  upstream: slow
+  loadgen: dnsperf
+  query_file: perf-a.txt

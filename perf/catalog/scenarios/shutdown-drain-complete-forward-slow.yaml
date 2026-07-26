@@ -1,0 +1,22 @@
+schema_version: 1
+id: shutdown-drain-complete-forward-slow
+suite: shutdown_drain
+curated: true
+intent: |
+  Drain-complete policy (long drain_timeout_ms budget) under forward_slow load.
+  Records drain duration and client loss during the stop window. Paired with
+  budgeted and minimal policies for relative comparison.
+axes:
+  runtime: sync
+  load_shape: forward_slow
+  drain_policy: drain_complete
+  ingress_workers: 2
+recipe:
+  config: shutdown-drain-complete-forward-slow.yml
+  upstream: slow
+  loadgen: dnsperf
+  query_file: perf-a.txt
+  shutdown: true
+  # Allow Conduit wait up to drain_timeout_ms (5s) plus teardown slack.
+  stop_wait_s: 12
+  load_time_s: 12

@@ -1,0 +1,17 @@
+schema_version: 1
+id: scale-sync-cache-hit
+suite: scale
+curated: false
+intent: |
+  Maintainer-runnable cache_hit load shape: sync runtime with memory cache warmed
+  before dnsperf. Not required for the initial curated publish spine.
+axes:
+  runtime: sync
+  load_shape: cache_hit
+  ingress_workers: 2
+recipe:
+  config: scale-sync-cache-hit.yml
+  upstream: fast
+  loadgen: dnsperf
+  query_file: perf-a.txt
+  cache_warm: true

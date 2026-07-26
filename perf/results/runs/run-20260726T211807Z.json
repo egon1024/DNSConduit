@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-07-26T21:18:07Z",
+  "lab_profile": {
+    "id": "local",
+    "display_name": "Local run (local)",
+    "cpu_model": "Intel(R) Core(TM) i9-14900K",
+    "physical_cores": 32,
+    "logical_cores": 32,
+    "os": "Linux 6.8.0-136-generic",
+    "kernel": "6.8.0-136-generic"
+  },
+  "provenance": {
+    "conduit_path": "/home/egon/git_repos/DNSConduit/target/release/conduit",
+    "conduit_version": "unknown",
+    "runner": "perf.runner/0.1.0",
+    "loadgen": {
+      "tool": "dnsperf",
+      "mode": "native"
+    },
+    "git_sha": "95bc4f59ea5cd9f89aabb55f42939c2c170c83b6"
+  },
+  "quality": {
+    "warmup_seconds": 2.0,
+    "duration_seconds": 5.0
+  },
+  "scenarios": [
+    {
+      "id": "scale-sync-forward-fast",
+      "suite": "scale",
+      "intent": "Compare sync runtime under a fast stub upstream (forward_fast load shape).\nThin curated spine pair with scale-split-io-forward-fast.",
+      "status": "error",
+      "axes": {
+        "runtime": "sync",
+        "load_shape": "forward_fast",
+        "ingress_workers": 2
+      },
+      "error": "native dnsperf not found on PATH; use Docker default or install dnsperf"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+schema_version: 1
+id: scale-sync-forward-slow
+suite: scale
+curated: true
+intent: |
+  Compare sync runtime under an artificially slow upstream (forward_slow).
+  Paired with scale-split-io-forward-slow for relative comparison.
+axes:
+  runtime: sync
+  load_shape: forward_slow
+  ingress_workers: 2
+recipe:
+  config: scale-sync-obs-off.yml
+  upstream: slow
+  loadgen: dnsperf
+  query_file: perf-a.txt

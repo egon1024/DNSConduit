@@ -1,0 +1,44 @@
+# Shutdown drain — drain_budgeted under forward_slow.
+# Sync runtime, observability off. Short drain_timeout_ms budget.
+schema_version: 1
+listeners:
+  threads: 2
+  reuse_port: true
+  listeners:
+    - address: "127.0.2.1:15353"
+      protocol: udp
+      name: perf-udp
+forward:
+  outstanding_per_backend: 256
+  timeout_ms: 2000
+orchestrator:
+  max_attempts: 2
+  max_txn_duration_ms: 5000
+  txn_table_capacity: 4096
+events:
+  queue_depth: 4096
+  drop_policy: drop_oldest
+pools:
+  - name: default
+    backends:
+      - address: "127.0.2.1:15300"
+        weight: 100
+rules:
+  match_mode: first_match
+  rules:
+    - name: default-pool
+      hook: request
+      selectors: []
+      actions:
+        - type: set_pool
+          value: default
+shutdown:
+  drain: true
+  drain_timeout_ms: 250
+control:
+  listen_address: "127.0.2.1:5199"
+  reflection_enabled: false
+metrics:
+  enabled: false
+logging:
+  level: warn
