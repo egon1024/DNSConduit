@@ -185,5 +185,6 @@ The log subscriber is initialized **once at process start**. Changing **`level`*
 - [Tracing](/observability/tracing.md) — pipeline traces and optional JSON trace logs
 - [Metrics](/observability/metrics.md) — Prometheus scrape and OTEL metrics push
 - [Event export](/observability/event-export.md) — dnstap sinks
+- [Logging verbosity tax](/performance/studies/logging-verbosity-tax.md) — same-host warn vs debug under load
 - [gRPC and conduitctl](/control-plane/grpc-and-conduitctl.md) — control RPC access logs
 - [Troubleshooting — Observability](/troubleshooting/index.md#observability) — symptom hub

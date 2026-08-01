@@ -14,3 +14,6 @@ recipe:
   upstream: fast
   loadgen: dnsperf
   query_file: perf-a.txt
+  clients: 16
+  dnsperf_threads: 8
+  max_outstanding: 2000

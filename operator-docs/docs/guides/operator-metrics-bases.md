@@ -112,3 +112,8 @@ Expect qtype/qclass/ip_family on queries and phase/forward timing series present
 - [Built-in metrics](/observability/built-in-metrics.md)
 - [Metrics](/observability/metrics.md)
 - [Metrics configurability — Legacy aliases](/observability/metrics-configurability.md#legacy-profile-alias)
+- [Metrics scrape ladder](/performance/studies/metrics-scrape-ladder.md) — same-host tax of minimal vs standard scrape
+- [Metrics collect vs emit](/performance/studies/metrics-collect-vs-emit.md) — recording vs export
+- [Metrics scrape (split_io)](/performance/studies/metrics-scrape-split-io.md)
+- [Aggressive scrape cadence](/performance/studies/metrics-scrape-hammer.md)
+- [OTLP tax under load](/performance/studies/otlp-tax-under-load.md)

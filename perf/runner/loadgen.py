@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Sequence
 
+from .cpuaffinity import taskset_prefix
 from .paths import DNSPERF_DIR, QUERIES
 
 # Thin in-repo image built from fixtures/dnsperf/Dockerfile (pinned upstream tag).
@@ -116,22 +117,21 @@ def docker_dnsperf_cmd(
     image: str,
     query_dir: Path,
     flags: Sequence[str],
+    cpuset: str | None = None,
 ) -> list[str]:
     """Build docker run argv for the pinned dnsperf image.
 
     The image ENTRYPOINT is already ``dnsperf``, so *flags* are appended as
-    arguments only — do not pass a second ``dnsperf`` token.
+    arguments only — do not pass a second ``dnsperf`` token. *cpuset* pins
+    the container to a CPU range (see ``perf.runner.cpuaffinity``) so the
+    loadgen doesn't compete with Conduit for the same core class on hybrid
+    P-core/E-core hosts.
     """
-    return [
-        "docker",
-        "run",
-        "--rm",
-        "--network=host",
-        "-v",
-        f"{query_dir}:/queries:ro",
-        image,
-        *flags,
-    ]
+    cmd = ["docker", "run", "--rm", "--network=host"]
+    if cpuset:
+        cmd.extend(["--cpuset-cpus", cpuset])
+    cmd.extend(["-v", f"{query_dir}:/queries:ro", image, *flags])
+    return cmd
 
 
 def build_dnsperf_image(*, image: str = DEFAULT_IMAGE) -> None:
@@ -163,6 +163,7 @@ def _dnsperf_flags(
     clients: int,
     threads: int,
     limit_qps: int | None,
+    max_outstanding: int | None,
     time_s: int,
     mode: str,
     extra_flags: Sequence[str],
@@ -183,6 +184,8 @@ def _dnsperf_flags(
     ]
     if limit_qps is not None:
         flags.extend(["-Q", str(limit_qps)])
+    if max_outstanding is not None:
+        flags.extend(["-q", str(max_outstanding)])
     flags.extend(extra_flags)
     return flags
 
@@ -208,10 +211,12 @@ def start_dnsperf(
     clients: int = 4,
     threads: int = 2,
     limit_qps: int | None = None,
+    max_outstanding: int | None = None,
     time_s: int = 10,
     mode: str = "docker",
     image: str = DEFAULT_IMAGE,
     extra_flags: Sequence[str] = (),
+    cpuset: str | None = None,
 ) -> DnsperfHandle:
     """Start dnsperf in the background (does not wait for completion)."""
     if not query_file.is_file():
@@ -224,6 +229,7 @@ def start_dnsperf(
         clients=clients,
         threads=threads,
         limit_qps=limit_qps,
+        max_outstanding=max_outstanding,
         time_s=time_s,
         mode=mode,
         extra_flags=extra_flags,
@@ -237,7 +243,7 @@ def start_dnsperf(
                 "native dnsperf not found on PATH; use Docker default or install dnsperf"
             )
         proc = subprocess.Popen(
-            [binary, *base_flags],
+            [*taskset_prefix(cpuset), binary, *base_flags],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -259,6 +265,7 @@ def start_dnsperf(
         image=image,
         query_dir=query_file.parent.resolve(),
         flags=base_flags,
+        cpuset=cpuset,
     )
     proc = subprocess.Popen(
         cmd,
@@ -283,10 +290,12 @@ def run_dnsperf(
     clients: int = 4,
     threads: int = 2,
     limit_qps: int | None = None,
+    max_outstanding: int | None = None,
     time_s: int = 10,
     mode: str = "docker",
     image: str = DEFAULT_IMAGE,
     extra_flags: Sequence[str] = (),
+    cpuset: str | None = None,
 ) -> DnsperfResult:
     handle = start_dnsperf(
         server=server,
@@ -295,9 +304,11 @@ def run_dnsperf(
         clients=clients,
         threads=threads,
         limit_qps=limit_qps,
+        max_outstanding=max_outstanding,
         time_s=time_s,
         mode=mode,
         image=image,
         extra_flags=extra_flags,
+        cpuset=cpuset,
     )
     return handle.wait(timeout_s=float(time_s) + 60.0)

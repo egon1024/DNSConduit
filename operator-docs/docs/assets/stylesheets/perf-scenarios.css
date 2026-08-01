@@ -1,0 +1,53 @@
+/* Performance catalog cards — scenarios page and reference/study chart blocks. */
+
+.md-typeset .perf-scenario,
+.md-typeset .perf-chart {
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-left: 0.25rem solid var(--md-primary-fg-color);
+  border-radius: 0.2rem;
+  padding: 0.75rem 1.05rem 0.85rem;
+  margin: 1.35rem 0;
+  background: var(--md-code-bg-color);
+}
+
+.md-typeset .perf-scenario > :first-child,
+.md-typeset .perf-chart > :first-child {
+  margin-top: 0;
+}
+
+.md-typeset .perf-scenario > :last-child,
+.md-typeset .perf-chart > :last-child {
+  margin-bottom: 0;
+}
+
+.md-typeset .perf-scenario > h3,
+.md-typeset .perf-chart > h3 {
+  margin-top: 0;
+  margin-bottom: 0.45rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.md-typeset .perf-scenario > p,
+.md-typeset .perf-chart > p {
+  margin-top: 0.35rem;
+  margin-bottom: 0.35rem;
+}
+
+.md-typeset h2 + .perf-scenario,
+.md-typeset h2 + .perf-chart {
+  margin-top: 0.75rem;
+}
+
+.md-typeset .perf-chart img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0.5rem 0 0.65rem;
+}
+
+.md-typeset .perf-chart table {
+  margin-top: 0.55rem;
+  margin-bottom: 0;
+}

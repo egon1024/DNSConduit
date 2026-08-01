@@ -1,0 +1,18 @@
+schema_version: 1
+id: scale-split-io-io-8-forward-slow
+suite: scale
+curated: true
+intent: |
+  I/O-vs-ingress ladder (split_io): eight I/O workers with fixed ingress/policy=2
+  under forward_slow. Optional noisy rung — keep in catalog; publish may omit if unstable.
+axes:
+  runtime: split_io
+  load_shape: forward_slow
+  ingress_workers: 2
+  policy_workers: 2
+  io_workers: 8
+recipe:
+  config: scale-split-io-io-8-obs-off.yml
+  upstream: slow
+  loadgen: dnsperf
+  query_file: perf-a.txt

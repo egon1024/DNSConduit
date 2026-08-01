@@ -1,0 +1,28 @@
+schema_version: 1
+id: metrics-dnstap-combined-tax
+title: Combined metrics + dnstap tax
+question: What does turning on standard scrape and fuller dnstap together cost?
+published: true
+members:
+  - feature-tax-metrics-off-forward-fast
+  - feature-tax-metrics-standard-scrape-forward-fast
+  - feature-tax-dnstap-full-forward-fast
+  - feature-tax-metrics-standard-dnstap-full-forward-fast
+compare_axis: obs_posture
+primary_metric: achieved_qps
+takeaway: >
+  Compares obs-off, scrape-only, dnstap-only, and both-on under forward_fast —
+  use when operators enable multiple observability surfaces together.
+related_guides:
+  - /observability/metrics-configurability.md
+  - /observability/event-export.md
+  - /guides/operator-metrics-bases.md
+figures:
+  - id: metrics-dnstap-combined-forward-fast
+    title: Feature tax — metrics and dnstap combined (forward_fast)
+    y_label: Achieved QPS
+    members:
+      - feature-tax-metrics-off-forward-fast
+      - feature-tax-metrics-standard-scrape-forward-fast
+      - feature-tax-dnstap-full-forward-fast
+      - feature-tax-metrics-standard-dnstap-full-forward-fast

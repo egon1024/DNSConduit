@@ -113,22 +113,47 @@ control:
     )
 }
 
-fn split_io_config(listen_port: u16, backend_port: u16, capacity: u32) -> String {
+fn split_io_config_workers(
+    listen_port: u16,
+    backend_port: u16,
+    capacity: u32,
+    policy_workers: u32,
+    io_workers: u32,
+) -> String {
+    split_io_config_ingress_workers(
+        listen_port,
+        backend_port,
+        capacity,
+        1,
+        policy_workers,
+        io_workers,
+    )
+}
+
+fn split_io_config_ingress_workers(
+    listen_port: u16,
+    backend_port: u16,
+    capacity: u32,
+    ingress_threads: u32,
+    policy_workers: u32,
+    io_workers: u32,
+) -> String {
+    let reuse_port = ingress_threads > 1;
     format!(
         r#"
 schema_version: 1
 dataplane:
   runtime: split_io
-  policy_workers: 2
-  io_workers: 1
+  policy_workers: {policy_workers}
+  io_workers: {io_workers}
 listeners:
-  threads: 1
-  reuse_port: false
+  threads: {ingress_threads}
+  reuse_port: {reuse_port}
   listeners:
     - address: "127.0.0.1:{listen_port}"
       protocol: udp
 forward:
-  outstanding_per_backend: 32
+  outstanding_per_backend: 64
   timeout_ms: 5000
 orchestrator:
   max_attempts: 1
@@ -150,6 +175,10 @@ control:
   listen_address: "127.0.0.1:0"
 "#
     )
+}
+
+fn split_io_config(listen_port: u16, backend_port: u16, capacity: u32) -> String {
+    split_io_config_workers(listen_port, backend_port, capacity, 2, 1)
 }
 
 fn bind_ephemeral() -> u16 {
@@ -397,5 +426,196 @@ fn split_io_valid_query_reaches_upstream() {
     client.send_to(&sample_query(7), target).unwrap();
     let mut buf = [0u8; 512];
     let (_, _) = client.recv_from(&mut buf).expect("response from split_io");
+    handle.shutdown();
+}
+
+/// Multi I/O worker + multi policy worker under a fast stub: every query must
+/// resume exactly once (no lost replies across shards).
+#[test]
+fn split_io_multi_io_workers_concurrent_fast_upstream() {
+    let listen_port = bind_ephemeral();
+    let (backend_port, _upstream) = mock_upstream(Duration::ZERO);
+
+    let yaml = split_io_config_workers(listen_port, backend_port, 128, 4, 4);
+    let cfg = load_yaml(&yaml).unwrap();
+    assert!(validate(&cfg).ok);
+    let store = Arc::new(SnapshotStore::new(RuntimeSnapshot::from_config(
+        cfg.clone(),
+    )));
+    let metrics = Arc::new(MetricsHub::from_config(&cfg));
+    let tracing = Arc::new(TracingHub::from_config(&cfg));
+    let handle = start(store, metrics, tracing).expect("split_io multi-io start");
+
+    let client = UdpSocket::bind("127.0.0.1:0").unwrap();
+    client
+        .set_read_timeout(Some(Duration::from_secs(5)))
+        .unwrap();
+    let target: std::net::SocketAddr = format!("127.0.0.1:{listen_port}").parse().unwrap();
+
+    const N: u16 = 64;
+    for id in 1..=N {
+        client.send_to(&sample_query(id), target).unwrap();
+    }
+
+    let mut buf = [0u8; 512];
+    let mut got = 0u16;
+    for _ in 1..=N {
+        match client.recv_from(&mut buf) {
+            Ok(_) => got += 1,
+            Err(e) => {
+                panic!(
+                    "every concurrent submit must resume under multi io_workers: {e} (got {got}/{N})"
+                );
+            }
+        }
+    }
+    handle.shutdown();
+}
+
+/// Multi policy workers + fast stub: every query must resume (no
+/// "slot was not in IoWait" drop storm / parked-forever slots).
+#[test]
+fn split_io_multi_policy_fast_upstream_no_resume_drops() {
+    let listen_port = bind_ephemeral();
+    let (backend_port, _upstream) = mock_upstream(Duration::ZERO);
+
+    let yaml = split_io_config_workers(listen_port, backend_port, 256, 4, 2);
+    let cfg = load_yaml(&yaml).unwrap();
+    assert!(validate(&cfg).ok);
+    let store = Arc::new(SnapshotStore::new(RuntimeSnapshot::from_config(
+        cfg.clone(),
+    )));
+    let metrics = Arc::new(MetricsHub::from_config(&cfg));
+    let tracing = Arc::new(TracingHub::from_config(&cfg));
+    let handle = start(store, metrics, tracing).expect("split_io multi-policy start");
+
+    let client = UdpSocket::bind("127.0.0.1:0").unwrap();
+    client
+        .set_read_timeout(Some(Duration::from_secs(5)))
+        .unwrap();
+    let target: std::net::SocketAddr = format!("127.0.0.1:{listen_port}").parse().unwrap();
+
+    const N: u16 = 128;
+    for id in 1..=N {
+        client.send_to(&sample_query(id), target).unwrap();
+    }
+
+    let mut buf = [0u8; 512];
+    let mut got = 0u16;
+    for _ in 1..=N {
+        match client.recv_from(&mut buf) {
+            Ok(_) => got += 1,
+            Err(e) => {
+                panic!("multi-policy fast upstream must not drop resumes: {e} (got {got}/{N})");
+            }
+        }
+    }
+    assert_eq!(
+        got, N,
+        "multi-policy fast upstream must deliver every reply (got {got}/{N})"
+    );
+    // Reply delivery precedes release_slot; wait briefly so slots return to Free.
+    let deadline = Instant::now() + Duration::from_secs(2);
+    while handle.txn_store.in_use() > 0 && Instant::now() < deadline {
+        thread::sleep(Duration::from_millis(10));
+    }
+    assert_eq!(
+        handle.txn_store.in_use(),
+        0,
+        "no slots parked forever after replies"
+    );
+    handle.shutdown();
+}
+
+/// Multi ingress + multi policy under a fast stub: every UDP reply must land
+/// (sharded ReplyRoutes + PolicyQueue must not lose routes or New/Resume pairs).
+#[test]
+fn split_io_multi_ingress_multi_policy_no_lost_replies() {
+    let listen_port = bind_ephemeral();
+    let (backend_port, _upstream) = mock_upstream(Duration::ZERO);
+
+    let yaml = split_io_config_ingress_workers(listen_port, backend_port, 256, 4, 4, 2);
+    let cfg = load_yaml(&yaml).unwrap();
+    assert!(validate(&cfg).ok);
+    let store = Arc::new(SnapshotStore::new(RuntimeSnapshot::from_config(
+        cfg.clone(),
+    )));
+    let metrics = Arc::new(MetricsHub::from_config(&cfg));
+    let tracing = Arc::new(TracingHub::from_config(&cfg));
+    let handle = start(store, metrics, tracing).expect("split_io multi-ingress start");
+
+    let client = UdpSocket::bind("127.0.0.1:0").unwrap();
+    client
+        .set_read_timeout(Some(Duration::from_secs(5)))
+        .unwrap();
+    let target: std::net::SocketAddr = format!("127.0.0.1:{listen_port}").parse().unwrap();
+
+    const N: u16 = 128;
+    for id in 1..=N {
+        client.send_to(&sample_query(id), target).unwrap();
+    }
+
+    let mut buf = [0u8; 512];
+    let mut got = 0u16;
+    for _ in 1..=N {
+        match client.recv_from(&mut buf) {
+            Ok(_) => got += 1,
+            Err(e) => {
+                panic!(
+                    "multi-ingress + multi-policy must not lose UDP replies: {e} (got {got}/{N})"
+                );
+            }
+        }
+    }
+    assert_eq!(got, N);
+    let deadline = Instant::now() + Duration::from_secs(2);
+    while handle.txn_store.in_use() > 0 && Instant::now() < deadline {
+        thread::sleep(Duration::from_millis(10));
+    }
+    assert_eq!(
+        handle.txn_store.in_use(),
+        0,
+        "New then Resume must complete; no parked slots"
+    );
+    handle.shutdown();
+}
+
+/// io_workers: 1 regression — same concurrent slow-upstream property as the
+/// historic single-poller path.
+#[test]
+fn split_io_io_workers_one_matches_single_poller_concurrency() {
+    let listen_port = bind_ephemeral();
+    let (backend_port, _upstream) = mock_upstream(Duration::from_millis(150));
+
+    let yaml = split_io_config_workers(listen_port, backend_port, 64, 2, 1);
+    let cfg = load_yaml(&yaml).unwrap();
+    let store = Arc::new(SnapshotStore::new(RuntimeSnapshot::from_config(
+        cfg.clone(),
+    )));
+    let metrics = Arc::new(MetricsHub::from_config(&cfg));
+    let tracing = Arc::new(TracingHub::from_config(&cfg));
+    let handle = start(store, metrics, tracing).expect("split_io io_workers=1 start");
+
+    let client = UdpSocket::bind("127.0.0.1:0").unwrap();
+    client
+        .set_read_timeout(Some(Duration::from_secs(5)))
+        .unwrap();
+    let target: std::net::SocketAddr = format!("127.0.0.1:{listen_port}").parse().unwrap();
+
+    let q1 = sample_query(101);
+    let q2 = sample_query(102);
+    client.send_to(&q1, target).unwrap();
+    let t0 = Instant::now();
+    client.send_to(&q2, target).unwrap();
+
+    let mut buf = [0u8; 512];
+    let (_, _) = client.recv_from(&mut buf).expect("first response");
+    let first_elapsed = t0.elapsed();
+    let (_, _) = client.recv_from(&mut buf).expect("second response");
+
+    assert!(
+        first_elapsed < Duration::from_millis(350),
+        "io_workers=1 must still overlap slow upstream waits; took {first_elapsed:?}"
+    );
     handle.shutdown();
 }

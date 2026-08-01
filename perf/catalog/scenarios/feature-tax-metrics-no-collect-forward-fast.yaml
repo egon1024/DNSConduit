@@ -1,7 +1,7 @@
 schema_version: 1
 id: feature-tax-metrics-no-collect-forward-fast
 suite: feature_tax
-curated: false
+curated: true
 intent: |
   No-collect on hot-path categories under forward_fast — neither record nor export
   for volume/failures/lookup/timing. Paired with collect-only and collect+emit.
@@ -15,3 +15,6 @@ recipe:
   upstream: fast
   loadgen: dnsperf
   query_file: perf-a.txt
+  clients: 16
+  dnsperf_threads: 8
+  max_outstanding: 2000

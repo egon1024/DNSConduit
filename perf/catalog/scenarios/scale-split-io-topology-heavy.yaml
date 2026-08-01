@@ -1,7 +1,7 @@
 schema_version: 1
 id: scale-split-io-topology-heavy
 suite: scale
-curated: false
+curated: true
 intent: |
   Maintainer topology / threads-vs-cores scenario: higher ingress, policy, and
   I/O worker counts under forward_fast. Runnable locally; not required for G1
@@ -9,6 +9,7 @@ intent: |
 axes:
   runtime: split_io
   load_shape: forward_fast
+  topology: heavy
   ingress_workers: 4
   policy_workers: 4
   io_workers: 4
@@ -17,3 +18,6 @@ recipe:
   upstream: fast
   loadgen: dnsperf
   query_file: perf-a.txt
+  clients: 16
+  dnsperf_threads: 8
+  max_outstanding: 2000

@@ -16,7 +16,7 @@ use conduit_metrics::{MetricsHub, TracingHub};
 use crossbeam_channel::RecvTimeoutError;
 use ingress::{bind_tcp, bind_udp, run_tcp_ingress, run_udp_ingress};
 use policy::run_policy_worker;
-use queue::{PolicyQueue, PolicyWork};
+use queue::{derive_shard_count, PolicyQueue, PolicyWork};
 use std::io;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
@@ -52,22 +52,53 @@ pub fn start_split_io(
         .unwrap_or(DEFAULT_SLOT_CHUNK_SIZE);
     let txn_store = SharedTxnStore::new(slot_capacity, slot_chunk);
     let shutdown = DataplaneShutdown::new();
-    let policy_queue = Arc::new(PolicyQueue::new());
-    let reply_routes = Arc::new(queue::ReplyRoutes::new());
+    let policy_workers = effective_policy_workers(cfg);
+    // Sharded handoff: power-of-two ≥ max(4, policy_workers), capped (see queue.rs).
+    let queue_shards = derive_shard_count(policy_workers);
+    let policy_queue = Arc::new(PolicyQueue::with_shards(queue_shards));
+    let reply_routes = Arc::new(queue::ReplyRoutes::with_shards(queue_shards));
+    tracing::debug!(
+        queue_shards = policy_queue.shard_count(),
+        reply_route_shards = reply_routes.shard_count(),
+        policy_workers,
+        "split_io: sharded policy queue and reply routes"
+    );
     let inflight = Arc::new(PoolInflight::from_config(cfg));
     let global_query_counter = Arc::new(AtomicU64::new(0));
 
     let timeout_ms = snap.forward.timeout_ms;
     let bind_addresses_v4 = snap.egress_bind_addresses_v4();
     let bind_addresses_v6 = snap.egress_bind_addresses_v6();
-    let egress = build_forward_egress(
+    let io_workers = effective_io_workers(cfg);
+    let mut shard_egresses = Vec::with_capacity(io_workers as usize);
+    for shard_idx in 0..io_workers {
+        shard_egresses.push(
+            build_forward_egress(
+                &snap.forward,
+                &bind_addresses_v4,
+                &bind_addresses_v6,
+                timeout_ms,
+            )
+            .map_err(|e| {
+                io::Error::new(
+                    e.kind(),
+                    format!(
+                        "split_io: failed to bind egress sockets for I/O worker {shard_idx}: {e}"
+                    ),
+                )
+            })?,
+        );
+    }
+    // ForwardTransport still needs a WorkerForwardEgress for the sync-shaped
+    // API surface; submit mode sends via IoBackend shard egress instead.
+    let transport_egress = build_forward_egress(
         &snap.forward,
         &bind_addresses_v4,
         &bind_addresses_v6,
         timeout_ms,
     )?;
-    let egress_sockets = egress.all_udp_sockets();
-    let (io_backend, io_resume_rx) = IoBackend::new(egress_sockets, table.clone(), timeout_ms)?;
+    let (io_backend, io_resume_rx) =
+        IoBackend::from_egresses(shard_egresses, table.clone(), timeout_ms)?;
     let io_shutdown = Arc::new(AtomicBool::new(false));
     let io_backend_for_orchestrator = Arc::new(io_backend.clone());
 
@@ -87,7 +118,7 @@ pub fn start_split_io(
         &snap,
         table.clone(),
         &snap.forward,
-        egress,
+        transport_egress,
         timeout_ms,
         metrics.clone(),
         tracing.clone(),
@@ -112,9 +143,9 @@ pub fn start_split_io(
         thread_handles.push(h);
     }
 
-    let policy_workers = effective_policy_workers(cfg);
-    for _ in 0..policy_workers {
+    for worker_idx in 0..policy_workers {
         let queue = policy_queue.clone();
+        let home_shard = (worker_idx as usize) % queue_shards;
         let txn_store = txn_store.clone();
         let orchestrator = orchestrator.clone();
         let store = store.clone();
@@ -125,6 +156,7 @@ pub fn start_split_io(
         thread_handles.push(thread::spawn(move || {
             run_policy_worker(
                 queue,
+                home_shard,
                 txn_store,
                 orchestrator,
                 store,
@@ -136,15 +168,8 @@ pub fn start_split_io(
         }));
     }
 
-    let io_workers = effective_io_workers(cfg);
-    if io_workers > 1 {
-        tracing::warn!(
-            configured = io_workers,
-            "dataplane.io_workers > 1 not yet scaled; using one I/O poll thread"
-        );
-    }
     let io_shutdown_poll = io_shutdown.clone();
-    thread_handles.push(io_backend.spawn_poll_thread(io_shutdown_poll, shutdown.clone()));
+    thread_handles.extend(io_backend.spawn_poll_threads(io_shutdown_poll, shutdown.clone()));
 
     let policy_queue_io = policy_queue.clone();
     let io_resume_shutdown = shutdown.clone();

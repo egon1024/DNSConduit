@@ -1,7 +1,7 @@
 schema_version: 1
 id: feature-tax-metrics-otlp-push-forward-fast
 suite: feature_tax
-curated: false
+curated: true
 intent: |
   OTLP HTTP metrics push under forward_fast. Requires conduit-otlp-metrics-tracer;
   records secondary otlp_accepts / otlp_failures from the lab receiver.
@@ -17,3 +17,6 @@ recipe:
   query_file: perf-a.txt
   otlp_receiver: true
   skip_unless: otlp_tracer
+  clients: 16
+  dnsperf_threads: 8
+  max_outstanding: 2000

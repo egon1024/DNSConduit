@@ -14,14 +14,17 @@ from .. import __version__
 from .catalog import Scenario
 from .companions import (
     CompanionProcess,
+    ScrapeHammer,
     fetch_otlp_stats,
     resolve_conduitctl,
     resolve_dnstap_tracer,
     resolve_otlp_tracer,
     start_dnstap_tracer,
     start_otlp_tracer,
+    start_scrape_hammer,
 )
 from .conduit import conduit_version, probe_dns_answer, start_conduit
+from .cpuaffinity import detect_hybrid_cpusets
 from .loadgen import DEFAULT_IMAGE, DnsperfResult, run_dnsperf, start_dnsperf
 from .paths import CONFIGS, QUERIES
 from .run_record import detect_lab_profile_runtime, utc_now_iso
@@ -101,6 +104,33 @@ def _metrics_from_dnsperf(dp: DnsperfResult) -> dict[str, Any]:
     return metrics
 
 
+def _effective_loadgen_knobs(
+    recipe: dict[str, Any],
+    *,
+    clients: int,
+    dnsperf_threads: int,
+    max_outstanding: int | None,
+) -> tuple[int, int, int | None]:
+    """Resolve dnsperf concurrency: recipe knobs when set, else CLI args.
+
+    CLI ``--max-outstanding`` still wins when provided (non-None) so lab
+    overrides remain possible on recipe-pinned scenarios.
+    """
+    eff_clients = int(recipe["clients"]) if "clients" in recipe else clients
+    eff_threads = (
+        int(recipe["dnsperf_threads"])
+        if "dnsperf_threads" in recipe
+        else dnsperf_threads
+    )
+    if max_outstanding is not None:
+        eff_max = max_outstanding
+    elif "max_outstanding" in recipe:
+        eff_max = int(recipe["max_outstanding"])
+    else:
+        eff_max = None
+    return eff_clients, eff_threads, eff_max
+
+
 def run_scenario(
     scenario: Scenario,
     *,
@@ -109,6 +139,9 @@ def run_scenario(
     loadgen_image: str = DEFAULT_IMAGE,
     time_s: int = 10,
     warmup_s: float = 2.0,
+    clients: int = 4,
+    dnsperf_threads: int = 2,
+    max_outstanding: int | None = None,
     otlp_tracer: Path | None = None,
     dnstap_tracer: Path | None = None,
     conduitctl: Path | None = None,
@@ -128,6 +161,8 @@ def run_scenario(
     otlp = resolve_otlp_tracer(otlp_tracer, conduit=conduit)
     dnstap = resolve_dnstap_tracer(dnstap_tracer, conduit=conduit)
     ctl = resolve_conduitctl(conduitctl, conduit=conduit)
+    hybrid = detect_hybrid_cpusets()
+    p_cpus, e_cpus = hybrid if hybrid else (None, None)
 
     skip = _skip_reason(
         scenario, otlp_tracer=otlp, dnstap_tracer=dnstap, zdu=zdu
@@ -138,6 +173,12 @@ def run_scenario(
         return result
 
     recipe = scenario.recipe
+    clients, dnsperf_threads, max_outstanding = _effective_loadgen_knobs(
+        recipe,
+        clients=clients,
+        dnsperf_threads=dnsperf_threads,
+        max_outstanding=max_outstanding,
+    )
     if recipe.get("loadgen") == "none" and scenario.suite == "lifecycle":
         return _run_lifecycle(
             scenario,
@@ -155,29 +196,42 @@ def run_scenario(
             loadgen_image=loadgen_image,
             time_s=time_s,
             warmup_s=warmup_s,
+            clients=clients,
+            dnsperf_threads=dnsperf_threads,
+            max_outstanding=max_outstanding,
             result=result,
         )
 
     upstream = None
     cp = None
     companions: list[CompanionProcess] = []
+    scrape_hammer: ScrapeHammer | None = None
     try:
         if recipe.get("otlp_receiver"):
             assert otlp is not None
-            companions.append(start_otlp_tracer(otlp))
+            companions.append(start_otlp_tracer(otlp, cpuset=e_cpus))
         if recipe.get("dnstap_receiver"):
             assert dnstap is not None
-            companions.append(start_dnstap_tracer(dnstap))
+            companions.append(start_dnstap_tracer(dnstap, cpuset=e_cpus))
 
         upstream = _start_upstream(recipe.get("upstream"))
         config = _resolve_config(recipe)
-        cp = start_conduit(conduit, config)
+        cp = start_conduit(conduit, config, cpuset=p_cpus)
 
         if recipe.get("cache_warm"):
             # Warm lookup cache with a few successful answers before load.
             for _ in range(20):
                 probe_dns_answer(cp.listen_host, cp.listen_port)
                 time.sleep(0.05)
+
+        if recipe.get("scrape_hammer"):
+            interval_ms = int(recipe.get("scrape_interval_ms") or 100)
+            scrape_url = str(
+                recipe.get("scrape_url") or "http://127.0.2.1:19090/metrics"
+            )
+            scrape_hammer = start_scrape_hammer(
+                url=scrape_url, interval_ms=interval_ms
+            )
 
         if warmup_s > 0 and recipe.get("loadgen") == "dnsperf":
             time.sleep(warmup_s)
@@ -198,8 +252,19 @@ def run_scenario(
                 time_s=time_s,
                 mode=loadgen_mode,
                 image=loadgen_image,
+                clients=clients,
+                threads=dnsperf_threads,
+                max_outstanding=max_outstanding,
+                cpuset=e_cpus,
             )
             metrics = _metrics_from_dnsperf(dp)
+            quality.update(
+                _dnsperf_quality(
+                    clients=clients,
+                    dnsperf_threads=dnsperf_threads,
+                    max_outstanding=max_outstanding,
+                )
+            )
 
         secondary: dict[str, Any] = {}
         for companion in companions:
@@ -209,6 +274,8 @@ def run_scenario(
                 stats = fetch_otlp_stats(companion.listen)
                 if stats:
                     secondary.update(stats)
+        if scrape_hammer is not None:
+            secondary.update(scrape_hammer.stats())
 
         result["metrics"] = metrics
         result["quality"] = quality
@@ -220,6 +287,11 @@ def run_scenario(
         result["error"] = str(exc)
         return result
     finally:
+        if scrape_hammer is not None:
+            try:
+                scrape_hammer.stop()
+            except Exception:
+                pass
         if cp is not None:
             try:
                 cp.stop(sig=signal.SIGTERM, wait_s=15.0)
@@ -234,6 +306,22 @@ def run_scenario(
                 pass
 
 
+def _dnsperf_quality(
+    *,
+    clients: int,
+    dnsperf_threads: int,
+    max_outstanding: int | None,
+) -> dict[str, Any]:
+    """Loadgen knobs recorded on scenario/run quality for reproduce and docs."""
+    out: dict[str, Any] = {
+        "dnsperf_clients": clients,
+        "dnsperf_threads": dnsperf_threads,
+    }
+    if max_outstanding is not None:
+        out["dnsperf_max_outstanding"] = max_outstanding
+    return out
+
+
 def _run_shutdown_drain(
     scenario: Scenario,
     *,
@@ -242,6 +330,9 @@ def _run_shutdown_drain(
     loadgen_image: str,
     time_s: int,
     warmup_s: float,
+    clients: int = 4,
+    dnsperf_threads: int = 2,
+    max_outstanding: int | None = None,
     result: dict[str, Any],
 ) -> dict[str, Any]:
     """Stop Conduit under concurrent load; record drain duration and client loss.
@@ -251,13 +342,15 @@ def _run_shutdown_drain(
     stats (queries_lost → secondary.client_failures_during_stop).
     """
     recipe = scenario.recipe
+    hybrid = detect_hybrid_cpusets()
+    p_cpus, e_cpus = hybrid if hybrid else (None, None)
     upstream = None
     cp = None
     load_handle = None
     try:
         upstream = _start_upstream(recipe.get("upstream") or "slow")
         config = _resolve_config(recipe)
-        cp = start_conduit(conduit, config)
+        cp = start_conduit(conduit, config, cpuset=p_cpus)
 
         if warmup_s > 0:
             time.sleep(warmup_s)
@@ -278,6 +371,10 @@ def _run_shutdown_drain(
             time_s=load_time_s,
             mode=loadgen_mode,
             image=loadgen_image,
+            clients=clients,
+            threads=dnsperf_threads,
+            max_outstanding=max_outstanding,
+            cpuset=e_cpus,
         )
 
         time.sleep(establish_s)
@@ -302,6 +399,11 @@ def _run_shutdown_drain(
             "notes": (
                 f"shutdown under load: establish_load_s={establish_s}, "
                 f"stop_wait_s={stop_wait_s}"
+            ),
+            **_dnsperf_quality(
+                clients=clients,
+                dnsperf_threads=dnsperf_threads,
+                max_outstanding=max_outstanding,
             ),
         }
         if secondary:
@@ -337,6 +439,8 @@ def _run_lifecycle(
 ) -> dict[str, Any]:
     upstream = None
     cp = None
+    hybrid = detect_hybrid_cpusets()
+    p_cpus, _e_cpus = hybrid if hybrid else (None, None)
     try:
         recipe = scenario.recipe
         kind = recipe.get("lifecycle") or "cold_start"
@@ -345,7 +449,7 @@ def _run_lifecycle(
 
         if kind == "cold_start":
             t0 = time.monotonic()
-            cp = start_conduit(conduit, config)
+            cp = start_conduit(conduit, config, cpuset=p_cpus)
             cold_ms = (time.monotonic() - t0) * 1000.0
             result["metrics"] = {"cold_start_ms": round(cold_ms, 3)}
             result["quality"] = {"warmup_seconds": warmup_s}
@@ -357,7 +461,7 @@ def _run_lifecycle(
                 result["skip_reason"] = "conduitctl not available"
                 return result
             overlay = _resolve_overlay(recipe)
-            cp = start_conduit(conduit, config)
+            cp = start_conduit(conduit, config, cpuset=p_cpus)
             if warmup_s > 0:
                 time.sleep(min(warmup_s, 1.0))
             env = os.environ.copy()
@@ -421,10 +525,20 @@ def build_run_document(
     loadgen_image: str = DEFAULT_IMAGE,
     warmup_s: float = 2.0,
     time_s: int = 10,
+    clients: int = 4,
+    dnsperf_threads: int = 2,
+    max_outstanding: int | None = None,
     run_annotation_ids: list[str] | None = None,
 ) -> dict[str, Any]:
     lab = detect_lab_profile_runtime(profile_id=profile_id)
-    loadgen: dict[str, Any] = {"tool": "dnsperf", "mode": loadgen_mode}
+    loadgen: dict[str, Any] = {
+        "tool": "dnsperf",
+        "mode": loadgen_mode,
+        "clients": clients,
+        "threads": dnsperf_threads,
+    }
+    if max_outstanding is not None:
+        loadgen["max_outstanding"] = max_outstanding
     if loadgen_mode == "docker":
         loadgen["image"] = loadgen_image
     doc: dict[str, Any] = {
@@ -440,6 +554,11 @@ def build_run_document(
         "quality": {
             "warmup_seconds": warmup_s,
             "duration_seconds": float(time_s),
+            **_dnsperf_quality(
+                clients=clients,
+                dnsperf_threads=dnsperf_threads,
+                max_outstanding=max_outstanding,
+            ),
         },
         "scenarios": scenario_results,
     }

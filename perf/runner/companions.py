@@ -1,4 +1,4 @@
-"""Lab companion process helpers (dnstap tracer, OTLP metrics tracer)."""
+"""Lab companion process helpers (dnstap tracer, OTLP metrics tracer, scrape hammer)."""
 
 from __future__ import annotations
 
@@ -7,12 +7,14 @@ import os
 import signal
 import socket
 import subprocess
+import threading
 import time
 import urllib.error
 import urllib.request
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
+from .cpuaffinity import taskset_prefix
 
 DNSTAP_SOCK_DEFAULT = Path("/tmp/conduit-perf-dnstap.sock")
 OTLP_LISTEN_DEFAULT = "127.0.2.1:4318"
@@ -80,6 +82,7 @@ def start_dnstap_tracer(
     *,
     sock: Path = DNSTAP_SOCK_DEFAULT,
     ready_timeout_s: float = 10.0,
+    cpuset: str | None = None,
 ) -> CompanionProcess:
     if not binary.is_file():
         raise FileNotFoundError(f"dnstap tracer not found: {binary}")
@@ -90,7 +93,7 @@ def start_dnstap_tracer(
             pass
 
     proc = subprocess.Popen(
-        [str(binary), "-u", str(sock), "-f", "log"],
+        [*taskset_prefix(cpuset), str(binary), "-u", str(sock), "-f", "log"],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
@@ -125,11 +128,12 @@ def start_otlp_tracer(
     path: str = "/v1/metrics",
     delay_ms: int = 0,
     ready_timeout_s: float = 10.0,
+    cpuset: str | None = None,
 ) -> CompanionProcess:
     if not binary.is_file():
         raise FileNotFoundError(f"OTLP metrics tracer not found: {binary}")
 
-    cmd = [str(binary), "-a", listen, "-p", path, "-f", "log"]
+    cmd = [*taskset_prefix(cpuset), str(binary), "-a", listen, "-p", path, "-f", "log"]
     if delay_ms > 0:
         cmd.extend(["--delay-ms", str(delay_ms)])
 
@@ -174,3 +178,62 @@ def fetch_otlp_stats(
     if not isinstance(accepts, int) or not isinstance(failures, int):
         return None
     return {"otlp_accepts": accepts, "otlp_failures": failures}
+
+
+PROMETHEUS_SCRAPE_DEFAULT = "http://127.0.2.1:19090/metrics"
+
+
+@dataclass
+class ScrapeHammer:
+    """Background HTTP GET loop against the Prometheus scrape path during load."""
+
+    url: str
+    interval_ms: int
+    _stop: threading.Event = field(default_factory=threading.Event, repr=False)
+    _thread: threading.Thread | None = field(default=None, repr=False)
+    kind: str = "scrape_hammer"
+    scrape_ok: int = 0
+    scrape_fail: int = 0
+
+    def start(self) -> None:
+        if self._thread is not None:
+            return
+        self._stop.clear()
+
+        def _loop() -> None:
+            interval_s = max(self.interval_ms, 1) / 1000.0
+            while not self._stop.is_set():
+                try:
+                    with urllib.request.urlopen(self.url, timeout=2.0) as resp:
+                        resp.read()
+                    self.scrape_ok += 1
+                except (urllib.error.URLError, TimeoutError, OSError):
+                    self.scrape_fail += 1
+                self._stop.wait(interval_s)
+
+        self._thread = threading.Thread(
+            target=_loop, name="perf-scrape-hammer", daemon=True
+        )
+        self._thread.start()
+
+    def stop(self, *, wait_s: float = 5.0) -> None:
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join(timeout=wait_s)
+            self._thread = None
+
+    def stats(self) -> dict[str, int]:
+        return {
+            "scrape_hammer_ok": self.scrape_ok,
+            "scrape_hammer_fail": self.scrape_fail,
+        }
+
+
+def start_scrape_hammer(
+    *,
+    url: str = PROMETHEUS_SCRAPE_DEFAULT,
+    interval_ms: int = 100,
+) -> ScrapeHammer:
+    hammer = ScrapeHammer(url=url, interval_ms=interval_ms)
+    hammer.start()
+    return hammer

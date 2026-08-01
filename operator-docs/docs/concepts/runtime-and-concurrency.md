@@ -37,7 +37,7 @@ Setting **`dataplane.runtime: split_io`** splits the work into three worker role
 
 - **Ingress workers** — accept the client message (UDP or TCP), do the structural [Parse](/concepts/architecture-and-packet-path.md#parse) check (valid DNS, single question), take a [transaction](/glossary/index.md#transaction) slot, and hand it off. They do **not** block on upstream replies. Count comes from **`listeners.threads`** (per listener, with optional per-listener override).
 - **Policy workers** — run the orchestrator phases — [Request rules](/concepts/architecture-and-packet-path.md#request-rules), [Lookup](/concepts/architecture-and-packet-path.md#lookup) (including forward-provider submit), and finish the [transaction](/glossary/index.md#transaction) at [Response rules](/concepts/architecture-and-packet-path.md#response-rules) / [Send](/concepts/architecture-and-packet-path.md#send) once a reply is in. Count comes from **`dataplane.policy_workers`**.
-- **I/O workers** — own the upstream sockets: they match incoming upstream replies to parked transactions, enforce `forward.timeout_ms`, and resume each transaction at [Wait for response](/concepts/architecture-and-packet-path.md#wait-for-response) inside the forward provider. Count comes from **`dataplane.io_workers`**.
+- **I/O workers** — own the upstream sockets: they match incoming upstream replies to parked transactions, enforce `forward.timeout_ms`, and resume each transaction at [Wait for response](/concepts/architecture-and-packet-path.md#wait-for-response) inside the forward provider. **`dataplane.io_workers: N`** runs exactly **N** I/O poll threads (each with its own egress socket set).
 
 The difference from `sync` is at [Forward](/concepts/architecture-and-packet-path.md#forward) → [Wait for response](/concepts/architecture-and-packet-path.md#wait-for-response) inside Lookup: instead of blocking, Forward **submits** the upstream query and **parks** the transaction; an I/O worker later resumes it on reply, timeout, or error. Ingress and policy workers stay free to handle other queries in the meantime.
 
@@ -58,8 +58,8 @@ A parked transaction still holds a [transaction](/glossary/index.md#transaction)
 
 Concurrency is bounded by ingress thread counts, the runtime worker pools (`split_io`), the [transaction](/glossary/index.md#transaction) slot pool, and per-backend caps:
 
-- **`listeners.threads`** — ingress worker threads **per** entry in `listeners.listeners` (use **`listeners.reuse_port: true`** on UDP when `threads` > 1). Total ingress workers = `threads` × number of listener entries; a listener entry may override the global default with its own `threads`. Field reference: [Reference: listeners](/reference/config-schema/listeners.md).
-- **`dataplane.policy_workers`** / **`dataplane.io_workers`** — size of the policy and I/O pools under **`split_io`** (each defaults to **1**; ignored by `sync`). Raise `policy_workers` for more concurrent policy/[Rhai](/rhai/index.md) execution; raise `io_workers` for more upstream socket fan-out.
+- **`listeners.threads`** — ingress worker threads **per** entry in `listeners.listeners` (use **`listeners.reuse_port: true`** on UDP when `threads` > 1). Total ingress workers = `threads` × number of listener entries; a listener entry may override the global default with its own `threads`. Under **`split_io`**, raise this when the accept path is saturated; handoff to policy is partitioned across shards so ingress producers are not serialized on one process-wide queue lock. Field reference: [Reference: listeners](/reference/config-schema/listeners.md).
+- **`dataplane.policy_workers`** / **`dataplane.io_workers`** — size of the policy and I/O pools under **`split_io`** (each defaults to **1**; ignored by `sync`). Raise `policy_workers` for more concurrent policy/[Rhai](/rhai/index.md) execution; raise `io_workers` to run more I/O poll threads (and more upstream egress socket sets) when a single I/O worker is saturated.
 - **`orchestrator.txn_table_capacity`** — capacity of the in-flight [transaction](/glossary/index.md#transaction) slot pool (bounds how many queries the process tracks at once, independent of per-query [retry](/glossary/index.md#retry) count). Field reference: [Reference: orchestrator](/reference/config-schema/orchestrator.md).
 - **`forward.outstanding_per_backend`** — cap on concurrent upstream queries per backend address. Field reference: [Reference: forward](/reference/config-schema/forward.md).
 
@@ -111,3 +111,6 @@ flowchart TB
 - [Reference: orchestrator](/reference/config-schema/orchestrator.md) — `txn_table_capacity`, attempt and duration caps
 - [Reference: listeners](/reference/config-schema/listeners.md) — `threads`, `reuse_port`
 - [Reference: shutdown](/reference/config-schema/shutdown.md) — `drain`, `drain_timeout_ms`
+- [Dataplane runtime tuning](/guides/dataplane-runtime-tuning.md)
+- [Sync vs split_io](/performance/studies/sync-vs-split-io.md)
+- [Tuning evidence (studies)](/performance/studies/index.md)

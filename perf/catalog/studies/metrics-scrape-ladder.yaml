@@ -1,0 +1,27 @@
+schema_version: 1
+id: metrics-scrape-ladder
+title: Metrics scrape ladder
+question: What does enabling richer Prometheus scrape metrics cost under forward_fast?
+published: true
+members:
+  - feature-tax-metrics-off-scrape-ladder-forward-fast
+  - feature-tax-metrics-minimal-scrape-ladder-forward-fast
+  - feature-tax-metrics-standard-scrape-ladder-forward-fast
+compare_axis: obs_posture
+primary_metric: achieved_qps
+takeaway: >
+  Under the elevated-outstanding publish recipe for this study, obs-off beats
+  minimal beats standard on achieved QPS; choose base from cardinality need.
+related_guides:
+  - /guides/operator-metrics-bases.md
+  - /observability/metrics-configurability.md
+annotation_ids:
+  - ann-feature-tax-scrape-ladder-noise
+figures:
+  - id: metrics-scrape-ladder-forward-fast
+    title: Feature tax — metrics scrape ladder (forward_fast)
+    y_label: Achieved QPS
+    members:
+      - feature-tax-metrics-off-scrape-ladder-forward-fast
+      - feature-tax-metrics-minimal-scrape-ladder-forward-fast
+      - feature-tax-metrics-standard-scrape-ladder-forward-fast

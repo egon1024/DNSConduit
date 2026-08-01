@@ -221,3 +221,4 @@ Short checklist — full walkthrough with **`conduit-dnstap-tracer`**: [Event ex
 - [Metrics](/observability/metrics.md) — aggregate observability (orthogonal to dnstap)
 - [Tracing](/observability/tracing.md) — per-query pipeline traces
 - [Rules and actions](/policy-routing/rules-and-actions.md) — `set_tag` and selectors used in filters
+- [Dnstap emit tax](/performance/studies/dnstap-emit-tax.md) — same-host QPS cost of fuller emit

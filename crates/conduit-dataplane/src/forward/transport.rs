@@ -316,19 +316,28 @@ impl ForwardTransport {
             override_v6: effective_v6,
             allowed_v6: &allowed_v6,
         };
-        let socket = self.egress.udp_socket_for(&sel);
 
         let Some(io) = self.io_backend.as_ref() else {
             self.release_pool_inflight(txn);
             return self.servfail(txn, snapshot, Some(key), "no_io_backend", started);
         };
 
+        // Sticky shard affinity: register pending and send on the same I/O
+        // worker's egress so the reply is demuxed by that worker's poll loop.
         // Register the pending reply BEFORE sending. With a zero-latency upstream
         // the reply can arrive and be drained by the I/O poll thread before
         // `track_pending` runs; an unregistered reply is dropped as unmatched, so
         // the forward would then park until its timeout instead of resuming.
         let slot_id = SlotId::from_index(txn.id as u32);
         io.track_pending(key, slot_id);
+
+        let socket = match io.udp_socket_for(slot_id, &sel) {
+            Ok(s) => s,
+            Err(_) => {
+                self.release_pool_inflight(txn);
+                return self.servfail(txn, snapshot, Some(key), "no_io_egress", started);
+            }
+        };
 
         if socket.send_to(&upstream_wire, backend).is_err() {
             self.release_pool_inflight(txn);
@@ -543,17 +552,23 @@ mod tests {
     #[test]
     fn submit_mode_suspends_at_wait_response() {
         let table = Arc::new(TxnTable::new(64, 16));
-        let egress = UdpSocket::bind("127.0.0.1:0").unwrap();
-        let (io, _resume_rx) = IoBackend::new(vec![egress], table.clone(), 1000).unwrap();
-        let forward = ForwardTransport::new_with_mode(
+        let compiled = compiled_forward();
+        let shard_egress =
+            WorkerForwardEgress::new(&compiled, &[Ipv4Addr::UNSPECIFIED], &[], 1000).unwrap();
+        let transport_egress =
+            WorkerForwardEgress::new(&compiled, &[Ipv4Addr::UNSPECIFIED], &[], 1000).unwrap();
+        let (io, _resume_rx) =
+            IoBackend::from_egresses(vec![shard_egress], table.clone(), 1000).unwrap();
+        let forward = ForwardTransport::new_with_mode_and_egress(
+            transport_egress,
             table.clone(),
-            &compiled_forward(),
-            &[Ipv4Addr::UNSPECIFIED],
-            &[],
+            &compiled,
             500,
             None,
             ForwardMode::Submit,
             Some(Arc::new(io)),
+            None,
+            None,
         )
         .unwrap();
 
@@ -600,15 +615,17 @@ mod tests {
     fn submit_registers_pending_before_send_so_fast_reply_resumes() {
         let table = Arc::new(TxnTable::new(64, 16));
         let compiled = compiled_forward();
-        let egress =
+        let shard_egress =
+            WorkerForwardEgress::new(&compiled, &[Ipv4Addr::UNSPECIFIED], &[], 2000).unwrap();
+        let transport_egress =
             WorkerForwardEgress::new(&compiled, &[Ipv4Addr::UNSPECIFIED], &[], 2000).unwrap();
         let (io, resume_rx) =
-            IoBackend::new(egress.all_udp_sockets(), table.clone(), 2000).unwrap();
+            IoBackend::from_egresses(vec![shard_egress], table.clone(), 2000).unwrap();
         let stop = Arc::new(AtomicBool::new(false));
         let poll = io.clone().spawn_poll_thread_for_test(stop.clone());
 
         let forward = ForwardTransport::new_with_mode_and_egress(
-            egress,
+            transport_egress,
             table.clone(),
             &compiled,
             2000,

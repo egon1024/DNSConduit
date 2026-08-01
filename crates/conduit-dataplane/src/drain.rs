@@ -111,9 +111,8 @@ mod tests {
 
     /// Acquire a slot and tag it with a client protocol, leaving it active.
     fn acquire_active(store: &SharedTxnStore, protocol: ClientProtocol) -> SlotId {
-        let mut guard = store.lock();
-        let id = guard.acquire().expect("slot available");
-        guard
+        let id = store.acquire().expect("slot available");
+        store
             .with_slot(id, SlotState::Ingress, |slot| {
                 slot.txn.protocol = protocol;
                 Ok(())
@@ -123,8 +122,7 @@ mod tests {
     }
 
     fn release(store: &SharedTxnStore, id: SlotId) {
-        let mut guard = store.lock();
-        guard.release_active(id).expect("release");
+        store.release_active(id).expect("release");
     }
 
     #[test]

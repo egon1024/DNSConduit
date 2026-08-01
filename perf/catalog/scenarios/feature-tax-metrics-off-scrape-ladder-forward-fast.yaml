@@ -1,0 +1,23 @@
+schema_version: 1
+id: feature-tax-metrics-off-scrape-ladder-forward-fast
+suite: feature_tax
+curated: true
+intent: |
+  Observability-off baseline for the metrics scrape ladder under an elevated
+  dnsperf outstanding window (publish recipe for this study). Pair with
+  minimal/standard scrape-ladder cells — not the shared metrics-off cell used
+  by other feature_tax studies.
+axes:
+  runtime: sync
+  load_shape: forward_fast
+  obs_posture: metrics_off
+  ingress_workers: 2
+  loadgen_recipe: elevated_outstanding
+recipe:
+  config: feature-tax-metrics-off.yml
+  upstream: fast
+  loadgen: dnsperf
+  query_file: perf-a.txt
+  clients: 16
+  dnsperf_threads: 8
+  max_outstanding: 2000

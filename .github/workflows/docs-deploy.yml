@@ -56,7 +56,9 @@ jobs:
           cache: pip
 
       - name: Install documentation dependencies
-        run: pip install -r requirements.txt
+        run: |
+          pip install -r requirements.txt
+          pip install -r perf/requirements.txt
 
       - name: Fetch gh-pages branch
         run: |
@@ -75,6 +77,12 @@ jobs:
         run: |
           set -euo pipefail
           bash .github/scripts/docs-deploy-aliases.sh "${TAG}" >> "$GITHUB_ENV"
+
+      - name: Generate performance docs from committed reference JSON
+        run: |
+          set -euo pipefail
+          # Presentation only — no Conduit / dnsperf / load suites.
+          PYTHONPATH=. python3 -m perf.runner generate-docs
 
       - name: Deploy with mike
         env:

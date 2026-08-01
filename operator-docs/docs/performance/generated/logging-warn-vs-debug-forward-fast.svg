@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="560" height="320" viewBox="0 0 560 320" role="img" aria-label="Feature tax — logging warn vs debug (forward_fast)">
+<rect width="100%" height="100%" fill="#fafafa"/>
+<text x="280" y="24" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#212121">Feature tax — logging warn vs debug (forward_fast)</text>
+<text x="12" y="152" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#616161" transform="rotate(-90 12 152)">Achieved QPS</text>
+<line x1="56" y1="40" x2="56" y2="264" stroke="#9e9e9e"/>
+<line x1="56" y1="264" x2="536" y2="264" stroke="#9e9e9e"/>
+<line x1="56" y1="264.0" x2="536" y2="264.0" stroke="#eeeeee"/>
+<text x="50" y="268.0" text-anchor="end" font-family="sans-serif" font-size="10" fill="#757575">0</text>
+<line x1="56" y1="152.0" x2="536" y2="152.0" stroke="#eeeeee"/>
+<text x="50" y="156.0" text-anchor="end" font-family="sans-serif" font-size="10" fill="#757575">62224</text>
+<line x1="56" y1="40.0" x2="536" y2="40.0" stroke="#eeeeee"/>
+<text x="50" y="44.0" text-anchor="end" font-family="sans-serif" font-size="10" fill="#757575">124447</text>
+<rect x="116.0" y="40.0" width="102.0" height="224.0" fill="#3949ab"><title>achieved_qps / logging_warn: 124447.19</title></rect>
+<text x="176.0" y="282" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#424242">logging_warn</text>
+<rect x="356.0" y="71.0" width="102.0" height="193.0" fill="#3949ab"><title>achieved_qps / logging_debug: 107228.47</title></rect>
+<text x="416.0" y="282" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#424242">logging_debug</text>
+<rect x="56" y="298" width="12" height="12" fill="#3949ab"/>
+<text x="72" y="308" font-family="sans-serif" font-size="11" fill="#424242">achieved_qps</text>
+</svg>

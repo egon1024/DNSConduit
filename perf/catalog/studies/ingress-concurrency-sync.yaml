@@ -1,0 +1,27 @@
+schema_version: 1
+id: ingress-concurrency-sync
+title: Ingress concurrency under sync
+question: How does raising sync ingress workers change throughput under a slow upstream?
+published: true
+members:
+  - scale-sync-ingress-1-forward-slow
+  - scale-sync-forward-slow
+  - scale-sync-ingress-4-forward-slow
+  - scale-sync-ingress-8-forward-slow
+compare_axis: ingress_workers
+primary_metric: achieved_qps
+takeaway: >
+  On the published forward_slow ladder, ingress 1→2 helps then QPS plateaus with
+  high loss — do not assume more sync threads keep helping under slow upstreams.
+related_guides:
+  - /guides/dataplane-runtime-tuning.md
+figures:
+  - id: ingress-concurrency-sync-forward-slow
+    title: Achieved QPS — sync ingress ladder (forward_slow)
+    y_label: Achieved QPS
+    category_axis: ingress_workers
+    members:
+      - scale-sync-ingress-1-forward-slow
+      - scale-sync-forward-slow
+      - scale-sync-ingress-4-forward-slow
+      - scale-sync-ingress-8-forward-slow

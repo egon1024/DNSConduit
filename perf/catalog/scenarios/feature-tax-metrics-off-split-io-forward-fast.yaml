@@ -1,0 +1,22 @@
+schema_version: 1
+id: feature-tax-metrics-off-split-io-forward-fast
+suite: feature_tax
+curated: true
+intent: |
+  Observability-off baseline under split_io + forward_fast — pair for scrape tax
+  on the split_io runtime model.
+axes:
+  runtime: split_io
+  load_shape: forward_fast
+  obs_posture: metrics_off
+  ingress_workers: 2
+  policy_workers: 2
+  io_workers: 2
+recipe:
+  config: feature-tax-metrics-off-split-io.yml
+  upstream: fast
+  loadgen: dnsperf
+  query_file: perf-a.txt
+  clients: 16
+  dnsperf_threads: 8
+  max_outstanding: 2000

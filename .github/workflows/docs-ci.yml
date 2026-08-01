@@ -26,7 +26,10 @@ jobs:
           cache: pip
 
       - name: Install documentation dependencies
-        run: pip install -r requirements.txt
+        run: |
+          pip install -r requirements.txt
+          # perf-docs (via make docs-build) needs harness deps to render SVG/CSV from JSON only.
+          pip install -r perf/requirements.txt
 
       - name: Forbid internal doc links in operator-docs
         run: |
@@ -42,3 +45,5 @@ jobs:
 
       - name: Build documentation
         run: make docs-build
+        # docs-build runs perf-docs first (committed reference JSON → SVG/CSV/tables only;
+        # never starts Conduit or dnsperf).

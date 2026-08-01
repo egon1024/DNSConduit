@@ -170,3 +170,4 @@ sum(rate(conduit_responses_total[5m])) by (listener, answer_source)
 - [Built-in metrics](/observability/built-in-metrics.md) — lookup and cache catalog
 - [Transaction API — Answer provenance](/rhai/txn-api.md#answer-provenance)
 - [Lookups](/rhai/data-sources-and-lookups.md) — **`lookup(table, key)`** vs Lookup phase
+- [Cache hit vs forward_fast](/performance/studies/cache-hit-vs-forward.md) — same-host throughput of warm cache vs forward

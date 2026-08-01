@@ -1,0 +1,18 @@
+schema_version: 1
+id: scale-split-io-io-4-forward-slow
+suite: scale
+curated: true
+intent: |
+  I/O-vs-ingress ladder (split_io): four I/O workers with fixed ingress/policy=2
+  under forward_slow. Paired with io_workers 1/2/8 for io-vs-ingress-split.
+axes:
+  runtime: split_io
+  load_shape: forward_slow
+  ingress_workers: 2
+  policy_workers: 2
+  io_workers: 4
+recipe:
+  config: scale-split-io-io-4-obs-off.yml
+  upstream: slow
+  loadgen: dnsperf
+  query_file: perf-a.txt

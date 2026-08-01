@@ -1,11 +1,13 @@
 schema_version: 1
 id: ann-example-context
 tone: context
-title: Example annotation for harness wiring
+title: Example annotation for harness tests and authorship
 body: |
-  Example release-tied footnote. Replace or extend with real notes when promoting
-  reference runs. Authored in git under perf/catalog/annotations/.
+  Example footnote used by harness unit tests and as a template for release-tied
+  notes. Author real annotations as one YAML file per id under
+  perf/catalog/annotations/, with tone improved_because, regressed_because,
+  context, or known_noise. Tie related_releases to product version strings when
+  the note explains a published delta.
 related_scenarios:
   - scale-sync-forward-fast
-related_releases:
-  - "1.2.0"
+related_releases: []

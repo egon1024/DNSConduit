@@ -1,0 +1,3 @@
+scenario_id,runtime,achieved_qps,latency_avg_ms,queries_sent,queries_completed,queries_lost,workers
+scale-sync-forward-fast,sync,211448.9,1.3,2118239,2114785,3662,ingress_workers=2
+scale-sync-cache-hit,sync,348813.4,0.9,3491802,3488443,3366,ingress_workers=2
