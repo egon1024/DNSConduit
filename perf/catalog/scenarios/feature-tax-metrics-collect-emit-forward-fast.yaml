@@ -1,7 +1,7 @@
 schema_version: 1
 id: feature-tax-metrics-collect-emit-forward-fast
 suite: feature_tax
-curated: false
+curated: true
 intent: |
   Collect+emit on standard base under forward_fast — paired with collect-only and
   no-collect for emit-path secondary comparison.
@@ -15,3 +15,6 @@ recipe:
   upstream: fast
   loadgen: dnsperf
   query_file: perf-a.txt
+  clients: 16
+  dnsperf_threads: 8
+  max_outstanding: 2000

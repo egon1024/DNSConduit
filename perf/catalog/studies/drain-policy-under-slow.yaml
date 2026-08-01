@@ -1,0 +1,25 @@
+schema_version: 1
+id: drain-policy-under-slow
+title: Drain policy under slow upstream
+question: How do complete, budgeted, and minimal drain policies behave under forward_slow load?
+published: true
+members:
+  - shutdown-drain-complete-forward-slow
+  - shutdown-drain-budgeted-forward-slow
+  - shutdown-drain-minimal-forward-slow
+compare_axis: drain_policy
+primary_metric: drain_duration_ms
+takeaway: >
+  On the published forward_slow cells, minimal drain stopped sooner; complete
+  recorded more client failures during stop than budgeted or minimal — pick
+  deliberately for your upgrade window.
+related_guides:
+  - /reference/config-schema/shutdown.md
+figures:
+  - id: drain-duration-forward-slow
+    title: Drain duration under forward_slow
+    y_label: Drain duration (ms)
+    members:
+      - shutdown-drain-complete-forward-slow
+      - shutdown-drain-budgeted-forward-slow
+      - shutdown-drain-minimal-forward-slow

@@ -43,7 +43,7 @@ def detect_lab_profile_runtime(
     profile_id: str = "local",
     display_name: str | None = None,
 ) -> dict[str, Any]:
-    """Best-effort host facts for local runs (not the blessed filled template)."""
+    """Best-effort host facts for local runs (not the filled reference-profile template)."""
     cpu = platform.processor() or platform.machine() or "unknown"
     # Prefer /proc/cpuinfo model name on Linux.
     try:

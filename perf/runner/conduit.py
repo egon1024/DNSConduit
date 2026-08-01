@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
+import io
 import os
 import signal
 import socket
 import subprocess
+import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
+
+from .cpuaffinity import taskset_prefix
 
 
 @dataclass
@@ -19,6 +23,7 @@ class ConduitProcess:
     proc: subprocess.Popen[bytes]
     listen_host: str
     listen_port: int
+    log_file: io.BufferedRandom | None = None
 
     @property
     def pid(self) -> int | None:
@@ -29,16 +34,34 @@ class ConduitProcess:
 
     def stop(self, *, sig: signal.Signals = signal.SIGTERM, wait_s: float = 30.0) -> float:
         """Signal Conduit and wait for exit. Returns wall seconds until exit."""
-        if self.proc.poll() is not None:
-            return 0.0
-        started = time.monotonic()
-        self.proc.send_signal(sig)
         try:
-            self.proc.wait(timeout=wait_s)
-        except subprocess.TimeoutExpired:
-            self.proc.kill()
-            self.proc.wait(timeout=5)
-        return time.monotonic() - started
+            if self.proc.poll() is not None:
+                return 0.0
+            started = time.monotonic()
+            self.proc.send_signal(sig)
+            try:
+                self.proc.wait(timeout=wait_s)
+            except subprocess.TimeoutExpired:
+                self.proc.kill()
+                self.proc.wait(timeout=5)
+            return time.monotonic() - started
+        finally:
+            if self.log_file is not None:
+                try:
+                    self.log_file.close()
+                except Exception:
+                    pass
+
+    def tail_log(self, max_bytes: int = 4000) -> str:
+        """Best-effort read of captured stdout/stderr for diagnostics."""
+        if self.log_file is None or self.log_file.closed:
+            return ""
+        try:
+            self.log_file.seek(0)
+            data = self.log_file.read()
+        except Exception:
+            return ""
+        return data[-max_bytes:].decode(errors="replace")
 
 
 def _udp_ready(host: str, port: int, timeout_s: float = 0.2) -> bool:
@@ -97,20 +120,33 @@ def start_conduit(
     env: dict[str, str] | None = None,
     ready_timeout_s: float = 30.0,
     extra_args: Sequence[str] = (),
+    cpuset: str | None = None,
 ) -> ConduitProcess:
     if not binary.is_file():
         raise FileNotFoundError(f"conduit binary not found: {binary}")
     if not config.is_file():
         raise FileNotFoundError(f"conduit config not found: {config}")
 
+    # Isolate the measured variable: do not let the harness's own default or
+    # the operator's shell RUST_LOG override the scenario's `logging.level`.
+    # Conduit's env_filter_from_config lets RUST_LOG win when set, so any
+    # ambient value here would silently defeat a logging-level comparison.
     run_env = os.environ.copy()
-    run_env.setdefault("RUST_LOG", "info")
+    run_env.pop("RUST_LOG", None)
     if env:
         run_env.update(env)
 
+    # Capture stdout/stderr to a seekable temp file instead of an unread
+    # subprocess.PIPE. A pipe fills its OS buffer (~64KB) if nothing drains
+    # it; under high query volume or verbose logging.level that would make
+    # Conduit block on its own log writes mid-run, corrupting the very
+    # throughput/latency numbers the scenario is trying to measure.
+    log_file = tempfile.TemporaryFile(prefix="conduit-perf-", suffix=".log")
+
+    argv = [*taskset_prefix(cpuset), str(binary), str(config), *extra_args]
     proc = subprocess.Popen(
-        [str(binary), str(config), *extra_args],
-        stdout=subprocess.PIPE,
+        argv,
+        stdout=log_file,
         stderr=subprocess.STDOUT,
         env=run_env,
     )
@@ -120,21 +156,21 @@ def start_conduit(
         proc=proc,
         listen_host=listen_host,
         listen_port=listen_port,
+        log_file=log_file,
     )
     deadline = time.monotonic() + ready_timeout_s
     while time.monotonic() < deadline:
         if proc.poll() is not None:
-            out = b""
-            if proc.stdout:
-                out = proc.stdout.read() or b""
+            tail = cp.tail_log(2000)
+            log_file.close()
             raise RuntimeError(
-                f"conduit exited early (code={proc.returncode}): "
-                f"{out.decode(errors='replace')[:2000]}"
+                f"conduit exited early (code={proc.returncode}): {tail}"
             )
         if probe_dns_answer(listen_host, listen_port, timeout_s=0.3):
             return cp
         time.sleep(0.1)
     proc.kill()
+    log_file.close()
     raise TimeoutError(
         f"conduit did not become ready on {listen_host}:{listen_port} "
         f"within {ready_timeout_s}s"

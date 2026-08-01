@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[2]
 PERF = ROOT / "perf"
 CATALOG = PERF / "catalog"
 SCENARIOS = CATALOG / "scenarios"
+STUDIES = CATALOG / "studies"
 LAB_PROFILES = CATALOG / "lab_profiles"
 ANNOTATIONS = CATALOG / "annotations"
 FIXTURES = PERF / "fixtures"

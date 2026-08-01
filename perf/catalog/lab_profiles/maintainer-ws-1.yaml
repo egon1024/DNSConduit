@@ -1,0 +1,12 @@
+schema_version: 1
+id: maintainer-ws-1
+display_name: Maintainer workstation (maintainer-ws-1)
+template: false
+cpu_model: Intel(R) Core(TM) i9-14900K
+physical_cores: 32
+logical_cores: 32
+os: Linux 6.8.0-136-generic
+kernel: 6.8.0-136-generic
+memory_total_mb: 128572
+pinning_notes: ""
+numa_notes: ""

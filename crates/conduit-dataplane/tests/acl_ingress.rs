@@ -1010,10 +1010,10 @@ fn split_io_acl_refuse_ipv6() {
 
 #[test]
 fn split_io_acl_refuse_while_slot_pool_full() {
-    // Sync holds the SharedTxnStore mutex for the entire pipeline (including
-    // forward wait), so a second thread cannot observe in_use>0 mid-query.
-    // split_io parks IoWait without holding that mutex — this is the runtime
-    // where "refuse with pool full" is observable.
+    // Sync holds the per-slot mutex for the entire pipeline (including
+    // forward wait), so a second thread cannot observe in_use>0 mid-query
+    // for that same slot. split_io parks IoWait without holding the slot
+    // mutex — this is the runtime where "refuse with pool full" is observable.
     assert_refuse_while_slot_pool_full("split_io");
 }
 

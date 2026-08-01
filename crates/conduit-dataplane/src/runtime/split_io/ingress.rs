@@ -227,9 +227,8 @@ fn acquire_ingress_slot(
     parsed: ParsedQuery,
     acl_tag: Option<String>,
 ) -> Result<conduit_core::txn_store::SlotId, AcquireError> {
-    let mut store = txn_store.lock();
-    let slot_id = store.acquire()?;
-    let setup = store.with_slot(
+    let slot_id = txn_store.acquire()?;
+    let setup = txn_store.with_slot(
         slot_id,
         conduit_core::txn_store::SlotState::Ingress,
         |slot| {
@@ -249,7 +248,7 @@ fn acquire_ingress_slot(
         },
     );
     if setup.is_err() {
-        let _ = store.release_active(slot_id);
+        let _ = txn_store.release_active(slot_id);
         return Err(AcquireError::Exhausted);
     }
     Ok(slot_id)

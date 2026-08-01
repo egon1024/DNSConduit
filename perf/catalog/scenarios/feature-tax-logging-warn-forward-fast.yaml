@@ -1,0 +1,21 @@
+schema_version: 1
+id: feature-tax-logging-warn-forward-fast
+suite: feature_tax
+curated: true
+intent: |
+  Metrics off with logging.level warn under forward_fast — verbosity tax warn
+  pole paired with feature-tax-logging-debug-forward-fast. Named for the logging
+  axis (not the shared metrics_off baseline used by other feature_tax studies).
+axes:
+  runtime: sync
+  load_shape: forward_fast
+  obs_posture: logging_warn
+  ingress_workers: 2
+recipe:
+  config: feature-tax-logging-warn.yml
+  upstream: fast
+  loadgen: dnsperf
+  query_file: perf-a.txt
+  clients: 16
+  dnsperf_threads: 8
+  max_outstanding: 2000

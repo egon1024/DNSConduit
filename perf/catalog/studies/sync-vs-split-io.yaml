@@ -1,0 +1,31 @@
+schema_version: 1
+id: sync-vs-split-io
+title: Sync vs split_io under paired load shapes
+question: When does split_io beat sync for forwarding throughput and latency?
+published: true
+members:
+  - scale-sync-forward-fast
+  - scale-split-io-forward-fast
+  - scale-sync-forward-slow
+  - scale-split-io-forward-slow
+compare_axis: runtime
+primary_metric: achieved_qps
+takeaway: >
+  On the published lab cells, forward_fast favors split_io by a modest margin
+  over sync; the forward_slow pair is lossy and does not show a clean split_io
+  win — remeasure both shapes locally before choosing a runtime.
+related_guides:
+  - /guides/dataplane-runtime-tuning.md
+figures:
+  - id: sync-vs-split-io-forward-fast
+    title: Achieved QPS — sync vs split_io (forward_fast)
+    y_label: Achieved QPS
+    members:
+      - scale-sync-forward-fast
+      - scale-split-io-forward-fast
+  - id: sync-vs-split-io-forward-slow
+    title: Achieved QPS — sync vs split_io (forward_slow)
+    y_label: Achieved QPS
+    members:
+      - scale-sync-forward-slow
+      - scale-split-io-forward-slow

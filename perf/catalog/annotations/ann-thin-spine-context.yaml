@@ -1,0 +1,39 @@
+schema_version: 1
+id: ann-thin-spine-context
+tone: context
+title: Curated performance reference — publish-set remeasure
+body: |
+  Promoted reference for the performance harness curated publish-set:
+  [`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default) vs
+  [`split_io`](/concepts/runtime-and-concurrency.md#split-io-runtime) under
+  [`forward_fast`](/performance/methodology.md#load-shapes) and
+  [`forward_slow`](/performance/methodology.md#load-shapes) (separate charts per
+  shape), [`cache_hit`](/performance/methodology.md#load-shapes) and
+  topology-heavy scale extras, worker counts under `forward_slow`, the three
+  shutdown drain policies under `forward_slow`, and metrics / dnstap / OTLP
+  feature-tax configurations. Published `forward_fast` / `cache_hit` cells use
+  the elevated dnsperf outstanding recipe, three-round median merge, and a CPU
+  `performance` governor gate on the lab host (see
+  [How load is applied](/performance/methodology.md#how-load-is-applied-not-a-fixed-offered-qps)
+  and [Lab profiles](/performance/methodology.md#lab-profiles)). Numbers are
+  same-host comparisons on the named maintainer workstation profile — not
+  capacity SLOs.
+related_scenarios:
+  - scale-sync-forward-fast
+  - scale-sync-forward-slow
+  - scale-split-io-forward-fast
+  - scale-split-io-forward-slow
+  - scale-sync-cache-hit
+  - scale-split-io-topology-heavy
+  - shutdown-drain-complete-forward-slow
+  - shutdown-drain-budgeted-forward-slow
+  - shutdown-drain-minimal-forward-slow
+  - feature-tax-metrics-off-forward-fast
+  - feature-tax-metrics-minimal-scrape-forward-fast
+  - feature-tax-metrics-standard-scrape-forward-fast
+  - feature-tax-dnstap-off-forward-fast
+  - feature-tax-dnstap-full-forward-fast
+  - lifecycle-cold-start
+  - lifecycle-config-apply
+related_releases:
+  - unreleased

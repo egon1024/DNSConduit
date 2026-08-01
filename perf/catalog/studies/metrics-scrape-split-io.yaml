@@ -1,0 +1,24 @@
+schema_version: 1
+id: metrics-scrape-split-io
+title: Metrics scrape tax under split_io
+question: What does standard scrape cost versus obs-off when the runtime is split_io?
+published: true
+members:
+  - feature-tax-metrics-off-split-io-forward-fast
+  - feature-tax-metrics-standard-scrape-split-io-forward-fast
+compare_axis: obs_posture
+primary_metric: achieved_qps
+takeaway: >
+  Same scrape ladder poles as the sync study, but under split_io — use when the
+  production runtime is already split_io and you need scrape tax on that model.
+related_guides:
+  - /guides/operator-metrics-bases.md
+  - /concepts/runtime-and-concurrency.md
+  - /performance/studies/metrics-scrape-ladder.md
+figures:
+  - id: metrics-scrape-split-io-forward-fast
+    title: Feature tax — metrics scrape under split_io (forward_fast)
+    y_label: Achieved QPS
+    members:
+      - feature-tax-metrics-off-split-io-forward-fast
+      - feature-tax-metrics-standard-scrape-split-io-forward-fast

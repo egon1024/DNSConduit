@@ -1,0 +1,23 @@
+schema_version: 1
+id: tracing-tax-under-load
+title: Pipeline tracing tax
+question: What does enabling full pipeline tracing cost under forward_fast?
+published: true
+members:
+  - feature-tax-metrics-off-forward-fast
+  - feature-tax-tracing-on-forward-fast
+compare_axis: obs_posture
+primary_metric: achieved_qps
+takeaway: >
+  Compares obs-off against tracing activated for A queries at 100% sample —
+  enable tracing for diagnosis, not as a standing production posture.
+related_guides:
+  - /observability/tracing.md
+  - /reference/config-schema/metrics-and-tracing.md
+figures:
+  - id: tracing-off-vs-on-forward-fast
+    title: Feature tax — tracing off vs on (forward_fast)
+    y_label: Achieved QPS
+    members:
+      - feature-tax-metrics-off-forward-fast
+      - feature-tax-tracing-on-forward-fast

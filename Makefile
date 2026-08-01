@@ -24,7 +24,9 @@
 #   make perf-run-shutdown-drain — run shutdown_drain suite
 #   make perf-run-feature-tax  — run feature_tax suite (scrape/dnstap; OTLP may skip)
 #   make perf-run-lifecycle    — run lifecycle suite (cold start / apply)
-#   make perf-render           — render FROM=… FORMAT=plain|fancy|yaml|json|html
+#   make perf-run-study        — run one study (PERF_STUDY=id; smoke: PERF_TIME=5)
+#   make perf-run-publish-set  — run union of published study members
+#   make perf-render           — render FROM=… FORMAT=plain|rich|yaml|json|html
 #   make performance           — remains Criterion microbench (distinct from suite run)
 #
 
@@ -49,7 +51,8 @@ PERF_FORMAT ?= plain
 	interop-image interop-unit interop-fingerprint interop-smoke interop-auth \
 	interop-docs interop-refresh \
 	perf-unit perf-list perf-run-scale perf-run-shutdown-drain \
-	perf-run-feature-tax perf-run-lifecycle perf-render
+	perf-run-feature-tax perf-run-lifecycle perf-run-study perf-run-publish-set \
+	perf-render perf-docs perf-promote
 
 help:
 	@echo "DNSConduit Makefile targets:"
@@ -80,15 +83,21 @@ help:
 	@echo "  make perf-run-shutdown-drain  Run shutdown_drain suite (CONDUIT=$(CONDUIT))"
 	@echo "  make perf-run-feature-tax Run feature_tax suite (CONDUIT=$(CONDUIT))"
 	@echo "  make perf-run-lifecycle   Run lifecycle suite (CONDUIT=$(CONDUIT))"
-	@echo "  make perf-render          Render FROM=run.json FORMAT=$(PERF_FORMAT)"
+	@echo "  make perf-run-study       Run study PERF_STUDY=id (optional PERF_TIME=5 smoke;"
+	@echo "                            PERF_CLIENTS / PERF_DNSPERF_THREADS / PERF_MAX_OUTSTANDING)"
+	@echo "  make perf-run-publish-set Run published study member union (optional PERF_TIME=;"
+	@echo "                            PERF_CLIENTS / PERF_DNSPERF_THREADS / PERF_MAX_OUTSTANDING)"
+	@echo "  make perf-render          Render PERF_FROM=run.json FORMAT=$(PERF_FORMAT)"
+	@echo "  make perf-docs            Generate operator-docs fragments from committed reference JSON (no load suite)"
+	@echo "  make perf-promote         Promote PERF_FROM run JSON(s) into results/references/ (manual)"
 
-# Write the header version label only. The Versions list now lives on a single global
+    # Write the header version label only. The Versions list now lives on a single global
 # page published to the site root; it is no longer generated per build.
 docs-version:
 	@ver=$$(awk -F'"' '/^version = / {print $$2; exit}' Cargo.toml); \
 		echo "$${ver:-development}" > $(DOCS_DIR)/.doc-version
 
-docs-build: docs-version
+docs-build: docs-version perf-docs
 	cd $(DOCS_DIR) && $(PYTHON) -m mkdocs build --strict
 
 docs-serve: docs-version
@@ -173,6 +182,48 @@ perf-run-feature-tax:
 perf-run-lifecycle:
 	PYTHONPATH=. $(PYTHON) -m perf.runner run --conduit $(CONDUIT) --suite lifecycle --render plain
 
+# Smoke: PERF_TIME=5. Publish-quality lab refresh: omit PERF_TIME (harness default duration).
+# Optional loadgen: PERF_CLIENTS=16 PERF_DNSPERF_THREADS=8 PERF_MAX_OUTSTANDING=2000
+PERF_STUDY ?= sync-vs-split-io
+PERF_TIME ?=
+PERF_CLIENTS ?=
+PERF_DNSPERF_THREADS ?=
+PERF_MAX_OUTSTANDING ?=
+perf-run-study:
+	@test -n "$(PERF_STUDY)" || (echo "Set PERF_STUDY=study-id" >&2; exit 1)
+	PYTHONPATH=. $(PYTHON) -m perf.runner run --conduit $(CONDUIT) --study $(PERF_STUDY) \
+		$(if $(PERF_TIME),--time $(PERF_TIME),) \
+		$(if $(PERF_CLIENTS),--clients $(PERF_CLIENTS),) \
+		$(if $(PERF_DNSPERF_THREADS),--dnsperf-threads $(PERF_DNSPERF_THREADS),) \
+		$(if $(PERF_MAX_OUTSTANDING),--max-outstanding $(PERF_MAX_OUTSTANDING),) \
+		--render plain
+
+perf-run-publish-set:
+	PYTHONPATH=. $(PYTHON) -m perf.runner run --conduit $(CONDUIT) --publish-set \
+		--profile-id $(or $(PERF_PROFILE_ID),maintainer-ws-1) \
+		$(if $(PERF_TIME),--time $(PERF_TIME),) \
+		$(if $(PERF_CLIENTS),--clients $(PERF_CLIENTS),) \
+		$(if $(PERF_DNSPERF_THREADS),--dnsperf-threads $(PERF_DNSPERF_THREADS),) \
+		$(if $(PERF_MAX_OUTSTANDING),--max-outstanding $(PERF_MAX_OUTSTANDING),) \
+		--render plain \
+		$(if $(PERF_OUT),-o $(PERF_OUT),)
+
 perf-render:
 	@test -n "$(PERF_FROM)" || (echo "Set PERF_FROM=path/to/run.json" >&2; exit 1)
 	PYTHONPATH=. $(PYTHON) -m perf.runner render --from $(PERF_FROM) --format $(PERF_FORMAT)
+
+# Docs presentation only — MUST NOT invoke load suites or dnsperf.
+perf-docs:
+	PYTHONPATH=. $(PYTHON) -m perf.runner generate-docs
+
+# Manual promotion helper. Example:
+#   make perf-promote PERF_FROM="perf/results/runs/a.json perf/results/runs/b.json"
+# Prefer publish-set (union of published studies). Legacy: PERF_PROMOTE_MODE=thin-spine
+perf-promote:
+	@test -n "$(PERF_FROM)" || (echo "Set PERF_FROM=path/to/run.json [more…]" >&2; exit 1)
+	PYTHONPATH=. $(PYTHON) -m perf.runner promote \
+		$(foreach f,$(PERF_FROM),--from $(f)) \
+		--name $(or $(PERF_REF_NAME),thin-spine) \
+		--profile-id $(or $(PERF_PROFILE_ID),maintainer-ws-1) \
+		$(if $(filter thin-spine,$(or $(PERF_PROMOTE_MODE),publish-set)),--thin-spine,--publish-set) \
+		$(if $(PERF_ANNOTATION),--annotation-id $(PERF_ANNOTATION),)

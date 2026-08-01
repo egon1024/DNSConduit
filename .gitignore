@@ -37,3 +37,8 @@ operator-docs/site/
 #.idea/
 
 .worktrees/
+
+# Perf harness lab scratch (promoted publish set lives under perf/results/references/)
+/perf/results/runs/**
+!/perf/results/runs/.gitkeep
+

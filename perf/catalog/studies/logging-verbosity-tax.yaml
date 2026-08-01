@@ -1,0 +1,24 @@
+schema_version: 1
+id: logging-verbosity-tax
+title: Logging verbosity tax
+question: What does raising process log level from warn to debug cost under forward_fast?
+published: true
+members:
+  - feature-tax-logging-warn-forward-fast
+  - feature-tax-logging-debug-forward-fast
+compare_axis: obs_posture
+primary_metric: achieved_qps
+takeaway: >
+  Directional same-host cost of debug logging versus the warn baseline used by
+  other feature_tax cells; keep production at warn/info unless diagnosing.
+related_guides:
+  - /observability/logging.md
+  - /reference/config-schema/logging.md
+figures:
+  - id: logging-warn-vs-debug-forward-fast
+    title: Feature tax — logging warn vs debug (forward_fast)
+    y_label: Achieved QPS
+    members:
+      - feature-tax-logging-warn-forward-fast
+      - feature-tax-logging-debug-forward-fast
+

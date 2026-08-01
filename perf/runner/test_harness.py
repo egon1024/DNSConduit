@@ -8,7 +8,15 @@ import unittest
 from pathlib import Path
 
 from perf.render import FORMATS, render
-from perf.runner.catalog import filter_scenarios, load_annotations, load_scenarios
+from perf.runner.catalog import (
+    filter_scenarios,
+    load_annotations,
+    load_scenarios,
+    load_studies,
+    publish_set_member_ids,
+    resolve_scenario_ids_from_studies,
+    select_scenarios,
+)
 from perf.runner.execute import public_conduit_path
 from perf.runner.loadgen import DEFAULT_IMAGE, docker_dnsperf_cmd, parse_dnsperf_output
 from perf.runner.paths import RESULTS_SCHEMA, load_json
@@ -145,6 +153,78 @@ class CatalogTests(unittest.TestCase):
         self.assertEqual(scenarios[0].id, "scale-sync-forward-fast")
 
 
+class StudyCatalogTests(unittest.TestCase):
+    def test_load_wave1_studies(self):
+        scenarios = load_scenarios()
+        studies = load_studies(scenarios=scenarios)
+        ids = {s.id for s in studies}
+        self.assertIn("sync-vs-split-io", ids)
+        self.assertIn("metrics-scrape-ladder", ids)
+        self.assertIn("dnstap-emit-tax", ids)
+        self.assertIn("drain-policy-under-slow", ids)
+        self.assertIn("cache-hit-vs-forward", ids)
+        self.assertIn("split-io-thread-bulk", ids)
+        sync = next(s for s in studies if s.id == "sync-vs-split-io")
+        self.assertTrue(sync.published)
+        self.assertEqual(len(sync.figures), 2)
+        self.assertEqual(
+            list(sync.members)[:2],
+            ["scale-sync-forward-fast", "scale-split-io-forward-fast"],
+        )
+
+    def test_study_selection_preserves_order(self):
+        scenarios = load_scenarios()
+        selected = select_scenarios(
+            scenarios, study_ids=["metrics-scrape-ladder"]
+        )
+        self.assertEqual(
+            [s.id for s in selected],
+            [
+                "feature-tax-metrics-off-scrape-ladder-forward-fast",
+                "feature-tax-metrics-minimal-scrape-ladder-forward-fast",
+                "feature-tax-metrics-standard-scrape-ladder-forward-fast",
+            ],
+        )
+
+    def test_studies_index_order_matches_mkdocs_nav(self):
+        from perf.runner import publish as publish_mod
+
+        nav_ids = publish_mod._study_nav_order_ids()
+        self.assertEqual(
+            nav_ids[:3],
+            [
+                "sync-vs-split-io",
+                "ingress-concurrency-sync",
+                "io-vs-ingress-split",
+            ],
+        )
+        published = [s for s in load_studies(scenarios=load_scenarios()) if s.published]
+        ordered = publish_mod._order_studies_like_nav(published)
+        self.assertEqual([s.id for s in ordered], nav_ids)
+
+    def test_publish_set_is_union(self):
+        scenarios = load_scenarios()
+        studies = load_studies(scenarios=scenarios)
+        members = publish_set_member_ids(studies)
+        self.assertIn("scale-sync-forward-fast", members)
+        self.assertIn("feature-tax-metrics-off-forward-fast", members)
+        self.assertEqual(len(members), len(set(members)))
+        # Shared baseline appears once even though multiple studies cite it.
+        self.assertEqual(members.count("scale-sync-forward-fast"), 1)
+        selected = select_scenarios(scenarios, publish_set=True, studies=studies)
+        self.assertEqual([s.id for s in selected], members)
+
+    def test_unknown_study_id_errors(self):
+        with self.assertRaises(ValueError) as ctx:
+            select_scenarios(load_scenarios(), study_ids=["no-such-study"])
+        self.assertIn("unknown study id", str(ctx.exception))
+
+    def test_resolve_unknown_study_keyerror(self):
+        studies = load_studies(scenarios=load_scenarios())
+        with self.assertRaises(KeyError):
+            resolve_scenario_ids_from_studies(studies, study_ids=["missing-study"])
+
+
 class SchemaTests(unittest.TestCase):
     def test_schema_file_exists(self):
         self.assertTrue(RESULTS_SCHEMA.is_file())
@@ -192,9 +272,35 @@ class RenderTests(unittest.TestCase):
                 self.assertNotIn("✓", text)
                 self.assertIn("avg=0.80ms", text)
 
-    def test_fancy_uses_unicode(self):
-        text = render(_minimal_run_doc(), "fancy")
+    def test_rich_uses_unicode(self):
+        text = render(_minimal_run_doc(), "rich")
         self.assertIn("✓", text)
+
+    def test_rich_includes_charts_when_scale_present(self):
+        doc = _minimal_run_doc(
+            scenarios=[
+                {
+                    "id": "scale-sync-forward-fast",
+                    "suite": "scale",
+                    "status": "ok",
+                    "axes": {"runtime": "sync", "load_shape": "forward_fast"},
+                    "metrics": {"achieved_qps": 1000.0, "latency_ms": {"avg": 0.8}},
+                },
+                {
+                    "id": "scale-split-io-forward-fast",
+                    "suite": "scale",
+                    "status": "ok",
+                    "axes": {"runtime": "split_io", "load_shape": "forward_fast"},
+                    "metrics": {"achieved_qps": 1100.0, "latency_ms": {"avg": 0.7}},
+                },
+            ]
+        )
+        text = render(doc, "rich")
+        self.assertIn("── charts ──", text)
+        self.assertIn("█", text)
+        html = render(doc, "html")
+        self.assertIn("<svg", html)
+        self.assertIn("forward_fast", html)
 
     def test_render_shutdown_drain_metrics(self):
         doc = _minimal_run_doc(
@@ -313,9 +419,183 @@ class DnsperfParseTests(unittest.TestCase):
 
 class AnnotationCatalogTests(unittest.TestCase):
     def test_load_optional(self):
-        # May be empty early; must not raise.
         anns = load_annotations()
         self.assertIsInstance(anns, list)
+        ids = {a.id for a in anns}
+        self.assertIn("ann-example-context", ids)
+        self.assertIn("ann-thin-spine-context", ids)
+        example = next(a for a in anns if a.id == "ann-example-context")
+        self.assertEqual(example.tone, "context")
+        self.assertTrue(example.title)
+        self.assertTrue(example.body)
+
+    def test_include_fragments_and_page_markers(self):
+        from unittest import mock
+
+        from perf.runner import publish as publish_mod
+        from perf.runner.catalog import Annotation
+
+        sample = Annotation(
+            id="ann-unit-noise",
+            tone="known_noise",
+            title="Unit noise title",
+            body="Body line one.\n\nBody line two.",
+            related_scenarios=("scale-sync-forward-slow",),
+            related_releases=(),
+        )
+        md = publish_mod.annotation_include_markdown(sample)
+        self.assertIn('!!! warning "Unit noise title"', md)
+        self.assertIn("    Body line one.", md)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            perf_docs = root / "performance"
+            includes = perf_docs / "includes"
+            includes.mkdir(parents=True)
+            page = perf_docs / "methodology.md"
+            page.write_text(
+                "# Meth\n\n"
+                "<!-- perf-ann:ann-unit-noise:start -->\n"
+                "_placeholder_\n"
+                "<!-- perf-ann:ann-unit-noise:end -->\n",
+                encoding="utf-8",
+            )
+            with mock.patch.object(publish_mod, "OPERATOR_PERF", perf_docs):
+                written = publish_mod.write_annotation_include_fragments([sample])
+                self.assertEqual(len(written), 1)
+                self.assertTrue((includes / "ann-unit-noise.fragment.md").is_file())
+                touched = publish_mod._inject_annotation_includes_into_pages()
+            self.assertEqual(touched, [page])
+            text = page.read_text(encoding="utf-8")
+            self.assertIn('!!! warning "Unit noise title"', text)
+            self.assertNotIn("_placeholder_", text)
+
+
+class PublishTests(unittest.TestCase):
+    def test_promote_and_generate_docs(self):
+        from unittest import mock
+
+        from perf.runner import publish as publish_mod
+
+        doc = _minimal_run_doc(
+            lab_profile={
+                "id": "maintainer-ws-1",
+                "display_name": "Maintainer workstation",
+                "cpu_model": "Test CPU",
+                "physical_cores": 4,
+                "logical_cores": 8,
+                "os": "Linux test",
+            },
+            scenarios=[
+                {
+                    "id": "scale-sync-forward-fast",
+                    "suite": "scale",
+                    "status": "ok",
+                    "axes": {"runtime": "sync", "load_shape": "forward_fast"},
+                    "metrics": {
+                        "achieved_qps": 1000.0,
+                        "latency_ms": {"avg": 0.8},
+                    },
+                },
+                {
+                    "id": "scale-sync-forward-slow",
+                    "suite": "scale",
+                    "status": "ok",
+                    "axes": {"runtime": "sync", "load_shape": "forward_slow"},
+                    "metrics": {
+                        "achieved_qps": 20.0,
+                        "latency_ms": {"avg": 50.0},
+                    },
+                },
+                {
+                    "id": "scale-split-io-forward-fast",
+                    "suite": "scale",
+                    "status": "ok",
+                    "axes": {"runtime": "split_io", "load_shape": "forward_fast"},
+                    "metrics": {
+                        "achieved_qps": 1100.0,
+                        "latency_ms": {"avg": 0.7},
+                    },
+                },
+                {
+                    "id": "scale-split-io-forward-slow",
+                    "suite": "scale",
+                    "status": "ok",
+                    "axes": {"runtime": "split_io", "load_shape": "forward_slow"},
+                    "metrics": {
+                        "achieved_qps": 40.0,
+                        "latency_ms": {"avg": 40.0},
+                    },
+                },
+                {
+                    "id": "shutdown-drain-complete-forward-slow",
+                    "suite": "shutdown_drain",
+                    "status": "ok",
+                    "axes": {"drain_policy": "drain_complete"},
+                    "metrics": {"drain_duration_ms": 200.0, "achieved_qps": 5.0},
+                    "secondary": {"client_failures_during_stop": 10},
+                },
+                {
+                    "id": "shutdown-drain-budgeted-forward-slow",
+                    "suite": "shutdown_drain",
+                    "status": "ok",
+                    "axes": {"drain_policy": "drain_budgeted"},
+                    "metrics": {"drain_duration_ms": 150.0, "achieved_qps": 5.0},
+                    "secondary": {"client_failures_during_stop": 20},
+                },
+                {
+                    "id": "shutdown-drain-minimal-forward-slow",
+                    "suite": "shutdown_drain",
+                    "status": "ok",
+                    "axes": {"drain_policy": "drain_minimal"},
+                    "metrics": {"drain_duration_ms": 50.0, "achieved_qps": 5.0},
+                    "secondary": {"client_failures_during_stop": 30},
+                },
+            ],
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            gen = root / "generated"
+            perf_docs = root / "performance"
+            gen.mkdir()
+            perf_docs.mkdir()
+            with mock.patch.object(publish_mod, "GENERATED_DIR", gen), mock.patch.object(
+                publish_mod, "OPERATOR_PERF", perf_docs
+            ):
+                written = publish_mod.generate_operator_docs_fragments(doc)
+            names = {p.name for p in written}
+            self.assertIn("scale-sync-vs-split-io-forward-fast.svg", names)
+            self.assertIn("scale-sync-vs-split-io-forward-slow.svg", names)
+            self.assertIn("shutdown-drain-forward-slow.svg", names)
+            self.assertIn("shutdown-drain-forward-slow.csv", names)
+            self.assertIn("reference.md", names)
+            self.assertIn("scenarios.md", names)
+            self.assertTrue(
+                (gen / "scale-sync-vs-split-io-forward-fast.svg").is_file()
+            )
+            csv_text = (
+                gen / "scale-sync-vs-split-io-forward-fast.csv"
+            ).read_text(encoding="utf-8")
+            self.assertIn("scale-sync-forward-fast", csv_text)
+            self.assertIn("1000", csv_text)
+            ref = (perf_docs / "reference.md").read_text(encoding="utf-8")
+            self.assertIn("/performance/scenarios.md#", ref)
+            self.assertNotIn("Annotations referenced by this reference", ref)
+            includes = perf_docs / "includes"
+            self.assertTrue((includes / "ann-example-context.fragment.md").is_file())
+            self.assertTrue(
+                (includes / "ann-forward-slow-lossy-context.fragment.md").is_file()
+            )
+            self.assertFalse((perf_docs / "annotations.md").is_file())
+            self.assertFalse(
+                (gen / "annotations-from-reference.fragment.md").is_file()
+            )
+
+    def test_lossless_upgrade_scenario_exists(self):
+        scenarios = filter_scenarios(load_scenarios(), suite="lossless_upgrade")
+        self.assertTrue(scenarios)
+        self.assertTrue(all(s.suite == "lossless_upgrade" for s in scenarios))
+        self.assertTrue(any(s.recipe.get("skip_unless") == "zdu" for s in scenarios))
 
 
 class ProvenancePathTests(unittest.TestCase):

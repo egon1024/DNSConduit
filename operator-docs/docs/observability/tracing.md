@@ -188,5 +188,6 @@ Expect top-level phase **`lookup`** (with nested route/forward events when upstr
 - [Architecture and packet path](/concepts/architecture-and-packet-path.md) — pipeline phases traced
 - [Event export](/observability/event-export.md) — dnstap and tag-gated export
 - [Metrics](/observability/metrics.md) — aggregate observability
+- [Pipeline tracing tax](/performance/studies/tracing-tax-under-load.md) — same-host cost of full A-query tracing
 - [gRPC and conduitctl](/control-plane/grpc-and-conduitctl.md) — `trace` subcommand and control plane setup
 - [Logging](/observability/logging.md) — process log levels and query summary lines

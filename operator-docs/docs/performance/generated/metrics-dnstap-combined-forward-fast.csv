@@ -1,0 +1,5 @@
+scenario_id,runtime,achieved_qps,latency_avg_ms,queries_sent,queries_completed,queries_lost,workers
+feature-tax-metrics-off-forward-fast,sync,138760.8,2.0,1391423,1387890,3449,ingress_workers=2
+feature-tax-metrics-standard-scrape-forward-fast,sync,121399.7,2.3,1217696,1214291,3449,ingress_workers=2
+feature-tax-dnstap-full-forward-fast,sync,113838.8,2.6,1142096,1138671,3425,ingress_workers=2
+feature-tax-metrics-standard-dnstap-full-forward-fast,sync,106763.8,1.7,1071331,1067929,3553,ingress_workers=2

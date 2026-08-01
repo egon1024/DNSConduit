@@ -17,17 +17,16 @@ pub fn run_in_slot(
     observation: &EventHub,
     setup: impl FnOnce(&mut TxnSlot),
 ) -> Result<Option<Vec<u8>>, AcquireError> {
-    let mut store = txn_store.lock();
-    let slot_id = store.acquire()?;
-    if store
+    let slot_id = txn_store.acquire()?;
+    if txn_store
         .transition(slot_id, SlotState::Ingress, SlotState::Policy)
         .is_err()
     {
-        let _ = store.release_active(slot_id);
+        let _ = txn_store.release_active(slot_id);
         return Ok(None);
     }
 
-    let outcome = store.with_slot(slot_id, SlotState::Policy, |slot| {
+    let outcome = txn_store.with_slot(slot_id, SlotState::Policy, |slot| {
         setup(slot);
         Ok(orchestrator.run(&mut slot.txn, snap, &SystemClock, Some(observation)))
     });
@@ -36,6 +35,6 @@ pub fn run_in_slot(
         Ok(RunOutcome::Response(w)) => Some(w),
         Ok(RunOutcome::Dropped) | Err(_) => None,
     };
-    let _ = store.release_active(slot_id);
+    let _ = txn_store.release_active(slot_id);
     Ok(wire)
 }

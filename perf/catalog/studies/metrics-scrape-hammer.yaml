@@ -1,0 +1,25 @@
+schema_version: 1
+id: metrics-scrape-hammer
+title: Aggressive scrape cadence under load
+question: What does frequent Prometheus scraping during load cost versus listener-only scrape?
+published: true
+members:
+  - feature-tax-metrics-off-forward-fast
+  - feature-tax-metrics-standard-scrape-forward-fast
+  - feature-tax-metrics-standard-scrape-hammer-forward-fast
+compare_axis: obs_posture
+primary_metric: achieved_qps
+takeaway: >
+  Adds a lab scrape hammer (~100ms GET loop) on top of standard scrape so the
+  export path is exercised under load — closer to busy Prometheus than open-port-only.
+related_guides:
+  - /observability/metrics.md
+  - /guides/operator-metrics-bases.md
+figures:
+  - id: metrics-scrape-hammer-forward-fast
+    title: Feature tax — scrape hammer under load (forward_fast)
+    y_label: Achieved QPS
+    members:
+      - feature-tax-metrics-off-forward-fast
+      - feature-tax-metrics-standard-scrape-forward-fast
+      - feature-tax-metrics-standard-scrape-hammer-forward-fast

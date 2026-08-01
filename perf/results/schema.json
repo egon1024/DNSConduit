@@ -57,7 +57,7 @@
         "id": {
           "type": "string",
           "minLength": 1,
-          "description": "Stable profile identifier. Multiple ids are first-class; v1 curated publish uses one blessed id."
+          "description": "Stable profile identifier. Multiple ids are first-class; v1 curated publish uses one named reference id."
         },
         "display_name": { "type": "string", "minLength": 1 },
         "cpu_model": { "type": "string", "minLength": 1 },
@@ -110,6 +110,9 @@
         "image": { "type": "string" },
         "image_digest": { "type": "string" },
         "native_version": { "type": "string" },
+        "clients": { "type": "integer", "minimum": 1 },
+        "threads": { "type": "integer", "minimum": 1 },
+        "max_outstanding": { "type": "integer", "minimum": 1 },
         "flags": {
           "type": "array",
           "items": { "type": "string" }
@@ -124,7 +127,10 @@
         "duration_seconds": { "type": "number", "minimum": 0 },
         "repeat": { "type": "integer", "minimum": 1 },
         "dirty": { "type": "boolean" },
-        "notes": { "type": "string" }
+        "notes": { "type": "string" },
+        "dnsperf_clients": { "type": "integer", "minimum": 1 },
+        "dnsperf_threads": { "type": "integer", "minimum": 1 },
+        "dnsperf_max_outstanding": { "type": "integer", "minimum": 1 }
       }
     },
     "scenario_result": {

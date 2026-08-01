@@ -20,7 +20,7 @@ When **`dataplane:`** is omitted, Conduit runs the **`sync`** runtime with the d
 |-------|------|----------|---------|-------------|
 | `runtime` | string | no | **`sync`** | Dataplane execution model: `sync` or `split_io`. See [Runtime values](#runtime-values). |
 | `policy_workers` | integer | no | **1** | Number of policy worker threads under **`split_io`**. Must be ≥ 1 when `runtime: split_io`; **ignored** under `sync`. |
-| `io_workers` | integer | no | **1** | Number of I/O worker threads under **`split_io`**. Must be ≥ 1 when `runtime: split_io`; **ignored** under `sync`. |
+| `io_workers` | integer | no | **1** | Number of I/O **poll** worker threads under **`split_io`**. Each value of **N** starts **N** independent poll loops (each with its own upstream egress sockets). Must be ≥ 1 when `runtime: split_io`; **ignored** under `sync`. |
 | `slot_chunk_size` | integer | no | **256** | Growth chunk (in [transaction](/glossary/index.md#transaction) slots) for the slot pool. Applies to both runtimes; must be ≥ 1 when set. See [Slot chunk size](#slot-chunk-size). |
 
 ## Runtime values
@@ -37,7 +37,7 @@ Any other value is rejected by **`conduitctl validate --file`**. Use `sync` or `
 **`policy_workers`** and **`io_workers`** size the two non-ingress pools that `split_io` adds:
 
 - **`policy_workers`** — threads that run the orchestrator phases ([Request rules](/concepts/architecture-and-packet-path.md#request-rules), [Lookup](/concepts/architecture-and-packet-path.md#lookup) including forward-provider submit) and finish each [transaction](/glossary/index.md#transaction) at [Response rules](/concepts/architecture-and-packet-path.md#response-rules) / [Send](/concepts/architecture-and-packet-path.md#send). Raise it for more concurrent policy and [Rhai](/rhai/index.md) execution.
-- **`io_workers`** — threads that own the upstream sockets, match replies to parked transactions, and enforce `forward.timeout_ms`. Raise it for more upstream socket fan-out.
+- **`io_workers`** — threads that own the upstream sockets, match replies to parked transactions, and enforce `forward.timeout_ms`. **`io_workers: N`** runs exactly **N** I/O poll threads (restart required to change). Raise it for more upstream socket fan-out when a single poller is saturated.
 
 Both default to **1** and are **ignored under `sync`** (which has no separate policy/I/O pools — the ingress thread does everything). Ingress thread count is **not** set here: it comes from **`listeners.threads`** (per listener). See [Worker counts and limits](/concepts/runtime-and-concurrency.md#worker-counts-and-limits) and [Listeners](/reference/config-schema/listeners.md).
 

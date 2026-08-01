@@ -37,10 +37,11 @@ pub fn build_scrape_snapshot(
         .collect();
     let outstanding: HashMap<SocketAddr, u32> =
         table.outstanding_per_backend().into_iter().collect();
-    let slot_stats = {
-        let store = txn_store.lock();
-        (store.in_use(), store.capacity(), store.exhaustion_total())
-    };
+    let slot_stats = (
+        txn_store.in_use(),
+        txn_store.capacity(),
+        txn_store.exhaustion_total(),
+    );
 
     let mut pool_backend_counts = Vec::new();
     let mut forward_outstanding = Vec::new();

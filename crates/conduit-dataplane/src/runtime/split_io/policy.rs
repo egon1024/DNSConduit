@@ -14,6 +14,7 @@ use std::sync::Arc;
 #[allow(clippy::too_many_arguments)]
 pub fn run_policy_worker(
     queue: Arc<PolicyQueue>,
+    home_shard: usize,
     txn_store: SharedTxnStore,
     orchestrator: Arc<Orchestrator>,
     store: Arc<SnapshotStore>,
@@ -22,7 +23,7 @@ pub fn run_policy_worker(
     inflight: Arc<PoolInflight>,
     shutdown: DataplaneShutdown,
 ) {
-    while let Some(work) = queue.pop(&shutdown) {
+    while let Some(work) = queue.pop(home_shard, &shutdown) {
         match work {
             PolicyWork::New(slot_id) => process_new(
                 slot_id,
@@ -64,15 +65,12 @@ fn process_new(
     reply_routes: &ReplyRoutes,
     inflight: &PoolInflight,
 ) {
+    if txn_store
+        .transition(slot_id, SlotState::Ingress, SlotState::Policy)
+        .is_err()
     {
-        let mut guard = txn_store.lock();
-        if guard
-            .transition(slot_id, SlotState::Ingress, SlotState::Policy)
-            .is_err()
-        {
-            let _ = guard.release_active(slot_id);
-            return;
-        }
+        let _ = txn_store.release_active(slot_id);
+        return;
     }
     run_policy_loop(
         slot_id,
@@ -96,18 +94,27 @@ fn process_resume(
     inflight: &PoolInflight,
 ) {
     let slot_id = resume.slot_id;
-    {
-        let mut guard = txn_store.lock();
-        if guard
-            .transition(slot_id, SlotState::IoWait, SlotState::Policy)
-            .is_err()
-        {
+    // Slot-scoped exclusion: Resume IoWait→Policy + apply completion under the
+    // same per-slot lock so it cannot interleave with Policy→IoWait publish on
+    // this slot (fast-upstream race). Other slots remain free to progress.
+    let ok = txn_store.with_slot_exclusive(slot_id, |slot| {
+        if slot.state != SlotState::IoWait {
+            return Ok(false);
+        }
+        slot.state = SlotState::Policy;
+        apply_wait_completion(&mut slot.txn, &resume.completion);
+        Ok(true)
+    });
+    match ok {
+        Ok(true) => {}
+        Ok(false) => {
+            tracing::warn!(
+                slot = slot_id.index(),
+                "split_io: dropped I/O resume; slot was not in IoWait (possible lost client reply)"
+            );
             return;
         }
-        let _ = guard.with_slot(slot_id, SlotState::Policy, |slot| {
-            apply_wait_completion(&mut slot.txn, &resume.completion);
-            Ok(())
-        });
+        Err(_) => return,
     }
     run_policy_loop(
         slot_id,
@@ -130,14 +137,11 @@ fn process_lookup_resume(
     reply_routes: &ReplyRoutes,
     inflight: &PoolInflight,
 ) {
+    if txn_store
+        .transition(slot_id, SlotState::IoWait, SlotState::Policy)
+        .is_err()
     {
-        let mut guard = txn_store.lock();
-        if guard
-            .transition(slot_id, SlotState::IoWait, SlotState::Policy)
-            .is_err()
-        {
-            return;
-        }
+        return;
     }
     run_policy_loop(
         slot_id,
@@ -163,29 +167,40 @@ fn run_policy_loop(
     mut resume_phase: Option<Phase>,
 ) {
     let snap = store.load();
-    let step = {
-        let mut guard = txn_store.lock();
-        guard.with_slot(slot_id, SlotState::Policy, |slot| {
-            Ok(if let Some(phase) = resume_phase.take() {
-                orchestrator.resume_after_suspend(
-                    &mut slot.txn,
-                    &snap,
-                    &SystemClock,
-                    Some(events.as_ref()),
-                    phase,
-                )
-            } else {
-                orchestrator.run_until_suspend(
-                    &mut slot.txn,
-                    &snap,
-                    &SystemClock,
-                    Some(events.as_ref()),
-                )
-            })
-        })
-    };
-
-    let step = match step {
+    // Hold this *slot's* mutex across run_until_suspend/resume_after_suspend *and*
+    // the Policy→IoWait transition. With a fast upstream, the I/O poller can
+    // enqueue a Resume before this worker would otherwise re-acquire the slot
+    // lock; another policy worker would then fail IoWait→Policy and drop the
+    // resume, leaving the slot parked forever. Distinct slots use distinct
+    // mutexes, so policy_workers > 1 can still run orchestrator work in parallel.
+    let step = match txn_store.with_slot_exclusive(slot_id, |slot| {
+        if slot.state != SlotState::Policy {
+            return Err(conduit_core::txn_store::SlotError::StateMismatch {
+                expected: SlotState::Policy,
+                actual: slot.state,
+            });
+        }
+        let step = if let Some(phase) = resume_phase.take() {
+            orchestrator.resume_after_suspend(
+                &mut slot.txn,
+                &snap,
+                &SystemClock,
+                Some(events.as_ref()),
+                phase,
+            )
+        } else {
+            orchestrator.run_until_suspend(
+                &mut slot.txn,
+                &snap,
+                &SystemClock,
+                Some(events.as_ref()),
+            )
+        };
+        if matches!(&step, OrchestratorRun::Suspended { .. }) {
+            slot.state = SlotState::IoWait;
+        }
+        Ok(step)
+    }) {
         Ok(s) => s,
         Err(_) => {
             release_slot(txn_store, slot_id, inflight);
@@ -202,29 +217,24 @@ fn run_policy_loop(
             release_slot(txn_store, slot_id, inflight);
         }
         OrchestratorRun::Suspended { .. } => {
-            let mut guard = txn_store.lock();
-            let _ = guard.transition(slot_id, SlotState::Policy, SlotState::IoWait);
+            // Policy→IoWait already applied under the same per-slot lock as suspend.
         }
     }
 }
 
 fn release_slot(txn_store: &SharedTxnStore, slot_id: SlotId, inflight: &PoolInflight) {
-    let pool = {
-        let mut guard = txn_store.lock();
-        let pool = guard
-            .with_slot(slot_id, SlotState::Policy, |slot| {
-                Ok(slot.txn.selected_pool.clone())
-            })
-            .or_else(|_| {
-                guard.with_slot(slot_id, SlotState::IoWait, |slot| {
-                    Ok(slot.txn.selected_pool.clone())
-                })
-            })
-            .ok()
-            .flatten();
-        let _ = guard.release_active(slot_id);
-        pool
-    };
+    let pool = txn_store
+        .with_slot_exclusive(slot_id, |slot| {
+            let pool = if matches!(slot.state, SlotState::Policy | SlotState::IoWait) {
+                slot.txn.selected_pool.clone()
+            } else {
+                None
+            };
+            Ok(pool)
+        })
+        .ok()
+        .flatten();
+    let _ = txn_store.release_active(slot_id);
     if let Some(pool) = pool {
         inflight.release(&pool);
     }

@@ -1,0 +1,16 @@
+schema_version: 1
+id: scale-sync-ingress-8-forward-slow
+suite: scale
+curated: true
+intent: |
+  Ingress-concurrency ladder (sync): eight ingress workers under forward_slow.
+  Optional noisy rung — keep in catalog; publish may omit if unstable on the lab.
+axes:
+  runtime: sync
+  load_shape: forward_slow
+  ingress_workers: 8
+recipe:
+  config: scale-sync-ingress-8-obs-off.yml
+  upstream: slow
+  loadgen: dnsperf
+  query_file: perf-a.txt

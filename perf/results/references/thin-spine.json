@@ -1,0 +1,1039 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-08-01T02:58:53Z",
+  "lab_profile": {
+    "id": "maintainer-ws-1",
+    "display_name": "Maintainer workstation (maintainer-ws-1)",
+    "cpu_model": "Intel(R) Core(TM) i9-14900K",
+    "physical_cores": 32,
+    "logical_cores": 32,
+    "os": "Linux 6.8.0-136-generic",
+    "kernel": "6.8.0-136-generic",
+    "memory_total_mb": 128572
+  },
+  "provenance": {
+    "conduit_path": "target/release/conduit",
+    "conduit_version": "unknown",
+    "runner": "perf.runner/0.1.0",
+    "loadgen": {
+      "tool": "dnsperf",
+      "mode": "docker",
+      "clients": 4,
+      "threads": 2,
+      "image": "dnsconduit-dnsperf:2.14.0"
+    },
+    "git_sha": "e8e5198492deb0ff020b29227143597f82ca2bc8"
+  },
+  "quality": {
+    "warmup_seconds": 2.0,
+    "duration_seconds": 10.0,
+    "dnsperf_clients": 4,
+    "dnsperf_threads": 2
+  },
+  "scenarios": [
+    {
+      "id": "scale-split-io-forward-fast",
+      "suite": "scale",
+      "intent": "Compare split_io runtime under a fast stub upstream (forward_fast load shape).\nThin curated spine pair with scale-sync-forward-fast.",
+      "status": "ok",
+      "axes": {
+        "runtime": "split_io",
+        "load_shape": "forward_fast",
+        "topology": "thin",
+        "ingress_workers": 2,
+        "policy_workers": 2,
+        "io_workers": 2
+      },
+      "metrics": {
+        "achieved_qps": 364056.379688,
+        "queries_sent": 3644026,
+        "queries_completed": 3642237,
+        "queries_lost": 2395,
+        "latency_ms": {
+          "avg": 2.1879999999999997
+        }
+      },
+      "quality": {
+        "warmup_seconds": 2.0,
+        "duration_seconds": 10.0,
+        "dnsperf_clients": 16,
+        "dnsperf_threads": 8,
+        "dnsperf_max_outstanding": 2000,
+        "notes": "median of 3 rounds; achieved_qps range 356514.2-365232.4"
+      }
+    },
+    {
+      "id": "scale-split-io-forward-slow",
+      "suite": "scale",
+      "intent": "Compare split_io runtime under an artificially slow upstream (forward_slow).\nPaired with scale-sync-forward-slow; slow upstream is where split_io should shine.",
+      "status": "ok",
+      "axes": {
+        "runtime": "split_io",
+        "load_shape": "forward_slow",
+        "ingress_workers": 2,
+        "policy_workers": 2,
+        "io_workers": 2
+      },
+      "metrics": {
+        "achieved_qps": 10.933483,
+        "queries_sent": 298,
+        "queries_completed": 161,
+        "queries_lost": 137,
+        "latency_ms": {
+          "avg": 3320.249
+        }
+      },
+      "quality": {
+        "warmup_seconds": 2.0,
+        "duration_seconds": 10.0,
+        "dnsperf_clients": 4,
+        "dnsperf_threads": 2,
+        "notes": "median of 3 rounds; achieved_qps range 10.2-11.5"
+      }
+    },
+    {
+      "id": "scale-split-io-io-1-forward-slow",
+      "suite": "scale",
+      "intent": "I/O-vs-ingress ladder (split_io): one I/O worker with fixed ingress/policy=2\nunder forward_slow. Paired with io_workers 2/4/8 for io-vs-ingress-split.",
+      "status": "ok",
+      "axes": {
+        "runtime": "split_io",
+        "load_shape": "forward_slow",
+        "ingress_workers": 2,
+        "policy_workers": 2,
+        "io_workers": 1
+      },
+      "metrics": {
+        "achieved_qps": 10.47919,
+        "queries_sent": 297,
+        "queries_completed": 145,
+        "queries_lost": 151,
+        "latency_ms": {
+          "avg": 2751.1169999999997
+        }
+      },
+      "quality": {
+        "warmup_seconds": 2.0,
+        "duration_seconds": 10.0,
+        "dnsperf_clients": 4,
+        "dnsperf_threads": 2,
+        "notes": "median of 3 rounds; achieved_qps range 9.8-10.8"
+      }
+    },
+    {
+      "id": "scale-split-io-io-4-forward-slow",
+      "suite": "scale",
+      "intent": "I/O-vs-ingress ladder (split_io): four I/O workers with fixed ingress/policy=2\nunder forward_slow. Paired with io_workers 1/2/8 for io-vs-ingress-split.",
+      "status": "ok",
+      "axes": {
+        "runtime": "split_io",
+        "load_shape": "forward_slow",
+        "ingress_workers": 2,
+        "policy_workers": 2,
+        "io_workers": 4
+      },
+      "metrics": {
+        "achieved_qps": 9.04582,
+        "queries_sent": 299,
+        "queries_completed": 134,
+        "queries_lost": 164,
+        "latency_ms": {
+          "avg": 3151.988
+        }
+      },
+      "quality": {
+        "warmup_seconds": 2.0,
+        "duration_seconds": 10.0,
+        "dnsperf_clients": 4,
+        "dnsperf_threads": 2,
+        "notes": "median of 3 rounds; achieved_qps range 8.8-9.3"
+      }
+    },
+    {
+      "id": "scale-split-io-io-8-forward-slow",
+      "suite": "scale",
+      "intent": "I/O-vs-ingress ladder (split_io): eight I/O workers with fixed ingress/policy=2\nunder forward_slow. Optional noisy rung \u2014 keep in catalog; publish may omit if unstable.",
+      "status": "ok",
+      "axes": {
+        "runtime": "split_io",
+        "load_shape": "forward_slow",
+        "ingress_workers": 2,
+        "policy_workers": 2,
+        "io_workers": 8
+      },
+      "metrics": {
+        "achieved_qps": 8.886466,
+        "queries_sent": 299,
+        "queries_completed": 133,
+        "queries_lost": 165,
+        "latency_ms": {
+          "avg": 3148.466
+        }
+      },
+      "quality": {
+        "warmup_seconds": 2.0,
+        "duration_seconds": 10.0,
+        "dnsperf_clients": 4,
+        "dnsperf_threads": 2,
+        "notes": "median of 3 rounds; achieved_qps range 7.7-9.3"
+      }
+    },
+    {
+      "id": "scale-split-io-topology-heavy",
+      "suite": "scale",
+      "intent": "Maintainer topology / threads-vs-cores scenario: higher ingress, policy, and\nI/O worker counts under forward_fast. Runnable locally; not required for G1\ncurated publish.",
+      "status": "ok",
+      "axes": {
+        "runtime": "split_io",
+        "load_shape": "forward_fast",
+        "topology": "heavy",
+        "ingress_workers": 4,
+        "policy_workers": 4,
+        "io_workers": 4
+      },
+      "metrics": {
+        "achieved_qps": 601897.579686,
+        "queries_sent": 6021233,
+        "queries_completed": 6020309,
+        "queries_lost": 611,
+        "latency_ms": {
+          "avg": 2.741
+        }
+      },
+      "quality": {
+        "warmup_seconds": 2.0,
+        "duration_seconds": 10.0,
+        "dnsperf_clients": 16,
+        "dnsperf_threads": 8,
+        "dnsperf_max_outstanding": 2000,
+        "notes": "median of 3 rounds; achieved_qps range 585318.5-615825.5"
+      }
+    },
+    {
+      "id": "scale-sync-cache-hit",
+      "suite": "scale",
+      "intent": "Maintainer-runnable cache_hit load shape: sync runtime with memory cache warmed\nbefore dnsperf. Not required for the initial curated publish spine.",
+      "status": "ok",
+      "axes": {
+        "runtime": "sync",
+        "load_shape": "cache_hit",
+        "ingress_workers": 2
+      },
+      "metrics": {
+        "achieved_qps": 348813.430011,
+        "queries_sent": 3491802,
+        "queries_completed": 3488443,
+        "queries_lost": 3366,
+        "latency_ms": {
+          "avg": 0.92
+        }
+      },
+      "quality": {
+        "warmup_seconds": 2.0,
+        "duration_seconds": 10.0,
+        "dnsperf_clients": 16,
+        "dnsperf_threads": 8,
+        "dnsperf_max_outstanding": 2000,
+        "notes": "median of 3 rounds; achieved_qps range 307525.3-348974.1"
+      }
+    },
+    {
+      "id": "scale-sync-forward-fast",
+      "suite": "scale",
+      "intent": "Compare sync runtime under a fast stub upstream (forward_fast load shape).\nThin curated spine pair with scale-split-io-forward-fast.",
+      "status": "ok",
+      "axes": {
+        "runtime": "sync",
+        "load_shape": "forward_fast",
+        "ingress_workers": 2
+      },
+      "metrics": {
+        "achieved_qps": 211448.876012,
+        "queries_sent": 2118239,
+        "queries_completed": 2114785,
+        "queries_lost": 3662,
+        "latency_ms": {
+          "avg": 1.3110000000000002
+        }
+      },
+      "quality": {
+        "warmup_seconds": 2.0,
+        "duration_seconds": 10.0,
+        "dnsperf_clients": 16,
+        "dnsperf_threads": 8,
+        "dnsperf_max_outstanding": 2000,
+        "notes": "median of 3 rounds; achieved_qps range 131190.9-226290.7"
+      }
+    },
+    {
+      "id": "scale-sync-forward-slow",
+      "suite": "scale",
+      "intent": "Compare sync runtime under an artificially slow upstream (forward_slow).\nPaired with scale-split-io-forward-slow for relative comparison.",
+      "status": "ok",
+      "axes": {
+        "runtime": "sync",
+        "load_shape": "forward_slow",
+        "ingress_workers": 2
+      },
+      "metrics": {
+        "achieved_qps": 10.233872,
+        "queries_sent": 340,
+        "queries_completed": 153,
+        "queries_lost": 187,
+        "latency_ms": {
+          "avg": 1651.054
+        }
+      },
+      "quality": {
+        "warmup_seconds": 2.0,
+        "duration_seconds": 10.0,
+        "dnsperf_clients": 4,
+        "dnsperf_threads": 2,
+        "notes": "median of 3 rounds; achieved_qps range 6.7-10.3"
+      }
+    },
+    {
+      "id": "scale-sync-ingress-1-forward-slow",
+      "suite": "scale",
+      "intent": "Ingress-concurrency ladder (sync): one ingress worker under forward_slow.\nPaired with ingress 2/4/8 cells for the ingress-concurrency-sync study.",
+      "status": "ok",
+      "axes": {
+        "runtime": "sync",
+        "load_shape": "forward_slow",
+        "ingress_workers": 1
+      },
+      "metrics": {
+        "achieved_qps": 6.705944,
+        "queries_sent": 299,
+        "queries_completed": 100,
+        "queries_lost": 199,
+        "latency_ms": {
+          "avg": 2521.039
+        }
+      },
+      "quality": {
+        "warmup_seconds": 2.0,
+        "duration_seconds": 10.0,
+        "dnsperf_clients": 4,
+        "dnsperf_threads": 2,
+        "notes": "median of 3 rounds; achieved_qps range 6.7-6.7"
+      }
+    },
+    {
+      "id": "scale-sync-ingress-4-forward-slow",
+      "suite": "scale",
+      "intent": "Ingress-concurrency ladder (sync): four ingress workers under forward_slow.\nPaired with ingress 1/2/8 cells for the ingress-concurrency-sync study.",
+      "status": "ok",
+      "axes": {
+        "runtime": "sync",
+        "load_shape": "forward_slow",
+        "ingress_workers": 4
+      },
+      "metrics": {
+        "achieved_qps": 6.716605,
+        "queries_sent": 299,
+        "queries_completed": 100,
+        "queries_lost": 199,
+        "latency_ms": {
+          "avg": 2518.476
+        }
+      },
+      "quality": {
+        "warmup_seconds": 2.0,
+        "duration_seconds": 10.0,
+        "dnsperf_clients": 4,
+        "dnsperf_threads": 2,
+        "notes": "median of 3 rounds; achieved_qps range 6.7-13.4"
+      }
+    },
+    {
+      "id": "scale-sync-ingress-8-forward-slow",
+      "suite": "scale",
+      "intent": "Ingress-concurrency ladder (sync): eight ingress workers under forward_slow.\nOptional noisy rung \u2014 keep in catalog; publish may omit if unstable on the lab.",
+      "status": "ok",
+      "axes": {
+        "runtime": "sync",
+        "load_shape": "forward_slow",
+        "ingress_workers": 8
+      },
+      "metrics": {
+        "achieved_qps": 6.718007,
+        "queries_sent": 299,
+        "queries_completed": 100,
+        "queries_lost": 199,
+        "latency_ms": {
+          "avg": 2518.614
+        }
+      },
+      "quality": {
+        "warmup_seconds": 2.0,
+        "duration_seconds": 10.0,
+        "dnsperf_clients": 4,
+        "dnsperf_threads": 2,
+        "notes": "median of 3 rounds; achieved_qps range 6.7-14.5"
+      }
+    },
+    {
+      "id": "feature-tax-dnstap-full-forward-fast",
+      "suite": "feature_tax",
+      "intent": "Dnstap fuller emit (query, response, retry) under forward_fast with lab tracer.",
+      "status": "ok",
+      "axes": {
+        "runtime": "sync",
+        "load_shape": "forward_fast",
+        "obs_posture": "dnstap_full",
+        "ingress_workers": 2
+      },
+      "metrics": {
+        "achieved_qps": 113838.811055,
+        "queries_sent": 1142096,
+        "queries_completed": 1138671,
+        "queries_lost": 3425,
+        "latency_ms": {
+          "avg": 2.562
+        }
+      },
+      "quality": {
+        "warmup_seconds": 2.0,
+        "duration_seconds": 10.0,
+        "dnsperf_clients": 16,
+        "dnsperf_threads": 8,
+        "dnsperf_max_outstanding": 2000,
+        "notes": "median of 3 rounds; achieved_qps range 111767.3-136352.1"
+      }
+    },
+    {
+      "id": "feature-tax-dnstap-off-forward-fast",
+      "suite": "feature_tax",
+      "intent": "Dnstap/events off (no sinks) under forward_fast \u2014 pair baseline for sampled/fuller.",
+      "status": "ok",
+      "axes": {
+        "runtime": "sync",
+        "load_shape": "forward_fast",
+        "obs_posture": "dnstap_off",
+        "ingress_workers": 2
+      },
+      "metrics": {
+        "achieved_qps": 135510.502141,
+        "queries_sent": 1358795,
+        "queries_completed": 1355390,
+        "queries_lost": 3405,
+        "latency_ms": {
+          "avg": 2.2230000000000003
+        }
+      },
+      "quality": {
+        "warmup_seconds": 2.0,
+        "duration_seconds": 10.0,
+        "dnsperf_clients": 16,
+        "dnsperf_threads": 8,
+        "dnsperf_max_outstanding": 2000,
+        "notes": "median of 3 rounds; achieved_qps range 135410.6-263085.4"
+      }
+    },
+    {
+      "id": "feature-tax-dnstap-sampled-forward-fast",
+      "suite": "feature_tax",
+      "intent": "Dnstap sampled (~10 percent response frames) under forward_fast with lab tracer.",
+      "status": "ok",
+      "axes": {
+        "runtime": "sync",
+        "load_shape": "forward_fast",
+        "obs_posture": "dnstap_sampled",
+        "ingress_workers": 2
+      },
+      "metrics": {
+        "achieved_qps": 126869.349171,
+        "queries_sent": 1272698,
+        "queries_completed": 1269237,
+        "queries_lost": 3461,
+        "latency_ms": {
+          "avg": 2.137
+        }
+      },
+      "quality": {
+        "warmup_seconds": 2.0,
+        "duration_seconds": 10.0,
+        "dnsperf_clients": 16,
+        "dnsperf_threads": 8,
+        "dnsperf_max_outstanding": 2000,
+        "notes": "median of 3 rounds; achieved_qps range 121266.9-163406.4"
+      }
+    },
+    {
+      "id": "feature-tax-logging-debug-forward-fast",
+      "suite": "feature_tax",
+      "intent": "Metrics off with logging.level debug under forward_fast \u2014 verbosity tax pair\nwith feature-tax-logging-warn-forward-fast.",
+      "status": "ok",
+      "axes": {
+        "runtime": "sync",
+        "load_shape": "forward_fast",
+        "obs_posture": "logging_debug",
+        "ingress_workers": 2
+      },
+      "metrics": {
+        "achieved_qps": 107228.46904,
+        "queries_sent": 1076001,
+        "queries_completed": 1072583,
+        "queries_lost": 3500,
+        "latency_ms": {
+          "avg": 1.847
+        }
+      },
+      "quality": {
+        "warmup_seconds": 2.0,
+        "duration_seconds": 10.0,
+        "dnsperf_clients": 16,
+        "dnsperf_threads": 8,
+        "dnsperf_max_outstanding": 2000,
+        "notes": "median of 3 rounds; achieved_qps range 95785.5-139328.3"
+      }
+    },
+    {
+      "id": "feature-tax-logging-warn-forward-fast",
+      "suite": "feature_tax",
+      "intent": "Metrics off with logging.level warn under forward_fast \u2014 verbosity tax warn\npole paired with feature-tax-logging-debug-forward-fast. Named for the logging\naxis (not the shared metrics_off baseline used by other feature_tax studies).",
+      "status": "ok",
+      "axes": {
+        "runtime": "sync",
+        "load_shape": "forward_fast",
+        "obs_posture": "logging_warn",
+        "ingress_workers": 2
+      },
+      "metrics": {
+        "achieved_qps": 124447.189211,
+        "queries_sent": 1248393,
+        "queries_completed": 1244729,
+        "queries_lost": 3664,
+        "latency_ms": {
+          "avg": 1.48
+        }
+      },
+      "quality": {
+        "warmup_seconds": 2.0,
+        "duration_seconds": 10.0,
+        "dnsperf_clients": 16,
+        "dnsperf_threads": 8,
+        "dnsperf_max_outstanding": 2000,
+        "notes": "median of 3 rounds; achieved_qps range 113526.0-140184.5"
+      }
+    },
+    {
+      "id": "feature-tax-metrics-collect-emit-forward-fast",
+      "suite": "feature_tax",
+      "intent": "Collect+emit on standard base under forward_fast \u2014 paired with collect-only and\nno-collect for emit-path secondary comparison.",
+      "status": "ok",
+      "axes": {
+        "runtime": "sync",
+        "load_shape": "forward_fast",
+        "obs_posture": "metrics_collect_emit",
+        "ingress_workers": 2
+      },
+      "metrics": {
+        "achieved_qps": 117515.795763,
+        "queries_sent": 1178865,
+        "queries_completed": 1175436,
+        "queries_lost": 3429,
+        "latency_ms": {
+          "avg": 2.5500000000000003
+        }
+      },
+      "quality": {
+        "warmup_seconds": 2.0,
+        "duration_seconds": 10.0,
+        "dnsperf_clients": 16,
+        "dnsperf_threads": 8,
+        "dnsperf_max_outstanding": 2000,
+        "notes": "median of 3 rounds; achieved_qps range 102892.5-120391.5"
+      }
+    },
+    {
+      "id": "feature-tax-metrics-collect-only-forward-fast",
+      "suite": "feature_tax",
+      "intent": "Collect hot-path categories with emit false under forward_fast \u2014 records without\nscrape/OTLP export. Paired with collect+emit and no-collect.",
+      "status": "ok",
+      "axes": {
+        "runtime": "sync",
+        "load_shape": "forward_fast",
+        "obs_posture": "metrics_collect_only",
+        "ingress_workers": 2
+      },
+      "metrics": {
+        "achieved_qps": 121086.611451,
+        "queries_sent": 1214611,
+        "queries_completed": 1211152,
+        "queries_lost": 3484,
+        "latency_ms": {
+          "avg": 1.5939999999999999
+        }
+      },
+      "quality": {
+        "warmup_seconds": 2.0,
+        "duration_seconds": 10.0,
+        "dnsperf_clients": 16,
+        "dnsperf_threads": 8,
+        "dnsperf_max_outstanding": 2000,
+        "notes": "median of 3 rounds; achieved_qps range 105386.9-190653.9"
+      }
+    },
+    {
+      "id": "feature-tax-metrics-minimal-scrape-ladder-forward-fast",
+      "suite": "feature_tax",
+      "intent": "Metrics base minimal + Prometheus scrape under elevated dnsperf outstanding\n(scrape-ladder publish recipe). Pair with off/standard scrape-ladder cells.",
+      "status": "ok",
+      "axes": {
+        "runtime": "sync",
+        "load_shape": "forward_fast",
+        "obs_posture": "metrics_minimal_scrape",
+        "ingress_workers": 2,
+        "loadgen_recipe": "elevated_outstanding"
+      },
+      "metrics": {
+        "achieved_qps": 131434.68207,
+        "queries_sent": 1318106,
+        "queries_completed": 1314639,
+        "queries_lost": 3467,
+        "latency_ms": {
+          "avg": 2.0660000000000003
+        }
+      },
+      "quality": {
+        "warmup_seconds": 2.0,
+        "duration_seconds": 10.0,
+        "dnsperf_clients": 16,
+        "dnsperf_threads": 8,
+        "dnsperf_max_outstanding": 2000,
+        "notes": "median of 3 rounds; achieved_qps range 125364.6-228817.3"
+      }
+    },
+    {
+      "id": "feature-tax-metrics-no-collect-forward-fast",
+      "suite": "feature_tax",
+      "intent": "No-collect on hot-path categories under forward_fast \u2014 neither record nor export\nfor volume/failures/lookup/timing. Paired with collect-only and collect+emit.",
+      "status": "ok",
+      "axes": {
+        "runtime": "sync",
+        "load_shape": "forward_fast",
+        "obs_posture": "metrics_no_collect",
+        "ingress_workers": 2
+      },
+      "metrics": {
+        "achieved_qps": 128663.265418,
+        "queries_sent": 1290379,
+        "queries_completed": 1286917,
+        "queries_lost": 3462,
+        "latency_ms": {
+          "avg": 2.105
+        }
+      },
+      "quality": {
+        "warmup_seconds": 2.0,
+        "duration_seconds": 10.0,
+        "dnsperf_clients": 16,
+        "dnsperf_threads": 8,
+        "dnsperf_max_outstanding": 2000,
+        "notes": "median of 3 rounds; achieved_qps range 121443.4-131219.4"
+      }
+    },
+    {
+      "id": "feature-tax-metrics-off-forward-fast",
+      "suite": "feature_tax",
+      "intent": "Observability-off baseline under forward_fast \u2014 metrics disabled, no dnstap sinks.\nLadder pair for minimal/standard scrape tax deltas.",
+      "status": "ok",
+      "axes": {
+        "runtime": "sync",
+        "load_shape": "forward_fast",
+        "obs_posture": "metrics_off",
+        "ingress_workers": 2
+      },
+      "metrics": {
+        "achieved_qps": 138760.845424,
+        "queries_sent": 1391423,
+        "queries_completed": 1387890,
+        "queries_lost": 3449,
+        "latency_ms": {
+          "avg": 2.025
+        }
+      },
+      "quality": {
+        "warmup_seconds": 2.0,
+        "duration_seconds": 10.0,
+        "dnsperf_clients": 16,
+        "dnsperf_threads": 8,
+        "dnsperf_max_outstanding": 2000,
+        "notes": "median of 3 rounds; achieved_qps range 134223.4-142508.8"
+      }
+    },
+    {
+      "id": "feature-tax-metrics-off-scrape-ladder-forward-fast",
+      "suite": "feature_tax",
+      "intent": "Observability-off baseline for the metrics scrape ladder under an elevated\ndnsperf outstanding window (publish recipe for this study). Pair with\nminimal/standard scrape-ladder cells \u2014 not the shared metrics-off cell used\nby other feature_tax studies.",
+      "status": "ok",
+      "axes": {
+        "runtime": "sync",
+        "load_shape": "forward_fast",
+        "obs_posture": "metrics_off",
+        "ingress_workers": 2,
+        "loadgen_recipe": "elevated_outstanding"
+      },
+      "metrics": {
+        "achieved_qps": 138672.044689,
+        "queries_sent": 1390396,
+        "queries_completed": 1387024,
+        "queries_lost": 3377,
+        "latency_ms": {
+          "avg": 2.245
+        }
+      },
+      "quality": {
+        "warmup_seconds": 2.0,
+        "duration_seconds": 10.0,
+        "dnsperf_clients": 16,
+        "dnsperf_threads": 8,
+        "dnsperf_max_outstanding": 2000,
+        "notes": "median of 3 rounds; achieved_qps range 115319.6-139094.6"
+      }
+    },
+    {
+      "id": "feature-tax-metrics-off-split-io-forward-fast",
+      "suite": "feature_tax",
+      "intent": "Observability-off baseline under split_io + forward_fast \u2014 pair for scrape tax\non the split_io runtime model.",
+      "status": "ok",
+      "axes": {
+        "runtime": "split_io",
+        "load_shape": "forward_fast",
+        "obs_posture": "metrics_off",
+        "ingress_workers": 2,
+        "policy_workers": 2,
+        "io_workers": 2
+      },
+      "metrics": {
+        "achieved_qps": 373533.982712,
+        "queries_sent": 3738747,
+        "queries_completed": 3736729,
+        "queries_lost": 2018,
+        "latency_ms": {
+          "avg": 2.643
+        }
+      },
+      "quality": {
+        "warmup_seconds": 2.0,
+        "duration_seconds": 10.0,
+        "dnsperf_clients": 16,
+        "dnsperf_threads": 8,
+        "dnsperf_max_outstanding": 2000,
+        "notes": "median of 3 rounds; achieved_qps range 358225.0-407205.1"
+      }
+    },
+    {
+      "id": "feature-tax-metrics-otlp-push-forward-fast",
+      "suite": "feature_tax",
+      "intent": "OTLP HTTP metrics push under forward_fast. Requires conduit-otlp-metrics-tracer;\nrecords secondary otlp_accepts / otlp_failures from the lab receiver.",
+      "status": "ok",
+      "axes": {
+        "runtime": "sync",
+        "load_shape": "forward_fast",
+        "obs_posture": "metrics_otlp_push",
+        "ingress_workers": 2
+      },
+      "metrics": {
+        "achieved_qps": 116878.828317,
+        "queries_sent": 1172470,
+        "queries_completed": 1169073,
+        "queries_lost": 3397,
+        "latency_ms": {
+          "avg": 2.594
+        }
+      },
+      "quality": {
+        "warmup_seconds": 2.0,
+        "duration_seconds": 10.0,
+        "dnsperf_clients": 16,
+        "dnsperf_threads": 8,
+        "dnsperf_max_outstanding": 2000,
+        "notes": "median of 3 rounds; achieved_qps range 105537.4-124545.9"
+      },
+      "secondary": {
+        "otlp_accepts": 8,
+        "otlp_failures": 0
+      }
+    },
+    {
+      "id": "feature-tax-metrics-standard-dnstap-full-forward-fast",
+      "suite": "feature_tax",
+      "intent": "Combined tax \u2014 metrics standard scrape plus fuller dnstap under forward_fast.",
+      "status": "ok",
+      "axes": {
+        "runtime": "sync",
+        "load_shape": "forward_fast",
+        "obs_posture": "metrics_standard_dnstap_full",
+        "ingress_workers": 2
+      },
+      "metrics": {
+        "achieved_qps": 106763.796189,
+        "queries_sent": 1071331,
+        "queries_completed": 1067929,
+        "queries_lost": 3553,
+        "latency_ms": {
+          "avg": 1.667
+        }
+      },
+      "quality": {
+        "warmup_seconds": 2.0,
+        "duration_seconds": 10.0,
+        "dnsperf_clients": 16,
+        "dnsperf_threads": 8,
+        "dnsperf_max_outstanding": 2000,
+        "notes": "median of 3 rounds; achieved_qps range 100853.5-163098.6"
+      }
+    },
+    {
+      "id": "feature-tax-metrics-standard-scrape-forward-fast",
+      "suite": "feature_tax",
+      "intent": "Metrics base standard with Prometheus scrape (collect+emit) under forward_fast.\nScrape-only ladder top; also the collect+emit pole of the collect pair.",
+      "status": "ok",
+      "axes": {
+        "runtime": "sync",
+        "load_shape": "forward_fast",
+        "obs_posture": "metrics_standard_scrape",
+        "ingress_workers": 2
+      },
+      "metrics": {
+        "achieved_qps": 121399.696993,
+        "queries_sent": 1217696,
+        "queries_completed": 1214291,
+        "queries_lost": 3449,
+        "latency_ms": {
+          "avg": 2.2929999999999997
+        }
+      },
+      "quality": {
+        "warmup_seconds": 2.0,
+        "duration_seconds": 10.0,
+        "dnsperf_clients": 16,
+        "dnsperf_threads": 8,
+        "dnsperf_max_outstanding": 2000,
+        "notes": "median of 3 rounds; achieved_qps range 120530.5-121754.6"
+      }
+    },
+    {
+      "id": "feature-tax-metrics-standard-scrape-hammer-forward-fast",
+      "suite": "feature_tax",
+      "intent": "Standard scrape with a lab scrape hammer (~100ms GET loop) under forward_fast \u2014\naggressive scrape cadence vs listener-only standard scrape.",
+      "status": "ok",
+      "axes": {
+        "runtime": "sync",
+        "load_shape": "forward_fast",
+        "obs_posture": "metrics_standard_scrape_hammer",
+        "ingress_workers": 2
+      },
+      "metrics": {
+        "achieved_qps": 117989.786312,
+        "queries_sent": 1183610,
+        "queries_completed": 1180188,
+        "queries_lost": 3441,
+        "latency_ms": {
+          "avg": 2.362
+        }
+      },
+      "quality": {
+        "warmup_seconds": 2.0,
+        "duration_seconds": 10.0,
+        "dnsperf_clients": 16,
+        "dnsperf_threads": 8,
+        "dnsperf_max_outstanding": 2000,
+        "notes": "median of 3 rounds; achieved_qps range 113565.4-120509.1"
+      },
+      "secondary": {
+        "scrape_hammer_ok": 162,
+        "scrape_hammer_fail": 0
+      }
+    },
+    {
+      "id": "feature-tax-metrics-standard-scrape-ladder-forward-fast",
+      "suite": "feature_tax",
+      "intent": "Metrics base standard + Prometheus scrape under elevated dnsperf outstanding\n(scrape-ladder publish recipe). Pair with off/minimal scrape-ladder cells.",
+      "status": "ok",
+      "axes": {
+        "runtime": "sync",
+        "load_shape": "forward_fast",
+        "obs_posture": "metrics_standard_scrape",
+        "ingress_workers": 2,
+        "loadgen_recipe": "elevated_outstanding"
+      },
+      "metrics": {
+        "achieved_qps": 121094.114362,
+        "queries_sent": 1214666,
+        "queries_completed": 1211244,
+        "queries_lost": 3508,
+        "latency_ms": {
+          "avg": 1.532
+        }
+      },
+      "quality": {
+        "warmup_seconds": 2.0,
+        "duration_seconds": 10.0,
+        "dnsperf_clients": 16,
+        "dnsperf_threads": 8,
+        "dnsperf_max_outstanding": 2000,
+        "notes": "median of 3 rounds; achieved_qps range 109832.7-197099.2"
+      }
+    },
+    {
+      "id": "feature-tax-metrics-standard-scrape-split-io-forward-fast",
+      "suite": "feature_tax",
+      "intent": "Metrics base standard with Prometheus scrape under split_io + forward_fast \u2014\nscrape tax pair with feature-tax-metrics-off-split-io-forward-fast.",
+      "status": "ok",
+      "axes": {
+        "runtime": "split_io",
+        "load_shape": "forward_fast",
+        "obs_posture": "metrics_standard_scrape",
+        "ingress_workers": 2,
+        "policy_workers": 2,
+        "io_workers": 2
+      },
+      "metrics": {
+        "achieved_qps": 284907.761625,
+        "queries_sent": 2852838,
+        "queries_completed": 2850456,
+        "queries_lost": 1822,
+        "latency_ms": {
+          "avg": 3.732
+        }
+      },
+      "quality": {
+        "warmup_seconds": 2.0,
+        "duration_seconds": 10.0,
+        "dnsperf_clients": 16,
+        "dnsperf_threads": 8,
+        "dnsperf_max_outstanding": 2000,
+        "notes": "median of 3 rounds; achieved_qps range 281698.5-290890.6"
+      }
+    },
+    {
+      "id": "feature-tax-tracing-on-forward-fast",
+      "suite": "feature_tax",
+      "intent": "Metrics off with pipeline tracing enabled (qtype A @ 100% sample) under\nforward_fast \u2014 pair with feature-tax-metrics-off-forward-fast.",
+      "status": "ok",
+      "axes": {
+        "runtime": "sync",
+        "load_shape": "forward_fast",
+        "obs_posture": "tracing_on",
+        "ingress_workers": 2
+      },
+      "metrics": {
+        "achieved_qps": 71846.123139,
+        "queries_sent": 722221,
+        "queries_completed": 718827,
+        "queries_lost": 3455,
+        "latency_ms": {
+          "avg": 3.797
+        }
+      },
+      "quality": {
+        "warmup_seconds": 2.0,
+        "duration_seconds": 10.0,
+        "dnsperf_clients": 16,
+        "dnsperf_threads": 8,
+        "dnsperf_max_outstanding": 2000,
+        "notes": "median of 3 rounds; achieved_qps range 68228.3-72507.2"
+      }
+    },
+    {
+      "id": "shutdown-drain-budgeted-forward-slow",
+      "suite": "shutdown_drain",
+      "intent": "Drain-budgeted policy (short drain_timeout_ms) under forward_slow load.\nRecords drain duration and client loss during the stop window. Paired with\ncomplete and minimal policies for relative comparison.",
+      "status": "ok",
+      "axes": {
+        "runtime": "sync",
+        "load_shape": "forward_slow",
+        "drain_policy": "drain_budgeted",
+        "ingress_workers": 2
+      },
+      "metrics": {
+        "achieved_qps": 4.999891,
+        "queries_sent": 240,
+        "queries_completed": 40,
+        "queries_lost": 200,
+        "latency_ms": {
+          "avg": 1022.289
+        },
+        "drain_duration_ms": 163.563
+      },
+      "quality": {
+        "warmup_seconds": 2.0,
+        "duration_seconds": 8.0,
+        "notes": "shutdown under load: establish_load_s=2.0, stop_wait_s=10.0",
+        "dnsperf_clients": 4,
+        "dnsperf_threads": 2
+      },
+      "secondary": {
+        "client_failures_during_stop": 200
+      }
+    },
+    {
+      "id": "shutdown-drain-complete-forward-slow",
+      "suite": "shutdown_drain",
+      "intent": "Drain-complete policy (long drain_timeout_ms budget) under forward_slow load.\nRecords drain duration and client loss during the stop window. Paired with\nbudgeted and minimal policies for relative comparison.",
+      "status": "ok",
+      "axes": {
+        "runtime": "sync",
+        "load_shape": "forward_slow",
+        "drain_policy": "drain_complete",
+        "ingress_workers": 2
+      },
+      "metrics": {
+        "achieved_qps": 3.249952,
+        "queries_sent": 339,
+        "queries_completed": 39,
+        "queries_lost": 300,
+        "latency_ms": {
+          "avg": 949.911
+        },
+        "drain_duration_ms": 113.868
+      },
+      "quality": {
+        "warmup_seconds": 2.0,
+        "duration_seconds": 12.0,
+        "notes": "shutdown under load: establish_load_s=2.0, stop_wait_s=12.0",
+        "dnsperf_clients": 4,
+        "dnsperf_threads": 2
+      },
+      "secondary": {
+        "client_failures_during_stop": 300
+      }
+    },
+    {
+      "id": "shutdown-drain-minimal-forward-slow",
+      "suite": "shutdown_drain",
+      "intent": "Drain-minimal policy (shutdown.drain false \u2014 no wait) under forward_slow load.\nRecords drain duration and client loss during the stop window. Paired with\ncomplete and budgeted policies for relative comparison.",
+      "status": "ok",
+      "axes": {
+        "runtime": "sync",
+        "load_shape": "forward_slow",
+        "drain_policy": "drain_minimal",
+        "ingress_workers": 2
+      },
+      "metrics": {
+        "achieved_qps": 4.874888,
+        "queries_sent": 239,
+        "queries_completed": 39,
+        "queries_lost": 200,
+        "latency_ms": {
+          "avg": 996.319
+        },
+        "drain_duration_ms": 63.789
+      },
+      "quality": {
+        "warmup_seconds": 2.0,
+        "duration_seconds": 8.0,
+        "notes": "shutdown under load: establish_load_s=2.0, stop_wait_s=10.0",
+        "dnsperf_clients": 4,
+        "dnsperf_threads": 2
+      },
+      "secondary": {
+        "client_failures_during_stop": 200
+      }
+    }
+  ]
+}

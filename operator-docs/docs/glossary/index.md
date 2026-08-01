@@ -89,7 +89,7 @@ Under **`split_io`**, a thread (count from **`dataplane.policy_workers`**) that 
 
 ### I/O worker
 
-Under **`split_io`**, a thread (count from **`dataplane.io_workers`**) that owns the upstream sockets: it matches incoming replies to **parked** transactions, enforces `forward.timeout_ms`, and resumes each transaction at [Wait for response](/concepts/architecture-and-packet-path.md#wait-for-response). One I/O worker handles many concurrent parked waits.
+Under **`split_io`**, a poll thread (count from **`dataplane.io_workers`**) that owns a set of upstream egress sockets: it matches incoming replies to **parked** transactions, enforces `forward.timeout_ms`, and resumes each transaction at [Wait for response](/concepts/architecture-and-packet-path.md#wait-for-response). **`io_workers: N`** starts **N** such threads; each handles many concurrent parked waits on its own sockets.
 
 → [Runtime and concurrency](/concepts/runtime-and-concurrency.md#split-io-runtime)
 

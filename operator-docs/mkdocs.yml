@@ -9,6 +9,10 @@ repo_name: egon1024/DNSConduit
 docs_dir: docs
 strict: true
 
+# Assembled into performance/reference.md; not standalone pages.
+exclude_docs: |
+  **/*.fragment.md
+
 # Docs-root paths like /glossary/index.md#backend are validated and rewritten to
 # relative URLs in output (works under mike version dirs on GitHub Pages).
 validation:
@@ -54,6 +58,7 @@ extra_css:
   - assets/stylesheets/toc-collapse.css
   - assets/stylesheets/interop-outcomes.css
   - assets/stylesheets/membership-yes-no.css
+  - assets/stylesheets/perf-scenarios.css
 
 extra_javascript:
   - assets/javascripts/doc-version.js
@@ -121,6 +126,29 @@ nav:
       - Tracing: observability/tracing.md
       - Event export: observability/event-export.md
       - Logging: observability/logging.md
+  - Performance:
+      - Overview: performance/index.md
+      - Tuning evidence (studies):
+          - Overview: performance/studies/index.md
+          - Sync vs split_io: performance/studies/sync-vs-split-io.md
+          - Ingress concurrency (sync): performance/studies/ingress-concurrency-sync.md
+          - I/O vs ingress (split_io): performance/studies/io-vs-ingress-split.md
+          - Metrics scrape ladder: performance/studies/metrics-scrape-ladder.md
+          - Metrics collect vs emit: performance/studies/metrics-collect-vs-emit.md
+          - OTLP tax under load: performance/studies/otlp-tax-under-load.md
+          - Metrics scrape (split_io): performance/studies/metrics-scrape-split-io.md
+          - Aggressive scrape cadence: performance/studies/metrics-scrape-hammer.md
+          - Dnstap emit tax: performance/studies/dnstap-emit-tax.md
+          - Combined metrics + dnstap: performance/studies/metrics-dnstap-combined-tax.md
+          - Logging verbosity tax: performance/studies/logging-verbosity-tax.md
+          - Pipeline tracing tax: performance/studies/tracing-tax-under-load.md
+          - Drain policy under slow: performance/studies/drain-policy-under-slow.md
+          - Cache hit vs forward: performance/studies/cache-hit-vs-forward.md
+          - Split_io bulk topology: performance/studies/split-io-thread-bulk.md
+      - Methodology: performance/methodology.md
+      - Reproduce against a binary: performance/reproduce.md
+      - Reference results: performance/reference.md
+      - Scenarios: performance/scenarios.md
   - Guides:
       - Overview: guides/index.md
       - Backend health: guides/backend-health.md

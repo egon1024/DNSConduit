@@ -1,0 +1,23 @@
+schema_version: 1
+id: split-io-thread-bulk
+title: Split_io bulk thread topology
+question: Does raising ingress, policy, and I/O worker counts together always help under forward_fast?
+published: true
+members:
+  - scale-split-io-forward-fast
+  - scale-split-io-topology-heavy
+compare_axis: topology
+primary_metric: achieved_qps
+takeaway: >
+  On the published forward_fast pair, bulk 4/4/4 is roughly even with thin 2/2/2
+  (no clear throughput win from doubling all pools together); prefer single-axis
+  ladders when sizing a specific dial.
+related_guides:
+  - /guides/dataplane-runtime-tuning.md
+figures:
+  - id: split-io-topology-bulk-forward-fast
+    title: Achieved QPS — split_io topology (forward_fast)
+    y_label: Achieved QPS
+    members:
+      - scale-split-io-forward-fast
+      - scale-split-io-topology-heavy

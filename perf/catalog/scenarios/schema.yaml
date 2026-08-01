@@ -64,6 +64,28 @@ fields:
         type: integer
         description: "dnsperf -l seconds for shutdown_drain overlap window"
       skip_unless: { type: string, description: "Optional gate key, e.g. otlp_tracer or zdu" }
+      scrape_hammer:
+        type: boolean
+        default: false
+        description: "Background GET loop against Prometheus scrape during dnsperf"
+      scrape_interval_ms:
+        type: integer
+        description: "Scrape hammer interval (ms); default 100"
+      scrape_url:
+        type: string
+        description: "Scrape hammer URL (default http://127.0.2.1:19090/metrics)"
+      clients:
+        type: integer
+        minimum: 1
+        description: "dnsperf -c (overrides CLI default when set)"
+      dnsperf_threads:
+        type: integer
+        minimum: 1
+        description: "dnsperf -T (overrides CLI default when set)"
+      max_outstanding:
+        type: integer
+        minimum: 1
+        description: "dnsperf -q (overrides dnsperf default 100 when set)"
   curated:
     type: boolean
     default: false

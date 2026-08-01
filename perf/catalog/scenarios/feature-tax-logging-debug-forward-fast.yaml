@@ -1,0 +1,20 @@
+schema_version: 1
+id: feature-tax-logging-debug-forward-fast
+suite: feature_tax
+curated: true
+intent: |
+  Metrics off with logging.level debug under forward_fast — verbosity tax pair
+  with feature-tax-logging-warn-forward-fast.
+axes:
+  runtime: sync
+  load_shape: forward_fast
+  obs_posture: logging_debug
+  ingress_workers: 2
+recipe:
+  config: feature-tax-logging-debug.yml
+  upstream: fast
+  loadgen: dnsperf
+  query_file: perf-a.txt
+  clients: 16
+  dnsperf_threads: 8
+  max_outstanding: 2000

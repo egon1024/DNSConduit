@@ -1,0 +1,22 @@
+schema_version: 1
+id: feature-tax-metrics-standard-scrape-hammer-forward-fast
+suite: feature_tax
+curated: true
+intent: |
+  Standard scrape with a lab scrape hammer (~100ms GET loop) under forward_fast —
+  aggressive scrape cadence vs listener-only standard scrape.
+axes:
+  runtime: sync
+  load_shape: forward_fast
+  obs_posture: metrics_standard_scrape_hammer
+  ingress_workers: 2
+recipe:
+  config: feature-tax-metrics-standard-scrape.yml
+  upstream: fast
+  loadgen: dnsperf
+  query_file: perf-a.txt
+  scrape_hammer: true
+  scrape_interval_ms: 100
+  clients: 16
+  dnsperf_threads: 8
+  max_outstanding: 2000

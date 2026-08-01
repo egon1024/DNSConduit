@@ -1,0 +1,25 @@
+schema_version: 1
+id: metrics-collect-vs-emit
+title: Metrics collect vs emit
+question: Is metrics cost dominated by hot-path collect, or by scrape emit?
+published: true
+members:
+  - feature-tax-metrics-no-collect-forward-fast
+  - feature-tax-metrics-collect-only-forward-fast
+  - feature-tax-metrics-collect-emit-forward-fast
+compare_axis: obs_posture
+primary_metric: achieved_qps
+takeaway: >
+  Separates recording (collect) from export (emit) under standard base; use the
+  ladder to decide whether cardinality/export or hot-path collect is the tax.
+related_guides:
+  - /observability/metrics-configurability.md
+  - /guides/operator-metrics-bases.md
+figures:
+  - id: metrics-collect-vs-emit-forward-fast
+    title: Feature tax — collect vs emit (forward_fast)
+    y_label: Achieved QPS
+    members:
+      - feature-tax-metrics-no-collect-forward-fast
+      - feature-tax-metrics-collect-only-forward-fast
+      - feature-tax-metrics-collect-emit-forward-fast

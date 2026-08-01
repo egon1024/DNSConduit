@@ -1,0 +1,65 @@
+# Study catalog document schema (descriptive; validated by the runner).
+# Each file under catalog/studies/*.yaml is one comparative study.
+#
+# Required fields:
+#   schema_version: 1
+#   id: stable study id (kebab-case)
+#   title: short human title
+#   question: operator-facing question (one line preferred)
+#   published: whether members join the curated publish-set / docs hub
+#   members: ordered scenario ids (ladder order preserved)
+#   compare_axis: primary dimension varied across members
+#   primary_metric: metric key used for figures (e.g. achieved_qps)
+#   figures: one or more chart recipes
+schema_version: 1
+description: >
+  One YAML file per study. Studies select scenario catalog cells by id;
+  they are not a separate measurement driver. Figure recipes drive generate-docs.
+required:
+  - schema_version
+  - id
+  - title
+  - question
+  - published
+  - members
+  - compare_axis
+  - primary_metric
+  - figures
+fields:
+  schema_version: { type: integer, const: 1 }
+  id: { type: string, pattern: "^[a-z0-9][a-z0-9_-]*$" }
+  title: { type: string }
+  question: { type: string }
+  published: { type: boolean, default: false }
+  members:
+    type: array
+    items: { type: string }
+    minItems: 1
+    description: "Ordered scenario catalog ids"
+  compare_axis: { type: string }
+  primary_metric: { type: string }
+  takeaway: { type: string, description: "Short directional blurb for hub/generate" }
+  related_guides:
+    type: array
+    items: { type: string }
+    description: "Docs-root paths e.g. /guides/dataplane-runtime-tuning.md"
+  annotation_ids:
+    type: array
+    items: { type: string }
+  figures:
+    type: array
+    minItems: 1
+    items:
+      type: object
+      required: [id, title, members]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        y_label: { type: string }
+        members:
+          type: array
+          items: { type: string }
+          description: "Subset of study members for this figure (ordered)"
+        category_axis:
+          type: string
+          description: "Axis key used for bar categories (defaults to compare_axis)"

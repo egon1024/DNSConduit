@@ -74,8 +74,9 @@ Start from this and adjust one dimension at a time, re-checking metrics (below) 
 
 Guidelines:
 
-- **Start with `io_workers: 1`.** One I/O worker parks and resumes many concurrent waits via the event loop; it is rarely the first bottleneck. Increase only if I/O is demonstrably saturated.
+- **Start with `io_workers: 1`.** One I/O poll thread parks and resumes many concurrent waits via its event loop; it is rarely the first bottleneck. **`io_workers: N`** starts **N** poll threads — increase only if I/O is demonstrably saturated.
 - **Set `policy_workers` to your available policy CPU budget** (commonly a small multiple of cores, e.g. 2–8), especially with non-trivial Rhai. This pool runs the orchestrator phases and scripts.
+- **Raise `listeners.threads` when inbound packet rate saturates the accept path** under `split_io` (with `reuse_port: true` on UDP). Policy handoff is partitioned so extra ingress workers are not funneled through one process-wide queue lock — but same-host thin lab cells with a small dnsperf outstanding window may still show little QPS change; remeasure under your offered load before growing ingress solely for throughput.
 - **Use `reuse_port: true` on UDP whenever `listeners.threads` > 1.** On Unix, a second UDP worker binding the same address fails at startup without it. It is ignored for TCP. See [`reuse_port` and `threads`](/reference/config-schema/listeners.md#reuse_port-and-threads).
 - **Give busy listeners their own `threads`** with a per-listener override and leave low-traffic listeners on the block default.
 
@@ -154,3 +155,8 @@ histogram_quantile(0.99, sum(rate(conduit_phase_duration_seconds_bucket{phase="l
 - [Reference: pools](/reference/config-schema/pools.md#per-pool-in-flight-limit) — `max_inflight`
 - [Built-in metrics](/observability/built-in-metrics.md) — slot gauges, `forward_outstanding`, phase histograms
 - [Operator metrics bases](/guides/operator-metrics-bases.md) — `minimal` vs `standard` on the same traffic
+- [Sync vs split_io](/performance/studies/sync-vs-split-io.md) — same-host QPS under forward_fast / forward_slow
+- [Ingress concurrency (sync)](/performance/studies/ingress-concurrency-sync.md)
+- [I/O vs ingress (split_io)](/performance/studies/io-vs-ingress-split.md)
+- [Split_io bulk thread topology](/performance/studies/split-io-thread-bulk.md) — doubling all worker counts together (2/2/2 vs 4/4/4) under forward_fast did not improve throughput
+- [Tuning evidence (studies)](/performance/studies/index.md)

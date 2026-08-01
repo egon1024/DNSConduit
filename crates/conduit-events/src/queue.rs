@@ -46,7 +46,10 @@ impl SinkQueue {
             Err(TrySendError::Full(event)) => match self.policy {
                 DropPolicy::DropNewest => true,
                 DropPolicy::DropOldest => {
-                    while self.rx.try_recv().is_ok() {}
+                    // Evict one oldest event, then accept the new one.
+                    // Do not drain the whole queue — that turns drop-oldest into
+                    // O(capacity) work on the producer path under overload.
+                    let _ = self.rx.try_recv();
                     let _ = self.tx.try_send(event);
                     true
                 }
@@ -89,5 +92,20 @@ mod tests {
         assert!(!q.try_enqueue(sample_event(1)));
         assert!(q.try_enqueue(sample_event(2)));
         assert_eq!(q.receiver().try_recv().unwrap().txn_id, 2);
+    }
+
+    #[test]
+    fn drop_oldest_evicts_one_not_entire_queue() {
+        let q = SinkQueue::new(3, DropPolicy::DropOldest);
+        assert!(!q.try_enqueue(sample_event(1)));
+        assert!(!q.try_enqueue(sample_event(2)));
+        assert!(!q.try_enqueue(sample_event(3)));
+        // Overflow: drop only the oldest (1), keep 2 and 3, then accept 4.
+        assert!(q.try_enqueue(sample_event(4)));
+        let rx = q.receiver();
+        assert_eq!(rx.try_recv().unwrap().txn_id, 2);
+        assert_eq!(rx.try_recv().unwrap().txn_id, 3);
+        assert_eq!(rx.try_recv().unwrap().txn_id, 4);
+        assert!(rx.try_recv().is_err());
     }
 }

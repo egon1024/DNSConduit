@@ -1,0 +1,16 @@
+schema_version: 1
+id: scale-sync-ingress-1-forward-slow
+suite: scale
+curated: true
+intent: |
+  Ingress-concurrency ladder (sync): one ingress worker under forward_slow.
+  Paired with ingress 2/4/8 cells for the ingress-concurrency-sync study.
+axes:
+  runtime: sync
+  load_shape: forward_slow
+  ingress_workers: 1
+recipe:
+  config: scale-sync-ingress-1-obs-off.yml
+  upstream: slow
+  loadgen: dnsperf
+  query_file: perf-a.txt

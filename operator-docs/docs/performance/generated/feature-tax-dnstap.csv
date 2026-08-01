@@ -1,0 +1,4 @@
+posture,scenario_id,achieved_qps,latency_avg_ms,queries_sent,queries_completed,queries_lost
+dnstap_off,feature-tax-dnstap-off-forward-fast,135510.5,2.2,1358795,1355390,3405
+dnstap_sampled,feature-tax-dnstap-sampled-forward-fast,126869.3,2.1,1272698,1269237,3461
+dnstap_full,feature-tax-dnstap-full-forward-fast,113838.8,2.6,1142096,1138671,3425

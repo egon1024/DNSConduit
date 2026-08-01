@@ -1,6 +1,6 @@
 # Lab host profile schema (descriptive; validated when writing run JSON).
 # Machinery is multi-profile (D14): many filled instances may exist.
-# v1 curated publish promotes from one blessed profile only.
+# v1 curated publish promotes from one named reference profile only.
 schema_version: 1
 required:
   - schema_version
