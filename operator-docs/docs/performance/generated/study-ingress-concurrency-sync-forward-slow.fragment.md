@@ -1,8 +1,8 @@
 <div class="perf-chart" markdown="1">
 
-### Achieved QPS — sync ingress ladder (forward_slow)
+### Achieved QPS — sync ingress workers (forward_slow)
 
-![Achieved QPS — sync ingress ladder (forward_slow)](generated/ingress-concurrency-sync-forward-slow.svg)
+![Achieved QPS — sync ingress workers (forward_slow)](generated/ingress-concurrency-sync-forward-slow.svg)
 
 [Download CSV](generated/ingress-concurrency-sync-forward-slow.csv)
 

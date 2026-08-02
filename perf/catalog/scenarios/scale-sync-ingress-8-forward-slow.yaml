@@ -3,7 +3,7 @@ id: scale-sync-ingress-8-forward-slow
 suite: scale
 curated: true
 intent: |
-  Ingress-concurrency ladder (sync): eight ingress workers under forward_slow.
+  Ingress concurrency (sync): eight ingress workers under forward_slow.
   Optional noisy rung — keep in catalog; publish may omit if unstable on the lab.
 axes:
   runtime: sync

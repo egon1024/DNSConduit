@@ -141,7 +141,7 @@ def claims_from_charts(
             _add_multiplier(claims, max(v, baseline) / min(v, baseline))
             claims.percents.add(_round_pct(abs(baseline - v) / baseline * 100.0))
 
-        # Consecutive step ratios (ingress ladders: ~2× each).
+        # Consecutive step ratios (ingress series: ~2× each).
         for a, b in zip(ok, ok[1:]):
             if a and b and a > 0 and b > 0:
                 _add_multiplier(claims, b / a)

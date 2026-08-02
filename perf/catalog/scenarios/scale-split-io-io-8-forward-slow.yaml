@@ -3,7 +3,7 @@ id: scale-split-io-io-8-forward-slow
 suite: scale
 curated: true
 intent: |
-  I/O-vs-ingress ladder (split_io): eight I/O workers with fixed ingress/policy=2
+  I/O vs ingress (split_io): eight I/O workers with fixed ingress/policy=2
   under forward_slow. Optional noisy rung — keep in catalog; publish may omit if unstable.
 axes:
   runtime: split_io

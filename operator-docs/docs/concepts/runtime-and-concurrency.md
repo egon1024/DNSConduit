@@ -112,5 +112,6 @@ flowchart TB
 - [Reference: listeners](/reference/config-schema/listeners.md) — `threads`, `reuse_port`
 - [Reference: shutdown](/reference/config-schema/shutdown.md) — `drain`, `drain_timeout_ms`
 - [Dataplane runtime tuning](/guides/dataplane-runtime-tuning.md)
+- [Performance findings](/performance/index.md#findings) — directional takeaways (runtime, ingress, drain)
 - [Sync vs split_io](/performance/studies/sync-vs-split-io.md)
 - [Tuning evidence (studies)](/performance/studies/index.md)

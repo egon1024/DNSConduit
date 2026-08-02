@@ -120,5 +120,6 @@ In **terminal A**, expect **two** frames (query + response) with message types *
 - [Event export](/observability/event-export.md) — sinks, filters, emit kinds, overload behavior
 - [Observability](/observability/index.md) — signal choice and reload matrix
 - [Reference: events](/reference/config-schema/events.md) — field reference
+- [Performance findings](/performance/index.md#findings) — directional takeaways (dnstap and combined tax)
 - [Dnstap emit tax](/performance/studies/dnstap-emit-tax.md) — same-host cost of off / sampled / fuller emit
 - [Combined metrics + dnstap](/performance/studies/metrics-dnstap-combined-tax.md) — scrape and dnstap together

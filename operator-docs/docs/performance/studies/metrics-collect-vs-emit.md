@@ -6,8 +6,8 @@ Is metrics cost dominated by hot-path collect, or by scrape emit?
 
 </div>
 
-Numbers are same-host comparisons (relative to baselines measured on one named
-lab profile) and are **not** service-level objectives. See the
+Numbers are same-host comparisons on a single reference host and are **not**
+service-level objectives. See the
 [performance hub disclaimer](/performance/index.md).
 
 ## When this matters
@@ -17,7 +17,7 @@ hot-path series without exporting them (`collect: true`, `emit: false`), or skip
 recording entirely. Operators often ask whether the tax is **recording** or
 **scrape export**. This study keeps `metrics.base: standard` and varies
 collect/emit on the volume/failures/lookup/timing categories under [`forward_fast`](/performance/methodology.md#load-shapes).
-See also the [metrics scrape ladder](/performance/studies/metrics-scrape-ladder.md)
+See also the [metrics scrape tax](/performance/studies/metrics-scrape-ladder.md)
 (base off / minimal / standard with normal scrape).
 
 ## What we varied
@@ -64,14 +64,14 @@ from round noise here.
 
 **What to do:** turn off collect for categories you do not need. Choose minimal
 vs standard with [operator metrics bases](/guides/operator-metrics-bases.md);
-see the [metrics scrape ladder](/performance/studies/metrics-scrape-ladder.md)
+see the [metrics scrape tax](/performance/studies/metrics-scrape-ladder.md)
 for export-facing scrape cost.
 
 ## Related guides
 
 - [Metrics configurability](/observability/metrics-configurability.md)
 - [Operator metrics bases](/guides/operator-metrics-bases.md)
-- [Metrics scrape ladder](/performance/studies/metrics-scrape-ladder.md)
+- [Metrics scrape tax](/performance/studies/metrics-scrape-ladder.md)
 
 ## Member scenarios
 

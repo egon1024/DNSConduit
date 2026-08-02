@@ -6,8 +6,8 @@ What does frequent Prometheus scraping during load cost versus listener-only scr
 
 </div>
 
-Numbers are same-host comparisons (relative to baselines measured on one named
-lab profile) and are **not** service-level objectives. See the
+Numbers are same-host comparisons on a single reference host and are **not**
+service-level objectives. See the
 [performance hub disclaimer](/performance/index.md).
 
 ## When this matters
@@ -60,7 +60,7 @@ lab.** Versus observability off, listener-only standard scrape costs about
 ~77k / ~69k / ~70k).
 
 **What to do:** size the bulk of scrape cost from the
-[metrics scrape ladder](/performance/studies/metrics-scrape-ladder.md) and
+[metrics scrape tax](/performance/studies/metrics-scrape-ladder.md) and
 [collect vs emit](/performance/studies/metrics-collect-vs-emit.md). Choose your
 scrape interval for ops needs; remeasure if your scraper is far hotter than this
 lab hammer.
@@ -69,7 +69,7 @@ lab hammer.
 
 - [Metrics](/observability/metrics.md)
 - [Operator metrics bases](/guides/operator-metrics-bases.md)
-- [Metrics scrape ladder](/performance/studies/metrics-scrape-ladder.md)
+- [Metrics scrape tax](/performance/studies/metrics-scrape-ladder.md)
 - [Metrics scrape (split_io)](/performance/studies/metrics-scrape-split-io.md)
 
 ## Member scenarios

@@ -5,8 +5,8 @@ compare to [`split_io`](/concepts/runtime-and-concurrency.md#split-io-runtime) u
 [`forward_fast`](/performance/methodology.md#load-shapes) and
 [`forward_slow`](/performance/methodology.md#load-shapes)?
 
-Numbers are same-host comparisons (relative to baselines measured on one named
-lab profile) and are **not** service-level objectives. See the
+Numbers are same-host comparisons on a single reference host and are **not**
+service-level objectives. See the
 [performance hub disclaimer](/performance/index.md).
 
 ## When this matters
@@ -29,7 +29,7 @@ and the [dataplane runtime tuning](/guides/dataplane-runtime-tuning.md) guide.
   ([`sync`](/performance/scenarios.md#scale-sync-forward-fast) vs
   [`split_io`](/performance/scenarios.md#scale-split-io-forward-fast); paired
   slow runs under [Member scenarios](#member-scenarios))
-- **Held fixed:** same dnsperf recipe, same named lab profile, observability off
+- **Held fixed:** same dnsperf recipe, a single reference host, observability off
   fixtures
 - **Two load shapes:** [`forward_fast`](/performance/methodology.md#load-shapes) and
   [`forward_slow`](/performance/methodology.md#load-shapes)

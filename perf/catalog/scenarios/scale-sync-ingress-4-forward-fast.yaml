@@ -3,7 +3,7 @@ id: scale-sync-ingress-4-forward-fast
 suite: scale
 curated: true
 intent: |
-  Ingress-concurrency ladder (sync): four ingress workers under forward_fast.
+  Ingress concurrency (sync): four ingress workers under forward_fast.
   Published forward_fast recipe (elevated outstanding) so achieved QPS reflects
   Conduit ingress capacity rather than the loadgen outstanding window.
 axes:

@@ -4,7 +4,7 @@ suite: feature_tax
 curated: true
 intent: |
   Metrics base standard with Prometheus scrape (collect+emit) under forward_fast.
-  Scrape-only ladder top; also the collect+emit pole of the collect pair.
+  Scrape-only high pole; also the collect+emit pole of the collect pair.
 axes:
   runtime: sync
   load_shape: forward_fast

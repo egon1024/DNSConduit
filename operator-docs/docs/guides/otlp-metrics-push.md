@@ -116,5 +116,6 @@ Expect **`accepts`** ≥ **1** and **`failures`** typically **0**.
 - [Metrics](/observability/metrics.md) — OTLP HTTP push fields and semantics
 - [Reference: metrics and tracing](/reference/config-schema/metrics-and-tracing.md) — `metrics.otel` schema
 - [Install and run](/getting-started/install-and-run.md) — companion binaries in release assets
+- [Performance findings](/performance/index.md#findings) — directional takeaways (OTLP vs scrape)
 - [OTLP tax under load](/performance/studies/otlp-tax-under-load.md) — same-host cost vs obs-off / scrape
-- [Metrics scrape ladder](/performance/studies/metrics-scrape-ladder.md)
+- [Metrics scrape tax](/performance/studies/metrics-scrape-ladder.md)

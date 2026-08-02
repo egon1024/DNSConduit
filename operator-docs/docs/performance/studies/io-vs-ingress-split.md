@@ -9,8 +9,8 @@ more I/O workers improve throughput when the upstream is slow
 
 </div>
 
-Numbers are same-host comparisons (relative to baselines measured on one named
-lab profile) and are **not** service-level objectives. See the
+Numbers are same-host comparisons on a single reference host and are **not**
+service-level objectives. See the
 [performance hub disclaimer](/performance/index.md).
 
 ## When this matters
@@ -36,7 +36,7 @@ and [dataplane runtime tuning](/guides/dataplane-runtime-tuning.md).
   `dataplane.runtime:` [`split_io`](/concepts/runtime-and-concurrency.md#split-io-runtime)
   and fixed ingress (`threads: 2`)
 - **Held fixed:** [`forward_slow`](/performance/methodology.md#load-shapes) load
-  shape, observability off fixtures, same dnsperf recipe on the named lab profile
+  shape, observability off fixtures, same dnsperf recipe on a single reference host
 - **Note:** `io=2` reuses the existing split_io `forward_slow` scale cell
 
 <!-- perf-study-evidence:start -->
@@ -44,7 +44,7 @@ and [dataplane runtime tuning](/guides/dataplane-runtime-tuning.md).
 
 <div class="perf-chart" markdown="1">
 
-### Achieved QPS — split_io io_workers ladder (forward_slow)
+### Achieved QPS — split_io io_workers series (forward_slow)
 
 _Study figure `io-vs-ingress-split-forward-slow` (io-vs-ingress-split) unavailable — promoted reference lacks member results._
 
@@ -54,7 +54,7 @@ _Study figure `io-vs-ingress-split-forward-slow` (io-vs-ingress-split) unavailab
 <!-- perf-study-deltas:start -->
 ## At a glance
 
-- **split_io io_workers ladder (forward_slow):** no published comparison yet (those cells were not promoted).
+- **split_io io_workers series (forward_slow):** no published comparison yet (those cells were not promoted).
 <!-- perf-study-deltas:end -->
 
 ## Takeaway
@@ -62,7 +62,7 @@ _Study figure `io-vs-ingress-split-forward-slow` (io-vs-ingress-split) unavailab
 **There is no published answer yet for this question.** Every
 [`forward_slow`](/performance/methodology.md#load-shapes) `io_workers` cell
 failed the successful-answer check (too many SERVFAILs), so nothing from this
-ladder was promoted. Empty figures are not a ranking.
+series was promoted. Empty figures are not a ranking.
 
 **What to do:** size `io_workers` from
 [Dataplane runtime tuning](/guides/dataplane-runtime-tuning.md), or remeasure
@@ -70,7 +70,7 @@ locally with `--study io-vs-ingress-split` until the answer gate passes. Until
 then, use the published
 [`forward_fast`](/performance/methodology.md#load-shapes) comparison in
 [sync vs split_io](/performance/studies/sync-vs-split-io.md) and the sync
-ladder in
+ingress series in
 [ingress concurrency (sync)](/performance/studies/ingress-concurrency-sync.md).
 
 ## Related guides

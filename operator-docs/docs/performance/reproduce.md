@@ -59,7 +59,7 @@ python3 -m perf.runner run \
 
 `--time 5` (or similar) is fine for **smoke** development. Promoted reference
 JSON for published studies SHOULD share a consistent **publish-quality** window
-on the reference lab profile (`maintainer-ws-1`) — do not mix smoke cells into
+on the single reference host (`maintainer-ws-1`) — do not mix smoke cells into
 published same-host comparisons without re-running the publish-set at that quality.
 
 Loadgen concurrency defaults match published methodology (`--clients 4`,
@@ -106,6 +106,44 @@ python3 -m perf.runner run \
   --scenario scale-sync-forward-fast \
   --annotation-id ann-example-context
 ```
+
+## Maintainer publish
+
+Operator-facing interpretation (load shapes, elevated vs thin recipes, median-of-3,
+answer gate, CPU governor requirement) stays on
+[Methodology](/performance/methodology.md). This section is the **publish pipeline**
+for refreshing committed reference JSON and regenerating docs.
+
+### Promote vs docs render
+
+| Layer | Who | What |
+|-------|-----|------|
+| Measure + promote | Maintainer, on the single reference host | Run suites; land validated JSON under `perf/results/references/` via pull request |
+| Docs representation | Docs / CI generate step | From **committed** JSON only: regenerate tables, static SVG, CSV — **no** live Conduit or dnsperf |
+
+Stale references are fixed by a maintainer lab refresh and PR, not by an automated
+bench on the release tag.
+
+### Lab refresh (`--publish-set`)
+
+On `maintainer-ws-1`, set CPU governors to `performance` when the host offers that
+governor (via `cpupower`, `powerprofilesctl`, or sysfs — see `perf/README.md`, Host
+CPU power state). Pass `--allow-suboptimal-cpu-power` only for an intentional noisy
+probe; that override is not publish-quality.
+
+Omit short `--time` overrides for publish-quality duration. Example:
+
+```zsh
+python3 -m perf.runner run \
+  --conduit /path/to/conduit \
+  --publish-set \
+  --profile-id maintainer-ws-1 \
+  -o perf/results/runs/publish-set-lab.json
+```
+
+Promote the validated run into `perf/results/references/`, then regenerate operator
+docs (`make perf-docs`). Annotation catalog wiring is in
+[Annotations](#annotations-harness-footnotes) above.
 
 ## Make targets
 

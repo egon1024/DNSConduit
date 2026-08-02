@@ -130,21 +130,22 @@ nav:
       - Overview: performance/index.md
       - Tuning evidence (studies):
           - Overview: performance/studies/index.md
-          - Sync vs split_io: performance/studies/sync-vs-split-io.md
-          - Ingress concurrency (sync): performance/studies/ingress-concurrency-sync.md
-          - I/O vs ingress (split_io): performance/studies/io-vs-ingress-split.md
-          - Metrics scrape ladder: performance/studies/metrics-scrape-ladder.md
-          - Metrics collect vs emit: performance/studies/metrics-collect-vs-emit.md
-          - OTLP tax under load: performance/studies/otlp-tax-under-load.md
-          - Metrics scrape (split_io): performance/studies/metrics-scrape-split-io.md
-          - Aggressive scrape cadence: performance/studies/metrics-scrape-hammer.md
-          - Dnstap emit tax: performance/studies/dnstap-emit-tax.md
-          - Combined metrics + dnstap: performance/studies/metrics-dnstap-combined-tax.md
-          - Logging verbosity tax: performance/studies/logging-verbosity-tax.md
-          - Pipeline tracing tax: performance/studies/tracing-tax-under-load.md
-          - Drain policy under slow: performance/studies/drain-policy-under-slow.md
-          - Cache hit vs forward: performance/studies/cache-hit-vs-forward.md
-          - Split_io bulk topology: performance/studies/split-io-thread-bulk.md
+          # Flat labels (nav depth 3); groups match studies hub taxonomy.
+          - "Runtime — Sync vs split_io": performance/studies/sync-vs-split-io.md
+          - "Runtime — Ingress concurrency (sync)": performance/studies/ingress-concurrency-sync.md
+          - "Runtime — I/O vs ingress (split_io)": performance/studies/io-vs-ingress-split.md
+          - "Runtime — Split_io bulk topology": performance/studies/split-io-thread-bulk.md
+          - "Runtime — Cache hit vs forward": performance/studies/cache-hit-vs-forward.md
+          - "Observability — Metrics scrape tax": performance/studies/metrics-scrape-ladder.md
+          - "Observability — Metrics collect vs emit": performance/studies/metrics-collect-vs-emit.md
+          - "Observability — OTLP tax under load": performance/studies/otlp-tax-under-load.md
+          - "Observability — Metrics scrape (split_io)": performance/studies/metrics-scrape-split-io.md
+          - "Observability — Aggressive scrape cadence": performance/studies/metrics-scrape-hammer.md
+          - "Observability — Dnstap emit tax": performance/studies/dnstap-emit-tax.md
+          - "Observability — Combined metrics + dnstap": performance/studies/metrics-dnstap-combined-tax.md
+          - "Observability — Logging verbosity tax": performance/studies/logging-verbosity-tax.md
+          - "Observability — Pipeline tracing tax": performance/studies/tracing-tax-under-load.md
+          - "Lifecycle — Drain policy under slow": performance/studies/drain-policy-under-slow.md
       - Methodology: performance/methodology.md
       - Reproduce against a binary: performance/reproduce.md
       - Reference results: performance/reference.md

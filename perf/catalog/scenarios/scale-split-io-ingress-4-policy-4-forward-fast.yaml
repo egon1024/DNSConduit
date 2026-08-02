@@ -1,4 +1,4 @@
-# Lab-only (uncurated) — ingress ladder mid rung under forward_fast.
+# Lab-only (uncurated) — ingress mid step under forward_fast.
 # Fixed policy_workers: 4 and io_workers: 2; listeners.threads: 4.
 schema_version: 1
 id: scale-split-io-ingress-4-policy-4-forward-fast
