@@ -130,7 +130,12 @@
         "notes": { "type": "string" },
         "dnsperf_clients": { "type": "integer", "minimum": 1 },
         "dnsperf_threads": { "type": "integer", "minimum": 1 },
-        "dnsperf_max_outstanding": { "type": "integer", "minimum": 1 }
+        "dnsperf_max_outstanding": { "type": "integer", "minimum": 1 },
+        "upstream_workers": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Stub upstream responder processes serving this scenario."
+        }
       }
     },
     "scenario_result": {
@@ -153,7 +158,8 @@
         "intent": { "type": "string" },
         "status": {
           "type": "string",
-          "enum": ["ok", "skip", "error"]
+          "enum": ["ok", "skip", "error", "invalid"],
+          "description": "invalid: the scenario ran but the measurement is not trustworthy (e.g. too few successful answers), and must not be promoted."
         },
         "skip_reason": { "type": "string" },
         "error": { "type": "string" },
@@ -199,6 +205,17 @@
         "queries_sent": { "type": "integer", "minimum": 0 },
         "queries_completed": { "type": "integer", "minimum": 0 },
         "queries_lost": { "type": "integer", "minimum": 0 },
+        "response_codes": {
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 0 },
+          "description": "Loadgen response-code histogram (e.g. NOERROR, SERVFAIL)."
+        },
+        "answer_ok_percent": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Share of responses carrying the rcode the scenario measures (default NOERROR)."
+        },
         "cpu_percent": { "type": "number" },
         "drain_duration_ms": { "type": "number", "minimum": 0 },
         "cold_start_ms": { "type": "number", "minimum": 0 },

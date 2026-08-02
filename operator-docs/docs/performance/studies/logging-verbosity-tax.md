@@ -1,6 +1,10 @@
 # Logging verbosity tax
 
+<div class="study-question" markdown="1">
+
 What does raising process log level from warn to debug cost under [`forward_fast`](/performance/methodology.md#load-shapes)?
+
+</div>
 
 Numbers are same-host comparisons (relative to baselines measured on one named
 lab profile) and are **not** service-level objectives. See the
@@ -38,21 +42,26 @@ both). Pipeline traces use the separate
 
 | Posture | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| [logging_warn](/performance/scenarios.md#feature-tax-logging-warn-forward-fast) | sync | 124447.2 | 1.5 | 1248393 | 1244729 | 3664 | ingress=2 |
-| [logging_debug](/performance/scenarios.md#feature-tax-logging-debug-forward-fast) | sync | 107228.5 | 1.8 | 1076001 | 1072583 | 3500 | ingress=2 |
+| [logging_warn](/performance/scenarios.md#feature-tax-logging-warn-forward-fast) | sync | 75892.1 | 4.0 | 762598 | 759249 | 3407 | ingress=2 |
+| [logging_debug](/performance/scenarios.md#feature-tax-logging-debug-forward-fast) | sync | 63526.0 | 4.4 | 639007 | 635562 | 3445 | ingress=2 |
 
 </div>
 <!-- perf-study-evidence:end -->
 
+<!-- perf-study-deltas:start -->
+## At a glance
+
+- **logging warn vs debug (forward_fast):** `logging_debug` costs about **16%** QPS versus `logging_warn` (~64k vs ~76k).
+<!-- perf-study-deltas:end -->
+
 ## Takeaway
 
-On this published reference, **debug costs about 14%** achieved QPS versus warn
-(lab absolute ~107k vs ~124k) with higher average latency — the direction you
-would expect from more log I/O on the hot path. **Operator posture:** keep
-production at warn/info; turn debug on only for short diagnosis windows, then
-turn it off. Prefer
-[pipeline tracing](/observability/tracing.md) (with narrow selectors) for
-per-query diagnosis rather than permanent debug logging — see
+**Debug logging is expensive on the hot path.** On this lab it costs about
+**16%** QPS versus warn (~64k vs ~76k) and raises average latency.
+
+**What to do:** keep production at warn/info. Turn debug on only for short
+diagnosis windows, then turn it off. For per-query diagnosis, prefer
+[pipeline tracing](/observability/tracing.md) with narrow selectors — see
 [Pipeline tracing tax](/performance/studies/tracing-tax-under-load.md) for the
 cost of leaving tracing wide open.
 

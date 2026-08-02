@@ -7,16 +7,16 @@
 <line x1="56" y1="264.0" x2="616" y2="264.0" stroke="#eeeeee"/>
 <text x="50" y="268.0" text-anchor="end" font-family="sans-serif" font-size="10" fill="#757575">0</text>
 <line x1="56" y1="152.0" x2="616" y2="152.0" stroke="#eeeeee"/>
-<text x="50" y="156.0" text-anchor="end" font-family="sans-serif" font-size="10" fill="#757575">69380</text>
+<text x="50" y="156.0" text-anchor="end" font-family="sans-serif" font-size="10" fill="#757575">38660</text>
 <line x1="56" y1="40.0" x2="616" y2="40.0" stroke="#eeeeee"/>
-<text x="50" y="44.0" text-anchor="end" font-family="sans-serif" font-size="10" fill="#757575">138761</text>
-<rect x="91.0" y="40.0" width="59.5" height="224.0" fill="#3949ab"><title>achieved_qps / metrics_off: 138760.85</title></rect>
+<text x="50" y="44.0" text-anchor="end" font-family="sans-serif" font-size="10" fill="#757575">77319</text>
+<rect x="91.0" y="40.0" width="59.5" height="224.0" fill="#3949ab"><title>achieved_qps / metrics_off: 77319.49</title></rect>
 <text x="126.0" y="282" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#424242">metrics_off</text>
-<rect x="231.0" y="68.0" width="59.5" height="196.0" fill="#3949ab"><title>achieved_qps / metrics_standard_scrape: 121399.70</title></rect>
+<rect x="231.0" y="63.6" width="59.5" height="200.4" fill="#3949ab"><title>achieved_qps / metrics_standard_scrape: 69173.35</title></rect>
 <text x="266.0" y="282" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#424242">metrics_standard_scrape</text>
-<rect x="371.0" y="80.2" width="59.5" height="183.8" fill="#3949ab"><title>achieved_qps / dnstap_full: 113838.81</title></rect>
+<rect x="371.0" y="62.4" width="59.5" height="201.6" fill="#3949ab"><title>achieved_qps / dnstap_full: 69573.77</title></rect>
 <text x="406.0" y="282" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#424242">dnstap_full</text>
-<rect x="511.0" y="91.7" width="59.5" height="172.3" fill="#3949ab"><title>achieved_qps / metrics_standard_dnstap_full: 106763.80</title></rect>
+<rect x="511.0" y="77.6" width="59.5" height="186.4" fill="#3949ab"><title>achieved_qps / metrics_standard_dnstap_full: 64335.06</title></rect>
 <text x="546.0" y="282" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#424242">metrics_standard_dnstap_full</text>
 <rect x="56" y="298" width="12" height="12" fill="#3949ab"/>
 <text x="72" y="308" font-family="sans-serif" font-size="11" fill="#424242">achieved_qps</text>

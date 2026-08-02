@@ -1,7 +1,11 @@
 # Drain policy under slow upstream
 
+<div class="study-question" markdown="1">
+
 How do complete, budgeted, and minimal drain policies behave under [`forward_slow`](/performance/methodology.md#load-shapes)
 load at stop?
+
+</div>
 
 Numbers are same-host comparisons (relative to baselines measured on one named
 lab profile) and are **not** service-level objectives. See the
@@ -24,6 +28,10 @@ clearly.
   [`drain_minimal`](/performance/scenarios.md#shutdown-drain-minimal-forward-slow))
 - **Held constant:** [`forward_slow`](/performance/methodology.md#load-shapes)
   load overlapping SIGTERM, same lab recipe
+- **Read the timing columns, not the throughput columns:** these cells keep the
+  thin load recipe on purpose, because the subject is what happens across the
+  stop window. Their QPS and latency are incidental and are not a throughput
+  ranking.
 
 <!-- perf-study-evidence:start -->
 ## Evidence
@@ -38,29 +46,29 @@ clearly.
 
 | Drain policy | Drain duration (ms) | Client failures during stop | QPS | Avg latency (ms) |
 | --- | --- | --- | --- | --- |
-| [drain_complete](/performance/scenarios.md#shutdown-drain-complete-forward-slow) | 113.9 | 300 | 3.2 | 949.9 |
-| [drain_budgeted](/performance/scenarios.md#shutdown-drain-budgeted-forward-slow) | 163.6 | 200 | 5.0 | 1022.3 |
-| [drain_minimal](/performance/scenarios.md#shutdown-drain-minimal-forward-slow) | 63.8 | 200 | 4.9 | 996.3 |
+| [drain_complete](/performance/scenarios.md#shutdown-drain-complete-forward-slow) | 113.5 | 298 | 6.7 | 1020.8 |
+| [drain_budgeted](/performance/scenarios.md#shutdown-drain-budgeted-forward-slow) | 113.5 | 200 | 9.7 | 913.0 |
+| [drain_minimal](/performance/scenarios.md#shutdown-drain-minimal-forward-slow) | 63.4 | 200 | 9.7 | 896.6 |
 
 </div>
 <!-- perf-study-evidence:end -->
 
+<!-- perf-study-deltas:start -->
+## At a glance
+
+- **Drain duration under forward_slow:** `drain_complete` ≈ **114 ms**, `drain_budgeted` ≈ **113 ms**, `drain_minimal` ≈ **63 ms**
+<!-- perf-study-deltas:end -->
+
 ## Takeaway
 
-On this published reference, **minimal drain finished fastest** (~64 ms),
-**complete** took about **114 ms**, and **budgeted** took the longest at about
-**164 ms**. That ordering — budgeted slower than complete — is counter to a
-naive reading of the policy names (a budget is meant to *bound* drain time, not
-extend it) and this is a single-shot, low-volume cell (only a few hundred
-queries in flight); treat the budgeted-vs-complete gap as unconfirmed until
-remeasured over multiple rounds. **Complete recorded the most client failures
-during stop** (300) versus budgeted/minimal (200 each), which is more
-consistent with expectations: complete drains longest before giving up, so
-requests that were never going to succeed against the slow upstream have more
-time to time out and count as failures. **Operator posture:** pick complete,
-budgeted, or minimal for your upgrade/restart window from *your* failure budget
-— pick a drain policy on purpose rather than inheriting a default you never
-reviewed. Vocabulary:
+**Minimal drain stops fastest; complete leaves the most in-flight clients to
+fail.** On this lab (median of three rounds), minimal finishes in ~**63 ms**;
+complete and budgeted both take ~**114 ms**. Complete records the most client
+failures during stop (298 vs 200 for the others) — a longer wait gives doomed
+slow-upstream requests more time to time out.
+
+**What to do:** choose complete, budgeted, or minimal for your upgrade/restart
+window from *your* failure budget — pick a policy on purpose. Vocabulary:
 [Performance methodology — Drain policy](/performance/methodology.md#drain-policy-vocabulary).
 
 ## Related guides

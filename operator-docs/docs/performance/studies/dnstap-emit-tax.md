@@ -1,6 +1,10 @@
 # Dnstap emit tax
 
+<div class="study-question" markdown="1">
+
 What does sampled vs fuller dnstap emission cost versus dnstap off?
+
+</div>
 
 Numbers are same-host comparisons (relative to baselines measured on one named
 lab profile) and are **not** service-level objectives. See the
@@ -39,24 +43,30 @@ Compare sinks off, sampled (~10% responses), and fuller emit under the same
 
 | Posture | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| [dnstap_off](/performance/scenarios.md#feature-tax-dnstap-off-forward-fast) | sync | 135510.5 | 2.2 | 1358795 | 1355390 | 3405 | ingress=2 |
-| [dnstap_sampled](/performance/scenarios.md#feature-tax-dnstap-sampled-forward-fast) | sync | 126869.3 | 2.1 | 1272698 | 1269237 | 3461 | ingress=2 |
-| [dnstap_full](/performance/scenarios.md#feature-tax-dnstap-full-forward-fast) | sync | 113838.8 | 2.6 | 1142096 | 1138671 | 3425 | ingress=2 |
+| [dnstap_off](/performance/scenarios.md#feature-tax-dnstap-off-forward-fast) | sync | 75749.0 | 4.0 | 761200 | 757807 | 3393 | ingress=2 |
+| [dnstap_sampled](/performance/scenarios.md#feature-tax-dnstap-sampled-forward-fast) | sync | 73408.5 | 4.2 | 737837 | 734444 | 3393 | ingress=2 |
+| [dnstap_full](/performance/scenarios.md#feature-tax-dnstap-full-forward-fast) | sync | 69573.8 | 4.1 | 699739 | 696075 | 3429 | ingress=2 |
 
 </div>
 <!-- perf-study-evidence:end -->
 
+<!-- perf-study-deltas:start -->
+## At a glance
+
+- **dnstap off / sampled / full (forward_fast):** `dnstap_sampled` costs about **3%** QPS versus `dnstap_off` (~73k vs ~76k); `dnstap_full` costs about **8%** QPS versus `dnstap_off` (~70k vs ~76k).
+<!-- perf-study-deltas:end -->
+
 ## Takeaway
 
-On this published reference, **sampled dnstap (~10% of responses) costs about
-6%** achieved QPS versus dnstap off, and **full emission costs about 16%**
-(lab absolute ~136k / ~127k / ~114k) — costs scale with how much you actually
-emit, as expected. **Operator posture:** keep dnstap off until you have a
-consumer; prefer **sampled** for standing production capture when full detail
-is not required; enable fuller emit only for the surfaces you will actually
-store and query. Configure emit surfaces under
+**Dnstap costs scale with how much you emit.** Versus dnstap off on this lab,
+sampled emit (~10% of responses) costs about **3%** QPS, and full emit costs
+about **8%** (~76k / ~73k / ~70k).
+
+**What to do:** leave dnstap off until you have a consumer. Prefer **sampled**
+for standing capture; turn on fuller emit only for surfaces you will store and
+query. Configure emit under
 [What to emit](/observability/event-export.md#what-to-emit) /
-[`events`](/reference/config-schema/events.md). If you also enable scrape, see
+[`events`](/reference/config-schema/events.md). If scrape is also on, see
 [Combined metrics + dnstap](/performance/studies/metrics-dnstap-combined-tax.md).
 
 ## Related guides

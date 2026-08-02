@@ -11,9 +11,9 @@ members:
 compare_axis: io_workers
 primary_metric: achieved_qps
 takeaway: >
-  On the published forward_slow ladder, io_workers 1–8 stay low-QPS and lossy —
-  raising I/O count alone did not help under that stressed upstream recipe;
-  remeasure under your load before growing the I/O pool.
+  No published answer yet: every forward_slow io_workers cell failed the
+  successful-answer check and was omitted. Size io_workers from the tuning guide
+  or a local remeasure that clears the answer gate.
 related_guides:
   - /guides/dataplane-runtime-tuning.md
 figures:

@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Sequence
 
 from .cpuaffinity import taskset_prefix
+from .procs import die_with_parent, register_child, unregister_child
 
 
 @dataclass
@@ -46,6 +47,8 @@ class ConduitProcess:
                 self.proc.wait(timeout=5)
             return time.monotonic() - started
         finally:
+            if self.proc.pid is not None:
+                unregister_child(self.proc.pid)
             if self.log_file is not None:
                 try:
                     self.log_file.close()
@@ -149,7 +152,10 @@ def start_conduit(
         stdout=log_file,
         stderr=subprocess.STDOUT,
         env=run_env,
+        preexec_fn=die_with_parent,
     )
+    if proc.pid is not None:
+        register_child(proc.pid, kind="conduit")
     cp = ConduitProcess(
         path=binary,
         config=config,

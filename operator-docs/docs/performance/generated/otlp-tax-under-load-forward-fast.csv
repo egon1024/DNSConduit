@@ -1,4 +1,4 @@
 scenario_id,runtime,achieved_qps,latency_avg_ms,queries_sent,queries_completed,queries_lost,workers
-feature-tax-metrics-off-forward-fast,sync,138760.8,2.0,1391423,1387890,3449,ingress_workers=2
-feature-tax-metrics-otlp-push-forward-fast,sync,116878.8,2.6,1172470,1169073,3397,ingress_workers=2
-feature-tax-metrics-standard-scrape-forward-fast,sync,121399.7,2.3,1217696,1214291,3449,ingress_workers=2
+feature-tax-metrics-off-forward-fast,sync,77319.5,3.8,776925,773506,3419,ingress_workers=2
+feature-tax-metrics-otlp-push-forward-fast,sync,66150.0,2.7,665461,661797,3664,ingress_workers=2
+feature-tax-metrics-standard-scrape-forward-fast,sync,69173.3,2.6,695725,692061,3664,ingress_workers=2

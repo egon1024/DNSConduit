@@ -34,12 +34,12 @@ After the study: follow its **Related guides** into config and concepts, then
 binary if the decision is load-sensitive.
 
 <!-- perf-studies-index:start -->
-_Generated index 2026-08-01T03:04:34Z from the study catalog (evidence from committed reference JSON)._
+_Generated index 2026-08-02T01:43:41Z from the study catalog (evidence from committed reference JSON)._
 
 | Study | Question |
 | --- | --- |
 | [Sync vs split_io under paired load shapes](/performance/studies/sync-vs-split-io.md) | When does split_io beat sync for forwarding throughput and latency? |
-| [Ingress concurrency under sync](/performance/studies/ingress-concurrency-sync.md) | How does raising sync ingress workers change throughput under a slow upstream? |
+| [Ingress concurrency under sync](/performance/studies/ingress-concurrency-sync.md) | How many sync ingress workers buy throughput before the curve flattens? |
 | [I/O workers vs fixed ingress under split_io](/performance/studies/io-vs-ingress-split.md) | With receive and policy threads fixed on split_io, does adding I/O workers help under a slow upstream? |
 | [Metrics scrape ladder](/performance/studies/metrics-scrape-ladder.md) | What does enabling richer Prometheus scrape metrics cost under forward_fast? |
 | [Metrics collect vs emit](/performance/studies/metrics-collect-vs-emit.md) | Is metrics cost dominated by hot-path collect, or by scrape emit? |

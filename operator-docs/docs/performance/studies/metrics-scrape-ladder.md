@@ -1,6 +1,10 @@
 # Metrics scrape ladder
 
+<div class="study-question" markdown="1">
+
 What does enabling richer Prometheus scrape metrics cost under [`forward_fast`](/performance/methodology.md#load-shapes)?
+
+</div>
 
 Numbers are same-host comparisons (relative to baselines measured on one named
 lab profile) and are **not** service-level objectives. See the
@@ -53,24 +57,30 @@ under the same [`forward_fast`](/performance/methodology.md#load-shapes) load. F
 
 | Posture | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-scrape-ladder-forward-fast) | sync | 138672.0 | 2.2 | 1390396 | 1387024 | 3377 | ingress=2 |
-| [metrics_minimal_scrape](/performance/scenarios.md#feature-tax-metrics-minimal-scrape-ladder-forward-fast) | sync | 131434.7 | 2.1 | 1318106 | 1314639 | 3467 | ingress=2 |
-| [metrics_standard_scrape](/performance/scenarios.md#feature-tax-metrics-standard-scrape-ladder-forward-fast) | sync | 121094.1 | 1.5 | 1214666 | 1211244 | 3508 | ingress=2 |
+| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-scrape-ladder-forward-fast) | sync | 75321.6 | 3.9 | 757077 | 753665 | 3410 | ingress=2 |
+| [metrics_minimal_scrape](/performance/scenarios.md#feature-tax-metrics-minimal-scrape-ladder-forward-fast) | sync | 73415.2 | 4.3 | 737853 | 734479 | 3393 | ingress=2 |
+| [metrics_standard_scrape](/performance/scenarios.md#feature-tax-metrics-standard-scrape-ladder-forward-fast) | sync | 66697.3 | 2.6 | 670934 | 667270 | 3664 | ingress=2 |
 
 </div>
 <!-- perf-study-evidence:end -->
 
+<!-- perf-study-deltas:start -->
+## At a glance
+
+- **metrics scrape ladder (forward_fast):** `metrics_minimal_scrape` costs about **3%** QPS versus `metrics_off` (~73k vs ~75k); `metrics_standard_scrape` costs about **11%** QPS versus `metrics_off` (~67k vs ~75k).
+<!-- perf-study-deltas:end -->
+
 ## Takeaway
 
-On this published reference, richer scrape costs about **5%** (minimal) to
-**13%** (standard) achieved QPS versus observability off (lab absolute ~139k /
-~131k / ~121k). That is a same-host tax signal — still not an SLO.
-**Operator posture:** pick minimal vs standard from the cardinality you
-need ([operator metrics bases](/guides/operator-metrics-bases.md)); remeasure on
-your hardware with the published `forward_fast` recipe (`--study
-metrics-scrape-ladder` picks these cells). For collect vs export, see
-[Metrics collect vs emit](/performance/studies/metrics-collect-vs-emit.md);
-for [`split_io`](/concepts/runtime-and-concurrency.md#split-io-runtime), see
+**Richer Prometheus scrape costs more QPS.** Versus observability off on this
+lab, minimal scrape costs about **3%** and standard scrape about **11%** (~75k /
+~73k / ~67k). That is a same-host tax signal, not an SLO.
+
+**What to do:** pick minimal vs standard from the cardinality you need
+([operator metrics bases](/guides/operator-metrics-bases.md)), then remeasure on
+your hardware (`--study metrics-scrape-ladder`). See also
+[Metrics collect vs emit](/performance/studies/metrics-collect-vs-emit.md) and,
+for [`split_io`](/concepts/runtime-and-concurrency.md#split-io-runtime),
 [Metrics scrape (split_io)](/performance/studies/metrics-scrape-split-io.md).
 
 ## Related guides

@@ -1,6 +1,10 @@
 # Aggressive scrape cadence under load
 
+<div class="study-question" markdown="1">
+
 What does frequent Prometheus scraping during load cost versus listener-only scrape?
+
+</div>
 
 Numbers are same-host comparisons (relative to baselines measured on one named
 lab profile) and are **not** service-level objectives. See the
@@ -35,26 +39,31 @@ scraper) hits Conduit aggressively under peak traffic.
 
 | Posture | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-forward-fast) | sync | 138760.8 | 2.0 | 1391423 | 1387890 | 3449 | ingress=2 |
-| [metrics_standard_scrape](/performance/scenarios.md#feature-tax-metrics-standard-scrape-forward-fast) | sync | 121399.7 | 2.3 | 1217696 | 1214291 | 3449 | ingress=2 |
-| [metrics_standard_scrape_hammer](/performance/scenarios.md#feature-tax-metrics-standard-scrape-hammer-forward-fast) | sync | 117989.8 | 2.4 | 1183610 | 1180188 | 3441 | ingress=2 |
+| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-forward-fast) | sync | 77319.5 | 3.8 | 776925 | 773506 | 3419 | ingress=2 |
+| [metrics_standard_scrape](/performance/scenarios.md#feature-tax-metrics-standard-scrape-forward-fast) | sync | 69173.3 | 2.6 | 695725 | 692061 | 3664 | ingress=2 |
+| [metrics_standard_scrape_hammer](/performance/scenarios.md#feature-tax-metrics-standard-scrape-hammer-forward-fast) | sync | 70104.3 | 4.4 | 704809 | 701424 | 3385 | ingress=2 |
 
 </div>
 <!-- perf-study-evidence:end -->
 
+<!-- perf-study-deltas:start -->
+## At a glance
+
+- **scrape hammer under load (forward_fast):** `metrics_standard_scrape` costs about **11%** QPS versus `metrics_off` (~69k vs ~77k); `metrics_standard_scrape_hammer` costs about **9%** QPS versus `metrics_off` (~70k vs ~77k).
+<!-- perf-study-deltas:end -->
+
 ## Takeaway
 
-On this published reference, **listener-only standard scrape costs about 12%**
-versus observability off, and **aggressive external scraping (~10/s) adds
-another 3 points** on top of that (~15% total dip versus off; lab absolute
-~139k / ~121k / ~118k) — the direction you would expect: more scrape traffic
-costs a bit more. **Operator posture:** size the bulk of scrape tax from the
-[metrics scrape ladder](/performance/studies/metrics-scrape-ladder.md) (and
-[collect vs emit](/performance/studies/metrics-collect-vs-emit.md)); the
-incremental cost of a busier scraper on top of that is modest but not free —
-set your real scrape interval from ops needs. The hammer cell still shows the
-harness exercises the scrape path under load (secondary `scrape_hammer_ok`
-counts in run JSON).
+**A busier scraper did not add a clear extra tax beyond standard scrape on this
+lab.** Versus observability off, listener-only standard scrape costs about
+**11%** QPS; aggressive external scrape (~10/s) lands in the same band (~9%;
+~77k / ~69k / ~70k).
+
+**What to do:** size the bulk of scrape cost from the
+[metrics scrape ladder](/performance/studies/metrics-scrape-ladder.md) and
+[collect vs emit](/performance/studies/metrics-collect-vs-emit.md). Choose your
+scrape interval for ops needs; remeasure if your scraper is far hotter than this
+lab hammer.
 
 ## Related guides
 

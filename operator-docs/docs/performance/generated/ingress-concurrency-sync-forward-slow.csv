@@ -1,5 +1,5 @@
 scenario_id,runtime,achieved_qps,latency_avg_ms,queries_sent,queries_completed,queries_lost,workers
-scale-sync-ingress-1-forward-slow,sync,6.7,2521.0,299,100,199,ingress_workers=1
-scale-sync-forward-slow,sync,10.2,1651.1,340,153,187,ingress_workers=2
-scale-sync-ingress-4-forward-slow,sync,6.7,2518.5,299,100,199,ingress_workers=4
-scale-sync-ingress-8-forward-slow,sync,6.7,2518.6,299,100,199,ingress_workers=8
+scale-sync-ingress-1-forward-slow,sync,2.8,2514.6,12093,99,11994,ingress_workers=1
+scale-sync-forward-slow,sync,5.7,2509.5,12188,198,11990,ingress_workers=2
+scale-sync-ingress-4-forward-slow,sync,11.4,2512.9,12380,398,11978,ingress_workers=4
+scale-sync-ingress-8-forward-slow,sync,21.7,2591.5,12692,757,11950,ingress_workers=8

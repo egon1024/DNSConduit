@@ -19,3 +19,5 @@ recipe:
   shutdown: true
   stop_wait_s: 10
   load_time_s: 8
+  # Failed answers during the stop window are the subject here, not a defect.
+  min_answer_ok_percent: 0

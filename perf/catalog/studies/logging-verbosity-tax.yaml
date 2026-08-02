@@ -9,8 +9,8 @@ members:
 compare_axis: obs_posture
 primary_metric: achieved_qps
 takeaway: >
-  Directional same-host cost of debug logging versus the warn baseline used by
-  other feature_tax cells; keep production at warn/info unless diagnosing.
+  Debug logging costs about 16% QPS versus warn on this lab; keep production at
+  warn/info and use debug only for short diagnosis windows.
 related_guides:
   - /observability/logging.md
   - /reference/config-schema/logging.md

@@ -83,7 +83,12 @@ python3 -m perf.runner run … --allow-suboptimal-cpu-power
 ```
 
 Hybrid P-core/E-core pinning (when `/sys/devices/cpu_core` exists) is
-separate and automatic — see `perf/runner/cpuaffinity.py`.
+separate and automatic — see `perf/runner/cpuaffinity.py`. Conduit gets the
+P-cores; **everything else the harness runs** — dnsperf, the stub upstream
+pool, and the dnstap / OTLP receivers — is confined to the E-cores. An
+unpinned stub is not a neutral bystander: at a few hundred thousand QPS it is
+several cores of work, and left free to land on P-cores it competes with the
+process under test and swings identical rounds by 1.3–2.2×.
 
 Re-render without re-running:
 
@@ -106,12 +111,17 @@ python3 -m perf.runner render --from perf/results/runs/run-….json --format htm
 **Concurrency is recipe-driven, not one global default.** Scenario YAML sets
 `clients` / `dnsperf_threads` / `max_outstanding` on the recipe when a cell
 needs something other than the CLI defaults (`-c 4 -T 2`, dnsperf's own
-`-q` ≈ 100 default). As of the 2026-07-31 methodology pass:
+`-q` ≈ 100 default):
 
-| Load shape | Recipe baked into the scenario | Rationale |
-|------------|-------------------------------|-----------|
-| `forward_fast`, `cache_hit` (`scale`, `feature_tax`) | `clients: 16`, `dnsperf_threads: 8`, `max_outstanding: 2000` | Fast round trips make the thin default's achieved QPS ≈ 100 / latency (Little's Law) — a throughput chart that's actually just inverse-latency and flips on host noise. Elevating the window lets QPS reflect Conduit's own processing capacity. |
-| `forward_slow` (`scale` ladders, `shutdown_drain`, `lossless_upgrade`) | Thin CLI default (`-c 4 -T 2`, `-q` ≈ 100) | The artificial upstream delay is the thing under study; elevating outstanding wouldn't change what's measured, only add queue depth behind the same delay. |
+| Suite / shape | Recipe baked into the scenario | Rationale |
+|---------------|-------------------------------|-----------|
+| `scale` and `feature_tax` comparative cells (`forward_fast`, `cache_hit`, `forward_slow`) | `clients: 16`, `dnsperf_threads: 8`, `max_outstanding: 2000` | Fast round trips make the thin default's achieved QPS ≈ 100 / latency (Little's Law) — a throughput chart that's actually just inverse-latency. On the slow shape the thin window caps a multiplexing runtime at 100 / 50 ms ≈ 2000 QPS, which measures the loadgen rather than Conduit. |
+| `shutdown_drain`, `lossless_upgrade` | Thin CLI default (`-c 4 -T 2`, `-q` ≈ 100) | These measure drain timing and client loss during a stop window, not steady-state throughput. |
+
+`forward_slow` scale cells also set `duration_s: 30`. A runtime that blocks on
+a 50 ms upstream completes only a few hundred queries in the default 10 second
+window, which is too small a sample to publish. An explicit `--time` still wins
+so smoke runs stay fast.
 
 CLI `--clients` / `--dnsperf-threads` / `--max-outstanding` still work for ad
 hoc probes, but recipe values on curated scenarios win by default (see
@@ -119,11 +129,41 @@ hoc probes, but recipe values on curated scenarios win by default (see
 `operator-docs/docs/performance/methodology.md` (section **How load is
 applied**).
 
-Publish-quality `forward_fast`/`cache_hit` cells in `scale` and `feature_tax`
-are run for **3 independent rounds** and merged with
-`python3 -m perf.runner merge-median` (per-scenario field median; see
-**Median merge for multi-round publish** below) before promotion — a single
-noisy round can no longer swing a published ranking.
+Publish-quality `scale` and `feature_tax` cells are run for **3 independent
+rounds** and merged with `python3 -m perf.runner merge-median` (per-scenario
+field median; see **Median merge for multi-round publish** below) before
+promotion — a single noisy round can no longer swing a published ranking.
+
+## Stub upstream and the answer gate
+
+Forward shapes answer from `perf/runner/upstream.py`, a pool of forked UDP
+responders sharing one `SO_REUSEPORT` port (8 workers fast, 4 slow), confined
+to the harness core class. The slow responder holds replies in a timer heap
+rather than sleeping, so a 50 ms backend stays concurrent instead of
+serializing one answer per delay.
+
+Loaded directly with no Conduit in the path, the fast pool sustains ~480k QPS —
+roughly triple the highest rate any published cell drives through it. The slow
+pool tops out at ~39k QPS, but that number is dnsperf's outstanding window
+(2000 in flight ÷ 50 ms), not the responder: it drops zero packets there, and
+raising the worker count does not move it. Both ceilings sit far above what
+published cells ask for.
+
+This matters because a saturated stub does not merely cap a chart. Conduit
+starts refusing queries it cannot forward, and SERVFAIL in microseconds reads
+to dnsperf as a completed query — so the contaminated cell reports *higher* QPS
+and *lower* latency than a healthy one.
+
+Every dnsperf cell therefore records the response-code histogram
+(`metrics.response_codes`) and the share matching the answer the scenario
+expects (`metrics.answer_ok_percent`, default `NOERROR`). Below **99%** the
+scenario is recorded with `status: invalid`, and `perf.runner promote` refuses
+the whole document rather than publishing it. Scenarios where failed answers
+are the point opt out with `min_answer_ok_percent: 0` (the drain cells do).
+
+Lab fixtures also size `forward.outstanding_per_backend` (8192) and
+`orchestrator.txn_table_capacity` (65536) above the offered window, so a
+published chart measures the runtime rather than a fixture ceiling.
 
 Build the image once:
 
@@ -192,9 +232,10 @@ make perf-run-feature-tax     # run feature_tax suite
 make perf-run-lifecycle       # run lifecycle suite
 make perf-run-study PERF_STUDY=sync-vs-split-io PERF_TIME=5   # smoke one study
 make perf-run-publish-set     # union of published study members (lab refresh)
-make perf-render        # render PERF_FROM=… FORMAT=plain|rich|yaml|json|html
+make perf-render        # render PERF_FROM=… PERF_FORMAT=plain|rich|yaml|json|html
+                        # (FORMAT= is accepted as an alias for PERF_FORMAT=)
 make perf-promote       # promote PERF_FROM run JSON into results/references/
-make perf-docs          # SVG/CSV/tables from committed reference JSON (no load suite)
+make perf-docs          # SVG/CSV/tables + takeaway integrity check (no load suite)
 ```
 
 `PERF_TIME=5` (or any short window) is for **smoke** development runs. Promoted
@@ -202,6 +243,21 @@ reference JSON for published studies SHOULD use the harness **default** duration
 on the reference profile (`maintainer-ws-1`) — omit `PERF_TIME` for publish-quality.
 `make performance` remains the **microbench** (Rhai Criterion) path and is distinct.
 `make docs-build` runs `perf-docs` first so operator-docs stay aligned with committed JSON.
+
+### Takeaway integrity (Gate G5)
+
+`make perf-docs` / `python3 -m perf.runner generate-docs` also:
+
+1. Writes an operator-facing **At a glance** summary
+   (`generated/study-<id>-deltas.fragment.md`) and injects it above each study
+   **Takeaway** (`<!-- perf-study-deltas:… -->`).
+2. Fails if Takeaway `×` / `%` / `~Nk` / `ms` claims disagree with Evidence poles
+   beyond rounding (±1k QPS, one-decimal ×, ±1%, ±1 ms).
+3. Fails on a small **banned-phrase** list (stale “same-host noise” / inversion
+   hedges) defined in `perf/runner/integrity.py` (`BANNED_TAKEAWAY_PHRASES`).
+
+Docs CI runs this via `make docs-build`. Unit coverage: `make perf-unit`
+(`perf/runner/test_integrity.py`), including a deliberately stale takeaway case.
 
 ## Annotations
 

@@ -10,8 +10,8 @@
 
 | Posture | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| [metrics_no_collect](/performance/scenarios.md#feature-tax-metrics-no-collect-forward-fast) | sync | 128663.3 | 2.1 | 1290379 | 1286917 | 3462 | ingress=2 |
-| [metrics_collect_only](/performance/scenarios.md#feature-tax-metrics-collect-only-forward-fast) | sync | 121086.6 | 1.6 | 1214611 | 1211152 | 3484 | ingress=2 |
-| [metrics_collect_emit](/performance/scenarios.md#feature-tax-metrics-collect-emit-forward-fast) | sync | 117515.8 | 2.6 | 1178865 | 1175436 | 3429 | ingress=2 |
+| [metrics_no_collect](/performance/scenarios.md#feature-tax-metrics-no-collect-forward-fast) | sync | 73196.2 | 3.8 | 735710 | 732262 | 3448 | ingress=2 |
+| [metrics_collect_only](/performance/scenarios.md#feature-tax-metrics-collect-only-forward-fast) | sync | 69667.4 | 4.0 | 700420 | 696976 | 3448 | ingress=2 |
+| [metrics_collect_emit](/performance/scenarios.md#feature-tax-metrics-collect-emit-forward-fast) | sync | 70134.9 | 4.0 | 705169 | 701692 | 3439 | ingress=2 |
 
 </div>

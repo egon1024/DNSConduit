@@ -1,7 +1,11 @@
 # Split_io bulk thread topology
 
+<div class="study-question" markdown="1">
+
 Does raising ingress, policy, and I/O worker counts together always help under
 [`forward_fast`](/performance/methodology.md#load-shapes)?
+
+</div>
 
 Numbers are same-host comparisons (relative to baselines measured on one named
 lab profile) and are **not** service-level objectives. See the
@@ -40,27 +44,30 @@ To see which setting actually helps, change **one** count at a time:
 
 | Topology | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| [thin](/performance/scenarios.md#scale-split-io-forward-fast) | split_io | 364056.4 | 2.2 | 3644026 | 3642237 | 2395 | ingress=2, policy=2, io=2 |
-| [heavy](/performance/scenarios.md#scale-split-io-topology-heavy) | split_io | 601897.6 | 2.7 | 6021233 | 6020309 | 611 | ingress=4, policy=4, io=4 |
+| [thin](/performance/scenarios.md#scale-split-io-forward-fast) | split_io | 140686.6 | 1.4 | 1424907 | 1421028 | 3879 | ingress=2, policy=2, io=2 |
+| — | — | — | — | — | — | — | — |
 
 </div>
 <!-- perf-study-evidence:end -->
 
+<!-- perf-study-deltas:start -->
+## At a glance
+
+- **split_io topology (forward_fast):** only `thin` is published (~141k); no paired comparison on this reference.
+<!-- perf-study-deltas:end -->
+
 ## Takeaway
 
-On this published reference, doubling all three worker counts together (4/4/4)
-delivers about **1.65×** the achieved QPS of the modest baseline (2/2/2) (lab
-absolute ~602k vs ~364k QPS). With enough offered concurrency to actually
-exercise the extra workers (see
-[How load is applied](/performance/methodology.md#how-load-is-applied-not-a-fixed-offered-qps)),
-raising every `split_io` worker pool together **does** buy meaningful headroom
-here — it is not automatically wasted effort. That does not make "double
-everything" a substitute for sizing: this cell does not show whether ingress,
-policy, or I/O workers individually explain the gain, whether 8/8/8 keeps
-scaling or plateaus, or how the picture changes on your own upstream latency
-and concurrency profile. Size **one** setting at a time with
-[Dataplane runtime tuning](/guides/dataplane-runtime-tuning.md) and the studies
-that vary a single worker count before committing to a topology.
+**This page does not yet answer whether doubling all worker pools helps.** Only
+the modest baseline (2/2/2 at ~141k QPS) is published. The topology-heavy
+(4/4/4) cell failed the successful-answer check and was omitted — so there is
+no bulk-topology multiplier here.
+
+**What to do:** do not treat “double everything” as proven. Size **one**
+setting at a time with
+[Dataplane runtime tuning](/guides/dataplane-runtime-tuning.md) and the
+single-axis studies; remeasure the bulk pair locally once it clears the answer
+gate.
 
 ## Related guides
 

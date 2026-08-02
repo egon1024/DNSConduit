@@ -9,8 +9,8 @@ members:
 compare_axis: obs_posture
 primary_metric: achieved_qps
 takeaway: >
-  Compares obs-off against tracing activated for A queries at 100% sample —
-  enable tracing for diagnosis, not as a standing production posture.
+  Full A-query tracing costs about 36% QPS versus obs-off on this lab — enable
+  for diagnosis windows, not as a standing production posture.
 related_guides:
   - /observability/tracing.md
   - /reference/config-schema/metrics-and-tracing.md

@@ -10,7 +10,7 @@
 
 | Posture | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-forward-fast) | sync | 138760.8 | 2.0 | 1391423 | 1387890 | 3449 | ingress=2 |
-| [tracing_on](/performance/scenarios.md#feature-tax-tracing-on-forward-fast) | sync | 71846.1 | 3.8 | 722221 | 718827 | 3455 | ingress=2 |
+| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-forward-fast) | sync | 77319.5 | 3.8 | 776925 | 773506 | 3419 | ingress=2 |
+| [tracing_on](/performance/scenarios.md#feature-tax-tracing-on-forward-fast) | sync | 49527.8 | 6.3 | 499066 | 495687 | 3379 | ingress=2 |
 
 </div>

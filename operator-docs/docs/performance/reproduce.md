@@ -110,7 +110,8 @@ python3 -m perf.runner run \
 ## Make targets
 
 From a checkout: `make perf-list`, `make perf-run-scale CONDUIT=/path/to/conduit`,
-`make perf-render PERF_FROM=…`. `make performance` remains the microbench path and
+`make perf-render PERF_FROM=…` (optional `PERF_FORMAT=plain|rich|yaml|json|html`;
+`FORMAT=` is an alias). `make performance` remains the microbench path and
 is distinct from these load suites.
 
 ## What you do not need

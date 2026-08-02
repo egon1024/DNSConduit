@@ -22,9 +22,33 @@ Answer-source shapes used by forward suites:
 
 | Shape | Meaning |
 |-------|---------|
-| `forward_fast` | Stub upstream answers quickly |
-| `forward_slow` | Stub upstream with artificial delay (stresses outstanding work) |
+| `forward_fast` | Stub upstream answers immediately |
+| `forward_slow` | Stub upstream holds every answer for a fixed 50 ms |
 | `cache_hit` | [Lookup cache](/guides/dns-answer-cache.md) enabled and warmed |
+
+### The stub upstream is never the constraint
+
+Forward shapes answer from a stub responder, not a real resolver, and the stub is
+built so that it cannot be what a chart is measuring:
+
+- Replies are served by **several worker processes sharing one port**, so the
+  responder scales past a single CPU. Loaded directly, with no Conduit in the
+  path, it answers roughly 480k QPS on the fast shape — about three times the
+  highest rate any published cell drives through it.
+- The delayed responder **queues** its replies rather than sleeping on them, so
+  `forward_slow` models a backend that is slow but still accepts new queries —
+  the delay never serializes into one answer per 50 ms. On that shape the
+  harness tops out near 39k QPS, which is the load generator's own in-flight
+  window rather than the responder; the responder loses no queries there.
+- On a lab host with mixed fast and efficient CPU cores, Conduit runs on the
+  fast cores and **every harness process** — load generator, stub responder,
+  and telemetry receivers — is confined to the others, so the measurement
+  apparatus cannot take CPU away from the thing being measured.
+
+A stub that saturates does not simply cap a chart; it changes what the chart
+measures, because Conduit then starts refusing queries it cannot forward. See
+[Only successful answers count](#only-successful-answers-count) for how the
+harness detects that.
 
 Runtime compares **must** present paired shapes — especially [`forward_slow`](/performance/methodology.md#load-shapes) for
 [`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default) vs
@@ -32,18 +56,20 @@ Runtime compares **must** present paired shapes — especially [`forward_slow`](
 See [Sync vs split_io](/performance/studies/sync-vs-split-io.md).
 
 <!-- perf-ann:ann-forward-slow-lossy-context:start -->
-!!! warning "forward_slow scale/ladder cells — stressed / inconclusive for ranking"
-    Several promoted [`forward_slow`](/performance/methodology.md#load-shapes) scale and
-    worker-ladder cells show very low achieved QPS with high dnsperf query loss. Under
-    the published load model (timed window, no offered-QPS cap, dnsperf default max
-    outstanding ≈ 100), an artificially delayed upstream fills the outstanding window
-    quickly, so these charts are poor for ranking
-    [`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default) vs
-    [`split_io`](/concepts/runtime-and-concurrency.md#split-io-runtime) or worker counts.
-    Prefer [`forward_fast`](/performance/methodology.md#load-shapes) cells for clean
-    same-host deltas; treat `forward_slow` here as a stress recipe until a
-    publish-quality remeasure replaces the cells. See
-    [How load is applied](/performance/methodology.md#how-load-is-applied-not-a-fixed-offered-qps).
+!!! note "Reading forward_slow cells — saturation against a 50 ms backend"
+    [`forward_slow`](/performance/methodology.md#load-shapes) cells offer far more
+    concurrency than a runtime that blocks on upstream latency can absorb, which is
+    the point: they show what happens to each runtime model when the backend is slow
+    and the client keeps asking. Read both columns together. A runtime that
+    multiplexes in-flight queries answers near the upstream delay itself; a runtime
+    that occupies a worker for the whole round trip reports a small fraction of that
+    throughput and an average latency of seconds, because queries wait in Conduit
+    rather than at the backend. Every published cell here is measured on a stub
+    upstream that stays well clear of saturation and is checked for successful
+    answers, so the numbers are Conduit's behavior, not the harness reaching its
+    limit. See
+    [How load is applied](/performance/methodology.md#how-load-is-applied-not-a-fixed-offered-qps)
+    and [Only successful answers count](/performance/methodology.md#only-successful-answers-count).
 <!-- perf-ann:ann-forward-slow-lossy-context:end -->
 
 ## Drain policy vocabulary
@@ -114,15 +140,42 @@ itself is the intended object of study.
 
 | Load shape | Recipe | Why |
 |------------|--------|-----|
-| `forward_fast`, `cache_hit` (scale, feature_tax) | Elevated: `clients` 16 / `dnsperf_threads` 8 / `max_outstanding` 2000 | Round trip is fast enough that the thin window saturates on outstanding alone (see above). Elevating the window lets achieved QPS reflect Conduit's own processing capacity instead. |
-| `forward_slow` (scale ladders, `shutdown_drain`, `lossless_upgrade`) | Thin: dnsperf default (`-q` ≈ 100), `-c 4`/`-T 2` | The artificial upstream delay is the variable under study (worker-ladder response to a slow backend, drain behavior under load) — elevating outstanding here would just add more queries behind the same delay, not change what's measured. |
+| `forward_fast`, `cache_hit`, `forward_slow` (scale, feature_tax) | Elevated: `clients` 16 / `dnsperf_threads` 8 / `max_outstanding` 2000 | One recipe across published comparative cells. The elevated window lets achieved QPS reflect Conduit's own capacity instead of restating 1/latency, and on the slow shape it keeps a multiplexing runtime from being capped by the loadgen rather than by Conduit. |
+| `shutdown_drain`, `lossless_upgrade` | Thin: dnsperf default (`-q` ≈ 100), `-c 4`/`-T 2` | These cells measure drain timing and client loss during a stop window, not steady-state throughput. |
 
-Published `forward_fast`/`cache_hit` cells in `scale` and `feature_tax` are
-also each the **median of 3 independent rounds** (same scenario, same
-recipe, rerun end to end) rather than a single draw, so a one-off scheduling
-hiccup on the shared lab host cannot flip a ranking. The observed per-round
-range is recorded on each cell's `quality.notes` in the reference JSON.
-`forward_slow`, `shutdown_drain`, and `lifecycle` cells remain single-shot.
+`forward_slow` cells run a **30 second** window instead of 10. A runtime that
+blocks on a 50 ms upstream completes very few queries, and a short window would
+leave too small a sample to mean anything.
+
+Published `scale` and `feature_tax` cells are each the **median of 3
+independent rounds** (same scenario, same recipe, rerun end to end) rather than
+a single draw, so a one-off scheduling hiccup on the shared lab host cannot flip
+a ranking. The observed per-round range is recorded on each cell's
+`quality.notes` in the reference JSON. `shutdown_drain` and `lifecycle` cells
+remain single-shot.
+
+### Only successful answers count
+
+A forwarding proxy that cannot forward still answers: it returns SERVFAIL, and
+it does so in microseconds. A load generator counts those refusals as completed
+queries, so an overwhelmed configuration can report a *higher* QPS and a *lower*
+average latency than a healthy one. Published throughput must never be built on
+that.
+
+Every load-bearing cell therefore records the loadgen's response-code
+breakdown, and the harness compares it against the answer the scenario is meant
+to produce (`NOERROR` for forward and cache shapes):
+
+- At least **99%** successful answers: the cell is a valid measurement.
+- Below that: the cell is recorded as **invalid**, and promoting a reference
+  that contains it fails outright. There is no override for published data.
+
+Cells where failed answers are the subject of the measurement — the
+`shutdown_drain` stop window, for example — opt out of the check explicitly in
+the scenario catalog.
+
+Both parts of the check appear in the reference JSON as
+`metrics.response_codes` and `metrics.answer_ok_percent`.
 
 Maintainer labs that raise `--max-outstanding` further (or lower it, to
 reproduce the thin default) are a **separate** probe and are not
@@ -130,8 +183,11 @@ interchangeable with published cells unless the reference JSON and charts are
 refreshed under that recipe.
 
 Separate from dnsperf: Conduit fixtures also set
-`forward.outstanding_per_backend` (and related caps). Those are **server-side**
-in-flight limits, not the loadgen `-q` window.
+`forward.outstanding_per_backend` and `orchestrator.txn_table_capacity`. Those
+are **server-side** in-flight limits, not the loadgen `-q` window. Lab fixtures
+size them well above the offered window (8192 and 65536) so that a published
+chart measures the runtime rather than a fixture ceiling; production values
+should be chosen for your own backends, not copied from the lab.
 
 For reproduce commands, see [Reproduce against a binary](/performance/reproduce.md).
 

@@ -405,6 +405,18 @@ class DnsperfParseTests(unittest.TestCase):
         self.assertEqual(result.queries_lost, 20)
         self.assertIn("avg", result.latency_ms)
 
+    def test_parse_response_codes(self):
+        result = parse_dnsperf_output(SAMPLE_DNSPERF)
+        self.assertEqual(result.response_codes, {"NOERROR": 9980})
+
+    def test_parse_mixed_response_codes(self):
+        text = SAMPLE_DNSPERF.replace(
+            "Response codes:       NOERROR 9980 (100.00%)",
+            "Response codes:       NOERROR 800 (8.02%), SERVFAIL 9180 (91.98%)",
+        )
+        result = parse_dnsperf_output(text)
+        self.assertEqual(result.response_codes, {"NOERROR": 800, "SERVFAIL": 9180})
+
     def test_docker_cmd_does_not_repeat_entrypoint(self):
         cmd = docker_dnsperf_cmd(
             image=DEFAULT_IMAGE,
@@ -415,6 +427,23 @@ class DnsperfParseTests(unittest.TestCase):
         image_idx = cmd.index(DEFAULT_IMAGE)
         self.assertEqual(cmd[image_idx + 1 :], ["-s", "127.0.2.1", "-p", "15353"])
         self.assertNotIn("dnsperf", cmd[image_idx + 1 :])
+
+
+class LoadDurationTests(unittest.TestCase):
+    def test_default_when_recipe_is_silent(self):
+        from perf.runner.execute import DEFAULT_LOAD_SECONDS, _effective_time_s
+
+        self.assertEqual(_effective_time_s({}, None), DEFAULT_LOAD_SECONDS)
+
+    def test_recipe_duration_is_used(self):
+        from perf.runner.execute import _effective_time_s
+
+        self.assertEqual(_effective_time_s({"duration_s": 30}, None), 30)
+
+    def test_cli_override_wins(self):
+        from perf.runner.execute import _effective_time_s
+
+        self.assertEqual(_effective_time_s({"duration_s": 30}, 5), 5)
 
 
 class AnnotationCatalogTests(unittest.TestCase):
@@ -472,6 +501,31 @@ class AnnotationCatalogTests(unittest.TestCase):
 
 
 class PublishTests(unittest.TestCase):
+    def test_study_evidence_follows_declared_figure_order(self):
+        from perf.render.charts import ChartSpec
+        from perf.runner import publish as publish_mod
+
+        fast = ChartSpec(
+            id="sync-vs-split-io-forward-fast",
+            title="Achieved QPS — sync vs split_io (forward_fast)",
+            y_label="Achieved QPS",
+            categories=["sync", "split_io"],
+            series=[("achieved_qps", [100.0, 160.0])],
+        )
+        slow = ChartSpec(
+            id="sync-vs-split-io-forward-slow",
+            title="Achieved QPS — sync vs split_io (forward_slow)",
+            y_label="Achieved QPS",
+            categories=["sync", "split_io"],
+            series=[("achieved_qps", [10.0, 11.0])],
+        )
+        md = publish_mod._study_evidence_markdown([fast, slow])
+        self.assertLess(md.index("forward_fast"), md.index("forward_slow"))
+        reversed_md = publish_mod._study_evidence_markdown([slow, fast])
+        self.assertLess(
+            reversed_md.index("forward_slow"), reversed_md.index("forward_fast")
+        )
+
     def test_promote_and_generate_docs(self):
         from unittest import mock
 
@@ -562,7 +616,11 @@ class PublishTests(unittest.TestCase):
             with mock.patch.object(publish_mod, "GENERATED_DIR", gen), mock.patch.object(
                 publish_mod, "OPERATOR_PERF", perf_docs
             ):
-                written = publish_mod.generate_operator_docs_fragments(doc)
+                # Partial fixture doc does not cover all catalog takeaways;
+                # integrity is covered in test_integrity.py against real pages.
+                written = publish_mod.generate_operator_docs_fragments(
+                    doc, check_integrity=False
+                )
             names = {p.name for p in written}
             self.assertIn("scale-sync-vs-split-io-forward-fast.svg", names)
             self.assertIn("scale-sync-vs-split-io-forward-slow.svg", names)

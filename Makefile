@@ -26,7 +26,8 @@
 #   make perf-run-lifecycle    — run lifecycle suite (cold start / apply)
 #   make perf-run-study        — run one study (PERF_STUDY=id; smoke: PERF_TIME=5)
 #   make perf-run-publish-set  — run union of published study members
-#   make perf-render           — render FROM=… FORMAT=plain|rich|yaml|json|html
+#   make perf-render           — render PERF_FROM=… PERF_FORMAT=plain|rich|yaml|json|html
+#                                (FORMAT= is accepted as an alias for PERF_FORMAT=)
 #   make performance           — remains Criterion microbench (distinct from suite run)
 #
 
@@ -45,6 +46,10 @@ DOCKERFILE ?= Dockerfile
 CONDUIT ?= ./target/release/conduit
 PERF_FROM ?=
 PERF_FORMAT ?= plain
+# Documented alias: `make perf-render … FORMAT=rich` → same as PERF_FORMAT=rich.
+ifneq ($(strip $(FORMAT)),)
+PERF_FORMAT := $(FORMAT)
+endif
 
 .PHONY: help test performance fmt fmt-check clippy unit build \
 	docs-serve docs-build docs-version docs-versions-preview \
@@ -87,7 +92,8 @@ help:
 	@echo "                            PERF_CLIENTS / PERF_DNSPERF_THREADS / PERF_MAX_OUTSTANDING)"
 	@echo "  make perf-run-publish-set Run published study member union (optional PERF_TIME=;"
 	@echo "                            PERF_CLIENTS / PERF_DNSPERF_THREADS / PERF_MAX_OUTSTANDING)"
-	@echo "  make perf-render          Render PERF_FROM=run.json FORMAT=$(PERF_FORMAT)"
+	@echo "  make perf-render          Render PERF_FROM=run.json PERF_FORMAT=$(PERF_FORMAT)"
+	@echo "                            (FORMAT= is an alias for PERF_FORMAT=)"
 	@echo "  make perf-docs            Generate operator-docs fragments from committed reference JSON (no load suite)"
 	@echo "  make perf-promote         Promote PERF_FROM run JSON(s) into results/references/ (manual)"
 
@@ -213,6 +219,7 @@ perf-render:
 	PYTHONPATH=. $(PYTHON) -m perf.runner render --from $(PERF_FROM) --format $(PERF_FORMAT)
 
 # Docs presentation only — MUST NOT invoke load suites or dnsperf.
+# Regenerates SVG/CSV/tables/delta fragments and fails on takeaway/evidence drift.
 perf-docs:
 	PYTHONPATH=. $(PYTHON) -m perf.runner generate-docs
 

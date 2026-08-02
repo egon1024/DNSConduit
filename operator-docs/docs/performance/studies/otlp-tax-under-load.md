@@ -1,6 +1,10 @@
 # OTLP tax under load
 
+<div class="study-question" markdown="1">
+
 What does OTLP metrics push cost versus observability off under [`forward_fast`](/performance/methodology.md#load-shapes)?
+
+</div>
 
 Numbers are same-host comparisons (relative to baselines measured on one named
 lab profile) and are **not** service-level objectives. See the
@@ -41,23 +45,28 @@ Compare also the [metrics scrape ladder](/performance/studies/metrics-scrape-lad
 
 | Posture | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-forward-fast) | sync | 138760.8 | 2.0 | 1391423 | 1387890 | 3449 | ingress=2 |
-| [metrics_otlp_push](/performance/scenarios.md#feature-tax-metrics-otlp-push-forward-fast) | sync | 116878.8 | 2.6 | 1172470 | 1169073 | 3397 | ingress=2 |
-| [metrics_standard_scrape](/performance/scenarios.md#feature-tax-metrics-standard-scrape-forward-fast) | sync | 121399.7 | 2.3 | 1217696 | 1214291 | 3449 | ingress=2 |
+| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-forward-fast) | sync | 77319.5 | 3.8 | 776925 | 773506 | 3419 | ingress=2 |
+| [metrics_otlp_push](/performance/scenarios.md#feature-tax-metrics-otlp-push-forward-fast) | sync | 66150.0 | 2.7 | 665461 | 661797 | 3664 | ingress=2 |
+| [metrics_standard_scrape](/performance/scenarios.md#feature-tax-metrics-standard-scrape-forward-fast) | sync | 69173.3 | 2.6 | 695725 | 692061 | 3664 | ingress=2 |
 
 </div>
 <!-- perf-study-evidence:end -->
 
+<!-- perf-study-deltas:start -->
+## At a glance
+
+- **OTLP push vs baselines (forward_fast):** `metrics_otlp_push` costs about **14%** QPS versus `metrics_off` (~66k vs ~77k); `metrics_standard_scrape` costs about **11%** QPS versus `metrics_off` (~69k vs ~77k).
+<!-- perf-study-deltas:end -->
+
 ## Takeaway
 
-On this published reference, **OTLP push costs about 16%** achieved QPS versus
-observability off, somewhat more than **standard scrape (~12% tax)** on the
-same recipe (lab absolute ~117k / ~121k / ~139k). **Operator posture:** treat
-OTLP as another export tax in the same ballpark as scrape — enable push only
-when you have a collector path; otherwise prefer scrape and size from the
-[metrics scrape ladder](/performance/studies/metrics-scrape-ladder.md). If the
-OTLP member was skipped in the promoted reference, treat this study as incomplete
-for that posture — do not read empty bars as “zero tax.”
+**OTLP push costs about as much as scrape — a bit more on this lab.** Versus
+observability off: OTLP ~**14%** QPS, standard scrape ~**11%** (~66k / ~69k /
+~77k).
+
+**What to do:** enable OTLP only when you have a collector path. Otherwise
+prefer scrape and size from the
+[metrics scrape ladder](/performance/studies/metrics-scrape-ladder.md).
 
 ## Related guides
 

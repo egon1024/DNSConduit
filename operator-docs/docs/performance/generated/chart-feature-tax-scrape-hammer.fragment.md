@@ -8,8 +8,8 @@
 
 | Posture | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost |
 | --- | --- | --- | --- | --- | --- |
-| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-forward-fast) | 138760.8 | 2.0 | 1391423 | 1387890 | 3449 |
-| [standard_scrape](/performance/scenarios.md#feature-tax-metrics-standard-scrape-forward-fast) | 121399.7 | 2.3 | 1217696 | 1214291 | 3449 |
-| [scrape_hammer](/performance/scenarios.md#feature-tax-metrics-standard-scrape-hammer-forward-fast) | 117989.8 | 2.4 | 1183610 | 1180188 | 3441 |
+| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-forward-fast) | 77319.5 | 3.8 | 776925 | 773506 | 3419 |
+| [standard_scrape](/performance/scenarios.md#feature-tax-metrics-standard-scrape-forward-fast) | 69173.3 | 2.6 | 695725 | 692061 | 3664 |
+| [scrape_hammer](/performance/scenarios.md#feature-tax-metrics-standard-scrape-hammer-forward-fast) | 70104.3 | 4.4 | 704809 | 701424 | 3385 |
 
 </div>

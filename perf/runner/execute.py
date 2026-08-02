@@ -51,13 +51,13 @@ def _resolve_overlay(recipe: dict[str, Any]) -> Path:
     return path
 
 
-def _start_upstream(kind: str | None) -> StubUpstream | None:
+def _start_upstream(kind: str | None, *, cpuset: str | None = None) -> StubUpstream | None:
     if not kind or kind == "none":
         return None
     if kind == "fast":
-        return start_fast_upstream()
+        return start_fast_upstream(cpuset=cpuset)
     if kind == "slow":
-        return start_slow_upstream(delay_ms=50.0)
+        return start_slow_upstream(delay_ms=50.0, cpuset=cpuset)
     raise ValueError(f"unknown upstream recipe: {kind}")
 
 
@@ -87,6 +87,27 @@ def _skip_reason(
     return None
 
 
+# A forward-path scenario that cannot forward still answers — with SERVFAIL, in
+# microseconds — and the loadgen counts those as completed queries. Publishing
+# such a cell would report rejection speed as throughput, so the harness treats a
+# low successful-answer share as a failed measurement rather than a slow one.
+DEFAULT_MIN_ANSWER_OK_PERCENT = 99.0
+DEFAULT_EXPECTED_RCODE = "NOERROR"
+DEFAULT_LOAD_SECONDS = 10
+
+
+def _effective_time_s(recipe: dict[str, Any], time_s: int | None) -> int:
+    """Load duration: explicit CLI value wins, else the recipe, else the default.
+
+    Cells whose achieved QPS is tiny (a high-latency upstream against a runtime
+    that blocks on it) need a longer window to complete enough queries for the
+    number to mean anything.
+    """
+    if time_s is not None:
+        return int(time_s)
+    return int(recipe.get("duration_s") or DEFAULT_LOAD_SECONDS)
+
+
 def _metrics_from_dnsperf(dp: DnsperfResult) -> dict[str, Any]:
     metrics: dict[str, Any] = {}
     if dp.achieved_qps is not None:
@@ -99,9 +120,65 @@ def _metrics_from_dnsperf(dp: DnsperfResult) -> dict[str, Any]:
         metrics["queries_completed"] = dp.queries_completed
     if dp.queries_lost is not None:
         metrics["queries_lost"] = dp.queries_lost
+    if dp.response_codes:
+        metrics["response_codes"] = dict(dp.response_codes)
     if dp.latency_ms:
         metrics["latency_ms"] = dict(dp.latency_ms)
     return metrics
+
+
+def answer_ok_percent(
+    response_codes: dict[str, int] | None,
+    *,
+    expected_rcode: str = DEFAULT_EXPECTED_RCODE,
+) -> float | None:
+    """Share of responses carrying the rcode the scenario is meant to measure."""
+    if not response_codes:
+        return None
+    total = sum(response_codes.values())
+    if total <= 0:
+        return None
+    return 100.0 * response_codes.get(expected_rcode, 0) / total
+
+
+def answer_gate_settings(recipe: dict[str, Any]) -> tuple[str, float | None]:
+    """Resolve (expected rcode, minimum ok share) for a scenario recipe.
+
+    ``min_answer_ok_percent: 0`` disables the gate for scenarios where failed
+    answers are the subject of the measurement (shutdown drain, policy drops).
+    """
+    expected = str(recipe.get("expect_rcode") or DEFAULT_EXPECTED_RCODE).upper()
+    if "min_answer_ok_percent" in recipe:
+        raw = recipe.get("min_answer_ok_percent")
+        threshold = None if raw is None else float(raw)
+        if threshold is not None and threshold <= 0:
+            threshold = None
+    else:
+        threshold = DEFAULT_MIN_ANSWER_OK_PERCENT
+    return expected, threshold
+
+
+def _apply_answer_gate(
+    result: dict[str, Any],
+    *,
+    recipe: dict[str, Any],
+    metrics: dict[str, Any],
+) -> None:
+    """Mark the scenario invalid when too few responses are real answers."""
+    expected, threshold = answer_gate_settings(recipe)
+    share = answer_ok_percent(metrics.get("response_codes"), expected_rcode=expected)
+    if share is None:
+        return
+    metrics["answer_ok_percent"] = round(share, 4)
+    if threshold is None or share >= threshold:
+        return
+    codes = metrics.get("response_codes") or {}
+    breakdown = ", ".join(f"{name} {count}" for name, count in sorted(codes.items()))
+    result["status"] = "invalid"
+    result["error"] = (
+        f"answer gate: {share:.2f}% {expected} responses (need {threshold:.2f}%); "
+        f"achieved_qps measures rejection, not throughput [{breakdown}]"
+    )
 
 
 def _effective_loadgen_knobs(
@@ -137,7 +214,7 @@ def run_scenario(
     conduit: Path,
     loadgen_mode: str = "docker",
     loadgen_image: str = DEFAULT_IMAGE,
-    time_s: int = 10,
+    time_s: int | None = None,
     warmup_s: float = 2.0,
     clients: int = 4,
     dnsperf_threads: int = 2,
@@ -179,6 +256,7 @@ def run_scenario(
         dnsperf_threads=dnsperf_threads,
         max_outstanding=max_outstanding,
     )
+    time_s = _effective_time_s(recipe, time_s)
     if recipe.get("loadgen") == "none" and scenario.suite == "lifecycle":
         return _run_lifecycle(
             scenario,
@@ -214,7 +292,7 @@ def run_scenario(
             assert dnstap is not None
             companions.append(start_dnstap_tracer(dnstap, cpuset=e_cpus))
 
-        upstream = _start_upstream(recipe.get("upstream"))
+        upstream = _start_upstream(recipe.get("upstream"), cpuset=e_cpus)
         config = _resolve_config(recipe)
         cp = start_conduit(conduit, config, cpuset=p_cpus)
 
@@ -258,6 +336,7 @@ def run_scenario(
                 cpuset=e_cpus,
             )
             metrics = _metrics_from_dnsperf(dp)
+            _apply_answer_gate(result, recipe=recipe, metrics=metrics)
             quality.update(
                 _dnsperf_quality(
                     clients=clients,
@@ -265,6 +344,8 @@ def run_scenario(
                     max_outstanding=max_outstanding,
                 )
             )
+            if upstream is not None:
+                quality["upstream_workers"] = upstream.workers
 
         secondary: dict[str, Any] = {}
         for companion in companions:
@@ -348,7 +429,7 @@ def _run_shutdown_drain(
     cp = None
     load_handle = None
     try:
-        upstream = _start_upstream(recipe.get("upstream") or "slow")
+        upstream = _start_upstream(recipe.get("upstream") or "slow", cpuset=e_cpus)
         config = _resolve_config(recipe)
         cp = start_conduit(conduit, config, cpuset=p_cpus)
 
@@ -388,6 +469,7 @@ def _run_shutdown_drain(
 
         metrics = _metrics_from_dnsperf(dp)
         metrics["drain_duration_ms"] = round(drain_s * 1000.0, 3)
+        _apply_answer_gate(result, recipe=recipe, metrics=metrics)
         secondary: dict[str, Any] = {}
         if dp.queries_lost is not None:
             secondary["client_failures_during_stop"] = dp.queries_lost
@@ -406,6 +488,8 @@ def _run_shutdown_drain(
                 max_outstanding=max_outstanding,
             ),
         }
+        if upstream is not None:
+            result["quality"]["upstream_workers"] = upstream.workers
         if secondary:
             result["secondary"] = secondary
         return result
@@ -440,11 +524,11 @@ def _run_lifecycle(
     upstream = None
     cp = None
     hybrid = detect_hybrid_cpusets()
-    p_cpus, _e_cpus = hybrid if hybrid else (None, None)
+    p_cpus, e_cpus = hybrid if hybrid else (None, None)
     try:
         recipe = scenario.recipe
         kind = recipe.get("lifecycle") or "cold_start"
-        upstream = _start_upstream(recipe.get("upstream") or "fast")
+        upstream = _start_upstream(recipe.get("upstream") or "fast", cpuset=e_cpus)
         config = _resolve_config(recipe)
 
         if kind == "cold_start":
@@ -524,7 +608,7 @@ def build_run_document(
     loadgen_mode: str = "docker",
     loadgen_image: str = DEFAULT_IMAGE,
     warmup_s: float = 2.0,
-    time_s: int = 10,
+    time_s: int | None = None,
     clients: int = 4,
     dnsperf_threads: int = 2,
     max_outstanding: int | None = None,
@@ -551,9 +635,13 @@ def build_run_document(
             "runner": f"perf.runner/{__version__}",
             "loadgen": loadgen,
         },
+        # Run-level duration is the default for cells that do not declare one;
+        # each scenario records the window it actually ran under.
         "quality": {
             "warmup_seconds": warmup_s,
-            "duration_seconds": float(time_s),
+            "duration_seconds": float(
+                time_s if time_s is not None else DEFAULT_LOAD_SECONDS
+            ),
             **_dnsperf_quality(
                 clients=clients,
                 dnsperf_threads=dnsperf_threads,

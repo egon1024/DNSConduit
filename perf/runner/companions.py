@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .cpuaffinity import taskset_prefix
+from .procs import die_with_parent, register_child, unregister_child
 
 DNSTAP_SOCK_DEFAULT = Path("/tmp/conduit-perf-dnstap.sock")
 OTLP_LISTEN_DEFAULT = "127.0.2.1:4318"
@@ -29,14 +30,18 @@ class CompanionProcess:
     listen: str | None = None
 
     def stop(self, *, wait_s: float = 10.0) -> None:
-        if self.proc.poll() is not None:
-            return
-        self.proc.send_signal(signal.SIGTERM)
         try:
-            self.proc.wait(timeout=wait_s)
-        except subprocess.TimeoutExpired:
-            self.proc.kill()
-            self.proc.wait(timeout=5)
+            if self.proc.poll() is not None:
+                return
+            self.proc.send_signal(signal.SIGTERM)
+            try:
+                self.proc.wait(timeout=wait_s)
+            except subprocess.TimeoutExpired:
+                self.proc.kill()
+                self.proc.wait(timeout=5)
+        finally:
+            if self.proc.pid is not None:
+                unregister_child(self.proc.pid)
 
 
 def sibling_binary(conduit: Path, name: str) -> Path | None:
@@ -96,7 +101,10 @@ def start_dnstap_tracer(
         [*taskset_prefix(cpuset), str(binary), "-u", str(sock), "-f", "log"],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
+        preexec_fn=die_with_parent,
     )
+    if proc.pid is not None:
+        register_child(proc.pid, kind="dnstap_tracer")
     companion = CompanionProcess(path=binary, proc=proc, kind="dnstap_tracer")
     deadline = time.monotonic() + ready_timeout_s
     while time.monotonic() < deadline:
@@ -141,7 +149,10 @@ def start_otlp_tracer(
         cmd,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
+        preexec_fn=die_with_parent,
     )
+    if proc.pid is not None:
+        register_child(proc.pid, kind="otlp_tracer")
     companion = CompanionProcess(
         path=binary, proc=proc, kind="otlp_tracer", listen=listen
     )

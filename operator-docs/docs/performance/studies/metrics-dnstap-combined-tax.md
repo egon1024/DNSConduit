@@ -1,6 +1,10 @@
 # Combined metrics + dnstap tax
 
+<div class="study-question" markdown="1">
+
 What does turning on standard scrape and fuller dnstap together cost?
+
+</div>
 
 Numbers are same-host comparisons (relative to baselines measured on one named
 lab profile) and are **not** service-level objectives. See the
@@ -38,25 +42,31 @@ and **both** under the same [`forward_fast`](/performance/methodology.md#load-sh
 
 | Posture | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-forward-fast) | sync | 138760.8 | 2.0 | 1391423 | 1387890 | 3449 | ingress=2 |
-| [metrics_standard_scrape](/performance/scenarios.md#feature-tax-metrics-standard-scrape-forward-fast) | sync | 121399.7 | 2.3 | 1217696 | 1214291 | 3449 | ingress=2 |
-| [dnstap_full](/performance/scenarios.md#feature-tax-dnstap-full-forward-fast) | sync | 113838.8 | 2.6 | 1142096 | 1138671 | 3425 | ingress=2 |
-| [metrics_standard_dnstap_full](/performance/scenarios.md#feature-tax-metrics-standard-dnstap-full-forward-fast) | sync | 106763.8 | 1.7 | 1071331 | 1067929 | 3553 | ingress=2 |
+| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-forward-fast) | sync | 77319.5 | 3.8 | 776925 | 773506 | 3419 | ingress=2 |
+| [metrics_standard_scrape](/performance/scenarios.md#feature-tax-metrics-standard-scrape-forward-fast) | sync | 69173.3 | 2.6 | 695725 | 692061 | 3664 | ingress=2 |
+| [dnstap_full](/performance/scenarios.md#feature-tax-dnstap-full-forward-fast) | sync | 69573.8 | 4.1 | 699739 | 696075 | 3429 | ingress=2 |
+| [metrics_standard_dnstap_full](/performance/scenarios.md#feature-tax-metrics-standard-dnstap-full-forward-fast) | sync | 64335.1 | 4.4 | 647080 | 643702 | 3428 | ingress=2 |
 
 </div>
 <!-- perf-study-evidence:end -->
 
+<!-- perf-study-deltas:start -->
+## At a glance
+
+- **metrics and dnstap combined (forward_fast):** `metrics_standard_scrape` costs about **11%** QPS versus `metrics_off` (~69k vs ~77k); `dnstap_full` costs about **10%** QPS versus `metrics_off` (~70k vs ~77k); `metrics_standard_dnstap_full` costs about **17%** QPS versus `metrics_off` (~64k vs ~77k).
+<!-- perf-study-deltas:end -->
+
 ## Takeaway
 
-On this published reference, **standard scrape alone costs about 12%** achieved
-QPS versus observability off, **fuller dnstap alone costs about 18%**, and the
-**combined** posture costs about **23%** — roughly additive rather than
-dominated by one surface (lab absolute ~139k / ~121k / ~114k / ~107k).
-**Operator posture:** each surface adds its own tax on top of the other; turn
-on each surface only if you need it; use the
-[metrics scrape ladder](/performance/studies/metrics-scrape-ladder.md) and
-[dnstap emit tax](/performance/studies/dnstap-emit-tax.md) for single-feature
-sizing, then remeasure the pair on your hardware before production.
+**Scrape and dnstap each cost roughly 10%, and together about 17%.** Versus
+observability off on this lab: standard scrape alone ~**11%**, fuller dnstap
+alone ~**10%**, both on ~**17%** (~77k / ~69k / ~70k / ~64k). Combined cost is
+higher than either alone, without a large super-linear spike.
+
+**What to do:** enable each surface only if you need it. Size them separately
+with the [metrics scrape ladder](/performance/studies/metrics-scrape-ladder.md)
+and [dnstap emit tax](/performance/studies/dnstap-emit-tax.md), then remeasure
+the pair on your hardware before production.
 
 ## Related guides
 

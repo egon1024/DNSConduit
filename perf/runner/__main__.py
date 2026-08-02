@@ -13,9 +13,10 @@ from .catalog import (
     select_scenarios,
 )
 from .cpupower import check_host_cpu_power, require_cpu_power_ok
-from .execute import build_run_document, run_scenario
+from .execute import DEFAULT_LOAD_SECONDS, build_run_document, run_scenario
 from .loadgen import DEFAULT_IMAGE
 from .paths import REFERENCES_DIR, ROOT, load_json
+from .procs import find_stray_lab_processes, kill_stray_lab_processes
 from .publish import (
     generate_operator_docs_fragments,
     merge_median_documents,
@@ -164,6 +165,31 @@ def cmd_run(args: argparse.Namespace) -> int:
             file=sys.stderr,
         )
 
+    # Only refuse/kill processes recorded in a dead runner's PID ledger —
+    # never a /proc cmdline guess (that matched Cursor agent shells before).
+    strays = find_stray_lab_processes()
+    if strays:
+        if getattr(args, "kill_strays", False):
+            kill_stray_lab_processes(strays)
+            print(
+                f"killed {len(strays)} ledger-tracked orphan(s) before measuring",
+                file=sys.stderr,
+            )
+        else:
+            print(
+                "refusing to measure: ledger-tracked orphans from a dead runner "
+                "are still alive. They keep their affinity, so they tax every "
+                "cell measured after them.",
+                file=sys.stderr,
+            )
+            for stray in strays:
+                print(
+                    f"  pid {stray.pid} ({stray.kind}): {stray.cmdline[:120]}",
+                    file=sys.stderr,
+                )
+            print("Re-run with --kill-strays to clear them.", file=sys.stderr)
+            return 2
+
     run_annotation_ids = list(args.annotation_id or [])
     # scenario_id -> [annotation ids]
     per_scenario: dict[str, list[str]] = {}
@@ -274,10 +300,16 @@ def cmd_merge_median(args: argparse.Namespace) -> int:
 
 
 def cmd_generate_docs(args: argparse.Namespace) -> int:
+    from perf.runner.integrity import TakeawayIntegrityError
+
     doc = None
     if args.from_json:
         doc = load_json(Path(args.from_json))
-    written = generate_operator_docs_fragments(doc)
+    try:
+        written = generate_operator_docs_fragments(doc)
+    except TakeawayIntegrityError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
     for path in written:
         try:
             print(path.relative_to(ROOT))
@@ -377,7 +409,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="dnsperf invocation (default: docker)",
     )
     run_p.add_argument("--loadgen-image", default=DEFAULT_IMAGE)
-    run_p.add_argument("--time", type=int, default=10, help="dnsperf -l seconds")
+    run_p.add_argument(
+        "--time",
+        type=int,
+        default=None,
+        help=(
+            "dnsperf -l seconds (overrides a scenario's duration_s; "
+            f"default {DEFAULT_LOAD_SECONDS})"
+        ),
+    )
     run_p.add_argument("--warmup", type=float, default=2.0)
     run_p.add_argument(
         "--clients",
@@ -423,6 +463,14 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Allow run when CPU frequency governors are not all 'performance' "
             "(default: refuse — powersave/schedutil/mixed governors add host noise)"
+        ),
+    )
+    run_p.add_argument(
+        "--kill-strays",
+        action="store_true",
+        help=(
+            "SIGKILL only ledger-tracked orphans from a dead runner (never a "
+            "/proc cmdline guess) instead of refusing to measure alongside them"
         ),
     )
     run_p.add_argument(
