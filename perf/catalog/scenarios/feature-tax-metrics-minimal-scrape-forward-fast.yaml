@@ -4,7 +4,7 @@ suite: feature_tax
 curated: true
 intent: |
   Metrics base minimal with Prometheus scrape (collect+emit) under forward_fast.
-  Ladder cell between metrics-off and standard scrape.
+  Middle cell between metrics-off and standard scrape.
 axes:
   runtime: sync
   load_shape: forward_fast

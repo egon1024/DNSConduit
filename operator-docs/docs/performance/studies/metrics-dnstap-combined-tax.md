@@ -6,8 +6,8 @@ What does turning on standard scrape and fuller dnstap together cost?
 
 </div>
 
-Numbers are same-host comparisons (relative to baselines measured on one named
-lab profile) and are **not** service-level objectives. See the
+Numbers are same-host comparisons on a single reference host and are **not**
+service-level objectives. See the
 [performance hub disclaimer](/performance/index.md).
 
 ## When this matters
@@ -64,7 +64,7 @@ alone ~**10%**, both on ~**17%** (~77k / ~69k / ~70k / ~64k). Combined cost is
 higher than either alone, without a large super-linear spike.
 
 **What to do:** enable each surface only if you need it. Size them separately
-with the [metrics scrape ladder](/performance/studies/metrics-scrape-ladder.md)
+with the [metrics scrape tax](/performance/studies/metrics-scrape-ladder.md)
 and [dnstap emit tax](/performance/studies/dnstap-emit-tax.md), then remeasure
 the pair on your hardware before production.
 
@@ -74,7 +74,7 @@ the pair on your hardware before production.
 - [Event export](/observability/event-export.md)
 - [Operator metrics bases](/guides/operator-metrics-bases.md)
 - [Dnstap emit tax](/performance/studies/dnstap-emit-tax.md)
-- [Metrics scrape ladder](/performance/studies/metrics-scrape-ladder.md)
+- [Metrics scrape tax](/performance/studies/metrics-scrape-ladder.md)
 
 ## Member scenarios
 

@@ -18,7 +18,7 @@ related_guides:
   - /guides/dataplane-runtime-tuning.md
 figures:
   - id: io-vs-ingress-split-forward-slow
-    title: Achieved QPS — split_io io_workers ladder (forward_slow)
+    title: Achieved QPS — split_io io_workers series (forward_slow)
     y_label: Achieved QPS
     category_axis: io_workers
     members:

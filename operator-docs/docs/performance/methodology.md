@@ -1,7 +1,19 @@
 # Performance methodology
 
-How published performance numbers are produced, what they mean, and how to interpret
-charts and tables.
+Published Performance numbers are generated on a single reference host. A Python
+harness runs curated dnsperf scenarios against a Conduit binary, records
+same-host metrics into JSON, and — after validation — that JSON is **promoted**
+into the repository under `perf/results/references/`. Operator-docs charts, CSV
+downloads, and study evidence are then **regenerated from that committed
+reference only**; docs CI does not re-run load against a live binary.
+
+The sections below explain how to **interpret** those published cells: suites and
+load shapes, how load is applied, answer-quality gates, drain vocabulary, and how
+to read charts. Commands to replay suites locally, refresh the publish set, or
+wire annotations are under
+[Reproduce against a binary](/performance/reproduce.md)
+([Maintainer publish](/performance/reproduce.md#maintainer-publish) for the
+promote path).
 
 ## Suites
 
@@ -88,18 +100,15 @@ Config fields: [Shutdown](/reference/config-schema/shutdown.md). Comparative evi
 ## Lab profiles
 
 Every run records a lab host profile (id, CPU, cores, OS, binary identity, loadgen).
-The harness supports **many** profile ids. **v1 curated publish** promotes from **one**
-named reference profile: `maintainer-ws-1` (maintainer workstation). Published charts
-compare scenarios **on that same host**; they are not cross-host capacity claims.
+Published charts come from a **single reference host** (`maintainer-ws-1`). They
+compare scenarios on that same host; they are not cross-host capacity claims.
 See the disclaimer on the [performance hub](/performance/index.md).
 
-The lab runner also refuses to start when CPU frequency governors are not all
-`performance` **and** that governor is offered by the host (powersave /
-schedutil / mixed governors introduce large QPS swings). Boards that never
-expose `performance` are not blocked. Maintainers typically set performance
-via `cpupower`, `powerprofilesctl`, or a direct sysfs write before a publish
-refresh, or pass `--allow-suboptimal-cpu-power` for an intentional noisy
-probe. See `perf/README.md` (Host CPU power state).
+Publish-quality labs require CPU frequency governors to be `performance` when the
+host offers that governor (powersave / schedutil / mixed governors introduce large
+QPS swings). Boards that never expose `performance` are not blocked. How to set
+the governor (or intentionally bypass the gate for a noisy probe) is under
+[Reproduce — Maintainer publish](/performance/reproduce.md#maintainer-publish).
 
 ## Primary load generator
 
@@ -177,10 +186,10 @@ the scenario catalog.
 Both parts of the check appear in the reference JSON as
 `metrics.response_codes` and `metrics.answer_ok_percent`.
 
-Maintainer labs that raise `--max-outstanding` further (or lower it, to
-reproduce the thin default) are a **separate** probe and are not
-interchangeable with published cells unless the reference JSON and charts are
-refreshed under that recipe.
+Changing the outstanding window (or other recipe knobs) for a local probe is
+fine for exploration, but those results are **not** interchangeable with
+published cells unless the promoted reference is refreshed under that recipe.
+See [Reproduce against a binary](/performance/reproduce.md).
 
 Separate from dnsperf: Conduit fixtures also set
 `forward.outstanding_per_backend` and `orchestrator.txn_table_capacity`. Those
@@ -189,27 +198,14 @@ size them well above the offered window (8192 and 65536) so that a published
 chart measures the runtime rather than a fixture ceiling; production values
 should be chosen for your own backends, not copied from the lab.
 
-For reproduce commands, see [Reproduce against a binary](/performance/reproduce.md).
-
-## Promote vs docs render
-
-| Layer | Who | What |
-|-------|-----|------|
-| Measure + promote | Maintainer, on the reference lab profile | Run suites; land validated JSON under `perf/results/references/` via pull request |
-| Docs representation | Docs / CI generate step | From **committed** JSON only: regenerate tables, static SVG, CSV — **no** live Conduit or dnsperf |
-
-Stale references are fixed by a maintainer lab refresh and PR, not by an automated
-bench on the release tag.
-
 ## Studies (comparative evidence)
 
-[Tuning evidence (studies)](/performance/studies/index.md) are catalog overlays that
-select scenario cells by id for operator questions (runtime choice, metrics tax,
-drain policy, and similar). Studies are **not** a separate measurement driver —
-`--study` / `--publish-set` expand to scenario members. Generated study pages embed
-static SVG/CSV from the same promoted JSON as the reference warehouse. Prefer studies
-for decision narrative; use [reference results](/performance/reference.md) for the
-dense chart warehouse.
+[Tuning evidence (studies)](/performance/studies/index.md) group published scenario
+cells into operator questions (runtime choice, metrics tax, drain policy, and
+similar). Prefer
+[findings](/performance/index.md#findings) and studies for decision narrative;
+use [reference results](/performance/reference.md) only when you need the dense
+chart warehouse. Study pages embed the same promoted evidence as the warehouse.
 
 ## Charts, CSV, and tables
 
@@ -219,9 +215,7 @@ that differ by orders of magnitude (for example `forward_fast` vs `forward_slow`
 the values shown in that figure. Tables include richer columns (sent / completed /
 lost, workers, latency) when recorded, and scenario labels link to
 [scenario descriptions](/performance/scenarios.md). Missing series are omitted or
-marked unavailable — numbers are never fabricated.
-
-Harness maintainers may attach stable footnotes from `perf/catalog/annotations/`
-at promote time (run- or scenario-level). Published pages pull those notes in as
-include fragments next to the load shapes or studies they qualify — there is no
-separate annotations index page.
+marked unavailable — numbers are never fabricated. Callouts next to some figures
+are stable footnotes from the harness catalog; how they are attached at promote
+time is under
+[Reproduce — Maintainer publish](/performance/reproduce.md#maintainer-publish).

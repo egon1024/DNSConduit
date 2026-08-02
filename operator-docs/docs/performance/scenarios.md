@@ -5,8 +5,12 @@ toc_collapsible: true
 
 # Performance scenarios
 
-What each curated performance scenario measures. Rows on the
-[reference results](/performance/reference.md) page link here.
+Deep-link glossary for each curated performance scenario — what it measures and
+which axes it holds. Table rows on
+[reference results](/performance/reference.md) and study evidence link here.
+This page is **not** the primary decision surface; start from
+[Performance findings](/performance/index.md#findings) or
+[Tuning evidence (studies)](/performance/studies/index.md).
 
 Axes such as [`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default) /
 [`split_io`](/concepts/runtime-and-concurrency.md#split-io-runtime) and load shapes
@@ -126,7 +130,7 @@ no-collect for emit-path secondary comparison.
 ### feature-tax-metrics-off-forward-fast
 
 Observability-off baseline under forward_fast — metrics disabled, no dnstap sinks.
-Ladder pair for minimal/standard scrape tax deltas.
+Baseline pair for minimal/standard scrape tax deltas.
 
 **Axes:** `runtime`=`sync`, `load_shape`=`forward_fast`, `obs_posture`=`metrics_off`, `ingress_workers`=`2`
 
@@ -139,7 +143,7 @@ Ladder pair for minimal/standard scrape tax deltas.
 ### feature-tax-metrics-standard-scrape-forward-fast
 
 Metrics base standard with Prometheus scrape (collect+emit) under forward_fast.
-Scrape-only ladder top; also the collect+emit pole of the collect pair.
+Scrape-only high pole; also the collect+emit pole of the collect pair.
 
 **Axes:** `runtime`=`sync`, `load_shape`=`forward_fast`, `obs_posture`=`metrics_standard_scrape`, `ingress_workers`=`2`
 
@@ -176,9 +180,9 @@ aggressive scrape cadence vs listener-only standard scrape.
 
 ### feature-tax-metrics-off-scrape-ladder-forward-fast
 
-Observability-off baseline for the metrics scrape ladder under an elevated
+Observability-off baseline for the metrics scrape tax under an elevated
 dnsperf outstanding window (publish recipe for this study). Pair with
-minimal/standard scrape-ladder cells — not the shared metrics-off cell used
+minimal/standard scrape-tax cells — not the shared metrics-off cell used
 by other feature_tax studies.
 
 **Axes:** `runtime`=`sync`, `load_shape`=`forward_fast`, `obs_posture`=`metrics_off`, `ingress_workers`=`2`, `loadgen_recipe`=`elevated_outstanding`
@@ -192,7 +196,7 @@ by other feature_tax studies.
 ### feature-tax-metrics-minimal-scrape-ladder-forward-fast
 
 Metrics base minimal + Prometheus scrape under elevated dnsperf outstanding
-(scrape-ladder publish recipe). Pair with off/standard scrape-ladder cells.
+(scrape-tax publish recipe). Pair with off/standard scrape-tax cells.
 
 **Axes:** `runtime`=`sync`, `load_shape`=`forward_fast`, `obs_posture`=`metrics_minimal_scrape`, `ingress_workers`=`2`, `loadgen_recipe`=`elevated_outstanding`
 
@@ -205,7 +209,7 @@ Metrics base minimal + Prometheus scrape under elevated dnsperf outstanding
 ### feature-tax-metrics-standard-scrape-ladder-forward-fast
 
 Metrics base standard + Prometheus scrape under elevated dnsperf outstanding
-(scrape-ladder publish recipe). Pair with off/minimal scrape-ladder cells.
+(scrape-tax publish recipe). Pair with off/minimal scrape-tax cells.
 
 **Axes:** `runtime`=`sync`, `load_shape`=`forward_fast`, `obs_posture`=`metrics_standard_scrape`, `ingress_workers`=`2`, `loadgen_recipe`=`elevated_outstanding`
 
@@ -270,7 +274,7 @@ forward_fast — pair with feature-tax-metrics-off-forward-fast.
 ### feature-tax-metrics-minimal-scrape-forward-fast
 
 Metrics base minimal with Prometheus scrape (collect+emit) under forward_fast.
-Ladder cell between metrics-off and standard scrape.
+Middle cell between metrics-off and standard scrape.
 
 **Axes:** `runtime`=`sync`, `load_shape`=`forward_fast`, `obs_posture`=`metrics_minimal_scrape`, `ingress_workers`=`2`
 
@@ -337,7 +341,7 @@ before dnsperf. Not required for the initial curated publish spine.
 
 ### scale-sync-ingress-1-forward-fast
 
-Ingress-concurrency ladder (sync): one ingress worker under forward_fast.
+Ingress concurrency (sync): one ingress worker under forward_fast.
 Published forward_fast recipe (elevated outstanding) so achieved QPS reflects
 Conduit ingress capacity rather than the loadgen outstanding window.
 
@@ -351,7 +355,7 @@ Conduit ingress capacity rather than the loadgen outstanding window.
 
 ### scale-sync-ingress-4-forward-fast
 
-Ingress-concurrency ladder (sync): four ingress workers under forward_fast.
+Ingress concurrency (sync): four ingress workers under forward_fast.
 Published forward_fast recipe (elevated outstanding) so achieved QPS reflects
 Conduit ingress capacity rather than the loadgen outstanding window.
 
@@ -365,7 +369,7 @@ Conduit ingress capacity rather than the loadgen outstanding window.
 
 ### scale-sync-ingress-8-forward-fast
 
-Ingress-concurrency ladder (sync): eight ingress workers under forward_fast.
+Ingress concurrency (sync): eight ingress workers under forward_fast.
 Published forward_fast recipe (elevated outstanding) so achieved QPS reflects
 Conduit ingress capacity rather than the loadgen outstanding window.
 
@@ -379,7 +383,7 @@ Conduit ingress capacity rather than the loadgen outstanding window.
 
 ### scale-sync-ingress-1-forward-slow
 
-Ingress-concurrency ladder (sync): one ingress worker under forward_slow.
+Ingress concurrency (sync): one ingress worker under forward_slow.
 Paired with ingress 2/4/8 cells for the ingress-concurrency-sync study.
 
 **Axes:** `runtime`=`sync`, `load_shape`=`forward_slow`, `ingress_workers`=`1`
@@ -405,7 +409,7 @@ Paired with scale-split-io-forward-slow for relative comparison.
 
 ### scale-sync-ingress-4-forward-slow
 
-Ingress-concurrency ladder (sync): four ingress workers under forward_slow.
+Ingress concurrency (sync): four ingress workers under forward_slow.
 Paired with ingress 1/2/8 cells for the ingress-concurrency-sync study.
 
 **Axes:** `runtime`=`sync`, `load_shape`=`forward_slow`, `ingress_workers`=`4`
@@ -418,7 +422,7 @@ Paired with ingress 1/2/8 cells for the ingress-concurrency-sync study.
 
 ### scale-sync-ingress-8-forward-slow
 
-Ingress-concurrency ladder (sync): eight ingress workers under forward_slow.
+Ingress concurrency (sync): eight ingress workers under forward_slow.
 Optional noisy rung — keep in catalog; publish may omit if unstable on the lab.
 
 **Axes:** `runtime`=`sync`, `load_shape`=`forward_slow`, `ingress_workers`=`8`
@@ -471,7 +475,7 @@ curated publish.
 
 ### scale-split-io-io-1-forward-slow
 
-I/O-vs-ingress ladder (split_io): one I/O worker with fixed ingress/policy=2
+I/O vs ingress (split_io): one I/O worker with fixed ingress/policy=2
 under forward_slow. Paired with io_workers 2/4/8 for io-vs-ingress-split.
 
 **Axes:** `runtime`=`split_io`, `load_shape`=`forward_slow`, `ingress_workers`=`2`, `policy_workers`=`2`, `io_workers`=`1`
@@ -484,7 +488,7 @@ under forward_slow. Paired with io_workers 2/4/8 for io-vs-ingress-split.
 
 ### scale-split-io-io-4-forward-slow
 
-I/O-vs-ingress ladder (split_io): four I/O workers with fixed ingress/policy=2
+I/O vs ingress (split_io): four I/O workers with fixed ingress/policy=2
 under forward_slow. Paired with io_workers 1/2/8 for io-vs-ingress-split.
 
 **Axes:** `runtime`=`split_io`, `load_shape`=`forward_slow`, `ingress_workers`=`2`, `policy_workers`=`2`, `io_workers`=`4`
@@ -497,7 +501,7 @@ under forward_slow. Paired with io_workers 1/2/8 for io-vs-ingress-split.
 
 ### scale-split-io-io-8-forward-slow
 
-I/O-vs-ingress ladder (split_io): eight I/O workers with fixed ingress/policy=2
+I/O vs ingress (split_io): eight I/O workers with fixed ingress/policy=2
 under forward_slow. Optional noisy rung — keep in catalog; publish may omit if unstable.
 
 **Axes:** `runtime`=`split_io`, `load_shape`=`forward_slow`, `ingress_workers`=`2`, `policy_workers`=`2`, `io_workers`=`8`
@@ -553,6 +557,7 @@ complete and budgeted policies for relative comparison.
 
 ## Related
 
+- [Performance findings](/performance/index.md#findings)
 - [Tuning evidence (studies)](/performance/studies/index.md)
 - [Reference results](/performance/reference.md)
 - [Methodology](/performance/methodology.md)

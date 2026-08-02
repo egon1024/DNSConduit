@@ -23,7 +23,7 @@ related_guides:
   - /guides/dataplane-runtime-tuning.md
 figures:
   - id: ingress-concurrency-sync-forward-fast
-    title: Achieved QPS — sync ingress ladder (forward_fast)
+    title: Achieved QPS — sync ingress workers (forward_fast)
     y_label: Achieved QPS
     category_axis: ingress_workers
     members:
@@ -32,7 +32,7 @@ figures:
       - scale-sync-ingress-4-forward-fast
       - scale-sync-ingress-8-forward-fast
   - id: ingress-concurrency-sync-forward-slow
-    title: Achieved QPS — sync ingress ladder (forward_slow)
+    title: Achieved QPS — sync ingress workers (forward_slow)
     y_label: Achieved QPS
     category_axis: ingress_workers
     members:

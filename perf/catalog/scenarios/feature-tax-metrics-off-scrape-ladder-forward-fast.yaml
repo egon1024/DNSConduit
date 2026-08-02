@@ -3,9 +3,9 @@ id: feature-tax-metrics-off-scrape-ladder-forward-fast
 suite: feature_tax
 curated: true
 intent: |
-  Observability-off baseline for the metrics scrape ladder under an elevated
+  Observability-off baseline for the metrics scrape tax under an elevated
   dnsperf outstanding window (publish recipe for this study). Pair with
-  minimal/standard scrape-ladder cells — not the shared metrics-off cell used
+  minimal/standard scrape-tax cells — not the shared metrics-off cell used
   by other feature_tax studies.
 axes:
   runtime: sync

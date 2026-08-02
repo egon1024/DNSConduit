@@ -1,4 +1,4 @@
-# Ad-hoc remeasure cell — split_io ingress ladder rung (4 / 4 / 2).
+# Ad-hoc remeasure cell — split_io ingress step (4 / 4 / 2).
 # Policy and I/O fixed; listeners.threads: 4. Lab-only (uncurated).
 schema_version: 1
 dataplane:

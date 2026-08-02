@@ -5,10 +5,13 @@ toc_collapsible: true
 
 # Performance reference results
 
-Same-host comparisons from the named maintainer workstation lab profile
-(`maintainer-ws-1`). Prefer reading each chart relative to its baseline cells
-on that host. These are **not** service-level objectives. Reproduce on your
-hardware with the
+Dense chart and CSV warehouse for a single reference host (`maintainer-ws-1`).
+For tuning decisions, start from
+[Performance findings](/performance/index.md#findings) and
+[Tuning evidence (studies)](/performance/studies/index.md); use this page when you
+need every published figure in one place. Prefer reading each chart relative to
+its baseline cells on that host. These are **not** service-level objectives.
+Reproduce on your hardware with the
 [harness instructions](/performance/reproduce.md) before making capacity decisions.
 Absolute QPS is not a portable cross-host capacity claim.
 
@@ -30,7 +33,7 @@ Absolute QPS is not a portable cross-host capacity claim.
 <!-- perf-ann:ann-forward-slow-lossy-context:end -->
 
 <!-- perf-reference-body:start -->
-_Generated 2026-08-02T01:43:41Z from committed reference JSON (no live load suite in docs CI)._
+_Generated 2026-08-02T03:41:27Z from committed reference JSON (no live load suite in docs CI)._
 
 ## Lab profile
 
@@ -47,7 +50,7 @@ _Generated 2026-08-02T01:43:41Z from committed reference JSON (no live load suit
 
 Underlying JSON: [`perf/results/references/`](https://github.com/egon1024/DNSConduit/tree/main/perf/results/references) (see `latest-reference.json` pointer in a checkout).
 
-Scenario intents: [Performance scenarios](/performance/scenarios.md). Decision-shaped comparisons: [Tuning evidence (studies)](/performance/studies/index.md).
+Decision context: [Performance findings](/performance/index.md#findings) · [Tuning evidence (studies)](/performance/studies/index.md). Row intents: [Performance scenarios](/performance/scenarios.md) (glossary, not a browse-first surface).
 
 ## Scale
 
@@ -132,9 +135,9 @@ Scenario intents: [Performance scenarios](/performance/scenarios.md). Decision-s
 
 <div class="perf-chart" markdown="1">
 
-### Feature tax — metrics scrape ladder (forward_fast)
+### Feature tax — metrics scrape tax (forward_fast)
 
-![Feature tax — metrics scrape ladder (forward_fast)](generated/feature-tax-metrics-scrape.svg)
+![Feature tax — metrics scrape tax (forward_fast)](generated/feature-tax-metrics-scrape.svg)
 
 [Download CSV](generated/feature-tax-metrics-scrape.csv)
 
@@ -229,9 +232,10 @@ Scenario intents: [Performance scenarios](/performance/scenarios.md). Decision-s
 
 ## Related
 
+- [Performance findings](/performance/index.md#findings)
+- [Tuning evidence (studies)](/performance/studies/index.md)
 - [Methodology](/performance/methodology.md)
 - [Reproduce against a binary](/performance/reproduce.md)
-- [Tuning evidence (studies)](/performance/studies/index.md)
-- [Scenario descriptions](/performance/scenarios.md)
+- [Scenario descriptions](/performance/scenarios.md) (row glossary)
 - [Runtime and concurrency](/concepts/runtime-and-concurrency.md)
 - [Dataplane runtime tuning](/guides/dataplane-runtime-tuning.md)

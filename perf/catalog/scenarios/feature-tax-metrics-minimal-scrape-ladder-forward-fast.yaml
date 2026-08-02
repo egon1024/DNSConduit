@@ -4,7 +4,7 @@ suite: feature_tax
 curated: true
 intent: |
   Metrics base minimal + Prometheus scrape under elevated dnsperf outstanding
-  (scrape-ladder publish recipe). Pair with off/standard scrape-ladder cells.
+  (scrape-tax publish recipe). Pair with off/standard scrape-tax cells.
 axes:
   runtime: sync
   load_shape: forward_fast

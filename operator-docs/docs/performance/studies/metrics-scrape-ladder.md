@@ -1,4 +1,4 @@
-# Metrics scrape ladder
+# Metrics scrape tax
 
 <div class="study-question" markdown="1">
 
@@ -6,8 +6,8 @@ What does enabling richer Prometheus scrape metrics cost under [`forward_fast`](
 
 </div>
 
-Numbers are same-host comparisons (relative to baselines measured on one named
-lab profile) and are **not** service-level objectives. See the
+Numbers are same-host comparisons on a single reference host and are **not**
+service-level objectives. See the
 [performance hub disclaimer](/performance/index.md).
 
 ## When this matters
@@ -34,12 +34,12 @@ under the same [`forward_fast`](/performance/methodology.md#load-shapes) load. F
   — each pole is also the **median of 3 independent rounds**
 
 <!-- perf-ann:ann-feature-tax-scrape-ladder-noise:start -->
-!!! note "Metrics scrape ladder — published forward_fast recipe"
-    These scrape-ladder cells use the same published [`forward_fast`](/performance/methodology.md#load-shapes)
+!!! note "Metrics scrape tax — published forward_fast recipe"
+    These scrape-tax cells use the same published [`forward_fast`](/performance/methodology.md#load-shapes)
     dnsperf recipe as other scale / feature-tax fast cells (clients 16, threads 8,
     max outstanding 2000) and are the **median of 3 independent rounds**. That is
     the shared publish recipe so achieved QPS reflects Conduit capacity rather than
-    a thin outstanding window — not a scrape-ladder-only workaround. See
+    a thin outstanding window — not a study-only workaround. See
     [How load is applied](/performance/methodology.md#how-load-is-applied-not-a-fixed-offered-qps).
     Remeasure locally with the same recipe before sizing.
 <!-- perf-ann:ann-feature-tax-scrape-ladder-noise:end -->
@@ -49,9 +49,9 @@ under the same [`forward_fast`](/performance/methodology.md#load-shapes) load. F
 
 <div class="perf-chart" markdown="1">
 
-### Feature tax — metrics scrape ladder (forward_fast)
+### Feature tax — metrics scrape tax (forward_fast)
 
-![Feature tax — metrics scrape ladder (forward_fast)](../generated/metrics-scrape-ladder-forward-fast.svg)
+![Feature tax — metrics scrape tax (forward_fast)](../generated/metrics-scrape-ladder-forward-fast.svg)
 
 [Download CSV](../generated/metrics-scrape-ladder-forward-fast.csv)
 
@@ -67,7 +67,7 @@ under the same [`forward_fast`](/performance/methodology.md#load-shapes) load. F
 <!-- perf-study-deltas:start -->
 ## At a glance
 
-- **metrics scrape ladder (forward_fast):** `metrics_minimal_scrape` costs about **3%** QPS versus `metrics_off` (~73k vs ~75k); `metrics_standard_scrape` costs about **11%** QPS versus `metrics_off` (~67k vs ~75k).
+- **metrics scrape tax (forward_fast):** `metrics_minimal_scrape` costs about **3%** QPS versus `metrics_off` (~73k vs ~75k); `metrics_standard_scrape` costs about **11%** QPS versus `metrics_off` (~67k vs ~75k).
 <!-- perf-study-deltas:end -->
 
 ## Takeaway

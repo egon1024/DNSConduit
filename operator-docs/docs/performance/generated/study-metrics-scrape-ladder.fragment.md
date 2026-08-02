@@ -2,9 +2,9 @@
 
 <div class="perf-chart" markdown="1">
 
-### Feature tax — metrics scrape ladder (forward_fast)
+### Feature tax — metrics scrape tax (forward_fast)
 
-![Feature tax — metrics scrape ladder (forward_fast)](generated/metrics-scrape-ladder-forward-fast.svg)
+![Feature tax — metrics scrape tax (forward_fast)](generated/metrics-scrape-ladder-forward-fast.svg)
 
 [Download CSV](generated/metrics-scrape-ladder-forward-fast.csv)
 

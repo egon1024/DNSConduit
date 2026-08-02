@@ -444,8 +444,8 @@ def _default_study_page(study: Study) -> str:
     disclaimer = _read_include(
         "same-host-disclaimer.fragment.md",
         fallback=(
-            "Numbers are same-host comparisons (relative to baselines measured on one "
-            "named lab profile) and are **not** service-level objectives. See the "
+            "Numbers are same-host comparisons on a single reference host and are "
+            "**not** service-level objectives. See the "
             "[performance hub disclaimer](/performance/index.md)."
         ),
     )
@@ -501,19 +501,17 @@ def _inject_study_deltas(page_text: str, deltas: str) -> str:
     return page_text.rstrip() + "\n\n" + block + "\n"
 
 
-def _studies_index_table_markdown(published: list[Study], *, stamp: str) -> str:
-    lines = [
-        f"_Generated index {stamp} from the study catalog "
-        "(evidence from committed reference JSON)._",
-        "",
-        "| Study | Question |",
-        "| --- | --- |",
-    ]
-    for study in _order_studies_like_nav(published):
-        lines.append(
-            f"| [{study.title}](/performance/studies/{study.id}.md) | {study.question} |"
-        )
-    return "\n".join(lines) + "\n"
+def _strip_studies_index_block(page_text: str) -> str:
+    """Remove legacy generated peer-index markers (hand-authored hub is primary)."""
+    start = page_text.find(STUDIES_INDEX_START)
+    end = page_text.find(STUDIES_INDEX_END)
+    if start == -1 or end == -1 or end <= start:
+        return page_text
+    before = page_text[:start].rstrip()
+    after = page_text[end + len(STUDIES_INDEX_END) :].lstrip("\n")
+    if before and after:
+        return before + "\n\n" + after
+    return before + ("\n" if before else "") + after
 
 
 def _load_mkdocs_yaml(path: Path) -> Any:
@@ -583,11 +581,11 @@ def _order_studies_like_nav(studies: list[Study]) -> list[Study]:
     return sorted(studies, key=key)
 
 
-STUDIES_INDEX_SHELL = f"""# Tuning evidence (studies)
+STUDIES_INDEX_SHELL = """# Tuning evidence (studies)
 
-{STUDIES_INDEX_START}
-_Study index is generated from the catalog (run `make perf-docs`)._
-{STUDIES_INDEX_END}
+Comparative case studies from the performance harness. Hand-author the
+decision map under category headings; docs generate does **not** inject a
+peer study index here (see Performance studies hub in operator-docs).
 """
 
 
@@ -609,15 +607,14 @@ def _write_studies_docs(
     published = [s for s in studies if s.published]
     index_path = studies_docs / "index.md"
     _ensure_page_shell(index_path, STUDIES_INDEX_SHELL)
-    index_body = _studies_index_table_markdown(published, stamp=stamp)
-    index_text = _inject_marked_section(
-        index_path.read_text(encoding="utf-8"),
-        start_marker=STUDIES_INDEX_START,
-        end_marker=STUDIES_INDEX_END,
-        body=index_body,
-    )
-    index_path.write_text(index_text, encoding="utf-8")
-    written.append(index_path)
+    # Hand-authored categorized decision map is the sole primary index.
+    # Strip any legacy <!-- perf-studies-index --> peer table so regenerate
+    # cannot resurrect a duplicate.
+    index_original = index_path.read_text(encoding="utf-8")
+    index_text = _strip_studies_index_block(index_original)
+    if index_text != index_original:
+        index_path.write_text(index_text, encoding="utf-8")
+        written.append(index_path)
 
     if doc is None:
         for study in published:
@@ -876,10 +873,9 @@ toc_collapsible: true
 
 # Performance reference results
 
-Same-host comparisons from the named maintainer workstation lab profile
-(`maintainer-ws-1`). Prefer reading each chart relative to its baseline cells
-on that host. These are **not** service-level objectives. Reproduce on your
-hardware with the
+Dense chart and CSV warehouse for a single reference host (`maintainer-ws-1`).
+Prefer reading each chart relative to its baseline cells on that host. These are
+**not** service-level objectives. Reproduce on your hardware with the
 [harness instructions](/performance/reproduce.md) before making capacity decisions.
 Absolute QPS is not a portable cross-host capacity claim.
 
@@ -936,8 +932,10 @@ def _reference_body_markdown(
             "[`perf/results/references/`](https://github.com/egon1024/DNSConduit/tree/main/perf/results/references) "
             "(see `latest-reference.json` pointer in a checkout).",
             "",
-            "Scenario intents: [Performance scenarios](/performance/scenarios.md). "
-            "Decision-shaped comparisons: [Tuning evidence (studies)](/performance/studies/index.md).",
+            "Decision context: [Performance findings](/performance/index.md#findings) · "
+            "[Tuning evidence (studies)](/performance/studies/index.md). "
+            "Row intents: [Performance scenarios](/performance/scenarios.md) "
+            "(glossary, not a browse-first surface).",
             "",
         ]
     )

@@ -4,7 +4,7 @@ suite: feature_tax
 curated: true
 intent: |
   Observability-off baseline under forward_fast — metrics disabled, no dnstap sinks.
-  Ladder pair for minimal/standard scrape tax deltas.
+  Baseline pair for minimal/standard scrape tax deltas.
 axes:
   runtime: sync
   load_shape: forward_fast

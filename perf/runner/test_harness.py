@@ -202,6 +202,48 @@ class StudyCatalogTests(unittest.TestCase):
         ordered = publish_mod._order_studies_like_nav(published)
         self.assertEqual([s.id for s in ordered], nav_ids)
 
+    def test_strip_legacy_studies_index_block(self):
+        from perf.runner import publish as publish_mod
+
+        page = (
+            "# Hub\n\n"
+            "## Decision map\n\n"
+            "hand authored\n\n"
+            f"{publish_mod.STUDIES_INDEX_START}\n"
+            "| Study | Question |\n| --- | --- |\n"
+            "| [A](/performance/studies/a.md) | q |\n"
+            f"{publish_mod.STUDIES_INDEX_END}\n\n"
+            "## Related\n\n"
+            "- link\n"
+        )
+        stripped = publish_mod._strip_studies_index_block(page)
+        self.assertNotIn(publish_mod.STUDIES_INDEX_START, stripped)
+        self.assertNotIn("| Study | Question |", stripped)
+        self.assertIn("## Decision map", stripped)
+        self.assertIn("## Related", stripped)
+
+    def test_write_studies_docs_does_not_inject_peer_index(self):
+        from unittest import mock
+
+        from perf.runner import publish as publish_mod
+
+        with tempfile.TemporaryDirectory() as tmp:
+            studies_dir = Path(tmp) / "studies"
+            studies_dir.mkdir()
+            hub = studies_dir / "index.md"
+            hub.write_text(
+                "# Tuning evidence (studies)\n\n"
+                "## If you are deciding\n\n"
+                "hand-authored map\n",
+                encoding="utf-8",
+            )
+            with mock.patch.object(publish_mod, "OPERATOR_PERF", Path(tmp)):
+                publish_mod._write_studies_docs(None, stamp="test", check_integrity=False)
+            text = hub.read_text(encoding="utf-8")
+            self.assertNotIn(publish_mod.STUDIES_INDEX_START, text)
+            self.assertNotIn("| Study | Question |", text)
+            self.assertIn("hand-authored map", text)
+
     def test_publish_set_is_union(self):
         scenarios = load_scenarios()
         studies = load_studies(scenarios=scenarios)

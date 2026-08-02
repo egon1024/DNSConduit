@@ -8,8 +8,8 @@ and does that answer change when the upstream is slow?
 
 </div>
 
-Numbers are same-host comparisons (relative to baselines measured on one named
-lab profile) and are **not** service-level objectives. See the
+Numbers are same-host comparisons on a single reference host and are **not**
+service-level objectives. See the
 [performance hub disclaimer](/performance/index.md).
 
 ## When this matters
@@ -17,11 +17,11 @@ lab profile) and are **not** service-level objectives. See the
 On **[sync](/concepts/runtime-and-concurrency.md#sync-runtime-default)**,
 listener [ingress `threads`](/reference/config-schema/listeners.md) are the
 main concurrency setting: the same workers receive the query and wait on the
-upstream. Two questions follow from that, and this study runs the same ladder
+upstream. Two questions follow from that, and this study runs the same worker series
 twice to answer them separately. Against a fast upstream, where each worker's
-wait is short, the ladder is a **sizing curve** — add workers until achieved QPS
+wait is short, that series is a **sizing curve** — add workers until achieved QPS
 flattens, then stop. Against a slow upstream, where each worker is parked for
-the whole round trip, the ladder shows whether thread count is the binding limit
+the whole round trip, the series shows whether thread count is the binding limit
 at all. Pair with [`listeners.reuse_port`](/reference/config-schema/listeners.md)
 when `threads > 1`. See
 [worker counts](/concepts/runtime-and-concurrency.md#worker-counts-and-limits)
@@ -36,17 +36,17 @@ and [dataplane runtime tuning](/guides/dataplane-runtime-tuning.md).
   [`forward_slow`](/performance/methodology.md#load-shapes) for the
   slow-backend illustration
 - **Held fixed:** observability off fixtures, one dnsperf recipe per shape on the
-  named lab profile
-- **Note:** the `ingress=2` rung at each shape reuses that shape's sync scale cell
+  single reference host
+- **Note:** the `ingress=2` cell at each shape reuses that shape's sync scale cell
 
 <!-- perf-study-evidence:start -->
 ## Evidence
 
 <div class="perf-chart" markdown="1">
 
-### Achieved QPS — sync ingress ladder (forward_fast)
+### Achieved QPS — sync ingress workers (forward_fast)
 
-![Achieved QPS — sync ingress ladder (forward_fast)](../generated/ingress-concurrency-sync-forward-fast.svg)
+![Achieved QPS — sync ingress workers (forward_fast)](../generated/ingress-concurrency-sync-forward-fast.svg)
 
 [Download CSV](../generated/ingress-concurrency-sync-forward-fast.csv)
 
@@ -61,9 +61,9 @@ and [dataplane runtime tuning](/guides/dataplane-runtime-tuning.md).
 
 <div class="perf-chart" markdown="1">
 
-### Achieved QPS — sync ingress ladder (forward_slow)
+### Achieved QPS — sync ingress workers (forward_slow)
 
-![Achieved QPS — sync ingress ladder (forward_slow)](../generated/ingress-concurrency-sync-forward-slow.svg)
+![Achieved QPS — sync ingress workers (forward_slow)](../generated/ingress-concurrency-sync-forward-slow.svg)
 
 [Download CSV](../generated/ingress-concurrency-sync-forward-slow.csv)
 
@@ -80,8 +80,8 @@ and [dataplane runtime tuning](/guides/dataplane-runtime-tuning.md).
 <!-- perf-study-deltas:start -->
 ## At a glance
 
-- **sync ingress ladder (forward_fast):** `2` is about **1.9×** `1` (~75k vs ~39k); `4` is about **2.6×** `1` (~102k vs ~39k); `8` is about **5.1×** `1` (~198k vs ~39k).
-- **sync ingress ladder (forward_slow):** `2` is about **2.0×** `1` (~6 QPS vs ~3 QPS); `4` is about **4.0×** `1` (~11 QPS vs ~3 QPS); `8` is about **7.6×** `1` (~22 QPS vs ~3 QPS).
+- **sync ingress workers (forward_fast):** `2` is about **1.9×** `1` (~75k vs ~39k); `4` is about **2.6×** `1` (~102k vs ~39k); `8` is about **5.1×** `1` (~198k vs ~39k).
+- **sync ingress workers (forward_slow):** `2` is about **2.0×** `1` (~6 QPS vs ~3 QPS); `4` is about **4.0×** `1` (~11 QPS vs ~3 QPS); `8` is about **7.6×** `1` (~22 QPS vs ~3 QPS).
 <!-- perf-study-deltas:end -->
 
 ## Takeaway
@@ -101,7 +101,7 @@ workers buy more completions; they do not make
 [`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default) a good fit
 when the backend owns the wait.
 
-**What to do:** choose `listeners.threads` from the fast ladder (enable
+**What to do:** choose `listeners.threads` from the forward_fast sizing curve (enable
 [`reuse_port`](/reference/config-schema/listeners.md) when `threads > 1`). If
 upstreams are slow or variable, prefer
 [`split_io`](/concepts/runtime-and-concurrency.md#split-io-runtime) instead of

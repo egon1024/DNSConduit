@@ -3,7 +3,7 @@ id: scale-sync-ingress-4-forward-slow
 suite: scale
 curated: true
 intent: |
-  Ingress-concurrency ladder (sync): four ingress workers under forward_slow.
+  Ingress concurrency (sync): four ingress workers under forward_slow.
   Paired with ingress 1/2/8 cells for the ingress-concurrency-sync study.
 axes:
   runtime: sync

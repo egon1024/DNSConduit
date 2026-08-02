@@ -1,6 +1,6 @@
 schema_version: 1
 id: metrics-scrape-ladder
-title: Metrics scrape ladder
+title: Metrics scrape tax
 question: What does enabling richer Prometheus scrape metrics cost under forward_fast?
 published: true
 members:
@@ -19,7 +19,7 @@ annotation_ids:
   - ann-feature-tax-scrape-ladder-noise
 figures:
   - id: metrics-scrape-ladder-forward-fast
-    title: Feature tax — metrics scrape ladder (forward_fast)
+    title: Feature tax — metrics scrape tax (forward_fast)
     y_label: Achieved QPS
     members:
       - feature-tax-metrics-off-scrape-ladder-forward-fast

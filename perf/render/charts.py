@@ -836,7 +836,7 @@ def build_feature_tax_charts(
     recipes: list[tuple[str, str, tuple[tuple[str, str], ...]]] = [
         (
             "feature-tax-metrics-scrape",
-            "Feature tax — metrics scrape ladder (forward_fast)",
+            "Feature tax — metrics scrape tax (forward_fast)",
             FEATURE_TAX_SCRAPE,
         ),
         (

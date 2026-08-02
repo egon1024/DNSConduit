@@ -155,6 +155,7 @@ histogram_quantile(0.99, sum(rate(conduit_phase_duration_seconds_bucket{phase="l
 - [Reference: pools](/reference/config-schema/pools.md#per-pool-in-flight-limit) — `max_inflight`
 - [Built-in metrics](/observability/built-in-metrics.md) — slot gauges, `forward_outstanding`, phase histograms
 - [Operator metrics bases](/guides/operator-metrics-bases.md) — `minimal` vs `standard` on the same traffic
+- [Performance findings](/performance/index.md#findings) — directional takeaways (runtime, ingress, drain)
 - [Sync vs split_io](/performance/studies/sync-vs-split-io.md) — same-host QPS under forward_fast / forward_slow
 - [Ingress concurrency (sync)](/performance/studies/ingress-concurrency-sync.md)
 - [I/O vs ingress (split_io)](/performance/studies/io-vs-ingress-split.md)

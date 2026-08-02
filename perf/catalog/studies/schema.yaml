@@ -7,7 +7,7 @@
 #   title: short human title
 #   question: operator-facing question (one line preferred)
 #   published: whether members join the curated publish-set / docs hub
-#   members: ordered scenario ids (ladder order preserved)
+#   members: ordered scenario ids (member order preserved)
 #   compare_axis: primary dimension varied across members
 #   primary_metric: metric key used for figures (e.g. achieved_qps)
 #   figures: one or more chart recipes

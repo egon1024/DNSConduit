@@ -197,7 +197,7 @@ The harness will attempt this build on first Docker run if the image is missing.
 |-------|-------|
 | `scale` | Runtime models × load shapes (`forward_fast`, `forward_slow`, `cache_hit`) |
 | `shutdown_drain` | Three drain policies (`drain_complete` / `drain_budgeted` / `drain_minimal`) under `forward_slow` load; records `drain_duration_ms` and `client_failures_during_stop` |
-| `feature_tax` | Metrics ladder (off / minimal / standard scrape), collect vs emit, dnstap off/sampled/fuller, combined metrics+dnstap, OTLP push, logging/tracing tax, split_io scrape, scrape-hammer cadence |
+| `feature_tax` | Metrics scrape tax (off / minimal / standard scrape), collect vs emit, dnstap off/sampled/fuller, combined metrics+dnstap, OTLP push, logging/tracing tax, split_io scrape, scrape-hammer cadence |
 | `lifecycle` | Cold start to first answer; thin config apply via `conduitctl` |
 | `lossless_upgrade` | Gated on zero-downtime upgrade — skipped until available |
 
