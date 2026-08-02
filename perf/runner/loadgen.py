@@ -2,15 +2,19 @@
 
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import subprocess
+import tempfile
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Sequence
 
 from .cpuaffinity import taskset_prefix
 from .paths import DNSPERF_DIR, QUERIES
+from .procs import die_with_parent, register_child, unregister_child
 
 # Thin in-repo image built from fixtures/dnsperf/Dockerfile (pinned upstream tag).
 DEFAULT_IMAGE = "dnsconduit-dnsperf:2.14.0"
@@ -24,6 +28,7 @@ class DnsperfResult:
     queries_sent: int | None = None
     queries_completed: int | None = None
     queries_lost: int | None = None
+    response_codes: dict[str, int] = field(default_factory=dict)
     latency_ms: dict[str, float] = field(default_factory=dict)
     raw_stdout: str = ""
     raw_stderr: str = ""
@@ -43,12 +48,14 @@ class DnsperfHandle:
     flags: list[str]
     offered_qps: float | None = None
     native_version: str | None = None
+    container_id: str | None = None
+    _cidfile: Path | None = None
 
     def wait(self, timeout_s: float | None = None) -> DnsperfResult:
         try:
             stdout, stderr = self.proc.communicate(timeout=timeout_s)
         except subprocess.TimeoutExpired:
-            self.proc.kill()
+            self.kill()
             stdout, stderr = self.proc.communicate(timeout=10)
         text = (stdout or "") + "\n" + (stderr or "")
         parsed = parse_dnsperf_output(text)
@@ -65,6 +72,7 @@ class DnsperfHandle:
                     f"dnsperf failed (exit {self.proc.returncode}): "
                     f"{(stderr or stdout or '')[:2000]}"
                 )
+        self._release()
         return parsed
 
     def terminate(self) -> None:
@@ -74,6 +82,36 @@ class DnsperfHandle:
     def kill(self) -> None:
         if self.proc.poll() is None:
             self.proc.kill()
+        self._remove_tracked_container()
+        self._release()
+
+    def _remove_tracked_container(self) -> None:
+        """Remove only the container this handle started (never a docker ps sweep)."""
+        cid = self.container_id
+        if not cid and self._cidfile is not None:
+            try:
+                cid = self._cidfile.read_text(encoding="utf-8").strip() or None
+            except OSError:
+                cid = None
+            self.container_id = cid
+        if not cid:
+            return
+        subprocess.run(
+            ["docker", "rm", "-f", cid],
+            capture_output=True,
+            check=False,
+            timeout=10,
+        )
+
+    def _release(self) -> None:
+        if self.proc.pid is not None:
+            unregister_child(self.proc.pid)
+        if self._cidfile is not None:
+            try:
+                self._cidfile.unlink()
+            except OSError:
+                pass
+            self._cidfile = None
 
 
 _QPS_RE = re.compile(
@@ -83,6 +121,9 @@ _QPS_RE = re.compile(
 _SENT_RE = re.compile(r"Queries sent:\s+(\d+)", re.IGNORECASE)
 _COMPLETED_RE = re.compile(r"Queries completed:\s+(\d+)", re.IGNORECASE)
 _LOST_RE = re.compile(r"Queries lost:\s+(\d+)", re.IGNORECASE)
+# "Response codes: NOERROR 1060218 (100.00%)" / "… NOERROR 8 (8.02%), SERVFAIL 92 (91.98%)"
+_RCODES_RE = re.compile(r"Response codes:\s+(.+)", re.IGNORECASE)
+_RCODE_ENTRY_RE = re.compile(r"([A-Z]+)\s+(\d+)")
 # dnsperf latency lines vary by version; tolerate common patterns.
 _LAT_AVG_RE = re.compile(r"Average Latency \(s\):\s+([0-9.]+)", re.IGNORECASE)
 _LAT_MIN_RE = re.compile(r"Latency Min/Max \(s\):\s+([0-9.]+)/([0-9.]+)", re.IGNORECASE)
@@ -98,6 +139,10 @@ def parse_dnsperf_output(text: str) -> DnsperfResult:
         result.queries_completed = int(m.group(1))
     if m := _LOST_RE.search(text):
         result.queries_lost = int(m.group(1))
+    if m := _RCODES_RE.search(text):
+        result.response_codes = {
+            name: int(count) for name, count in _RCODE_ENTRY_RE.findall(m.group(1))
+        }
     lat: dict[str, float] = {}
     if m := _LAT_AVG_RE.search(text):
         lat["avg"] = float(m.group(1)) * 1000.0
@@ -118,6 +163,7 @@ def docker_dnsperf_cmd(
     query_dir: Path,
     flags: Sequence[str],
     cpuset: str | None = None,
+    cidfile: Path | None = None,
 ) -> list[str]:
     """Build docker run argv for the pinned dnsperf image.
 
@@ -125,9 +171,12 @@ def docker_dnsperf_cmd(
     arguments only — do not pass a second ``dnsperf`` token. *cpuset* pins
     the container to a CPU range (see ``perf.runner.cpuaffinity``) so the
     loadgen doesn't compete with Conduit for the same core class on hybrid
-    P-core/E-core hosts.
+    P-core/E-core hosts. *cidfile* records the container id so teardown can
+    remove exactly this container — never a ``docker ps`` sweep.
     """
     cmd = ["docker", "run", "--rm", "--network=host"]
+    if cidfile is not None:
+        cmd.extend(["--cidfile", str(cidfile)])
     if cpuset:
         cmd.extend(["--cpuset-cpus", cpuset])
     cmd.extend(["-v", f"{query_dir}:/queries:ro", image, *flags])
@@ -247,7 +296,10 @@ def start_dnsperf(
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            preexec_fn=die_with_parent,
         )
+        if proc.pid is not None:
+            register_child(proc.pid, kind="dnsperf-native")
         return DnsperfHandle(
             proc=proc,
             mode="native",
@@ -261,24 +313,52 @@ def start_dnsperf(
         raise RuntimeError("Docker is required for the default dnsperf loadgen path")
 
     ensure_dnsperf_image(image=image)
+    cid_fd, cid_name = tempfile.mkstemp(
+        prefix="conduit-perf-dnsperf-", suffix=".cid"
+    )
+    os.close(cid_fd)
+    cidfile = Path(cid_name)
+    try:
+        cidfile.unlink()
+    except OSError:
+        pass
     cmd = docker_dnsperf_cmd(
         image=image,
         query_dir=query_file.parent.resolve(),
         flags=base_flags,
         cpuset=cpuset,
+        cidfile=cidfile,
     )
     proc = subprocess.Popen(
         cmd,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
+        preexec_fn=die_with_parent,
     )
+    if proc.pid is not None:
+        register_child(proc.pid, kind="dnsperf-docker-cli")
+    container_id: str | None = None
+    # cidfile appears once the daemon creates the container; brief poll.
+    for _ in range(50):
+        if cidfile.is_file():
+            try:
+                container_id = cidfile.read_text(encoding="utf-8").strip() or None
+            except OSError:
+                container_id = None
+            if container_id:
+                break
+        if proc.poll() is not None:
+            break
+        time.sleep(0.02)
     return DnsperfHandle(
         proc=proc,
         mode="docker",
         image=image,
         flags=list(base_flags),
         offered_qps=offered,
+        container_id=container_id,
+        _cidfile=cidfile,
     )
 
 

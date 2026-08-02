@@ -86,6 +86,24 @@ fields:
         type: integer
         minimum: 1
         description: "dnsperf -q (overrides dnsperf default 100 when set)"
+      duration_s:
+        type: integer
+        minimum: 1
+        description: >
+          dnsperf -l seconds for this cell (default 10). An explicit CLI
+          --time still wins, so smoke runs stay fast.
+      expect_rcode:
+        type: string
+        default: NOERROR
+        description: "Response code that counts as a successful answer for this scenario"
+      min_answer_ok_percent:
+        type: number
+        default: 99
+        description: >
+          Minimum share of expect_rcode responses for the measurement to be
+          valid. Below it the scenario is recorded as invalid and cannot be
+          promoted. Set 0 where failed answers are the subject of the
+          measurement (shutdown drain, policy drops).
   curated:
     type: boolean
     default: false

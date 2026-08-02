@@ -1,9 +1,13 @@
 # I/O vs ingress (split_io)
 
+<div class="study-question" markdown="1">
+
 With receive and policy threads held fixed on
 [`split_io`](/concepts/runtime-and-concurrency.md#split-io-runtime), does adding
 more I/O workers improve throughput when the upstream is slow
 ([`forward_slow`](/performance/methodology.md#load-shapes))?
+
+</div>
 
 Numbers are same-host comparisons (relative to baselines measured on one named
 lab profile) and are **not** service-level objectives. See the
@@ -35,12 +39,6 @@ and [dataplane runtime tuning](/guides/dataplane-runtime-tuning.md).
   shape, observability off fixtures, same dnsperf recipe on the named lab profile
 - **Note:** `io=2` reuses the existing split_io `forward_slow` scale cell
 
-!!! warning "Stressed / inconclusive ladder in this reference"
-    These `forward_slow` cells are **lossy and low QPS** across `io_workers` 1–8.
-    Do not treat them as proof that I/O count never matters under a fast or
-    moderately slow upstream — remeasure under your load. Background:
-    [How load is applied](/performance/methodology.md#how-load-is-applied-not-a-fixed-offered-qps).
-
 <!-- perf-study-evidence:start -->
 ## Evidence
 
@@ -48,35 +46,32 @@ and [dataplane runtime tuning](/guides/dataplane-runtime-tuning.md).
 
 ### Achieved QPS — split_io io_workers ladder (forward_slow)
 
-![Achieved QPS — split_io io_workers ladder (forward_slow)](../generated/io-vs-ingress-split-forward-slow.svg)
-
-[Download CSV](../generated/io-vs-ingress-split-forward-slow.csv)
-
-| I/O workers | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| [1](/performance/scenarios.md#scale-split-io-io-1-forward-slow) | split_io | 10.5 | 2751.1 | 297 | 145 | 151 | ingress=2, policy=2, io=1 |
-| [2](/performance/scenarios.md#scale-split-io-forward-slow) | split_io | 10.9 | 3320.2 | 298 | 161 | 137 | ingress=2, policy=2, io=2 |
-| [4](/performance/scenarios.md#scale-split-io-io-4-forward-slow) | split_io | 9.0 | 3152.0 | 299 | 134 | 164 | ingress=2, policy=2, io=4 |
-| [8](/performance/scenarios.md#scale-split-io-io-8-forward-slow) | split_io | 8.9 | 3148.5 | 299 | 133 | 165 | ingress=2, policy=2, io=8 |
+_Study figure `io-vs-ingress-split-forward-slow` (io-vs-ingress-split) unavailable — promoted reference lacks member results._
 
 </div>
 <!-- perf-study-evidence:end -->
 
+<!-- perf-study-deltas:start -->
+## At a glance
+
+- **split_io io_workers ladder (forward_slow):** no published comparison yet (those cells were not promoted).
+<!-- perf-study-deltas:end -->
+
 ## Takeaway
 
-On this lab under stressed [`forward_slow`](/performance/methodology.md#load-shapes),
-**raising `io_workers` does not unlock throughput** — all poles stay within a
-narrow band (~8–10 QPS) with high Lost. Upstream delay and the loadgen
-outstanding window dominate; I/O thread count is not the bottleneck, so a small
-downward drift at higher counts is **not** a claim that more workers hurt.
-**Operator posture:** start with a small I/O pool (often `io_workers: 1` per
-[Dataplane runtime tuning](/guides/dataplane-runtime-tuning.md)); raise it only
-when I/O is saturated under a realistic upstream, not under this stressed recipe.
-If your results are also flat, look at
-[slot / inflight caps](/concepts/runtime-and-concurrency.md#transaction-slot-pool)
-or backend capacity instead. Contrast with
-[ingress concurrency (sync)](/performance/studies/ingress-concurrency-sync.md)
-and [sync vs split_io](/performance/studies/sync-vs-split-io.md).
+**There is no published answer yet for this question.** Every
+[`forward_slow`](/performance/methodology.md#load-shapes) `io_workers` cell
+failed the successful-answer check (too many SERVFAILs), so nothing from this
+ladder was promoted. Empty figures are not a ranking.
+
+**What to do:** size `io_workers` from
+[Dataplane runtime tuning](/guides/dataplane-runtime-tuning.md), or remeasure
+locally with `--study io-vs-ingress-split` until the answer gate passes. Until
+then, use the published
+[`forward_fast`](/performance/methodology.md#load-shapes) comparison in
+[sync vs split_io](/performance/studies/sync-vs-split-io.md) and the sync
+ladder in
+[ingress concurrency (sync)](/performance/studies/ingress-concurrency-sync.md).
 
 ## Related guides
 

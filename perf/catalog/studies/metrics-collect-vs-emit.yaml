@@ -10,8 +10,9 @@ members:
 compare_axis: obs_posture
 primary_metric: achieved_qps
 takeaway: >
-  Separates recording (collect) from export (emit) under standard base; use the
-  ladder to decide whether cardinality/export or hot-path collect is the tax.
+  Most of the metrics cost is recording: collect-only is about 5% QPS versus
+  no-collect; collect+emit lands in the same band — turn off collect for
+  categories you do not need.
 related_guides:
   - /observability/metrics-configurability.md
   - /guides/operator-metrics-bases.md

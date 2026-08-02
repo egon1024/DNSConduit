@@ -1,6 +1,10 @@
 # Metrics scrape tax under split_io
 
+<div class="study-question" markdown="1">
+
 What does standard scrape cost versus observability off when the runtime is [`split_io`](/concepts/runtime-and-concurrency.md#split-io-runtime)?
+
+</div>
 
 Numbers are same-host comparisons (relative to baselines measured on one named
 lab profile) and are **not** service-level objectives. See the
@@ -37,23 +41,29 @@ comparison. This study pairs observability off and standard scrape under
 
 | Posture | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-split-io-forward-fast) | split_io | 373534.0 | 2.6 | 3738747 | 3736729 | 2018 | ingress=2, policy=2, io=2 |
-| [metrics_standard_scrape](/performance/scenarios.md#feature-tax-metrics-standard-scrape-split-io-forward-fast) | split_io | 284907.8 | 3.7 | 2852838 | 2850456 | 1822 | ingress=2, policy=2, io=2 |
+| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-split-io-forward-fast) | split_io | 147740.6 | 1.6 | 1496150 | 1492215 | 3764 | ingress=2, policy=2, io=2 |
+| [metrics_standard_scrape](/performance/scenarios.md#feature-tax-metrics-standard-scrape-split-io-forward-fast) | split_io | 149292.0 | 1.6 | 1511135 | 1507307 | 3738 | ingress=2, policy=2, io=2 |
 
 </div>
 <!-- perf-study-evidence:end -->
 
+<!-- perf-study-deltas:start -->
+## At a glance
+
+- **metrics scrape under split_io (forward_fast):** `metrics_standard_scrape` is about **1.0×** `metrics_off` (~149k vs ~148k).
+<!-- perf-study-deltas:end -->
+
 ## Takeaway
 
-On this published reference, **standard scrape under split_io costs about 24%**
-achieved QPS versus observability off (lab absolute ~285k vs ~374k) with a
-latency rise. That tax is notably larger than the ~13% standard-scrape tax seen
-under `sync` (see [Metrics scrape ladder](/performance/studies/metrics-scrape-ladder.md)) — `split_io`'s
-higher absolute throughput gives scrape more query volume to instrument per
-second, so the same per-query recording cost shows up as a larger relative
-share. **Operator posture:** prefer this pair over the sync scrape comparison
-when sizing scrape on a `split_io` deployment; still pick minimal vs standard
-from [cardinality need](/guides/operator-metrics-bases.md).
+**Under `split_io`, standard scrape did not show a clear QPS tax on this lab.**
+Obs-off and standard scrape medians are within about 1% (~149k vs ~148k). That
+differs from the ~11% standard-scrape tax under `sync` on the
+[metrics scrape ladder](/performance/studies/metrics-scrape-ladder.md) — do not
+assume the sync percentage transfers.
+
+**What to do:** when sizing scrape on a `split_io` deployment, remeasure this
+pair on your hardware. Still pick minimal vs standard from
+[cardinality need](/guides/operator-metrics-bases.md).
 
 ## Related guides
 

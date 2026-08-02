@@ -18,3 +18,5 @@ recipe:
   loadgen: dnsperf
   query_file: perf-a.txt
   skip_unless: zdu
+  # Failed answers during the stop window are the subject here, not a defect.
+  min_answer_ok_percent: 0

@@ -8,7 +8,7 @@
 
 | Posture | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-split-io-forward-fast) | split_io | 373534.0 | 2.6 | 3738747 | 3736729 | 2018 | ingress=2, policy=2, io=2 |
-| [metrics_standard_scrape](/performance/scenarios.md#feature-tax-metrics-standard-scrape-split-io-forward-fast) | split_io | 284907.8 | 3.7 | 2852838 | 2850456 | 1822 | ingress=2, policy=2, io=2 |
+| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-split-io-forward-fast) | split_io | 147740.6 | 1.6 | 1496150 | 1492215 | 3764 | ingress=2, policy=2, io=2 |
+| [metrics_standard_scrape](/performance/scenarios.md#feature-tax-metrics-standard-scrape-split-io-forward-fast) | split_io | 149292.0 | 1.6 | 1511135 | 1507307 | 3738 | ingress=2, policy=2, io=2 |
 
 </div>

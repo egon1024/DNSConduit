@@ -9,8 +9,8 @@ members:
 compare_axis: obs_posture
 primary_metric: achieved_qps
 takeaway: >
-  Same scrape ladder poles as the sync study, but under split_io — use when the
-  production runtime is already split_io and you need scrape tax on that model.
+  Under split_io on this lab, standard scrape is not separable from round noise
+  versus obs-off (~1%); do not assume the sync scrape-tax percentage transfers.
 related_guides:
   - /guides/operator-metrics-bases.md
   - /concepts/runtime-and-concurrency.md

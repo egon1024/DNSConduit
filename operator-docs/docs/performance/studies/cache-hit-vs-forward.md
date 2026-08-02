@@ -1,7 +1,11 @@
 # Cache hit vs forward_fast
 
+<div class="study-question" markdown="1">
+
 How much does a warm lookup cache change throughput versus [`forward_fast`](/performance/methodology.md#load-shapes) under
 [`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default)?
+
+</div>
 
 Numbers are same-host comparisons (relative to baselines measured on one named
 lab profile) and are **not** service-level objectives. See the
@@ -37,20 +41,27 @@ as a claim that production traffic is mostly hits. Configure instances under
 
 | Load shape | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| [forward_fast](/performance/scenarios.md#scale-sync-forward-fast) | sync | 211448.9 | 1.3 | 2118239 | 2114785 | 3662 | ingress=2 |
-| [cache_hit](/performance/scenarios.md#scale-sync-cache-hit) | sync | 348813.4 | 0.9 | 3491802 | 3488443 | 3366 | ingress=2 |
+| [forward_fast](/performance/scenarios.md#scale-sync-forward-fast) | sync | 74932.5 | 3.6 | 753275 | 749881 | 3465 | ingress=2 |
+| [cache_hit](/performance/scenarios.md#scale-sync-cache-hit) | sync | 336912.5 | 0.9 | 3373056 | 3369396 | 3454 | ingress=2 |
 
 </div>
 <!-- perf-study-evidence:end -->
 
+<!-- perf-study-deltas:start -->
+## At a glance
+
+- **sync cache_hit vs forward_fast:** `cache_hit` is about **4.5×** `forward_fast` (~337k vs ~75k).
+<!-- perf-study-deltas:end -->
+
 ## Takeaway
 
-On this lab, a warm [`cache_hit`](/performance/methodology.md#load-shapes) path
-is about **1.65×** the achieved QPS of
-[`forward_fast`](/performance/methodology.md#load-shapes) (lab absolute ~349k vs
-~211k) with lower average latency. Treat the multiplier as an upper-bound
-illustration when hits dominate — not a portable capacity target or a claim
-about your hit rate.
+**A warm cache is much faster than forwarding on this lab.** Under
+[`cache_hit`](/performance/methodology.md#load-shapes), sync reaches about
+**4.5×** the QPS of [`forward_fast`](/performance/methodology.md#load-shapes)
+(~337k vs ~75k) with lower latency.
+
+Treat that multiplier as an upper bound for “almost everything hits,” not as a
+capacity target or a claim about *your* hit rate.
 
 ## Related guides
 

@@ -11,8 +11,8 @@ members:
 compare_axis: obs_posture
 primary_metric: achieved_qps
 takeaway: >
-  Compares obs-off, scrape-only, dnstap-only, and both-on under forward_fast —
-  use when operators enable multiple observability surfaces together.
+  Versus obs-off, standard scrape alone costs about 11%, fuller dnstap alone
+  about 10%, and both about 17% — enable each surface only if you need it.
 related_guides:
   - /observability/metrics-configurability.md
   - /observability/event-export.md

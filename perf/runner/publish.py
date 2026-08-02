@@ -34,6 +34,12 @@ from .catalog import (
     load_studies,
     publish_set_member_ids,
 )
+from .integrity import (
+    TakeawayIntegrityError,
+    claims_from_charts,
+    format_delta_fragment,
+    verify_studies_integrity,
+)
 from .paths import REFERENCES_DIR, ROOT, load_json, write_json
 from .run_record import validate_run_document, utc_now_iso
 
@@ -43,6 +49,8 @@ LATEST_POINTER = REFERENCES_DIR / "latest-reference.json"
 
 STUDY_EVIDENCE_START = "<!-- perf-study-evidence:start -->"
 STUDY_EVIDENCE_END = "<!-- perf-study-evidence:end -->"
+STUDY_DELTAS_START = "<!-- perf-study-deltas:start -->"
+STUDY_DELTAS_END = "<!-- perf-study-deltas:end -->"
 STUDIES_INDEX_START = "<!-- perf-studies-index:start -->"
 STUDIES_INDEX_END = "<!-- perf-studies-index:end -->"
 REFERENCE_BODY_START = "<!-- perf-reference-body:start -->"
@@ -190,8 +198,14 @@ def merge_median_documents(docs: list[dict[str, Any]]) -> dict[str, Any]:
     for sid in order:
         rounds = by_id[sid]
         ok_rounds = [r for r in rounds if r.get("status") == "ok"]
+        invalid_rounds = [r for r in rounds if r.get("status") == "invalid"]
         if not ok_rounds:
             merged_scenarios.append(rounds[-1])
+            continue
+        if invalid_rounds:
+            # A cell that fails the answer gate in some rounds is sitting on the
+            # boundary; a median across the surviving rounds would hide that.
+            merged_scenarios.append(invalid_rounds[-1])
             continue
         rep = dict(ok_rounds[-1])
         rep["metrics"] = _median_merge_values(
@@ -227,6 +241,26 @@ def merge_median_documents(docs: list[dict[str, Any]]) -> dict[str, Any]:
     if run_anns:
         base["annotation_ids"] = run_anns
     return base
+
+
+def assert_no_invalid_scenarios(doc: dict[str, Any]) -> None:
+    """Refuse to promote measurements the harness already judged untrustworthy.
+
+    A scenario is ``invalid`` when its answer gate failed — achieved QPS then
+    reflects how fast Conduit rejected queries, not how many it served.
+    """
+    offenders = [
+        sc for sc in doc.get("scenarios") or [] if sc.get("status") == "invalid"
+    ]
+    if not offenders:
+        return
+    detail = "; ".join(
+        f"{sc.get('id')}: {sc.get('error') or 'answer gate failed'}"
+        for sc in offenders
+    )
+    raise ValueError(
+        f"refusing to promote {len(offenders)} invalid scenario(s) — {detail}"
+    )
 
 
 def promote_runs(
@@ -265,6 +299,7 @@ def promote_runs(
             if aid not in existing:
                 existing.append(aid)
         merged["annotation_ids"] = existing
+    assert_no_invalid_scenarios(merged)
     validate_run_document(merged)
     REFERENCES_DIR.mkdir(parents=True, exist_ok=True)
     dest = REFERENCES_DIR / f"{name}.json"
@@ -389,12 +424,14 @@ def _write_chart_artifacts(
 
 
 def _study_evidence_markdown(charts: list[ChartSpec]) -> str:
-    """Evidence block for study pages (paths relative to studies/)."""
+    """Evidence block for study pages (paths relative to studies/).
+
+    Figures appear in the order the study declares them; each study page leads
+    with the figure its takeaway is built on.
+    """
     parts: list[str] = ["## Evidence", ""]
     for chart in charts:
-        parts.append(
-            _chart_fragment_md(chart, rel_generated="../generated").rstrip()
-        )
+        parts.append(_chart_fragment_md(chart, rel_generated="../generated").rstrip())
         parts.append("")
     return "\n".join(parts).rstrip() + "\n"
 
@@ -425,6 +462,10 @@ def _default_study_page(study: Study) -> str:
         "_Evidence is generated from committed reference JSON "
         "(run `make perf-docs`)._\n"
         f"{STUDY_EVIDENCE_END}\n\n"
+        f"{STUDY_DELTAS_START}\n"
+        "## At a glance\n\n"
+        "_Summary from the evidence tables (run `make perf-docs`)._\n"
+        f"{STUDY_DELTAS_END}\n\n"
         "## Takeaway\n\n"
         f"{study.takeaway or '_See evidence above._'}\n\n"
         "## Related guides\n\n"
@@ -445,6 +486,19 @@ def _inject_study_evidence(page_text: str, evidence: str) -> str:
         end_marker=STUDY_EVIDENCE_END,
         body=evidence,
     )
+
+
+def _inject_study_deltas(page_text: str, deltas: str) -> str:
+    """Inject generated deltas above Takeaway when markers are absent."""
+    start = page_text.find(STUDY_DELTAS_START)
+    end = page_text.find(STUDY_DELTAS_END)
+    block = f"{STUDY_DELTAS_START}\n{deltas.rstrip()}\n{STUDY_DELTAS_END}"
+    if start != -1 and end != -1 and end > start:
+        return page_text[:start] + block + page_text[end + len(STUDY_DELTAS_END) :]
+    takeaway_at = page_text.find("## Takeaway")
+    if takeaway_at != -1:
+        return page_text[:takeaway_at] + block + "\n\n" + page_text[takeaway_at:]
+    return page_text.rstrip() + "\n\n" + block + "\n"
 
 
 def _studies_index_table_markdown(published: list[Study], *, stamp: str) -> str:
@@ -541,6 +595,7 @@ def _write_studies_docs(
     doc: dict[str, Any] | None,
     *,
     stamp: str,
+    check_integrity: bool = True,
 ) -> list[Path]:
     written: list[Path] = []
     studies_docs = _studies_docs_dir()
@@ -581,7 +636,9 @@ def _write_studies_docs(
                 written.append(path)
         return written
 
-    for study, charts in charts_for_studies(doc, studies, published_only=True):
+    studies_with_charts = charts_for_studies(doc, studies, published_only=True)
+    page_text_by_id: dict[str, str] = {}
+    for study, charts in studies_with_charts:
         for chart in charts:
             written.extend(_write_chart_artifacts(chart, fragment_prefix="study"))
         combined = GENERATED_DIR / f"study-{study.id}.fragment.md"
@@ -591,14 +648,34 @@ def _write_studies_docs(
         )
         written.append(combined)
 
+        claims = claims_from_charts(charts, primary_metric=study.primary_metric)
+        deltas_md = format_delta_fragment(
+            study_id=study.id,
+            charts=charts,
+            claims=claims,
+            primary_metric=study.primary_metric,
+        )
+        deltas_path = GENERATED_DIR / f"study-{study.id}-deltas.fragment.md"
+        deltas_path.write_text(deltas_md, encoding="utf-8")
+        written.append(deltas_path)
+
         path = studies_docs / f"{study.id}.md"
         if path.is_file():
             body = path.read_text(encoding="utf-8")
         else:
             body = _default_study_page(study)
         body = _inject_study_evidence(body, _study_evidence_markdown(charts))
+        body = _inject_study_deltas(body, deltas_md)
         path.write_text(body, encoding="utf-8")
         written.append(path)
+        page_text_by_id[study.id] = body
+
+    if check_integrity:
+        errors = verify_studies_integrity(
+            studies_with_charts, page_text_by_id=page_text_by_id
+        )
+        if errors:
+            raise TakeawayIntegrityError(errors)
 
     return written
 
@@ -705,8 +782,17 @@ def _write_scenarios_page(doc: dict[str, Any] | None) -> Path:
     return path
 
 
-def generate_operator_docs_fragments(doc: dict[str, Any] | None = None) -> list[Path]:
-    """Render static SVG + CSV + markdown table fragments from committed reference JSON."""
+def generate_operator_docs_fragments(
+    doc: dict[str, Any] | None = None,
+    *,
+    check_integrity: bool = True,
+) -> list[Path]:
+    """Render static SVG + CSV + markdown table fragments from committed reference JSON.
+
+    When ``check_integrity`` is true (default), takeaway numeric claims on study
+    pages must match generated evidence (Gate G5). Conflicts raise
+    ``TakeawayIntegrityError``.
+    """
     if doc is None:
         doc = load_latest_reference()
     GENERATED_DIR.mkdir(parents=True, exist_ok=True)
@@ -738,7 +824,9 @@ def generate_operator_docs_fragments(doc: dict[str, Any] | None = None) -> list[
         written.extend(_inject_annotation_includes_into_pages())
         written.append(_write_reference_page(doc=None, stamp=stamp, fragments=[]))
         written.append(_write_scenarios_page(None))
-        written.extend(_write_studies_docs(None, stamp=stamp))
+        written.extend(
+            _write_studies_docs(None, stamp=stamp, check_integrity=False)
+        )
         return written
 
     profile = doc.get("lab_profile") or {}
@@ -773,7 +861,11 @@ def generate_operator_docs_fragments(doc: dict[str, Any] | None = None) -> list[
         _write_reference_page(doc=doc, stamp=stamp, fragments=chart_mds)
     )
     written.append(_write_scenarios_page(doc))
-    written.extend(_write_studies_docs(doc, stamp=stamp))
+    written.extend(
+        _write_studies_docs(
+            doc, stamp=stamp, check_integrity=check_integrity
+        )
+    )
     return written
 
 

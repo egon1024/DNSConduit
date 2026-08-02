@@ -1,9 +1,13 @@
 schema_version: 1
 id: ingress-concurrency-sync
 title: Ingress concurrency under sync
-question: How does raising sync ingress workers change throughput under a slow upstream?
+question: How many sync ingress workers buy throughput before the curve flattens?
 published: true
 members:
+  - scale-sync-ingress-1-forward-fast
+  - scale-sync-forward-fast
+  - scale-sync-ingress-4-forward-fast
+  - scale-sync-ingress-8-forward-fast
   - scale-sync-ingress-1-forward-slow
   - scale-sync-forward-slow
   - scale-sync-ingress-4-forward-slow
@@ -11,11 +15,22 @@ members:
 compare_axis: ingress_workers
 primary_metric: achieved_qps
 takeaway: >
-  On the published forward_slow ladder, ingress 1→2 helps then QPS plateaus with
-  high loss — do not assume more sync threads keep helping under slow upstreams.
+  More sync ingress threads raise forward_fast throughput on this lab
+  (~39k → 75k → 102k → 198k at 1/2/4/8 workers; still climbing at 8). Under
+  forward_slow, completed QPS scales with thread count but stays tiny and lossy —
+  prefer split_io when upstream wait owns the path rather than stacking sync threads.
 related_guides:
   - /guides/dataplane-runtime-tuning.md
 figures:
+  - id: ingress-concurrency-sync-forward-fast
+    title: Achieved QPS — sync ingress ladder (forward_fast)
+    y_label: Achieved QPS
+    category_axis: ingress_workers
+    members:
+      - scale-sync-ingress-1-forward-fast
+      - scale-sync-forward-fast
+      - scale-sync-ingress-4-forward-fast
+      - scale-sync-ingress-8-forward-fast
   - id: ingress-concurrency-sync-forward-slow
     title: Achieved QPS — sync ingress ladder (forward_slow)
     y_label: Achieved QPS

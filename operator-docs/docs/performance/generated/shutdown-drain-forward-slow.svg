@@ -7,14 +7,14 @@
 <line x1="56" y1="264.0" x2="536" y2="264.0" stroke="#eeeeee"/>
 <text x="50" y="268.0" text-anchor="end" font-family="sans-serif" font-size="10" fill="#757575">0</text>
 <line x1="56" y1="152.0" x2="536" y2="152.0" stroke="#eeeeee"/>
-<text x="50" y="156.0" text-anchor="end" font-family="sans-serif" font-size="10" fill="#757575">82</text>
+<text x="50" y="156.0" text-anchor="end" font-family="sans-serif" font-size="10" fill="#757575">57</text>
 <line x1="56" y1="40.0" x2="536" y2="40.0" stroke="#eeeeee"/>
-<text x="50" y="44.0" text-anchor="end" font-family="sans-serif" font-size="10" fill="#757575">164</text>
-<rect x="96.0" y="108.1" width="68.0" height="155.9" fill="#3949ab"><title>drain_duration_ms / drain_complete: 113.87</title></rect>
+<text x="50" y="44.0" text-anchor="end" font-family="sans-serif" font-size="10" fill="#757575">114</text>
+<rect x="96.0" y="40.0" width="68.0" height="224.0" fill="#3949ab"><title>drain_duration_ms / drain_complete: 113.53</title></rect>
 <text x="136.0" y="282" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#424242">drain_complete</text>
-<rect x="256.0" y="40.0" width="68.0" height="224.0" fill="#3949ab"><title>drain_duration_ms / drain_budgeted: 163.56</title></rect>
+<rect x="256.0" y="40.1" width="68.0" height="223.9" fill="#3949ab"><title>drain_duration_ms / drain_budgeted: 113.45</title></rect>
 <text x="296.0" y="282" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#424242">drain_budgeted</text>
-<rect x="416.0" y="176.6" width="68.0" height="87.4" fill="#3949ab"><title>drain_duration_ms / drain_minimal: 63.79</title></rect>
+<rect x="416.0" y="138.9" width="68.0" height="125.1" fill="#3949ab"><title>drain_duration_ms / drain_minimal: 63.42</title></rect>
 <text x="456.0" y="282" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#424242">drain_minimal</text>
 <rect x="56" y="298" width="12" height="12" fill="#3949ab"/>
 <text x="72" y="308" font-family="sans-serif" font-size="11" fill="#424242">drain_duration_ms</text>

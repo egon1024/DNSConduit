@@ -1,3 +1,3 @@
 scenario_id,runtime,achieved_qps,latency_avg_ms,queries_sent,queries_completed,queries_lost,workers
-scale-sync-forward-slow,sync,10.2,1651.1,340,153,187,ingress_workers=2
-scale-split-io-forward-slow,split_io,10.9,3320.2,298,161,137,"ingress_workers=2, policy_workers=2, io_workers=2"
+scale-sync-forward-slow,sync,5.7,2509.5,12188,198,11990,ingress_workers=2
+scale-split-io-forward-slow,,,,,,,

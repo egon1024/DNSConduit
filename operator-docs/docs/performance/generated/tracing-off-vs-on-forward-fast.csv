@@ -1,3 +1,3 @@
 scenario_id,runtime,achieved_qps,latency_avg_ms,queries_sent,queries_completed,queries_lost,workers
-feature-tax-metrics-off-forward-fast,sync,138760.8,2.0,1391423,1387890,3449,ingress_workers=2
-feature-tax-tracing-on-forward-fast,sync,71846.1,3.8,722221,718827,3455,ingress_workers=2
+feature-tax-metrics-off-forward-fast,sync,77319.5,3.8,776925,773506,3419,ingress_workers=2
+feature-tax-tracing-on-forward-fast,sync,49527.8,6.3,499066,495687,3379,ingress_workers=2

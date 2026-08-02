@@ -1,6 +1,10 @@
 # Pipeline tracing tax
 
+<div class="study-question" markdown="1">
+
 What does enabling full pipeline tracing cost under [`forward_fast`](/performance/methodology.md#load-shapes)?
+
+</div>
 
 Numbers are same-host comparisons (relative to baselines measured on one named
 lab profile) and are **not** service-level objectives. See the
@@ -38,19 +42,26 @@ A-heavy).
 
 | Posture | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-forward-fast) | sync | 138760.8 | 2.0 | 1391423 | 1387890 | 3449 | ingress=2 |
-| [tracing_on](/performance/scenarios.md#feature-tax-tracing-on-forward-fast) | sync | 71846.1 | 3.8 | 722221 | 718827 | 3455 | ingress=2 |
+| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-forward-fast) | sync | 77319.5 | 3.8 | 776925 | 773506 | 3419 | ingress=2 |
+| [tracing_on](/performance/scenarios.md#feature-tax-tracing-on-forward-fast) | sync | 49527.8 | 6.3 | 499066 | 495687 | 3379 | ingress=2 |
 
 </div>
 <!-- perf-study-evidence:end -->
 
+<!-- perf-study-deltas:start -->
+## At a glance
+
+- **tracing off vs on (forward_fast):** `tracing_on` costs about **36%** QPS versus `metrics_off` (~50k vs ~77k).
+<!-- perf-study-deltas:end -->
+
 ## Takeaway
 
-On this published reference, **full A-query tracing costs about half** the
-achieved QPS of observability off (lab absolute ~72k vs ~139k) with higher
-average latency. **Operator posture:** enable tracing for diagnosis windows;
-do not leave 100% sampling on as a standing production posture. Narrow
-selectors and `sample_percent` before remeasuring.
+**Full pipeline tracing is expensive.** On this lab it costs about **36%** QPS
+versus observability off (~50k vs ~77k) and raises average latency.
+
+**What to do:** enable tracing for diagnosis windows; do not leave 100%
+sampling on in production. Narrow selectors and `sample_percent`, then
+remeasure.
 
 ## Related guides
 

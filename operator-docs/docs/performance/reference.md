@@ -13,22 +13,24 @@ hardware with the
 Absolute QPS is not a portable cross-host capacity claim.
 
 <!-- perf-ann:ann-forward-slow-lossy-context:start -->
-!!! warning "forward_slow scale/ladder cells — stressed / inconclusive for ranking"
-    Several promoted [`forward_slow`](/performance/methodology.md#load-shapes) scale and
-    worker-ladder cells show very low achieved QPS with high dnsperf query loss. Under
-    the published load model (timed window, no offered-QPS cap, dnsperf default max
-    outstanding ≈ 100), an artificially delayed upstream fills the outstanding window
-    quickly, so these charts are poor for ranking
-    [`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default) vs
-    [`split_io`](/concepts/runtime-and-concurrency.md#split-io-runtime) or worker counts.
-    Prefer [`forward_fast`](/performance/methodology.md#load-shapes) cells for clean
-    same-host deltas; treat `forward_slow` here as a stress recipe until a
-    publish-quality remeasure replaces the cells. See
-    [How load is applied](/performance/methodology.md#how-load-is-applied-not-a-fixed-offered-qps).
+!!! note "Reading forward_slow cells — saturation against a 50 ms backend"
+    [`forward_slow`](/performance/methodology.md#load-shapes) cells offer far more
+    concurrency than a runtime that blocks on upstream latency can absorb, which is
+    the point: they show what happens to each runtime model when the backend is slow
+    and the client keeps asking. Read both columns together. A runtime that
+    multiplexes in-flight queries answers near the upstream delay itself; a runtime
+    that occupies a worker for the whole round trip reports a small fraction of that
+    throughput and an average latency of seconds, because queries wait in Conduit
+    rather than at the backend. Every published cell here is measured on a stub
+    upstream that stays well clear of saturation and is checked for successful
+    answers, so the numbers are Conduit's behavior, not the harness reaching its
+    limit. See
+    [How load is applied](/performance/methodology.md#how-load-is-applied-not-a-fixed-offered-qps)
+    and [Only successful answers count](/performance/methodology.md#only-successful-answers-count).
 <!-- perf-ann:ann-forward-slow-lossy-context:end -->
 
 <!-- perf-reference-body:start -->
-_Generated 2026-08-01T03:04:34Z from committed reference JSON (no live load suite in docs CI)._
+_Generated 2026-08-02T01:43:41Z from committed reference JSON (no live load suite in docs CI)._
 
 ## Lab profile
 
@@ -41,7 +43,7 @@ _Generated 2026-08-01T03:04:34Z from committed reference JSON (no live load suit
 | OS | Linux 6.8.0-136-generic |
 | Conduit | `target/release/conduit` (unknown) |
 | Loadgen | dnsperf mode=`docker` |
-| Run generated_at | `2026-08-01T02:58:53Z` |
+| Run generated_at | `2026-08-02T00:05:32Z` |
 
 Underlying JSON: [`perf/results/references/`](https://github.com/egon1024/DNSConduit/tree/main/perf/results/references) (see `latest-reference.json` pointer in a checkout).
 
@@ -59,8 +61,8 @@ Scenario intents: [Performance scenarios](/performance/scenarios.md). Decision-s
 
 | Scenario | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| [scale-sync-forward-fast](/performance/scenarios.md#scale-sync-forward-fast) | sync | 211448.9 | 1.3 | 2118239 | 2114785 | 3662 | ingress=2 |
-| [scale-split-io-forward-fast](/performance/scenarios.md#scale-split-io-forward-fast) | split_io | 364056.4 | 2.2 | 3644026 | 3642237 | 2395 | ingress=2, policy=2, io=2 |
+| [scale-sync-forward-fast](/performance/scenarios.md#scale-sync-forward-fast) | sync | 74932.5 | 3.6 | 753275 | 749881 | 3465 | ingress=2 |
+| [scale-split-io-forward-fast](/performance/scenarios.md#scale-split-io-forward-fast) | split_io | 140686.6 | 1.4 | 1424907 | 1421028 | 3879 | ingress=2, policy=2, io=2 |
 
 </div>
 
@@ -74,8 +76,8 @@ Scenario intents: [Performance scenarios](/performance/scenarios.md). Decision-s
 
 | Scenario | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| [scale-sync-forward-slow](/performance/scenarios.md#scale-sync-forward-slow) | sync | 10.2 | 1651.1 | 340 | 153 | 187 | ingress=2 |
-| [scale-split-io-forward-slow](/performance/scenarios.md#scale-split-io-forward-slow) | split_io | 10.9 | 3320.2 | 298 | 161 | 137 | ingress=2, policy=2, io=2 |
+| [scale-sync-forward-slow](/performance/scenarios.md#scale-sync-forward-slow) | sync | 5.7 | 2509.5 | 12188 | 198 | 11990 | ingress=2 |
+| — | — | — | — | — | — | — | — |
 
 </div>
 
@@ -89,7 +91,7 @@ Scenario intents: [Performance scenarios](/performance/scenarios.md). Decision-s
 
 | Scenario | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| [scale-sync-cache-hit](/performance/scenarios.md#scale-sync-cache-hit) | sync | 348813.4 | 0.9 | 3491802 | 3488443 | 3366 | ingress=2 |
+| [scale-sync-cache-hit](/performance/scenarios.md#scale-sync-cache-hit) | sync | 336912.5 | 0.9 | 3373056 | 3369396 | 3454 | ingress=2 |
 
 </div>
 
@@ -103,8 +105,8 @@ Scenario intents: [Performance scenarios](/performance/scenarios.md). Decision-s
 
 | Scenario | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| [scale-split-io-forward-fast](/performance/scenarios.md#scale-split-io-forward-fast) | split_io | 364056.4 | 2.2 | 3644026 | 3642237 | 2395 | ingress=2, policy=2, io=2 |
-| [scale-split-io-topology-heavy](/performance/scenarios.md#scale-split-io-topology-heavy) | split_io | 601897.6 | 2.7 | 6021233 | 6020309 | 611 | ingress=4, policy=4, io=4 |
+| [scale-split-io-forward-fast](/performance/scenarios.md#scale-split-io-forward-fast) | split_io | 140686.6 | 1.4 | 1424907 | 1421028 | 3879 | ingress=2, policy=2, io=2 |
+| — | — | — | — | — | — | — | — |
 
 </div>
 
@@ -120,9 +122,9 @@ Scenario intents: [Performance scenarios](/performance/scenarios.md). Decision-s
 
 | Drain policy | Drain duration (ms) | Client failures during stop | QPS | Avg latency (ms) | Sent | Completed |
 | --- | --- | --- | --- | --- | --- | --- |
-| [drain_complete](/performance/scenarios.md#shutdown-drain-complete-forward-slow) | 113.9 | 300 | 3.2 | 949.9 | 339 | 39 |
-| [drain_budgeted](/performance/scenarios.md#shutdown-drain-budgeted-forward-slow) | 163.6 | 200 | 5.0 | 1022.3 | 240 | 40 |
-| [drain_minimal](/performance/scenarios.md#shutdown-drain-minimal-forward-slow) | 63.8 | 200 | 4.9 | 996.3 | 239 | 39 |
+| [drain_complete](/performance/scenarios.md#shutdown-drain-complete-forward-slow) | 113.5 | 298 | 6.7 | 1020.8 | 378 | 80 |
+| [drain_budgeted](/performance/scenarios.md#shutdown-drain-budgeted-forward-slow) | 113.5 | 200 | 9.7 | 913.0 | 278 | 78 |
+| [drain_minimal](/performance/scenarios.md#shutdown-drain-minimal-forward-slow) | 63.4 | 200 | 9.7 | 896.6 | 278 | 78 |
 
 </div>
 
@@ -138,9 +140,9 @@ Scenario intents: [Performance scenarios](/performance/scenarios.md). Decision-s
 
 | Posture | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost |
 | --- | --- | --- | --- | --- | --- |
-| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-scrape-ladder-forward-fast) | 138672.0 | 2.2 | 1390396 | 1387024 | 3377 |
-| [minimal_scrape](/performance/scenarios.md#feature-tax-metrics-minimal-scrape-ladder-forward-fast) | 131434.7 | 2.1 | 1318106 | 1314639 | 3467 |
-| [standard_scrape](/performance/scenarios.md#feature-tax-metrics-standard-scrape-ladder-forward-fast) | 121094.1 | 1.5 | 1214666 | 1211244 | 3508 |
+| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-scrape-ladder-forward-fast) | 75321.6 | 3.9 | 757077 | 753665 | 3410 |
+| [minimal_scrape](/performance/scenarios.md#feature-tax-metrics-minimal-scrape-ladder-forward-fast) | 73415.2 | 4.3 | 737853 | 734479 | 3393 |
+| [standard_scrape](/performance/scenarios.md#feature-tax-metrics-standard-scrape-ladder-forward-fast) | 66697.3 | 2.6 | 670934 | 667270 | 3664 |
 
 </div>
 
@@ -154,9 +156,9 @@ Scenario intents: [Performance scenarios](/performance/scenarios.md). Decision-s
 
 | Posture | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost |
 | --- | --- | --- | --- | --- | --- |
-| [dnstap_off](/performance/scenarios.md#feature-tax-dnstap-off-forward-fast) | 135510.5 | 2.2 | 1358795 | 1355390 | 3405 |
-| [dnstap_sampled](/performance/scenarios.md#feature-tax-dnstap-sampled-forward-fast) | 126869.3 | 2.1 | 1272698 | 1269237 | 3461 |
-| [dnstap_full](/performance/scenarios.md#feature-tax-dnstap-full-forward-fast) | 113838.8 | 2.6 | 1142096 | 1138671 | 3425 |
+| [dnstap_off](/performance/scenarios.md#feature-tax-dnstap-off-forward-fast) | 75749.0 | 4.0 | 761200 | 757807 | 3393 |
+| [dnstap_sampled](/performance/scenarios.md#feature-tax-dnstap-sampled-forward-fast) | 73408.5 | 4.2 | 737837 | 734444 | 3393 |
+| [dnstap_full](/performance/scenarios.md#feature-tax-dnstap-full-forward-fast) | 69573.8 | 4.1 | 699739 | 696075 | 3429 |
 
 </div>
 
@@ -170,9 +172,9 @@ Scenario intents: [Performance scenarios](/performance/scenarios.md). Decision-s
 
 | Posture | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost |
 | --- | --- | --- | --- | --- | --- |
-| [no_collect](/performance/scenarios.md#feature-tax-metrics-no-collect-forward-fast) | 128663.3 | 2.1 | 1290379 | 1286917 | 3462 |
-| [collect_only](/performance/scenarios.md#feature-tax-metrics-collect-only-forward-fast) | 121086.6 | 1.6 | 1214611 | 1211152 | 3484 |
-| [collect_emit](/performance/scenarios.md#feature-tax-metrics-collect-emit-forward-fast) | 117515.8 | 2.6 | 1178865 | 1175436 | 3429 |
+| [no_collect](/performance/scenarios.md#feature-tax-metrics-no-collect-forward-fast) | 73196.2 | 3.8 | 735710 | 732262 | 3448 |
+| [collect_only](/performance/scenarios.md#feature-tax-metrics-collect-only-forward-fast) | 69667.4 | 4.0 | 700420 | 696976 | 3448 |
+| [collect_emit](/performance/scenarios.md#feature-tax-metrics-collect-emit-forward-fast) | 70134.9 | 4.0 | 705169 | 701692 | 3439 |
 
 </div>
 
@@ -186,10 +188,10 @@ Scenario intents: [Performance scenarios](/performance/scenarios.md). Decision-s
 
 | Posture | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost |
 | --- | --- | --- | --- | --- | --- |
-| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-forward-fast) | 138760.8 | 2.0 | 1391423 | 1387890 | 3449 |
-| [standard_scrape](/performance/scenarios.md#feature-tax-metrics-standard-scrape-forward-fast) | 121399.7 | 2.3 | 1217696 | 1214291 | 3449 |
-| [dnstap_full](/performance/scenarios.md#feature-tax-dnstap-full-forward-fast) | 113838.8 | 2.6 | 1142096 | 1138671 | 3425 |
-| [standard_dnstap_full](/performance/scenarios.md#feature-tax-metrics-standard-dnstap-full-forward-fast) | 106763.8 | 1.7 | 1071331 | 1067929 | 3553 |
+| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-forward-fast) | 77319.5 | 3.8 | 776925 | 773506 | 3419 |
+| [standard_scrape](/performance/scenarios.md#feature-tax-metrics-standard-scrape-forward-fast) | 69173.3 | 2.6 | 695725 | 692061 | 3664 |
+| [dnstap_full](/performance/scenarios.md#feature-tax-dnstap-full-forward-fast) | 69573.8 | 4.1 | 699739 | 696075 | 3429 |
+| [standard_dnstap_full](/performance/scenarios.md#feature-tax-metrics-standard-dnstap-full-forward-fast) | 64335.1 | 4.4 | 647080 | 643702 | 3428 |
 
 </div>
 
@@ -203,9 +205,9 @@ Scenario intents: [Performance scenarios](/performance/scenarios.md). Decision-s
 
 | Posture | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost |
 | --- | --- | --- | --- | --- | --- |
-| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-forward-fast) | 138760.8 | 2.0 | 1391423 | 1387890 | 3449 |
-| [standard_scrape](/performance/scenarios.md#feature-tax-metrics-standard-scrape-forward-fast) | 121399.7 | 2.3 | 1217696 | 1214291 | 3449 |
-| [scrape_hammer](/performance/scenarios.md#feature-tax-metrics-standard-scrape-hammer-forward-fast) | 117989.8 | 2.4 | 1183610 | 1180188 | 3441 |
+| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-forward-fast) | 77319.5 | 3.8 | 776925 | 773506 | 3419 |
+| [standard_scrape](/performance/scenarios.md#feature-tax-metrics-standard-scrape-forward-fast) | 69173.3 | 2.6 | 695725 | 692061 | 3664 |
+| [scrape_hammer](/performance/scenarios.md#feature-tax-metrics-standard-scrape-hammer-forward-fast) | 70104.3 | 4.4 | 704809 | 701424 | 3385 |
 
 </div>
 
@@ -219,8 +221,8 @@ Scenario intents: [Performance scenarios](/performance/scenarios.md). Decision-s
 
 | Posture | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost |
 | --- | --- | --- | --- | --- | --- |
-| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-split-io-forward-fast) | 373534.0 | 2.6 | 3738747 | 3736729 | 2018 |
-| [standard_scrape](/performance/scenarios.md#feature-tax-metrics-standard-scrape-split-io-forward-fast) | 284907.8 | 3.7 | 2852838 | 2850456 | 1822 |
+| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-split-io-forward-fast) | 147740.6 | 1.6 | 1496150 | 1492215 | 3764 |
+| [standard_scrape](/performance/scenarios.md#feature-tax-metrics-standard-scrape-split-io-forward-fast) | 149292.0 | 1.6 | 1511135 | 1507307 | 3738 |
 
 </div>
 <!-- perf-reference-body:end -->

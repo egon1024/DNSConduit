@@ -8,12 +8,12 @@ listeners:
       protocol: udp
       name: perf-udp
 forward:
-  outstanding_per_backend: 256
+  outstanding_per_backend: 8192
   timeout_ms: 2000
 orchestrator:
   max_attempts: 2
   max_txn_duration_ms: 5000
-  txn_table_capacity: 4096
+  txn_table_capacity: 65536
 pools:
   - name: default
     backends:

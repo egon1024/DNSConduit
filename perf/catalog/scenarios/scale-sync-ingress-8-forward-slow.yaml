@@ -14,3 +14,9 @@ recipe:
   upstream: slow
   loadgen: dnsperf
   query_file: perf-a.txt
+  clients: 16
+  dnsperf_threads: 8
+  max_outstanding: 2000
+  # Blocking runtimes complete very few queries against a 50 ms upstream;
+  # a longer window keeps the sample large enough to mean something.
+  duration_s: 30

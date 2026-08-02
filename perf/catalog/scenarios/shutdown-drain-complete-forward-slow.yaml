@@ -20,3 +20,5 @@ recipe:
   # Allow Conduit wait up to drain_timeout_ms (5s) plus teardown slack.
   stop_wait_s: 12
   load_time_s: 12
+  # Failed answers during the stop window are the subject here, not a defect.
+  min_answer_ok_percent: 0

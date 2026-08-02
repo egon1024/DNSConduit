@@ -1,19 +1,21 @@
 schema_version: 1
 id: ann-forward-slow-lossy-context
-tone: known_noise
-title: forward_slow scale/ladder cells — stressed / inconclusive for ranking
+tone: context
+title: Reading forward_slow cells — saturation against a 50 ms backend
 body: |
-  Several promoted [`forward_slow`](/performance/methodology.md#load-shapes) scale and
-  worker-ladder cells show very low achieved QPS with high dnsperf query loss. Under
-  the published load model (timed window, no offered-QPS cap, dnsperf default max
-  outstanding ≈ 100), an artificially delayed upstream fills the outstanding window
-  quickly, so these charts are poor for ranking
-  [`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default) vs
-  [`split_io`](/concepts/runtime-and-concurrency.md#split-io-runtime) or worker counts.
-  Prefer [`forward_fast`](/performance/methodology.md#load-shapes) cells for clean
-  same-host deltas; treat `forward_slow` here as a stress recipe until a
-  publish-quality remeasure replaces the cells. See
-  [How load is applied](/performance/methodology.md#how-load-is-applied-not-a-fixed-offered-qps).
+  [`forward_slow`](/performance/methodology.md#load-shapes) cells offer far more
+  concurrency than a runtime that blocks on upstream latency can absorb, which is
+  the point: they show what happens to each runtime model when the backend is slow
+  and the client keeps asking. Read both columns together. A runtime that
+  multiplexes in-flight queries answers near the upstream delay itself; a runtime
+  that occupies a worker for the whole round trip reports a small fraction of that
+  throughput and an average latency of seconds, because queries wait in Conduit
+  rather than at the backend. Every published cell here is measured on a stub
+  upstream that stays well clear of saturation and is checked for successful
+  answers, so the numbers are Conduit's behavior, not the harness reaching its
+  limit. See
+  [How load is applied](/performance/methodology.md#how-load-is-applied-not-a-fixed-offered-qps)
+  and [Only successful answers count](/performance/methodology.md#only-successful-answers-count).
 related_scenarios:
   - scale-sync-forward-slow
   - scale-split-io-forward-slow

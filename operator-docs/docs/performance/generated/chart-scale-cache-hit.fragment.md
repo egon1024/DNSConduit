@@ -8,6 +8,6 @@
 
 | Scenario | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| [scale-sync-cache-hit](/performance/scenarios.md#scale-sync-cache-hit) | sync | 348813.4 | 0.9 | 3491802 | 3488443 | 3366 | ingress=2 |
+| [scale-sync-cache-hit](/performance/scenarios.md#scale-sync-cache-hit) | sync | 336912.5 | 0.9 | 3373056 | 3369396 | 3454 | ingress=2 |
 
 </div>
