@@ -33,7 +33,7 @@ Absolute QPS is not a portable cross-host capacity claim.
 <!-- perf-ann:ann-forward-slow-lossy-context:end -->
 
 <!-- perf-reference-body:start -->
-_Generated 2026-08-03T21:28:47Z from committed reference JSON (no live load suite in docs CI)._
+_Generated 2026-08-03T21:31:22Z from committed reference JSON (no live load suite in docs CI)._
 
 ## Lab profile
 
