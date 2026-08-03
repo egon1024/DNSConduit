@@ -42,10 +42,10 @@ and **both** under the same [`forward_fast`](/performance/methodology.md#load-sh
 
 | Posture | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-forward-fast) | sync | 75462.4 | 4.0 | 758529 | 755155 | 3400 | ingress=2 |
-| [metrics_standard_scrape](/performance/scenarios.md#feature-tax-metrics-standard-scrape-forward-fast) | sync | 69628.0 | 4.5 | 700042 | 696579 | 3377 | ingress=2 |
-| [dnstap_full](/performance/scenarios.md#feature-tax-dnstap-full-forward-fast) | sync | 67178.8 | 4.4 | 675731 | 672299 | 3432 | ingress=2 |
-| [metrics_standard_dnstap_full](/performance/scenarios.md#feature-tax-metrics-standard-dnstap-full-forward-fast) | sync | 63336.3 | 4.5 | 637160 | 633740 | 3430 | ingress=2 |
+| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-forward-fast) | sync | 75250.1 | 26.5 | 754909 | 754909 | 0 | ingress=2 |
+| [metrics_standard_scrape](/performance/scenarios.md#feature-tax-metrics-standard-scrape-forward-fast) | sync | 69858.0 | 28.6 | 700756 | 700756 | 0 | ingress=2 |
+| [dnstap_full](/performance/scenarios.md#feature-tax-dnstap-full-forward-fast) | sync | 67911.4 | 29.4 | 681855 | 681855 | 0 | ingress=2 |
+| [metrics_standard_dnstap_full](/performance/scenarios.md#feature-tax-metrics-standard-dnstap-full-forward-fast) | sync | 63930.1 | 31.2 | 641638 | 641638 | 0 | ingress=2 |
 
 </div>
 <!-- perf-study-evidence:end -->
@@ -53,7 +53,7 @@ and **both** under the same [`forward_fast`](/performance/methodology.md#load-sh
 <!-- perf-study-deltas:start -->
 ## At a glance
 
-- **metrics and dnstap combined (forward_fast):** `metrics_standard_scrape` costs about **8%** QPS versus `metrics_off` (~70k vs ~75k); `dnstap_full` costs about **11%** QPS versus `metrics_off` (~67k vs ~75k); `metrics_standard_dnstap_full` costs about **16%** QPS versus `metrics_off` (~63k vs ~75k).
+- **metrics and dnstap combined (forward_fast):** `metrics_standard_scrape` costs about **7%** QPS versus `metrics_off` (~70k vs ~75k); `dnstap_full` costs about **10%** QPS versus `metrics_off` (~68k vs ~75k); `metrics_standard_dnstap_full` costs about **15%** QPS versus `metrics_off` (~64k vs ~75k).
 <!-- perf-study-deltas:end -->
 
 ## Takeaway

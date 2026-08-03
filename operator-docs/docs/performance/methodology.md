@@ -110,6 +110,18 @@ QPS swings). Boards that never expose `performance` are not blocked. How to set
 the governor (or intentionally bypass the gate for a noisy probe) is under
 [Reproduce — Maintainer publish](/performance/reproduce.md#maintainer-publish).
 
+Publish hosts also need a large enough UDP receive memory ceiling
+(`net.core.rmem_max`, typically ≥ 4 MiB) so fixture
+[`listeners.rcvbuf`](/reference/config-schema/listeners.md) can take effect.
+With the OS default (~208 KiB), elevated same-host dnsperf can overflow
+Conduit's ingress socket: the kernel increments `RcvbufErrors`, dnsperf reports
+**Queries lost**, and Conduit metrics still show equal query and response counts
+for every datagram that arrived. That pattern is **host socket buffering**, not
+dnsperf soft-stop cutoff and not Conduit refusing to answer received queries.
+Remediation (sysctl + harness gate) is under
+[Reproduce — Maintainer publish](/performance/reproduce.md#maintainer-publish)
+and the in-tree `perf/README.md`.
+
 ## Primary load generator
 
 Published QPS / latency cells use **DNS-OARC dnsperf**. The default obtain-and-run path

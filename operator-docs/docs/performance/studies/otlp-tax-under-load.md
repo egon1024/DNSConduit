@@ -45,9 +45,9 @@ Compare also the [metrics scrape tax](/performance/studies/metrics-scrape-ladder
 
 | Posture | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-forward-fast) | sync | 75462.4 | 4.0 | 758529 | 755155 | 3400 | ingress=2 |
-| [metrics_otlp_push](/performance/scenarios.md#feature-tax-metrics-otlp-push-forward-fast) | sync | 69165.5 | 4.3 | 695416 | 692002 | 3414 | ingress=2 |
-| [metrics_standard_scrape](/performance/scenarios.md#feature-tax-metrics-standard-scrape-forward-fast) | sync | 69628.0 | 4.5 | 700042 | 696579 | 3377 | ingress=2 |
+| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-forward-fast) | sync | 75250.1 | 26.5 | 754909 | 754909 | 0 | ingress=2 |
+| [metrics_otlp_push](/performance/scenarios.md#feature-tax-metrics-otlp-push-forward-fast) | sync | 69276.6 | 28.8 | 695057 | 695057 | 0 | ingress=2 |
+| [metrics_standard_scrape](/performance/scenarios.md#feature-tax-metrics-standard-scrape-forward-fast) | sync | 69858.0 | 28.6 | 700756 | 700756 | 0 | ingress=2 |
 
 </div>
 <!-- perf-study-evidence:end -->
@@ -55,7 +55,7 @@ Compare also the [metrics scrape tax](/performance/studies/metrics-scrape-ladder
 <!-- perf-study-deltas:start -->
 ## At a glance
 
-- **OTLP push vs baselines (forward_fast):** `metrics_otlp_push` costs about **8%** QPS versus `metrics_off` (~69k vs ~75k); `metrics_standard_scrape` costs about **8%** QPS versus `metrics_off` (~70k vs ~75k).
+- **OTLP push vs baselines (forward_fast):** `metrics_otlp_push` costs about **8%** QPS versus `metrics_off` (~69k vs ~75k); `metrics_standard_scrape` costs about **7%** QPS versus `metrics_off` (~70k vs ~75k).
 <!-- perf-study-deltas:end -->
 
 ## Takeaway

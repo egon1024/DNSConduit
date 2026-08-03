@@ -90,6 +90,35 @@ unpinned stub is not a neutral bystander: at a few hundred thousand QPS it is
 several cores of work, and left free to land on P-cores it competes with the
 process under test and swings identical rounds by 1.3–2.2×.
 
+## Host UDP receive buffers
+
+Elevated dnsperf recipes (clients 16 / threads 8 / `-q` 2000) can overflow a
+tiny OS UDP receive buffer. Datagrams dropped by the kernel never reach
+Conduit; dnsperf reports them as **Queries lost**, while Conduit counters show
+`queries == responses` for every packet that arrived. On maintainer-ws-1 this
+matched **kernel `RcvbufErrors` Δ == dnsperf Lost** exactly — not soft-stop
+cutoff and not Conduit failing to answer received queries.
+
+Perf fixtures set `listeners.rcvbuf: 4194304` (4 MiB). Linux clamps
+`SO_RCVBUF` to `net.core.rmem_max`, so publish hosts must raise that sysctl
+(and typically `rmem_default`) **before** suite runs. The harness refuses to
+`run` when `rmem_max < 4 MiB` unless you pass
+`--allow-suboptimal-udp-buffers`.
+
+```zsh
+# Session (or persist under /etc/sysctl.d/):
+sudo sysctl -w net.core.rmem_max=16777216 net.core.rmem_default=4194304
+
+# Verify:
+sysctl net.core.rmem_max net.core.rmem_default
+
+# Noisy probe only:
+python3 -m perf.runner run … --allow-suboptimal-udp-buffers
+```
+
+See also operator-docs Performance methodology (incomplete answers / UDP
+buffers) and Dataplane runtime tuning (`listeners.rcvbuf`).
+
 Re-render without re-running:
 
 ```zsh

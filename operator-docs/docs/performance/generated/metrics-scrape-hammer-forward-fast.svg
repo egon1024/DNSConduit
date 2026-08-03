@@ -7,14 +7,14 @@
 <line x1="56" y1="264.0" x2="536" y2="264.0" stroke="#eeeeee"/>
 <text x="50" y="268.0" text-anchor="end" font-family="sans-serif" font-size="10" fill="#757575">0</text>
 <line x1="56" y1="152.0" x2="536" y2="152.0" stroke="#eeeeee"/>
-<text x="50" y="156.0" text-anchor="end" font-family="sans-serif" font-size="10" fill="#757575">37731</text>
+<text x="50" y="156.0" text-anchor="end" font-family="sans-serif" font-size="10" fill="#757575">37625</text>
 <line x1="56" y1="40.0" x2="536" y2="40.0" stroke="#eeeeee"/>
-<text x="50" y="44.0" text-anchor="end" font-family="sans-serif" font-size="10" fill="#757575">75462</text>
-<rect x="96.0" y="40.0" width="68.0" height="224.0" fill="#3949ab"><title>achieved_qps / metrics_off: 75462.42</title></rect>
+<text x="50" y="44.0" text-anchor="end" font-family="sans-serif" font-size="10" fill="#757575">75250</text>
+<rect x="96.0" y="40.0" width="68.0" height="224.0" fill="#3949ab"><title>achieved_qps / metrics_off: 75250.11</title></rect>
 <text x="136.0" y="282" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#424242">metrics_off</text>
-<rect x="256.0" y="57.3" width="68.0" height="206.7" fill="#3949ab"><title>achieved_qps / metrics_standard_scrape: 69628.01</title></rect>
+<rect x="256.0" y="56.1" width="68.0" height="207.9" fill="#3949ab"><title>achieved_qps / metrics_standard_scrape: 69857.99</title></rect>
 <text x="296.0" y="282" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#424242">metrics_standard_scrape</text>
-<rect x="416.0" y="61.1" width="68.0" height="202.9" fill="#3949ab"><title>achieved_qps / metrics_standard_scrape_hammer: 68340.81</title></rect>
+<rect x="416.0" y="83.1" width="68.0" height="180.9" fill="#3949ab"><title>achieved_qps / metrics_standard_scrape_hammer: 60779.51</title></rect>
 <text x="456.0" y="282" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#424242">metrics_standard_scrape_hammer</text>
 <rect x="56" y="298" width="12" height="12" fill="#3949ab"/>
 <text x="72" y="308" font-family="sans-serif" font-size="11" fill="#424242">achieved_qps</text>

@@ -10,7 +10,7 @@
 
 | Topology | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| [thin](/performance/scenarios.md#scale-split-io-forward-fast) | split_io | 147142.3 | 1.2 | 1479133 | 1475210 | 3912 | ingress=2, policy=2, io=2 |
-| — | — | — | — | — | — | — | — |
+| [thin](/performance/scenarios.md#scale-split-io-forward-fast) | split_io | 141401.1 | 14.0 | 1430029 | 1430029 | 0 | ingress=2, policy=2, io=2 |
+| [heavy](/performance/scenarios.md#scale-split-io-topology-heavy) | split_io | 210005.8 | 9.5 | 2102918 | 2102918 | 0 | ingress=4, policy=4, io=4 |
 
 </div>

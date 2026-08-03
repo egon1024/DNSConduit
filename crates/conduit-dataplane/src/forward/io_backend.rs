@@ -413,7 +413,10 @@ pub fn apply_wait_completion(txn: &mut conduit_core::Transaction, completion: &W
     match completion {
         WaitCompletion::Response { wire } => {
             txn.complete_forward_rtt_from_mark();
-            txn.response_wire = Some(wire.clone());
+            let mut wire = wire.clone();
+            // Upstream demux used an allocated ID; restore the client query ID.
+            crate::forward::rewrite_dns_id(&mut wire, txn.dns_id);
+            txn.response_wire = Some(wire);
         }
         WaitCompletion::Timeout => {
             txn.complete_forward_rtt_from_mark();

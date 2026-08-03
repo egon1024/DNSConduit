@@ -12,5 +12,5 @@ pub use io_backend::{apply_wait_completion, IoBackend, IoResume, WaitCompletion}
 pub use mode::ForwardMode;
 pub use pool_inflight::PoolInflight;
 pub use transport::{ForwardTransport, UdpForwardStage, UdpForwardTransport};
-pub use txn_table::{ForwardKey, TxnTable};
+pub use txn_table::{rewrite_dns_id, ForwardKey, TxnTable};
 pub use wait_stage::WaitResponseStage;

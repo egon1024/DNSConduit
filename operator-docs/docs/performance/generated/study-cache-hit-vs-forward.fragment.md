@@ -10,7 +10,7 @@
 
 | Load shape | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| [forward_fast](/performance/scenarios.md#scale-sync-forward-fast) | sync | 75601.1 | 3.8 | 759747 | 756344 | 3443 | ingress=2 |
-| [cache_hit](/performance/scenarios.md#scale-sync-cache-hit) | sync | 333042.1 | 1.0 | 3334080 | 3330738 | 3398 | ingress=2 |
+| [forward_fast](/performance/scenarios.md#scale-sync-forward-fast) | sync | 73594.4 | 27.1 | 738415 | 738415 | 0 | ingress=2 |
+| [cache_hit](/performance/scenarios.md#scale-sync-cache-hit) | sync | 254403.3 | 7.8 | 2546522 | 2546522 | 0 | ingress=2 |
 
 </div>

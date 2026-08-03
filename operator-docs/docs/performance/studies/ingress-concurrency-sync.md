@@ -52,10 +52,10 @@ and [dataplane runtime tuning](/guides/dataplane-runtime-tuning.md).
 
 | Ingress workers | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| [1](/performance/scenarios.md#scale-sync-ingress-1-forward-fast) | sync | 38612.6 | 4.3 | 389959 | 386295 | 3664 | ingress=1 |
-| [2](/performance/scenarios.md#scale-sync-forward-fast) | sync | 75601.1 | 3.8 | 759747 | 756344 | 3443 | ingress=2 |
-| [4](/performance/scenarios.md#scale-sync-ingress-4-forward-fast) | sync | 134945.7 | 2.8 | 1353302 | 1350035 | 3267 | ingress=4 |
-| [8](/performance/scenarios.md#scale-sync-ingress-8-forward-fast) | sync | 205558.9 | 3.4 | 2059455 | 2056472 | 2862 | ingress=8 |
+| [1](/performance/scenarios.md#scale-sync-ingress-1-forward-fast) | sync | 38267.6 | 52.1 | 384651 | 384651 | 0 | ingress=1 |
+| [2](/performance/scenarios.md#scale-sync-forward-fast) | sync | 73594.4 | 27.1 | 738415 | 738415 | 0 | ingress=2 |
+| [4](/performance/scenarios.md#scale-sync-ingress-4-forward-fast) | sync | 146451.1 | 13.6 | 1468917 | 1468917 | 0 | ingress=4 |
+| [8](/performance/scenarios.md#scale-sync-ingress-8-forward-fast) | sync | 239549.0 | 8.3 | 2400186 | 2400186 | 0 | ingress=8 |
 
 </div>
 
@@ -69,10 +69,10 @@ and [dataplane runtime tuning](/guides/dataplane-runtime-tuning.md).
 
 | Ingress workers | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| [1](/performance/scenarios.md#scale-sync-ingress-1-forward-slow) | sync | 2.9 | 2514.4 | 12093 | 99 | 11994 | ingress=1 |
-| [2](/performance/scenarios.md#scale-sync-forward-slow) | sync | 5.7 | 2507.6 | 12188 | 198 | 11990 | ingress=2 |
-| [4](/performance/scenarios.md#scale-sync-ingress-4-forward-slow) | sync | 11.4 | 2513.0 | 12377 | 398 | 11979 | ingress=4 |
-| [8](/performance/scenarios.md#scale-sync-ingress-8-forward-slow) | sync | 22.5 | 2640.7 | 12699 | 786 | 11929 | ingress=8 |
+| [1](/performance/scenarios.md#scale-sync-ingress-1-forward-slow) | sync | 2.8 | 2515.1 | 12094 | 99 | 11995 | ingress=1 |
+| [2](/performance/scenarios.md#scale-sync-forward-slow) | sync | 5.7 | 2509.2 | 12188 | 198 | 11990 | ingress=2 |
+| [4](/performance/scenarios.md#scale-sync-ingress-4-forward-slow) | sync | 11.4 | 2511.9 | 12379 | 398 | 11981 | ingress=4 |
+| [8](/performance/scenarios.md#scale-sync-ingress-8-forward-slow) | sync | 20.9 | 2609.4 | 12678 | 731 | 11947 | ingress=8 |
 
 </div>
 <!-- perf-study-evidence:end -->
@@ -80,22 +80,22 @@ and [dataplane runtime tuning](/guides/dataplane-runtime-tuning.md).
 <!-- perf-study-deltas:start -->
 ## At a glance
 
-- **sync ingress workers (forward_fast):** `2` is about **2.0×** `1` (~76k vs ~39k); `4` is about **3.5×** `1` (~135k vs ~39k); `8` is about **5.3×** `1` (~206k vs ~39k).
-- **sync ingress workers (forward_slow):** `2` is about **2.0×** `1` (~6 QPS vs ~3 QPS); `4` is about **4.0×** `1` (~11 QPS vs ~3 QPS); `8` is about **7.9×** `1` (~22 QPS vs ~3 QPS).
+- **sync ingress workers (forward_fast):** `2` is about **1.9×** `1` (~74k vs ~38k); `4` is about **3.8×** `1` (~146k vs ~38k); `8` is about **6.3×** `1` (~240k vs ~38k).
+- **sync ingress workers (forward_slow):** `2` is about **2.0×** `1` (~6 QPS vs ~3 QPS); `4` is about **4.0×** `1` (~11 QPS vs ~3 QPS); `8` is about **7.4×** `1` (~21 QPS vs ~3 QPS).
 <!-- perf-study-deltas:end -->
 
 ## Takeaway
 
 **More sync ingress threads raise throughput against a fast upstream.** On this
 lab, under [`forward_fast`](/performance/methodology.md#load-shapes), achieved
-QPS climbs about **39k → 76k → 135k → 206k** as you go from 1 to 2 to 4 to 8
+QPS climbs about **38k → 74k → 146k → 240k** as you go from 1 to 2 to 4 to 8
 workers. Gains stay large across that range on this median. Eight workers is
 still climbing here — keep adding threads only while *your* remeasure still
 buys QPS.
 
 **Against a slow upstream, more threads help a little and do not fix the
 model.** Under [`forward_slow`](/performance/methodology.md#load-shapes),
-completed QPS scales with thread count (~3 → ~6 → ~11 → ~22) but stays tiny and
+completed QPS scales with thread count (~3 → ~6 → ~11 → ~21) but stays tiny and
 lossy. Prefer [`split_io`](/concepts/runtime-and-concurrency.md#split-io-runtime)
 when upstream wait owns the path rather than stacking sync threads alone.
 

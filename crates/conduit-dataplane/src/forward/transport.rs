@@ -214,13 +214,15 @@ impl ForwardTransport {
         txn: &mut Transaction,
         snapshot: &RuntimeSnapshot,
         key: ForwardKey,
-        wire: Vec<u8>,
+        mut wire: Vec<u8>,
         started: Instant,
         parse_wire_meta: bool,
     ) -> StageOutcome {
         self.record_forward(txn, snapshot, Some(key.backend), "success", None, started);
         self.report_passive_outcome(txn, snapshot, key.backend, false, None);
         self.table.remove(key);
+        // Restore the client query ID; upstream wire used an allocated demux ID.
+        crate::forward::rewrite_dns_id(&mut wire, txn.dns_id);
         record_upstream_response(txn, &wire, parse_wire_meta);
         txn.response_wire = Some(wire);
         StageOutcome::Continue(Phase::ResponseRules)
@@ -257,14 +259,13 @@ impl ForwardTransport {
         snapshot: &RuntimeSnapshot,
         backend: std::net::SocketAddr,
     ) -> Result<ForwardKey, StageOutcome> {
-        let key = ForwardKey {
-            backend,
-            dns_id: txn.dns_id,
-        };
-        if !self.table.register(key, txn.id) {
-            return Err(self.servfail(txn, snapshot, None, "table_full", Instant::now()));
+        // Allocate a unique upstream DNS ID. Client IDs collide under multi-client
+        // load (same 16-bit space across sockets); overwriting the demux table
+        // orphans prior slots in IoWait forever.
+        match self.table.register_unique(backend, txn.id) {
+            Some(key) => Ok(key),
+            None => Err(self.servfail(txn, snapshot, None, "table_full", Instant::now())),
         }
-        Ok(key)
     }
 
     fn handle_submit(
@@ -306,7 +307,8 @@ impl ForwardTransport {
         let allowed_v6 = snapshot.allowed_sources_v6_for_pool(pool);
         let effective_v4 = txn.take_effective_source_override_v4();
         let effective_v6 = txn.take_effective_source_override_v6();
-        let upstream_wire = txn.query_wire.clone();
+        let mut upstream_wire = txn.query_wire.clone();
+        crate::forward::rewrite_dns_id(&mut upstream_wire, key.dns_id);
         let sel = EgressSourceSelection {
             pool_sources_v4: sources_v4,
             pool_sources_v6: sources_v6,
@@ -374,7 +376,8 @@ impl ForwardTransport {
         let allowed_v6 = snapshot.allowed_sources_v6_for_pool(pool);
         let effective_v4 = txn.take_effective_source_override_v4();
         let effective_v6 = txn.take_effective_source_override_v6();
-        let upstream_wire = &txn.query_wire;
+        let mut upstream_wire = txn.query_wire.clone();
+        crate::forward::rewrite_dns_id(&mut upstream_wire, key.dns_id);
         let bind_v4 = if backend.is_ipv4() {
             Some(
                 self.egress
@@ -395,7 +398,7 @@ impl ForwardTransport {
         let try_tcp = self.use_tcp_for_attempt(txn, false);
 
         if try_tcp {
-            match forward_tcp(backend, upstream_wire, self.timeout(), bind_v4, bind_v6) {
+            match forward_tcp(backend, &upstream_wire, self.timeout(), bind_v4, bind_v6) {
                 Ok(wire) => {
                     return self.finish_response(txn, snapshot, key, wire, started, parse_wire_meta)
                 }
@@ -425,7 +428,7 @@ impl ForwardTransport {
             "forwarding query"
         );
 
-        if socket.send_to(upstream_wire, backend).is_err() {
+        if socket.send_to(&upstream_wire, backend).is_err() {
             tracing::warn!(txn_id = txn.id, dns_id = txn.dns_id, %backend, "forward send failed");
             return self.servfail(txn, snapshot, Some(key), "send_error", started);
         }
@@ -448,7 +451,7 @@ impl ForwardTransport {
                             );
                             match forward_tcp(
                                 backend,
-                                upstream_wire,
+                                &upstream_wire,
                                 self.timeout(),
                                 bind_v4,
                                 bind_v6,
@@ -573,11 +576,15 @@ mod tests {
         .unwrap();
 
         let (port_tx, port_rx) = std::sync::mpsc::channel();
+        let (upstream_id_tx, upstream_id_rx) = std::sync::mpsc::channel();
         let upstream = std::thread::spawn(move || {
             let sock = UdpSocket::bind("127.0.0.1:0").unwrap();
             port_tx.send(sock.local_addr().unwrap().port()).unwrap();
             let mut buf = [0u8; 512];
-            let (_, _) = sock.recv_from(&mut buf).unwrap();
+            let (len, _) = sock.recv_from(&mut buf).unwrap();
+            assert!(len >= 2, "upstream must receive a DNS header");
+            let upstream_id = u16::from_be_bytes([buf[0], buf[1]]);
+            upstream_id_tx.send(upstream_id).unwrap();
         });
 
         let backend_port = port_rx.recv().unwrap();
@@ -599,12 +606,29 @@ mod tests {
             StageOutcome::Suspend(Phase::WaitResponse)
         ));
         assert!(txn.forward_started_at.is_some());
-        assert!(table
-            .lookup(ForwardKey {
+        // Client ID stays on the txn; demux uses an allocated upstream ID on the wire.
+        assert_eq!(txn.dns_id, 0x1234);
+        let upstream_id = upstream_id_rx.recv().unwrap();
+        assert_ne!(
+            upstream_id, 0x1234,
+            "submit must rewrite a unique upstream DNS ID for demux"
+        );
+        assert_eq!(
+            table.lookup(ForwardKey {
                 backend,
-                dns_id: 0x1234
-            })
-            .is_some());
+                dns_id: upstream_id
+            }),
+            Some(1)
+        );
+        assert!(
+            table
+                .lookup(ForwardKey {
+                    backend,
+                    dns_id: 0x1234
+                })
+                .is_none(),
+            "client DNS ID must not be the demux key"
+        );
         let _ = upstream.join();
     }
 

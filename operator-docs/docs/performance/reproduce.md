@@ -131,6 +131,16 @@ governor (via `cpupower`, `powerprofilesctl`, or sysfs — see `perf/README.md`,
 CPU power state). Pass `--allow-suboptimal-cpu-power` only for an intentional noisy
 probe; that override is not publish-quality.
 
+Raise UDP socket memory so fixture `listeners.rcvbuf` (4 MiB) is not clamped by
+`net.core.rmem_max` (see `perf/README.md`, Host UDP receive buffers):
+
+```zsh
+sudo sysctl -w net.core.rmem_max=16777216 net.core.rmem_default=4194304
+```
+
+The harness refuses elevated runs when `rmem_max` is below 4 MiB unless you pass
+`--allow-suboptimal-udp-buffers` (expect Queries lost from kernel `RcvbufErrors`).
+
 Omit short `--time` overrides for publish-quality duration. Curated publish uses
 **median of 3 independent rounds** (not a single draw); see
 [Methodology](/performance/methodology.md). Example:

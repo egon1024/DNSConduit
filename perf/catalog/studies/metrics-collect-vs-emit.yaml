@@ -10,9 +10,8 @@ members:
 compare_axis: obs_posture
 primary_metric: achieved_qps
 takeaway: >
-  Versus no-collect (~68k): collect-only within about 3% (~70k); collect+emit
-  about 6–8% (~64k). Most standing cost is still collect, with export adding a
-  band.
+  Versus no-collect (~73k): collect-only about 5% (~70k); collect+emit about
+  6% (~69k). Collect carries most of the standing cost; emit adds a thin band.
 related_guides:
   - /observability/metrics-configurability.md
   - /guides/operator-metrics-bases.md

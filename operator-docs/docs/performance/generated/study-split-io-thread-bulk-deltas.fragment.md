@@ -1,3 +1,3 @@
 ## At a glance
 
-- **split_io topology (forward_fast):** only `thin` is published (~147k); no paired comparison on this reference.
+- **split_io topology (forward_fast):** `heavy` is about **1.5×** `thin` (~210k vs ~141k).

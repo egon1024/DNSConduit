@@ -1,6 +1,7 @@
 # feature_tax — metrics off, logging.level warn (verbosity tax warn pole).
 schema_version: 1
 listeners:
+  rcvbuf: 4194304  # 4 MiB; needs net.core.rmem_max >= this
   threads: 2
   reuse_port: true
   listeners:

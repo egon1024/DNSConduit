@@ -42,8 +42,8 @@ both). Pipeline traces use the separate
 
 | Posture | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| [logging_warn](/performance/scenarios.md#feature-tax-logging-warn-forward-fast) | sync | 72516.1 | 2.4 | 729137 | 725473 | 3664 | ingress=2 |
-| [logging_debug](/performance/scenarios.md#feature-tax-logging-debug-forward-fast) | sync | 75279.4 | 4.2 | 756471 | 753111 | 3364 | ingress=2 |
+| [logging_warn](/performance/scenarios.md#feature-tax-logging-warn-forward-fast) | sync | 66682.3 | 29.9 | 670283 | 670283 | 0 | ingress=2 |
+| [logging_debug](/performance/scenarios.md#feature-tax-logging-debug-forward-fast) | sync | 63415.4 | 31.4 | 637105 | 637105 | 0 | ingress=2 |
 
 </div>
 <!-- perf-study-evidence:end -->
@@ -51,15 +51,14 @@ both). Pipeline traces use the separate
 <!-- perf-study-deltas:start -->
 ## At a glance
 
-- **logging warn vs debug (forward_fast):** `logging_debug` is about **1.0×** `logging_warn` (~75k vs ~73k).
+- **logging warn vs debug (forward_fast):** `logging_debug` costs about **5%** QPS versus `logging_warn` (~63k vs ~67k).
 <!-- perf-study-deltas:end -->
 
 ## Takeaway
 
-**Debug logging was not a large standing tax on this median.** Warn and debug
-land within about **4%** QPS of each other (~73k / ~75k). That is much smaller
-than older single-shot refreshes suggested — treat debug under load as
-remeasure-required, not as a fixed mid-teens penalty.
+**Debug logging was not a large standing tax on this median.** Debug costs about
+**5%** QPS versus warn (~63k vs ~67k). Remeasure before assuming a large debug
+penalty on your hardware.
 
 **What to do:** keep production at warn (or quieter). Use debug for diagnosis
 windows and remeasure on your hardware if you need a standing debug posture.

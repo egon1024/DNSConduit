@@ -1,3 +1,3 @@
 scenario_id,runtime,achieved_qps,latency_avg_ms,queries_sent,queries_completed,queries_lost,workers
-feature-tax-metrics-off-split-io-forward-fast,split_io,130924.8,1.4,1318112,1314408,3870,"ingress_workers=2, policy_workers=2, io_workers=2"
-feature-tax-metrics-standard-scrape-split-io-forward-fast,split_io,134804.5,1.8,1368825,1365195,3702,"ingress_workers=2, policy_workers=2, io_workers=2"
+feature-tax-metrics-off-split-io-forward-fast,split_io,139604.8,14.3,1397888,1397888,0,"ingress_workers=2, policy_workers=2, io_workers=2"
+feature-tax-metrics-standard-scrape-split-io-forward-fast,split_io,142733.8,14.0,1429317,1429317,0,"ingress_workers=2, policy_workers=2, io_workers=2"

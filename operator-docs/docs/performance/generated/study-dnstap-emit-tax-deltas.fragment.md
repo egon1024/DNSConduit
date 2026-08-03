@@ -1,3 +1,3 @@
 ## At a glance
 
-- **dnstap off / sampled / full (forward_fast):** `dnstap_sampled` costs about **4%** QPS versus `dnstap_off` (~72k vs ~75k); `dnstap_full` costs about **11%** QPS versus `dnstap_off` (~67k vs ~75k).
+- **dnstap off / sampled / full (forward_fast):** `dnstap_sampled` costs about **6%** QPS versus `dnstap_off` (~71k vs ~76k); `dnstap_full` costs about **10%** QPS versus `dnstap_off` (~68k vs ~76k).
