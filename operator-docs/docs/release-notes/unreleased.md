@@ -1,3 +1,19 @@
 # Unreleased
 
-_No unreleased operator-facing changes._
+## Performance documentation
+
+- **Performance section:** Published same-host studies for runtime model, worker sizing, observability tax, and shutdown drain. See [Performance](/performance/index.md).
+- **Performance test harness:** An in-tree harness replays the published suite kinds against a Conduit binary. We recommend running it in your own environment to validate performance on your hardware before sizing — published figures are same-host comparisons, not capacity SLOs. See [Reproduce against a binary](/performance/reproduce.md).
+- **Directional findings:** Short takeaways (for example sync vs `split_io`, metrics scrape cost, drain policy under slow upstream) on the Performance overview.
+
+## Dataplane throughput and correctness
+
+- **Concurrent transaction slots:** The shared transaction slot pool no longer holds one process-wide lock across policy work — distinct slots can progress concurrently (important under multi-worker `sync` and `split_io`).
+- **Sharded `split_io` handoff:** Policy work queues (and reply routes) are partitioned by slot so ingress producers are not serialized on a single queue lock. See [Runtime and concurrency](/concepts/runtime-and-concurrency.md) and [Dataplane runtime tuning](/guides/dataplane-runtime-tuning.md).
+- **Unique upstream DNS IDs:** Outstanding forwards to the same backend use allocated demux IDs (client IDs restored on the reply), so colliding client query IDs no longer orphan in-flight waits under multi-client load.
+- **Event sink drop-oldest:** When an event queue is full under `drop_oldest`, Conduit drops one oldest event instead of draining the whole queue on the producer path.
+
+## Packaging and lab tooling
+
+- **`conduit-otlp-metrics-tracer`:** Ships in tarballs and packages as a local OTLP HTTP metrics receiver for smoke labs (not part of the production systemd service). See [Install and run](/getting-started/install-and-run.md) and [OTLP metrics push smoke](/guides/otlp-metrics-push.md).
+- **Container images:** Release image builds refresh the base layer (`docker build --pull`) and upgrade Debian packages at image build time so published images pick up current security fixes from the archive.
