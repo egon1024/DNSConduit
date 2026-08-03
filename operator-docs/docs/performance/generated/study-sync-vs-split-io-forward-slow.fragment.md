@@ -8,7 +8,7 @@
 
 | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- |
-| [sync](/performance/scenarios.md#scale-sync-forward-slow) | 5.7 | 2507.6 | 12188 | 198 | 11990 | ingress=2 |
-| — | — | — | — | — | — | — |
+| [sync](/performance/scenarios.md#scale-sync-forward-slow) | 5.7 | 2509.2 | 12188 | 198 | 11990 | ingress=2 |
+| [split_io](/performance/scenarios.md#scale-split-io-forward-slow) | 38736.3 | 51.3 | 1167745 | 1167745 | 0 | ingress=2, policy=2, io=2 |
 
 </div>

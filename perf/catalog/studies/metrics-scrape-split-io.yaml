@@ -9,8 +9,8 @@ members:
 compare_axis: obs_posture
 primary_metric: achieved_qps
 takeaway: >
-  Under split_io, standard scrape stays within about 3% of obs-off on this
-  median (~131k / ~135k); remeasure — do not assume the sync ladder
+  Under split_io, standard scrape stays within about 2% of obs-off on this
+  median (~143k vs ~140k); remeasure — do not assume the sync ladder
   percentage.
 related_guides:
   - /guides/operator-metrics-bases.md

@@ -12,13 +12,13 @@ Short directional takeaways from published studies. Each bullet is a
 capacity target or SLO. Absolute QPS on study pages is lab detail only; remeasure
 on your hardware before sizing.
 
-- **Runtime model** — Under a fast upstream, [`split_io`](/concepts/runtime-and-concurrency.md#split-io-runtime) reaches about **1.9×** the QPS of [`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default) (~147k vs ~76k). → [Sync vs split_io](/performance/studies/sync-vs-split-io.md)
-- **Sync ingress sizing** — More ingress workers raise throughput under fast forward (~**39k → 76k → 135k → 206k** from 1→2→4→8); gains stay large at the top of that range on this lab. → [Ingress concurrency (sync)](/performance/studies/ingress-concurrency-sync.md)
-- **Answer cache** — When nearly every query hits, a warm cache path is about **4.4×** forward-fast QPS on this lab — a ceiling, not a forecast of your hit rate. → [Cache hit vs forward](/performance/studies/cache-hit-vs-forward.md)
-- **Metrics scrape** — Versus observability off, standard scrape costs about **4–8%** QPS on sync ladders in this median refresh; most metrics cost is still recording. → [Metrics scrape tax](/performance/studies/metrics-scrape-ladder.md), [Collect vs emit](/performance/studies/metrics-collect-vs-emit.md)
-- **Logging and tracing** — Warn vs debug stays within about **4%** on this median; full pipeline tracing (~100% sample) costs about **40%** versus observability off. Keep tracing for diagnosis windows, not standing production. → [Logging verbosity tax](/performance/studies/logging-verbosity-tax.md), [Pipeline tracing tax](/performance/studies/tracing-tax-under-load.md)
-- **Dnstap and OTLP** — Sampled dnstap about **4%**, fuller emit about **11%**; scrape+dnstap together about **16%**. OTLP push about **8%** — same band as standard scrape. → [Dnstap emit tax](/performance/studies/dnstap-emit-tax.md), [Combined metrics + dnstap](/performance/studies/metrics-dnstap-combined-tax.md), [OTLP tax under load](/performance/studies/otlp-tax-under-load.md)
-- **Shutdown drain** — Under slow upstream, budgeted drain is ~**114 ms**; complete and minimal finish near **63 ms**, with complete recording the most in-flight client failures. Pick a policy for your restart window on purpose. → [Drain policy under slow](/performance/studies/drain-policy-under-slow.md)
+- **Runtime model** — Under a fast upstream, [`split_io`](/concepts/runtime-and-concurrency.md#split-io-runtime) reaches about **1.9×** the QPS of [`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default) (~141k vs ~74k). → [Sync vs split_io](/performance/studies/sync-vs-split-io.md)
+- **Sync ingress sizing** — More ingress workers raise throughput under fast forward (~**38k → 74k → 146k → 240k** from 1→2→4→8); gains stay large at the top of that range on this lab. → [Ingress concurrency (sync)](/performance/studies/ingress-concurrency-sync.md)
+- **Answer cache** — When nearly every query hits, a warm cache path is about **3.5×** forward-fast QPS on this lab — a ceiling, not a forecast of your hit rate. → [Cache hit vs forward](/performance/studies/cache-hit-vs-forward.md)
+- **Metrics scrape** — Versus observability off, standard scrape costs about **9%** QPS on the sync ladder in this median refresh; collect carries most metrics cost, with emit a thin band. → [Metrics scrape tax](/performance/studies/metrics-scrape-ladder.md), [Collect vs emit](/performance/studies/metrics-collect-vs-emit.md)
+- **Logging and tracing** — Debug logging costs about **5%** versus warn on this median; full pipeline tracing (~100% sample) costs about **37%** versus observability off. Keep tracing for diagnosis windows, not standing production. → [Logging verbosity tax](/performance/studies/logging-verbosity-tax.md), [Pipeline tracing tax](/performance/studies/tracing-tax-under-load.md)
+- **Dnstap and OTLP** — Sampled dnstap about **6%**, fuller emit about **10%**; scrape+dnstap together about **15%**. OTLP push about **8%** — same band as standard scrape. → [Dnstap emit tax](/performance/studies/dnstap-emit-tax.md), [Combined metrics + dnstap](/performance/studies/metrics-dnstap-combined-tax.md), [OTLP tax under load](/performance/studies/otlp-tax-under-load.md)
+- **Shutdown drain** — Under slow upstream, complete drain is ~**114 ms**; budgeted ~**164 ms**; minimal ~**63 ms**, with complete recording the most in-flight client failures. Pick a policy for your restart window on purpose. → [Drain policy under slow](/performance/studies/drain-policy-under-slow.md)
 
 Full comparisons, charts, and omitted-member notes live under
 [Tuning evidence (studies)](/performance/studies/index.md).
@@ -32,7 +32,7 @@ same-host comparisons on a single reference host — not capacity SLOs.
    `split_io` vs `sync` under a fast upstream), then the
    [Sync vs split_io](/performance/studies/sync-vs-split-io.md) study.
 2. **Size metrics scrape** — read the [metrics scrape finding](#findings)
-   (~4–8% standard-band vs off on sync), then
+   (~9% standard vs off on the sync ladder), then
    [Metrics scrape tax](/performance/studies/metrics-scrape-ladder.md) and
    [Operator metrics bases](/guides/operator-metrics-bases.md).
 3. **Remeasure one study** — replay a study against your binary with

@@ -8,8 +8,8 @@
 
 | Posture | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| [dnstap_off](/performance/scenarios.md#feature-tax-dnstap-off-forward-fast) | sync | 75250.1 | 4.0 | 756222 | 752823 | 3399 | ingress=2 |
-| [dnstap_sampled](/performance/scenarios.md#feature-tax-dnstap-sampled-forward-fast) | sync | 72484.3 | 4.3 | 728574 | 725189 | 3385 | ingress=2 |
-| [dnstap_full](/performance/scenarios.md#feature-tax-dnstap-full-forward-fast) | sync | 67178.8 | 4.4 | 675731 | 672299 | 3432 | ingress=2 |
+| [dnstap_off](/performance/scenarios.md#feature-tax-dnstap-off-forward-fast) | sync | 75505.8 | 26.4 | 757062 | 757062 | 0 | ingress=2 |
+| [dnstap_sampled](/performance/scenarios.md#feature-tax-dnstap-sampled-forward-fast) | sync | 71108.5 | 28.0 | 714045 | 714045 | 0 | ingress=2 |
+| [dnstap_full](/performance/scenarios.md#feature-tax-dnstap-full-forward-fast) | sync | 67911.4 | 29.4 | 681855 | 681855 | 0 | ingress=2 |
 
 </div>

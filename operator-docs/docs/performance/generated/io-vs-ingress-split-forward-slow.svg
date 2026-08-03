@@ -1,22 +1,22 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="640" height="320" viewBox="0 0 640 320" role="img" aria-label="Achieved QPS — sync ingress workers (forward_fast)">
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="320" viewBox="0 0 640 320" role="img" aria-label="Achieved QPS — split_io io_workers series (forward_slow)">
 <rect width="100%" height="100%" fill="#fafafa"/>
-<text x="320" y="24" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#212121">Achieved QPS — sync ingress workers (forward_fast)</text>
+<text x="320" y="24" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#212121">Achieved QPS — split_io io_workers series (forward_slow)</text>
 <text x="12" y="152" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#616161" transform="rotate(-90 12 152)">Achieved QPS</text>
 <line x1="56" y1="40" x2="56" y2="264" stroke="#9e9e9e"/>
 <line x1="56" y1="264" x2="616" y2="264" stroke="#9e9e9e"/>
 <line x1="56" y1="264.0" x2="616" y2="264.0" stroke="#eeeeee"/>
 <text x="50" y="268.0" text-anchor="end" font-family="sans-serif" font-size="10" fill="#757575">0</text>
 <line x1="56" y1="152.0" x2="616" y2="152.0" stroke="#eeeeee"/>
-<text x="50" y="156.0" text-anchor="end" font-family="sans-serif" font-size="10" fill="#757575">119774</text>
+<text x="50" y="156.0" text-anchor="end" font-family="sans-serif" font-size="10" fill="#757575">19428</text>
 <line x1="56" y1="40.0" x2="616" y2="40.0" stroke="#eeeeee"/>
-<text x="50" y="44.0" text-anchor="end" font-family="sans-serif" font-size="10" fill="#757575">239549</text>
-<rect x="91.0" y="228.2" width="59.5" height="35.8" fill="#3949ab"><title>achieved_qps / 1: 38267.58</title></rect>
+<text x="50" y="44.0" text-anchor="end" font-family="sans-serif" font-size="10" fill="#757575">38856</text>
+<rect x="91.0" y="40.1" width="59.5" height="223.9" fill="#3949ab"><title>achieved_qps / 1: 38839.49</title></rect>
 <text x="126.0" y="282" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#424242">1</text>
-<rect x="231.0" y="195.2" width="59.5" height="68.8" fill="#3949ab"><title>achieved_qps / 2: 73594.41</title></rect>
+<rect x="231.0" y="40.7" width="59.5" height="223.3" fill="#3949ab"><title>achieved_qps / 2: 38736.30</title></rect>
 <text x="266.0" y="282" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#424242">2</text>
-<rect x="371.0" y="127.1" width="59.5" height="136.9" fill="#3949ab"><title>achieved_qps / 4: 146451.12</title></rect>
+<rect x="371.0" y="40.0" width="59.5" height="224.0" fill="#3949ab"><title>achieved_qps / 4: 38855.54</title></rect>
 <text x="406.0" y="282" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#424242">4</text>
-<rect x="511.0" y="40.0" width="59.5" height="224.0" fill="#3949ab"><title>achieved_qps / 8: 239548.96</title></rect>
+<rect x="511.0" y="41.2" width="59.5" height="222.8" fill="#3949ab"><title>achieved_qps / 8: 38642.59</title></rect>
 <text x="546.0" y="282" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#424242">8</text>
 <rect x="56" y="298" width="12" height="12" fill="#3949ab"/>
 <text x="72" y="308" font-family="sans-serif" font-size="11" fill="#424242">achieved_qps</text>

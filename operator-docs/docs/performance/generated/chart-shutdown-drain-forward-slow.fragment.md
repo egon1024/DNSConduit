@@ -8,8 +8,8 @@
 
 | Drain policy | Drain duration (ms) | Client failures during stop | QPS | Avg latency (ms) | Sent | Completed |
 | --- | --- | --- | --- | --- | --- | --- |
-| [drain_complete](/performance/scenarios.md#shutdown-drain-complete-forward-slow) | 113.6 | 296 | 6.7 | 976.6 | 376 | 80 |
-| [drain_budgeted](/performance/scenarios.md#shutdown-drain-budgeted-forward-slow) | 63.4 | 200 | 9.7 | 896.6 | 278 | 78 |
-| [drain_minimal](/performance/scenarios.md#shutdown-drain-minimal-forward-slow) | 63.4 | 200 | 9.7 | 995.7 | 278 | 78 |
+| [drain_complete](/performance/scenarios.md#shutdown-drain-complete-forward-slow) | 113.8 | 298 | 6.6 | 1008.6 | 377 | 79 |
+| [drain_budgeted](/performance/scenarios.md#shutdown-drain-budgeted-forward-slow) | 163.6 | 200 | 10.2 | 1020.7 | 282 | 82 |
+| [drain_minimal](/performance/scenarios.md#shutdown-drain-minimal-forward-slow) | 63.4 | 200 | 9.7 | 900.3 | 278 | 78 |
 
 </div>

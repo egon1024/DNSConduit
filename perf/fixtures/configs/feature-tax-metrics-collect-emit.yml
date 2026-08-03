@@ -1,6 +1,7 @@
 # feature_tax — collect+emit on standard base (paired with collect-only / no-collect).
 schema_version: 1
 listeners:
+  rcvbuf: 4194304  # 4 MiB; needs net.core.rmem_max >= this
   threads: 2
   reuse_port: true
   listeners:

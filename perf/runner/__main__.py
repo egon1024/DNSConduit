@@ -14,6 +14,7 @@ from .catalog import (
 )
 from .cpupower import check_host_cpu_power, require_cpu_power_ok
 from .execute import DEFAULT_LOAD_SECONDS, build_run_document, run_scenario
+from .udpbuffers import check_host_udp_buffers, require_udp_buffers_ok
 from .loadgen import DEFAULT_IMAGE
 from .paths import REFERENCES_DIR, ROOT, load_json
 from .procs import find_stray_lab_processes, kill_stray_lab_processes
@@ -162,6 +163,20 @@ def cmd_run(args: argparse.Namespace) -> int:
             f"warning: CPU governor(s) {observed} are suboptimal; "
             "continuing because --allow-suboptimal-cpu-power was set "
             "(results may be noisy)",
+            file=sys.stderr,
+        )
+
+    udp_buf = check_host_udp_buffers()
+    allow_udp = bool(getattr(args, "allow_suboptimal_udp_buffers", False))
+    udp_err = require_udp_buffers_ok(udp_buf, allow_suboptimal=allow_udp)
+    if udp_err is not None:
+        print(udp_err, file=sys.stderr)
+        return 2
+    if udp_buf.status == "suboptimal" and allow_udp:
+        print(
+            f"warning: net.core.rmem_max={udp_buf.rmem_max} is below fixture "
+            "listeners.rcvbuf; continuing because --allow-suboptimal-udp-buffers "
+            "was set (expect Queries lost from kernel RcvbufErrors)",
             file=sys.stderr,
         )
 
@@ -463,6 +478,15 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Allow run when CPU frequency governors are not all 'performance' "
             "(default: refuse — powersave/schedutil/mixed governors add host noise)"
+        ),
+    )
+    run_p.add_argument(
+        "--allow-suboptimal-udp-buffers",
+        action="store_true",
+        help=(
+            "Allow run when net.core.rmem_max is below fixture listeners.rcvbuf "
+            "(default: refuse — undersized UDP recv buffers cause Queries lost "
+            "via kernel RcvbufErrors)"
         ),
     )
     run_p.add_argument(

@@ -57,9 +57,9 @@ under the same [`forward_fast`](/performance/methodology.md#load-shapes) load. F
 
 | Posture | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-scrape-ladder-forward-fast) | sync | 69443.0 | 2.5 | 698389 | 694725 | 3664 | ingress=2 |
-| [metrics_minimal_scrape](/performance/scenarios.md#feature-tax-metrics-minimal-scrape-ladder-forward-fast) | sync | 71784.8 | 4.3 | 721553 | 718176 | 3401 | ingress=2 |
-| [metrics_standard_scrape](/performance/scenarios.md#feature-tax-metrics-standard-scrape-ladder-forward-fast) | sync | 66823.7 | 2.9 | 672247 | 668583 | 3664 | ingress=2 |
+| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-scrape-ladder-forward-fast) | sync | 74751.2 | 26.7 | 749541 | 749541 | 0 | ingress=2 |
+| [metrics_minimal_scrape](/performance/scenarios.md#feature-tax-metrics-minimal-scrape-ladder-forward-fast) | sync | 72057.1 | 27.7 | 723470 | 723470 | 0 | ingress=2 |
+| [metrics_standard_scrape](/performance/scenarios.md#feature-tax-metrics-standard-scrape-ladder-forward-fast) | sync | 68348.4 | 29.2 | 686051 | 686051 | 0 | ingress=2 |
 
 </div>
 <!-- perf-study-evidence:end -->
@@ -67,15 +67,15 @@ under the same [`forward_fast`](/performance/methodology.md#load-shapes) load. F
 <!-- perf-study-deltas:start -->
 ## At a glance
 
-- **metrics scrape tax (forward_fast):** `metrics_minimal_scrape` is about **1.0×** `metrics_off` (~72k vs ~69k); `metrics_standard_scrape` costs about **4%** QPS versus `metrics_off` (~67k vs ~69k).
+- **metrics scrape tax (forward_fast):** `metrics_minimal_scrape` costs about **4%** QPS versus `metrics_off` (~72k vs ~75k); `metrics_standard_scrape` costs about **9%** QPS versus `metrics_off` (~68k vs ~75k).
 <!-- perf-study-deltas:end -->
 
 ## Takeaway
 
-**Richer Prometheus scrape costs more QPS once you leave the noise band.**
-Versus observability off on this median (~69k), minimal scrape lands within
-about **3–4%** (~72k — favorable noise here), and standard scrape about
-**4–7%** (~67k). That is a same-host tax signal, not an SLO.
+**Richer Prometheus scrape costs more QPS as you climb the ladder.** Versus
+observability off on this median (~75k), minimal scrape costs about **4%**
+(~72k), and standard scrape about **9%** (~68k). That is a same-host tax
+signal, not an SLO.
 
 **What to do:** pick minimal vs standard from the cardinality you need
 ([operator metrics bases](/guides/operator-metrics-bases.md)), then remeasure on

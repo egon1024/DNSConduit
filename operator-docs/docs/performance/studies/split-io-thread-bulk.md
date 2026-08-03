@@ -44,8 +44,8 @@ To see which setting actually helps, change **one** count at a time:
 
 | Topology | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| [thin](/performance/scenarios.md#scale-split-io-forward-fast) | split_io | 147142.3 | 1.2 | 1479133 | 1475210 | 3912 | ingress=2, policy=2, io=2 |
-| — | — | — | — | — | — | — | — |
+| [thin](/performance/scenarios.md#scale-split-io-forward-fast) | split_io | 141401.1 | 14.0 | 1430029 | 1430029 | 0 | ingress=2, policy=2, io=2 |
+| [heavy](/performance/scenarios.md#scale-split-io-topology-heavy) | split_io | 210005.8 | 9.5 | 2102918 | 2102918 | 0 | ingress=4, policy=4, io=4 |
 
 </div>
 <!-- perf-study-evidence:end -->
@@ -53,21 +53,20 @@ To see which setting actually helps, change **one** count at a time:
 <!-- perf-study-deltas:start -->
 ## At a glance
 
-- **split_io topology (forward_fast):** only `thin` is published (~147k); no paired comparison on this reference.
+- **split_io topology (forward_fast):** `heavy` is about **1.5×** `thin` (~210k vs ~141k).
 <!-- perf-study-deltas:end -->
 
 ## Takeaway
 
-**This page does not yet answer whether doubling all worker pools helps.** Only
-the modest baseline (2/2/2 at ~147k QPS) is published. The topology-heavy
-(4/4/4) cell failed the successful-answer check and was omitted — so there is
-no bulk-topology multiplier here.
+**Raising ingress, policy, and I/O together helps on this median — and is still
+not a substitute for single-axis sizing.** Topology-heavy (4/4/4) reaches about
+**1.5×** the thin baseline (2/2/2) under
+[`forward_fast`](/performance/methodology.md#load-shapes) (~210k vs ~141k).
 
-**What to do:** do not treat “double everything” as proven. Size **one**
-setting at a time with
+**What to do:** treat the bulk pair as a ceiling check, not a tuning recipe.
+Size **one** setting at a time with
 [Dataplane runtime tuning](/guides/dataplane-runtime-tuning.md) and the
-single-axis studies; remeasure the bulk pair locally once it clears the answer
-gate.
+single-axis studies; remeasure the bulk pair on your hardware.
 
 ## Related guides
 

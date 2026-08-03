@@ -47,8 +47,8 @@ and the [dataplane runtime tuning](/guides/dataplane-runtime-tuning.md) guide.
 
 | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- |
-| [sync](/performance/scenarios.md#scale-sync-forward-fast) | 75601.1 | 3.8 | 759747 | 756344 | 3443 | ingress=2 |
-| [split_io](/performance/scenarios.md#scale-split-io-forward-fast) | 147142.3 | 1.2 | 1479133 | 1475210 | 3912 | ingress=2, policy=2, io=2 |
+| [sync](/performance/scenarios.md#scale-sync-forward-fast) | 73594.4 | 27.1 | 738415 | 738415 | 0 | ingress=2 |
+| [split_io](/performance/scenarios.md#scale-split-io-forward-fast) | 141401.1 | 14.0 | 1430029 | 1430029 | 0 | ingress=2, policy=2, io=2 |
 
 </div>
 
@@ -62,8 +62,8 @@ and the [dataplane runtime tuning](/guides/dataplane-runtime-tuning.md) guide.
 
 | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- |
-| [sync](/performance/scenarios.md#scale-sync-forward-slow) | 5.7 | 2507.6 | 12188 | 198 | 11990 | ingress=2 |
-| — | — | — | — | — | — | — |
+| [sync](/performance/scenarios.md#scale-sync-forward-slow) | 5.7 | 2509.2 | 12188 | 198 | 11990 | ingress=2 |
+| [split_io](/performance/scenarios.md#scale-split-io-forward-slow) | 38736.3 | 51.3 | 1167745 | 1167745 | 0 | ingress=2, policy=2, io=2 |
 
 </div>
 <!-- perf-study-evidence:end -->
@@ -71,8 +71,8 @@ and the [dataplane runtime tuning](/guides/dataplane-runtime-tuning.md) guide.
 <!-- perf-study-deltas:start -->
 ## At a glance
 
-- **sync vs split_io (forward_fast):** `split_io` is about **1.9×** `sync` (~147k vs ~76k).
-- **sync vs split_io (forward_slow):** only `sync` is published (~6 QPS); no paired comparison on this reference.
+- **sync vs split_io (forward_fast):** `split_io` is about **1.9×** `sync` (~141k vs ~74k).
+- **sync vs split_io (forward_slow):** `split_io` is about **6841.3×** `sync` (~39k vs ~6 QPS).
 <!-- perf-study-deltas:end -->
 
 ## Takeaway
@@ -81,13 +81,13 @@ and the [dataplane runtime tuning](/guides/dataplane-runtime-tuning.md) guide.
 [`forward_fast`](/performance/methodology.md#load-shapes),
 [`split_io`](/concepts/runtime-and-concurrency.md#split-io-runtime) reaches about
 **1.9×** the QPS of
-[`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default) (~147k vs
-~76k) with lower average latency and little query loss.
+[`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default) (~141k vs
+~74k) with lower average latency and little query loss.
 
-**This page does not yet rank the two under a slow upstream.** Only the sync
-[`forward_slow`](/performance/methodology.md#load-shapes) pole is published
-(~6 QPS, high loss). The paired `split_io` cell failed the successful-answer
-check and was omitted.
+**Against a slow upstream, `split_io` still wins completion by a wide margin.**
+Under [`forward_slow`](/performance/methodology.md#load-shapes), sync stays near
+~6 QPS and lossy; `split_io` reaches about ~39k completed QPS with little loss
+on this median. Prefer `split_io` when upstream wait owns the path.
 
 **What to do:** prefer `split_io` when upstream wait matters; confirm on your
 hardware with `--study sync-vs-split-io`.

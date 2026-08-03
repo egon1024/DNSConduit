@@ -433,14 +433,14 @@ Optional noisy rung — keep in catalog; publish may omit if unstable on the lab
 
 <div class="perf-scenario" markdown="1">
 
-### scale-split-io-forward-fast
+### scale-split-io-io-1-forward-slow
 
-Compare split_io runtime under a fast stub upstream (forward_fast load shape).
-Thin curated spine pair with scale-sync-forward-fast.
+I/O vs ingress (split_io): one I/O worker with fixed ingress/policy=2
+under forward_slow. Paired with io_workers 2/4/8 for io-vs-ingress-split.
 
-**Axes:** `runtime`=`split_io`, `load_shape`=`forward_fast`, `topology`=`thin`, `ingress_workers`=`2`, `policy_workers`=`2`, `io_workers`=`2`
+**Axes:** `runtime`=`split_io`, `load_shape`=`forward_slow`, `ingress_workers`=`2`, `policy_workers`=`2`, `io_workers`=`1`
 
-**Recipe:** config `scale-split-io-obs-off.yml`; upstream `fast`; loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
+**Recipe:** config `scale-split-io-io-1-obs-off.yml`; upstream `slow`; loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
 
 </div>
 
@@ -454,33 +454,6 @@ Paired with scale-sync-forward-slow; slow upstream is where split_io should shin
 **Axes:** `runtime`=`split_io`, `load_shape`=`forward_slow`, `ingress_workers`=`2`, `policy_workers`=`2`, `io_workers`=`2`
 
 **Recipe:** config `scale-split-io-obs-off.yml`; upstream `slow`; loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
-
-</div>
-
-<div class="perf-scenario" markdown="1">
-
-### scale-split-io-topology-heavy
-
-Maintainer topology / threads-vs-cores scenario: higher ingress, policy, and
-I/O worker counts under forward_fast. Runnable locally; not required for G1
-curated publish.
-
-**Axes:** `runtime`=`split_io`, `load_shape`=`forward_fast`, `topology`=`heavy`, `ingress_workers`=`4`, `policy_workers`=`4`, `io_workers`=`4`
-
-**Recipe:** config `scale-split-io-topology-heavy.yml`; upstream `fast`; loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
-
-</div>
-
-<div class="perf-scenario" markdown="1">
-
-### scale-split-io-io-1-forward-slow
-
-I/O vs ingress (split_io): one I/O worker with fixed ingress/policy=2
-under forward_slow. Paired with io_workers 2/4/8 for io-vs-ingress-split.
-
-**Axes:** `runtime`=`split_io`, `load_shape`=`forward_slow`, `ingress_workers`=`2`, `policy_workers`=`2`, `io_workers`=`1`
-
-**Recipe:** config `scale-split-io-io-1-obs-off.yml`; upstream `slow`; loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
 
 </div>
 
@@ -507,6 +480,33 @@ under forward_slow. Optional noisy rung — keep in catalog; publish may omit if
 **Axes:** `runtime`=`split_io`, `load_shape`=`forward_slow`, `ingress_workers`=`2`, `policy_workers`=`2`, `io_workers`=`8`
 
 **Recipe:** config `scale-split-io-io-8-obs-off.yml`; upstream `slow`; loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
+
+</div>
+
+<div class="perf-scenario" markdown="1">
+
+### scale-split-io-forward-fast
+
+Compare split_io runtime under a fast stub upstream (forward_fast load shape).
+Thin curated spine pair with scale-sync-forward-fast.
+
+**Axes:** `runtime`=`split_io`, `load_shape`=`forward_fast`, `topology`=`thin`, `ingress_workers`=`2`, `policy_workers`=`2`, `io_workers`=`2`
+
+**Recipe:** config `scale-split-io-obs-off.yml`; upstream `fast`; loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
+
+</div>
+
+<div class="perf-scenario" markdown="1">
+
+### scale-split-io-topology-heavy
+
+Maintainer topology / threads-vs-cores scenario: higher ingress, policy, and
+I/O worker counts under forward_fast. Runnable locally; not required for G1
+curated publish.
+
+**Axes:** `runtime`=`split_io`, `load_shape`=`forward_fast`, `topology`=`heavy`, `ingress_workers`=`4`, `policy_workers`=`4`, `io_workers`=`4`
+
+**Recipe:** config `scale-split-io-topology-heavy.yml`; upstream `fast`; loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
 
 </div>
 

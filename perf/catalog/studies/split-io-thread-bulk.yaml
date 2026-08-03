@@ -9,9 +9,9 @@ members:
 compare_axis: topology
 primary_metric: achieved_qps
 takeaway: >
-  Only the thin 2/2/2 baseline is published (~147k QPS); the topology-heavy
-  4/4/4 cell failed the answer gate and was omitted — do not treat “double
-  everything” as proven; size one dial at a time.
+  Raising ingress/policy/I/O together (4/4/4 vs thin 2/2/2) reaches about
+  1.5× QPS on this median (~210k vs ~141k). Still size one dial at a time —
+  this bulk pair is not a substitute for single-axis studies.
 related_guides:
   - /guides/dataplane-runtime-tuning.md
 figures:
