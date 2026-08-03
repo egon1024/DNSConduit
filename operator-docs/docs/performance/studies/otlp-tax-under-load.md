@@ -45,9 +45,9 @@ Compare also the [metrics scrape tax](/performance/studies/metrics-scrape-ladder
 
 | Posture | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-forward-fast) | sync | 77319.5 | 3.8 | 776925 | 773506 | 3419 | ingress=2 |
-| [metrics_otlp_push](/performance/scenarios.md#feature-tax-metrics-otlp-push-forward-fast) | sync | 66150.0 | 2.7 | 665461 | 661797 | 3664 | ingress=2 |
-| [metrics_standard_scrape](/performance/scenarios.md#feature-tax-metrics-standard-scrape-forward-fast) | sync | 69173.3 | 2.6 | 695725 | 692061 | 3664 | ingress=2 |
+| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-forward-fast) | sync | 75462.4 | 4.0 | 758529 | 755155 | 3400 | ingress=2 |
+| [metrics_otlp_push](/performance/scenarios.md#feature-tax-metrics-otlp-push-forward-fast) | sync | 69165.5 | 4.3 | 695416 | 692002 | 3414 | ingress=2 |
+| [metrics_standard_scrape](/performance/scenarios.md#feature-tax-metrics-standard-scrape-forward-fast) | sync | 69628.0 | 4.5 | 700042 | 696579 | 3377 | ingress=2 |
 
 </div>
 <!-- perf-study-evidence:end -->
@@ -55,14 +55,14 @@ Compare also the [metrics scrape tax](/performance/studies/metrics-scrape-ladder
 <!-- perf-study-deltas:start -->
 ## At a glance
 
-- **OTLP push vs baselines (forward_fast):** `metrics_otlp_push` costs about **14%** QPS versus `metrics_off` (~66k vs ~77k); `metrics_standard_scrape` costs about **11%** QPS versus `metrics_off` (~69k vs ~77k).
+- **OTLP push vs baselines (forward_fast):** `metrics_otlp_push` costs about **8%** QPS versus `metrics_off` (~69k vs ~75k); `metrics_standard_scrape` costs about **8%** QPS versus `metrics_off` (~70k vs ~75k).
 <!-- perf-study-deltas:end -->
 
 ## Takeaway
 
-**OTLP push costs about as much as scrape — a bit more on this lab.** Versus
-observability off: OTLP ~**14%** QPS, standard scrape ~**11%** (~66k / ~69k /
-~77k).
+**OTLP push costs about as much as standard scrape on this median.** Versus
+observability off (~75k): OTLP about **8%** (~69k), standard scrape about
+**8%** (~70k).
 
 **What to do:** enable OTLP only when you have a collector path. Otherwise
 prefer scrape and size from the

@@ -43,9 +43,9 @@ Compare sinks off, sampled (~10% responses), and fuller emit under the same
 
 | Posture | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| [dnstap_off](/performance/scenarios.md#feature-tax-dnstap-off-forward-fast) | sync | 75749.0 | 4.0 | 761200 | 757807 | 3393 | ingress=2 |
-| [dnstap_sampled](/performance/scenarios.md#feature-tax-dnstap-sampled-forward-fast) | sync | 73408.5 | 4.2 | 737837 | 734444 | 3393 | ingress=2 |
-| [dnstap_full](/performance/scenarios.md#feature-tax-dnstap-full-forward-fast) | sync | 69573.8 | 4.1 | 699739 | 696075 | 3429 | ingress=2 |
+| [dnstap_off](/performance/scenarios.md#feature-tax-dnstap-off-forward-fast) | sync | 75250.1 | 4.0 | 756222 | 752823 | 3399 | ingress=2 |
+| [dnstap_sampled](/performance/scenarios.md#feature-tax-dnstap-sampled-forward-fast) | sync | 72484.3 | 4.3 | 728574 | 725189 | 3385 | ingress=2 |
+| [dnstap_full](/performance/scenarios.md#feature-tax-dnstap-full-forward-fast) | sync | 67178.8 | 4.4 | 675731 | 672299 | 3432 | ingress=2 |
 
 </div>
 <!-- perf-study-evidence:end -->
@@ -53,14 +53,14 @@ Compare sinks off, sampled (~10% responses), and fuller emit under the same
 <!-- perf-study-deltas:start -->
 ## At a glance
 
-- **dnstap off / sampled / full (forward_fast):** `dnstap_sampled` costs about **3%** QPS versus `dnstap_off` (~73k vs ~76k); `dnstap_full` costs about **8%** QPS versus `dnstap_off` (~70k vs ~76k).
+- **dnstap off / sampled / full (forward_fast):** `dnstap_sampled` costs about **4%** QPS versus `dnstap_off` (~72k vs ~75k); `dnstap_full` costs about **11%** QPS versus `dnstap_off` (~67k vs ~75k).
 <!-- perf-study-deltas:end -->
 
 ## Takeaway
 
-**Dnstap costs scale with how much you emit.** Versus dnstap off on this lab,
-sampled emit (~10% of responses) costs about **3%** QPS, and full emit costs
-about **8%** (~76k / ~73k / ~70k).
+**Dnstap costs scale with how much you emit.** Versus dnstap off on this lab
+(~75k), sampled emit costs about **4%** QPS (~72k), and full emit about
+**11%** (~67k).
 
 **What to do:** leave dnstap off until you have a consumer. Prefer **sampled**
 for standing capture; turn on fuller emit only for surfaces you will store and

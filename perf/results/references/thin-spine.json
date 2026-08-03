@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-08-02T00:05:32Z",
+  "generated_at": "2026-08-02T17:48:43Z",
   "lab_profile": {
     "id": "maintainer-ws-1",
     "display_name": "Maintainer workstation (maintainer-ws-1)",
@@ -22,14 +22,13 @@
       "threads": 2,
       "image": "dnsconduit-dnsperf:2.14.0"
     },
-    "git_sha": "ed1b2ab0f77d965fb050b0d27c6b1feff57596a9"
+    "git_sha": "266b2f2ec93686b3665d9b7e5be371f8aaef39bc"
   },
   "quality": {
     "warmup_seconds": 2.0,
     "duration_seconds": 10.0,
     "dnsperf_clients": 4,
-    "dnsperf_threads": 2,
-    "notes": "Promoted subset: dropped answer-gate invalid cells scale-split-io-io-1-forward-slow, scale-split-io-forward-slow, scale-split-io-io-4-forward-slow, scale-split-io-io-8-forward-slow, scale-split-io-topology-heavy (split_io under forward_slow / topology-heavy SERVFAIL storms). Full rounds retained under remediation-20260801-ledger/."
+    "dnsperf_threads": 2
   },
   "scenarios": [
     {
@@ -43,15 +42,15 @@
         "ingress_workers": 2
       },
       "metrics": {
-        "achieved_qps": 74932.492597,
-        "queries_sent": 753275,
-        "queries_completed": 749881,
-        "queries_lost": 3465,
+        "achieved_qps": 75601.097716,
+        "queries_sent": 759747,
+        "queries_completed": 756344,
+        "queries_lost": 3443,
         "response_codes": {
-          "NOERROR": 749881
+          "NOERROR": 756344
         },
         "latency_ms": {
-          "avg": 3.569
+          "avg": 3.764
         },
         "answer_ok_percent": 100.0
       },
@@ -62,7 +61,7 @@
         "dnsperf_threads": 8,
         "dnsperf_max_outstanding": 2000,
         "upstream_workers": 8,
-        "notes": "median of 3 rounds; achieved_qps range 67754.5-75535.4"
+        "notes": "median of 3 rounds; achieved_qps range 75480.1-75604.1"
       }
     },
     {
@@ -76,15 +75,15 @@
         "ingress_workers": 2
       },
       "metrics": {
-        "achieved_qps": 336912.478545,
-        "queries_sent": 3373056,
-        "queries_completed": 3369396,
-        "queries_lost": 3454,
+        "achieved_qps": 333042.127694,
+        "queries_sent": 3334080,
+        "queries_completed": 3330738,
+        "queries_lost": 3398,
         "response_codes": {
-          "NOERROR": 3369396
+          "NOERROR": 3330738
         },
         "latency_ms": {
-          "avg": 0.8899999999999999
+          "avg": 0.9600000000000001
         },
         "answer_ok_percent": 100.0
       },
@@ -95,7 +94,7 @@
         "dnsperf_threads": 8,
         "dnsperf_max_outstanding": 2000,
         "upstream_workers": 8,
-        "notes": "median of 3 rounds; achieved_qps range 298724.4-338037.3"
+        "notes": "median of 3 rounds; achieved_qps range 324625.4-334207.0"
       }
     },
     {
@@ -110,15 +109,15 @@
         "ingress_workers": 2
       },
       "metrics": {
-        "achieved_qps": 75748.961185,
-        "queries_sent": 761200,
-        "queries_completed": 757807,
-        "queries_lost": 3393,
+        "achieved_qps": 75250.055351,
+        "queries_sent": 756222,
+        "queries_completed": 752823,
+        "queries_lost": 3399,
         "response_codes": {
-          "NOERROR": 757807
+          "NOERROR": 752823
         },
         "latency_ms": {
-          "avg": 4.046
+          "avg": 4.043
         },
         "answer_ok_percent": 100.0
       },
@@ -129,7 +128,7 @@
         "dnsperf_threads": 8,
         "dnsperf_max_outstanding": 2000,
         "upstream_workers": 8,
-        "notes": "median of 3 rounds; achieved_qps range 73164.2-75928.0"
+        "notes": "median of 3 rounds; achieved_qps range 61198.3-75508.7"
       }
     },
     {
@@ -144,15 +143,15 @@
         "ingress_workers": 2
       },
       "metrics": {
-        "achieved_qps": 73408.48123,
-        "queries_sent": 737837,
-        "queries_completed": 734444,
-        "queries_lost": 3393,
+        "achieved_qps": 72484.332222,
+        "queries_sent": 728574,
+        "queries_completed": 725189,
+        "queries_lost": 3385,
         "response_codes": {
-          "NOERROR": 734444
+          "NOERROR": 725189
         },
         "latency_ms": {
-          "avg": 4.1739999999999995
+          "avg": 4.258
         },
         "answer_ok_percent": 100.0
       },
@@ -163,7 +162,7 @@
         "dnsperf_threads": 8,
         "dnsperf_max_outstanding": 2000,
         "upstream_workers": 8,
-        "notes": "median of 3 rounds; achieved_qps range 73346.4-73767.7"
+        "notes": "median of 3 rounds; achieved_qps range 72445.5-72498.5"
       }
     },
     {
@@ -178,15 +177,15 @@
         "ingress_workers": 2
       },
       "metrics": {
-        "achieved_qps": 69573.770636,
-        "queries_sent": 699739,
-        "queries_completed": 696075,
-        "queries_lost": 3429,
+        "achieved_qps": 67178.810515,
+        "queries_sent": 675731,
+        "queries_completed": 672299,
+        "queries_lost": 3432,
         "response_codes": {
-          "NOERROR": 696075
+          "NOERROR": 672299
         },
         "latency_ms": {
-          "avg": 4.083
+          "avg": 4.406000000000001
         },
         "answer_ok_percent": 100.0
       },
@@ -197,7 +196,7 @@
         "dnsperf_threads": 8,
         "dnsperf_max_outstanding": 2000,
         "upstream_workers": 8,
-        "notes": "median of 3 rounds; achieved_qps range 68062.5-70332.5"
+        "notes": "median of 3 rounds; achieved_qps range 67145.9-67611.1"
       }
     },
     {
@@ -212,29 +211,29 @@
         "ingress_workers": 2
       },
       "metrics": {
-        "achieved_qps": 6.666607,
-        "queries_sent": 378,
+        "achieved_qps": 6.666562,
+        "queries_sent": 376,
         "queries_completed": 80,
-        "queries_lost": 298,
+        "queries_lost": 296,
         "response_codes": {
           "NOERROR": 80
         },
         "latency_ms": {
-          "avg": 1020.769
+          "avg": 976.645
         },
-        "drain_duration_ms": 113.526,
+        "drain_duration_ms": 113.649,
         "answer_ok_percent": 100.0
       },
       "quality": {
         "warmup_seconds": 2.0,
         "duration_seconds": 12.0,
-        "notes": "shutdown under load: establish_load_s=2.0, stop_wait_s=12.0; median of 3 rounds; achieved_qps range 6.7-6.7",
+        "notes": "shutdown under load: establish_load_s=2.0, stop_wait_s=12.0; median of 3 rounds; achieved_qps range 3.3-6.7",
         "dnsperf_clients": 4,
         "dnsperf_threads": 2,
         "upstream_workers": 4
       },
       "secondary": {
-        "client_failures_during_stop": 298
+        "client_failures_during_stop": 296
       }
     },
     {
@@ -249,7 +248,7 @@
         "ingress_workers": 2
       },
       "metrics": {
-        "achieved_qps": 9.749781,
+        "achieved_qps": 9.749899,
         "queries_sent": 278,
         "queries_completed": 78,
         "queries_lost": 200,
@@ -257,15 +256,15 @@
           "NOERROR": 78
         },
         "latency_ms": {
-          "avg": 912.99
+          "avg": 896.556
         },
-        "drain_duration_ms": 113.454,
+        "drain_duration_ms": 63.446,
         "answer_ok_percent": 100.0
       },
       "quality": {
         "warmup_seconds": 2.0,
         "duration_seconds": 8.0,
-        "notes": "shutdown under load: establish_load_s=2.0, stop_wait_s=10.0; median of 3 rounds; achieved_qps range 5.0-10.0",
+        "notes": "shutdown under load: establish_load_s=2.0, stop_wait_s=10.0; median of 3 rounds; achieved_qps range 5.0-9.7",
         "dnsperf_clients": 4,
         "dnsperf_threads": 2,
         "upstream_workers": 4
@@ -286,7 +285,7 @@
         "ingress_workers": 2
       },
       "metrics": {
-        "achieved_qps": 9.749835,
+        "achieved_qps": 9.749844,
         "queries_sent": 278,
         "queries_completed": 78,
         "queries_lost": 200,
@@ -294,9 +293,9 @@
           "NOERROR": 78
         },
         "latency_ms": {
-          "avg": 896.6229999999999
+          "avg": 995.681
         },
-        "drain_duration_ms": 63.418,
+        "drain_duration_ms": 63.435,
         "answer_ok_percent": 100.0
       },
       "quality": {
@@ -314,7 +313,7 @@
     {
       "id": "scale-sync-ingress-1-forward-fast",
       "suite": "scale",
-      "intent": "Ingress-concurrency ladder (sync): one ingress worker under forward_fast.\nPublished forward_fast recipe (elevated outstanding) so achieved QPS reflects\nConduit ingress capacity rather than the loadgen outstanding window.",
+      "intent": "Ingress concurrency (sync): one ingress worker under forward_fast.\nPublished forward_fast recipe (elevated outstanding) so achieved QPS reflects\nConduit ingress capacity rather than the loadgen outstanding window.",
       "status": "ok",
       "axes": {
         "runtime": "sync",
@@ -322,15 +321,15 @@
         "ingress_workers": 1
       },
       "metrics": {
-        "achieved_qps": 38584.017545,
-        "queries_sent": 389667,
-        "queries_completed": 386003,
+        "achieved_qps": 38612.572248,
+        "queries_sent": 389959,
+        "queries_completed": 386295,
         "queries_lost": 3664,
         "response_codes": {
-          "NOERROR": 386003
+          "NOERROR": 386295
         },
         "latency_ms": {
-          "avg": 4.348
+          "avg": 4.345
         },
         "answer_ok_percent": 100.0
       },
@@ -341,13 +340,13 @@
         "dnsperf_threads": 8,
         "dnsperf_max_outstanding": 2000,
         "upstream_workers": 8,
-        "notes": "median of 3 rounds; achieved_qps range 38437.4-38746.5"
+        "notes": "median of 3 rounds; achieved_qps range 38343.1-38816.0"
       }
     },
     {
       "id": "scale-sync-ingress-4-forward-fast",
       "suite": "scale",
-      "intent": "Ingress-concurrency ladder (sync): four ingress workers under forward_fast.\nPublished forward_fast recipe (elevated outstanding) so achieved QPS reflects\nConduit ingress capacity rather than the loadgen outstanding window.",
+      "intent": "Ingress concurrency (sync): four ingress workers under forward_fast.\nPublished forward_fast recipe (elevated outstanding) so achieved QPS reflects\nConduit ingress capacity rather than the loadgen outstanding window.",
       "status": "ok",
       "axes": {
         "runtime": "sync",
@@ -355,15 +354,15 @@
         "ingress_workers": 4
       },
       "metrics": {
-        "achieved_qps": 101956.092669,
-        "queries_sent": 1023433,
-        "queries_completed": 1020013,
-        "queries_lost": 3420,
+        "achieved_qps": 134945.743222,
+        "queries_sent": 1353302,
+        "queries_completed": 1350035,
+        "queries_lost": 3267,
         "response_codes": {
-          "NOERROR": 1020013
+          "NOERROR": 1350035
         },
         "latency_ms": {
-          "avg": 2.842
+          "avg": 2.8489999999999998
         },
         "answer_ok_percent": 100.0
       },
@@ -374,13 +373,13 @@
         "dnsperf_threads": 8,
         "dnsperf_max_outstanding": 2000,
         "upstream_workers": 8,
-        "notes": "median of 3 rounds; achieved_qps range 85845.7-103559.4"
+        "notes": "median of 3 rounds; achieved_qps range 112378.0-147682.2"
       }
     },
     {
       "id": "scale-sync-ingress-8-forward-fast",
       "suite": "scale",
-      "intent": "Ingress-concurrency ladder (sync): eight ingress workers under forward_fast.\nPublished forward_fast recipe (elevated outstanding) so achieved QPS reflects\nConduit ingress capacity rather than the loadgen outstanding window.",
+      "intent": "Ingress concurrency (sync): eight ingress workers under forward_fast.\nPublished forward_fast recipe (elevated outstanding) so achieved QPS reflects\nConduit ingress capacity rather than the loadgen outstanding window.",
       "status": "ok",
       "axes": {
         "runtime": "sync",
@@ -388,15 +387,15 @@
         "ingress_workers": 8
       },
       "metrics": {
-        "achieved_qps": 198042.230394,
-        "queries_sent": 1984315,
-        "queries_completed": 1981323,
-        "queries_lost": 2992,
+        "achieved_qps": 205558.871353,
+        "queries_sent": 2059455,
+        "queries_completed": 2056472,
+        "queries_lost": 2862,
         "response_codes": {
-          "NOERROR": 1981323
+          "NOERROR": 2056472
         },
         "latency_ms": {
-          "avg": 2.7590000000000003
+          "avg": 3.362
         },
         "answer_ok_percent": 100.0
       },
@@ -407,13 +406,13 @@
         "dnsperf_threads": 8,
         "dnsperf_max_outstanding": 2000,
         "upstream_workers": 8,
-        "notes": "median of 3 rounds; achieved_qps range 147524.3-239052.4"
+        "notes": "median of 3 rounds; achieved_qps range 167823.2-253097.3"
       }
     },
     {
       "id": "scale-sync-ingress-1-forward-slow",
       "suite": "scale",
-      "intent": "Ingress-concurrency ladder (sync): one ingress worker under forward_slow.\nPaired with ingress 2/4/8 cells for the ingress-concurrency-sync study.",
+      "intent": "Ingress concurrency (sync): one ingress worker under forward_slow.\nPaired with ingress 2/4/8 cells for the ingress-concurrency-sync study.",
       "status": "ok",
       "axes": {
         "runtime": "sync",
@@ -421,7 +420,7 @@
         "ingress_workers": 1
       },
       "metrics": {
-        "achieved_qps": 2.844989,
+        "achieved_qps": 2.854748,
         "queries_sent": 12093,
         "queries_completed": 99,
         "queries_lost": 11994,
@@ -429,7 +428,7 @@
           "NOERROR": 99
         },
         "latency_ms": {
-          "avg": 2514.645
+          "avg": 2514.428
         },
         "answer_ok_percent": 100.0
       },
@@ -454,7 +453,7 @@
         "ingress_workers": 2
       },
       "metrics": {
-        "achieved_qps": 5.678743,
+        "achieved_qps": 5.67377,
         "queries_sent": 12188,
         "queries_completed": 198,
         "queries_lost": 11990,
@@ -462,7 +461,7 @@
           "NOERROR": 198
         },
         "latency_ms": {
-          "avg": 2509.525
+          "avg": 2507.615
         },
         "answer_ok_percent": 100.0
       },
@@ -479,7 +478,7 @@
     {
       "id": "scale-sync-ingress-4-forward-slow",
       "suite": "scale",
-      "intent": "Ingress-concurrency ladder (sync): four ingress workers under forward_slow.\nPaired with ingress 1/2/8 cells for the ingress-concurrency-sync study.",
+      "intent": "Ingress concurrency (sync): four ingress workers under forward_slow.\nPaired with ingress 1/2/8 cells for the ingress-concurrency-sync study.",
       "status": "ok",
       "axes": {
         "runtime": "sync",
@@ -487,15 +486,15 @@
         "ingress_workers": 4
       },
       "metrics": {
-        "achieved_qps": 11.38569,
-        "queries_sent": 12380,
+        "achieved_qps": 11.385791,
+        "queries_sent": 12377,
         "queries_completed": 398,
-        "queries_lost": 11978,
+        "queries_lost": 11979,
         "response_codes": {
           "NOERROR": 398
         },
         "latency_ms": {
-          "avg": 2512.915
+          "avg": 2512.991
         },
         "answer_ok_percent": 100.0
       },
@@ -506,13 +505,13 @@
         "dnsperf_threads": 8,
         "dnsperf_max_outstanding": 2000,
         "upstream_workers": 4,
-        "notes": "median of 3 rounds; achieved_qps range 11.4-12.6"
+        "notes": "median of 3 rounds; achieved_qps range 11.4-11.4"
       }
     },
     {
       "id": "scale-sync-ingress-8-forward-slow",
       "suite": "scale",
-      "intent": "Ingress-concurrency ladder (sync): eight ingress workers under forward_slow.\nOptional noisy rung \u2014 keep in catalog; publish may omit if unstable on the lab.",
+      "intent": "Ingress concurrency (sync): eight ingress workers under forward_slow.\nOptional noisy rung \u2014 keep in catalog; publish may omit if unstable on the lab.",
       "status": "ok",
       "axes": {
         "runtime": "sync",
@@ -520,15 +519,15 @@
         "ingress_workers": 8
       },
       "metrics": {
-        "achieved_qps": 21.653671,
-        "queries_sent": 12692,
-        "queries_completed": 757,
-        "queries_lost": 11950,
+        "achieved_qps": 22.487767,
+        "queries_sent": 12699,
+        "queries_completed": 786,
+        "queries_lost": 11929,
         "response_codes": {
-          "NOERROR": 757
+          "NOERROR": 786
         },
         "latency_ms": {
-          "avg": 2591.535
+          "avg": 2640.737
         },
         "answer_ok_percent": 100.0
       },
@@ -539,7 +538,7 @@
         "dnsperf_threads": 8,
         "dnsperf_max_outstanding": 2000,
         "upstream_workers": 4,
-        "notes": "median of 3 rounds; achieved_qps range 20.7-22.8"
+        "notes": "median of 3 rounds; achieved_qps range 18.2-24.2"
       }
     },
     {
@@ -554,15 +553,15 @@
         "ingress_workers": 2
       },
       "metrics": {
-        "achieved_qps": 75892.14495,
-        "queries_sent": 762598,
-        "queries_completed": 759249,
-        "queries_lost": 3407,
+        "achieved_qps": 72516.096324,
+        "queries_sent": 729137,
+        "queries_completed": 725473,
+        "queries_lost": 3664,
         "response_codes": {
-          "NOERROR": 759249
+          "NOERROR": 725473
         },
         "latency_ms": {
-          "avg": 3.9569999999999994
+          "avg": 2.403
         },
         "answer_ok_percent": 100.0
       },
@@ -573,7 +572,7 @@
         "dnsperf_threads": 8,
         "dnsperf_max_outstanding": 2000,
         "upstream_workers": 8,
-        "notes": "median of 3 rounds; achieved_qps range 65492.8-76688.0"
+        "notes": "median of 3 rounds; achieved_qps range 70103.4-75526.5"
       }
     },
     {
@@ -588,15 +587,15 @@
         "ingress_workers": 2
       },
       "metrics": {
-        "achieved_qps": 63526.012439,
-        "queries_sent": 639007,
-        "queries_completed": 635562,
-        "queries_lost": 3445,
+        "achieved_qps": 75279.414894,
+        "queries_sent": 756471,
+        "queries_completed": 753111,
+        "queries_lost": 3364,
         "response_codes": {
-          "NOERROR": 635562
+          "NOERROR": 753111
         },
         "latency_ms": {
-          "avg": 4.418
+          "avg": 4.225
         },
         "answer_ok_percent": 100.0
       },
@@ -607,7 +606,7 @@
         "dnsperf_threads": 8,
         "dnsperf_max_outstanding": 2000,
         "upstream_workers": 8,
-        "notes": "median of 3 rounds; achieved_qps range 60930.3-64061.2"
+        "notes": "median of 3 rounds; achieved_qps range 56889.1-75628.2"
       }
     },
     {
@@ -622,15 +621,15 @@
         "ingress_workers": 2
       },
       "metrics": {
-        "achieved_qps": 73196.167612,
-        "queries_sent": 735710,
-        "queries_completed": 732262,
-        "queries_lost": 3448,
+        "achieved_qps": 67772.399301,
+        "queries_sent": 681748,
+        "queries_completed": 678084,
+        "queries_lost": 3664,
         "response_codes": {
-          "NOERROR": 732262
+          "NOERROR": 678084
         },
         "latency_ms": {
-          "avg": 3.803
+          "avg": 2.721
         },
         "answer_ok_percent": 100.0
       },
@@ -641,7 +640,7 @@
         "dnsperf_threads": 8,
         "dnsperf_max_outstanding": 2000,
         "upstream_workers": 8,
-        "notes": "median of 3 rounds; achieved_qps range 64732.4-74893.0"
+        "notes": "median of 3 rounds; achieved_qps range 61787.3-73276.0"
       }
     },
     {
@@ -656,15 +655,15 @@
         "ingress_workers": 2
       },
       "metrics": {
-        "achieved_qps": 69667.41311,
-        "queries_sent": 700420,
-        "queries_completed": 696976,
-        "queries_lost": 3448,
+        "achieved_qps": 69703.552939,
+        "queries_sent": 700769,
+        "queries_completed": 697334,
+        "queries_lost": 3418,
         "response_codes": {
-          "NOERROR": 696976
+          "NOERROR": 697334
         },
         "latency_ms": {
-          "avg": 4.039
+          "avg": 4.155
         },
         "answer_ok_percent": 100.0
       },
@@ -675,7 +674,7 @@
         "dnsperf_threads": 8,
         "dnsperf_max_outstanding": 2000,
         "upstream_workers": 8,
-        "notes": "median of 3 rounds; achieved_qps range 61371.0-70057.8"
+        "notes": "median of 3 rounds; achieved_qps range 69193.2-76698.6"
       }
     },
     {
@@ -690,15 +689,15 @@
         "ingress_workers": 2
       },
       "metrics": {
-        "achieved_qps": 70134.883002,
-        "queries_sent": 705169,
-        "queries_completed": 701692,
-        "queries_lost": 3439,
+        "achieved_qps": 63894.568844,
+        "queries_sent": 642896,
+        "queries_completed": 639232,
+        "queries_lost": 3664,
         "response_codes": {
-          "NOERROR": 701692
+          "NOERROR": 639232
         },
         "latency_ms": {
-          "avg": 4.023
+          "avg": 2.755
         },
         "answer_ok_percent": 100.0
       },
@@ -709,13 +708,13 @@
         "dnsperf_threads": 8,
         "dnsperf_max_outstanding": 2000,
         "upstream_workers": 8,
-        "notes": "median of 3 rounds; achieved_qps range 69900.0-77712.8"
+        "notes": "median of 3 rounds; achieved_qps range 61095.5-69490.2"
       }
     },
     {
       "id": "feature-tax-metrics-off-forward-fast",
       "suite": "feature_tax",
-      "intent": "Observability-off baseline under forward_fast \u2014 metrics disabled, no dnstap sinks.\nLadder pair for minimal/standard scrape tax deltas.",
+      "intent": "Observability-off baseline under forward_fast \u2014 metrics disabled, no dnstap sinks.\nBaseline pair for minimal/standard scrape tax deltas.",
       "status": "ok",
       "axes": {
         "runtime": "sync",
@@ -724,15 +723,15 @@
         "ingress_workers": 2
       },
       "metrics": {
-        "achieved_qps": 77319.494367,
-        "queries_sent": 776925,
-        "queries_completed": 773506,
-        "queries_lost": 3419,
+        "achieved_qps": 75462.419734,
+        "queries_sent": 758529,
+        "queries_completed": 755155,
+        "queries_lost": 3400,
         "response_codes": {
-          "NOERROR": 773506
+          "NOERROR": 755155
         },
         "latency_ms": {
-          "avg": 3.762
+          "avg": 3.9909999999999997
         },
         "answer_ok_percent": 100.0
       },
@@ -743,13 +742,13 @@
         "dnsperf_threads": 8,
         "dnsperf_max_outstanding": 2000,
         "upstream_workers": 8,
-        "notes": "median of 3 rounds; achieved_qps range 76358.2-77493.3"
+        "notes": "median of 3 rounds; achieved_qps range 75399.2-75744.5"
       }
     },
     {
       "id": "feature-tax-metrics-standard-scrape-forward-fast",
       "suite": "feature_tax",
-      "intent": "Metrics base standard with Prometheus scrape (collect+emit) under forward_fast.\nScrape-only ladder top; also the collect+emit pole of the collect pair.",
+      "intent": "Metrics base standard with Prometheus scrape (collect+emit) under forward_fast.\nScrape-only high pole; also the collect+emit pole of the collect pair.",
       "status": "ok",
       "axes": {
         "runtime": "sync",
@@ -758,15 +757,15 @@
         "ingress_workers": 2
       },
       "metrics": {
-        "achieved_qps": 69173.34642,
-        "queries_sent": 695725,
-        "queries_completed": 692061,
-        "queries_lost": 3664,
+        "achieved_qps": 69628.008696,
+        "queries_sent": 700042,
+        "queries_completed": 696579,
+        "queries_lost": 3377,
         "response_codes": {
-          "NOERROR": 692061
+          "NOERROR": 696579
         },
         "latency_ms": {
-          "avg": 2.56
+          "avg": 4.485
         },
         "answer_ok_percent": 100.0
       },
@@ -777,7 +776,7 @@
         "dnsperf_threads": 8,
         "dnsperf_max_outstanding": 2000,
         "upstream_workers": 8,
-        "notes": "median of 3 rounds; achieved_qps range 65912.9-69881.7"
+        "notes": "median of 3 rounds; achieved_qps range 69494.6-69858.4"
       }
     },
     {
@@ -792,15 +791,15 @@
         "ingress_workers": 2
       },
       "metrics": {
-        "achieved_qps": 64335.06019,
-        "queries_sent": 647080,
-        "queries_completed": 643702,
-        "queries_lost": 3428,
+        "achieved_qps": 63336.346542,
+        "queries_sent": 637160,
+        "queries_completed": 633740,
+        "queries_lost": 3430,
         "response_codes": {
-          "NOERROR": 643702
+          "NOERROR": 633740
         },
         "latency_ms": {
-          "avg": 4.401000000000001
+          "avg": 4.511
         },
         "answer_ok_percent": 100.0
       },
@@ -811,7 +810,7 @@
         "dnsperf_threads": 8,
         "dnsperf_max_outstanding": 2000,
         "upstream_workers": 8,
-        "notes": "median of 3 rounds; achieved_qps range 64218.2-76949.1"
+        "notes": "median of 3 rounds; achieved_qps range 56140.2-63526.5"
       }
     },
     {
@@ -826,15 +825,15 @@
         "ingress_workers": 2
       },
       "metrics": {
-        "achieved_qps": 70104.32634,
-        "queries_sent": 704809,
-        "queries_completed": 701424,
-        "queries_lost": 3385,
+        "achieved_qps": 68340.809774,
+        "queries_sent": 687351,
+        "queries_completed": 683962,
+        "queries_lost": 3389,
         "response_codes": {
-          "NOERROR": 701424
+          "NOERROR": 683962
         },
         "latency_ms": {
-          "avg": 4.4159999999999995
+          "avg": 4.484
         },
         "answer_ok_percent": 100.0
       },
@@ -845,17 +844,17 @@
         "dnsperf_threads": 8,
         "dnsperf_max_outstanding": 2000,
         "upstream_workers": 8,
-        "notes": "median of 3 rounds; achieved_qps range 69764.3-71146.8"
+        "notes": "median of 3 rounds; achieved_qps range 61904.1-69939.4"
       },
       "secondary": {
-        "scrape_hammer_ok": 152,
+        "scrape_hammer_ok": 134,
         "scrape_hammer_fail": 0
       }
     },
     {
       "id": "feature-tax-metrics-off-scrape-ladder-forward-fast",
       "suite": "feature_tax",
-      "intent": "Observability-off baseline for the metrics scrape ladder under an elevated\ndnsperf outstanding window (publish recipe for this study). Pair with\nminimal/standard scrape-ladder cells \u2014 not the shared metrics-off cell used\nby other feature_tax studies.",
+      "intent": "Observability-off baseline for the metrics scrape tax under an elevated\ndnsperf outstanding window (publish recipe for this study). Pair with\nminimal/standard scrape-tax cells \u2014 not the shared metrics-off cell used\nby other feature_tax studies.",
       "status": "ok",
       "axes": {
         "runtime": "sync",
@@ -865,15 +864,15 @@
         "loadgen_recipe": "elevated_outstanding"
       },
       "metrics": {
-        "achieved_qps": 75321.563155,
-        "queries_sent": 757077,
-        "queries_completed": 753665,
-        "queries_lost": 3410,
+        "achieved_qps": 69442.986731,
+        "queries_sent": 698389,
+        "queries_completed": 694725,
+        "queries_lost": 3664,
         "response_codes": {
-          "NOERROR": 753665
+          "NOERROR": 694725
         },
         "latency_ms": {
-          "avg": 3.934
+          "avg": 2.4949999999999997
         },
         "answer_ok_percent": 100.0
       },
@@ -884,13 +883,13 @@
         "dnsperf_threads": 8,
         "dnsperf_max_outstanding": 2000,
         "upstream_workers": 8,
-        "notes": "median of 3 rounds; achieved_qps range 75209.0-76050.0"
+        "notes": "median of 3 rounds; achieved_qps range 67480.4-74830.0"
       }
     },
     {
       "id": "feature-tax-metrics-minimal-scrape-ladder-forward-fast",
       "suite": "feature_tax",
-      "intent": "Metrics base minimal + Prometheus scrape under elevated dnsperf outstanding\n(scrape-ladder publish recipe). Pair with off/standard scrape-ladder cells.",
+      "intent": "Metrics base minimal + Prometheus scrape under elevated dnsperf outstanding\n(scrape-tax publish recipe). Pair with off/standard scrape-tax cells.",
       "status": "ok",
       "axes": {
         "runtime": "sync",
@@ -900,15 +899,15 @@
         "loadgen_recipe": "elevated_outstanding"
       },
       "metrics": {
-        "achieved_qps": 73415.208208,
-        "queries_sent": 737853,
-        "queries_completed": 734479,
-        "queries_lost": 3393,
+        "achieved_qps": 71784.815875,
+        "queries_sent": 721553,
+        "queries_completed": 718176,
+        "queries_lost": 3401,
         "response_codes": {
-          "NOERROR": 734479
+          "NOERROR": 718176
         },
         "latency_ms": {
-          "avg": 4.283
+          "avg": 4.273
         },
         "answer_ok_percent": 100.0
       },
@@ -919,13 +918,13 @@
         "dnsperf_threads": 8,
         "dnsperf_max_outstanding": 2000,
         "upstream_workers": 8,
-        "notes": "median of 3 rounds; achieved_qps range 73187.8-74709.5"
+        "notes": "median of 3 rounds; achieved_qps range 64641.1-72184.4"
       }
     },
     {
       "id": "feature-tax-metrics-standard-scrape-ladder-forward-fast",
       "suite": "feature_tax",
-      "intent": "Metrics base standard + Prometheus scrape under elevated dnsperf outstanding\n(scrape-ladder publish recipe). Pair with off/minimal scrape-ladder cells.",
+      "intent": "Metrics base standard + Prometheus scrape under elevated dnsperf outstanding\n(scrape-tax publish recipe). Pair with off/minimal scrape-tax cells.",
       "status": "ok",
       "axes": {
         "runtime": "sync",
@@ -935,15 +934,15 @@
         "loadgen_recipe": "elevated_outstanding"
       },
       "metrics": {
-        "achieved_qps": 66697.259692,
-        "queries_sent": 670934,
-        "queries_completed": 667270,
+        "achieved_qps": 66823.725404,
+        "queries_sent": 672247,
+        "queries_completed": 668583,
         "queries_lost": 3664,
         "response_codes": {
-          "NOERROR": 667270
+          "NOERROR": 668583
         },
         "latency_ms": {
-          "avg": 2.633
+          "avg": 2.872
         },
         "answer_ok_percent": 100.0
       },
@@ -954,7 +953,7 @@
         "dnsperf_threads": 8,
         "dnsperf_max_outstanding": 2000,
         "upstream_workers": 8,
-        "notes": "median of 3 rounds; achieved_qps range 63971.8-69792.2"
+        "notes": "median of 3 rounds; achieved_qps range 58563.2-77154.0"
       }
     },
     {
@@ -971,15 +970,15 @@
         "io_workers": 2
       },
       "metrics": {
-        "achieved_qps": 147740.636504,
-        "queries_sent": 1496150,
-        "queries_completed": 1492215,
-        "queries_lost": 3764,
+        "achieved_qps": 130924.760058,
+        "queries_sent": 1318112,
+        "queries_completed": 1314408,
+        "queries_lost": 3870,
         "response_codes": {
-          "NOERROR": 1492215
+          "NOERROR": 1314408
         },
         "latency_ms": {
-          "avg": 1.553
+          "avg": 1.38
         },
         "answer_ok_percent": 100.0
       },
@@ -990,7 +989,7 @@
         "dnsperf_threads": 8,
         "dnsperf_max_outstanding": 2000,
         "upstream_workers": 8,
-        "notes": "median of 3 rounds; achieved_qps range 143282.2-153229.5"
+        "notes": "median of 3 rounds; achieved_qps range 126301.3-144272.8"
       }
     },
     {
@@ -1007,15 +1006,15 @@
         "io_workers": 2
       },
       "metrics": {
-        "achieved_qps": 149292.047187,
-        "queries_sent": 1511135,
-        "queries_completed": 1507307,
-        "queries_lost": 3738,
+        "achieved_qps": 134804.45038,
+        "queries_sent": 1368825,
+        "queries_completed": 1365195,
+        "queries_lost": 3702,
         "response_codes": {
-          "NOERROR": 1507307
+          "NOERROR": 1365195
         },
         "latency_ms": {
-          "avg": 1.645
+          "avg": 1.787
         },
         "answer_ok_percent": 100.0
       },
@@ -1026,7 +1025,7 @@
         "dnsperf_threads": 8,
         "dnsperf_max_outstanding": 2000,
         "upstream_workers": 8,
-        "notes": "median of 3 rounds; achieved_qps range 99156.1-152696.7"
+        "notes": "median of 3 rounds; achieved_qps range 134485.2-149237.8"
       }
     },
     {
@@ -1041,15 +1040,15 @@
         "ingress_workers": 2
       },
       "metrics": {
-        "achieved_qps": 66149.992039,
-        "queries_sent": 665461,
-        "queries_completed": 661797,
-        "queries_lost": 3664,
+        "achieved_qps": 69165.513495,
+        "queries_sent": 695416,
+        "queries_completed": 692002,
+        "queries_lost": 3414,
         "response_codes": {
-          "NOERROR": 661797
+          "NOERROR": 692002
         },
         "latency_ms": {
-          "avg": 2.653
+          "avg": 4.287
         },
         "answer_ok_percent": 100.0
       },
@@ -1060,10 +1059,10 @@
         "dnsperf_threads": 8,
         "dnsperf_max_outstanding": 2000,
         "upstream_workers": 8,
-        "notes": "median of 3 rounds; achieved_qps range 63612.8-70725.6"
+        "notes": "median of 3 rounds; achieved_qps range 68754.0-69691.3"
       },
       "secondary": {
-        "otlp_accepts": 7,
+        "otlp_accepts": 8,
         "otlp_failures": 0
       }
     },
@@ -1081,15 +1080,15 @@
         "io_workers": 2
       },
       "metrics": {
-        "achieved_qps": 140686.578557,
-        "queries_sent": 1424907,
-        "queries_completed": 1421028,
-        "queries_lost": 3879,
+        "achieved_qps": 147142.299863,
+        "queries_sent": 1479133,
+        "queries_completed": 1475210,
+        "queries_lost": 3912,
         "response_codes": {
-          "NOERROR": 1421028
+          "NOERROR": 1475210
         },
         "latency_ms": {
-          "avg": 1.373
+          "avg": 1.237
         },
         "answer_ok_percent": 100.0
       },
@@ -1100,7 +1099,7 @@
         "dnsperf_threads": 8,
         "dnsperf_max_outstanding": 2000,
         "upstream_workers": 8,
-        "notes": "median of 3 rounds; achieved_qps range 76310.8-150036.5"
+        "notes": "median of 3 rounds; achieved_qps range 76648.5-149011.3"
       }
     },
     {
@@ -1115,15 +1114,15 @@
         "ingress_workers": 2
       },
       "metrics": {
-        "achieved_qps": 49527.799943,
-        "queries_sent": 499066,
-        "queries_completed": 495687,
-        "queries_lost": 3379,
+        "achieved_qps": 45497.742576,
+        "queries_sent": 458959,
+        "queries_completed": 455295,
+        "queries_lost": 3664,
         "response_codes": {
-          "NOERROR": 495687
+          "NOERROR": 455295
         },
         "latency_ms": {
-          "avg": 6.271
+          "avg": 3.8960000000000004
         },
         "answer_ok_percent": 100.0
       },
@@ -1134,11 +1133,8 @@
         "dnsperf_threads": 8,
         "dnsperf_max_outstanding": 2000,
         "upstream_workers": 8,
-        "notes": "median of 3 rounds; achieved_qps range 48749.3-49895.0"
+        "notes": "median of 3 rounds; achieved_qps range 43314.6-46951.3"
       }
     }
-  ],
-  "annotation_ids": [
-    "ann-thin-spine-context"
   ]
 }

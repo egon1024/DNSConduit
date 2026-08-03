@@ -42,10 +42,10 @@ and **both** under the same [`forward_fast`](/performance/methodology.md#load-sh
 
 | Posture | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-forward-fast) | sync | 77319.5 | 3.8 | 776925 | 773506 | 3419 | ingress=2 |
-| [metrics_standard_scrape](/performance/scenarios.md#feature-tax-metrics-standard-scrape-forward-fast) | sync | 69173.3 | 2.6 | 695725 | 692061 | 3664 | ingress=2 |
-| [dnstap_full](/performance/scenarios.md#feature-tax-dnstap-full-forward-fast) | sync | 69573.8 | 4.1 | 699739 | 696075 | 3429 | ingress=2 |
-| [metrics_standard_dnstap_full](/performance/scenarios.md#feature-tax-metrics-standard-dnstap-full-forward-fast) | sync | 64335.1 | 4.4 | 647080 | 643702 | 3428 | ingress=2 |
+| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-forward-fast) | sync | 75462.4 | 4.0 | 758529 | 755155 | 3400 | ingress=2 |
+| [metrics_standard_scrape](/performance/scenarios.md#feature-tax-metrics-standard-scrape-forward-fast) | sync | 69628.0 | 4.5 | 700042 | 696579 | 3377 | ingress=2 |
+| [dnstap_full](/performance/scenarios.md#feature-tax-dnstap-full-forward-fast) | sync | 67178.8 | 4.4 | 675731 | 672299 | 3432 | ingress=2 |
+| [metrics_standard_dnstap_full](/performance/scenarios.md#feature-tax-metrics-standard-dnstap-full-forward-fast) | sync | 63336.3 | 4.5 | 637160 | 633740 | 3430 | ingress=2 |
 
 </div>
 <!-- perf-study-evidence:end -->
@@ -53,15 +53,15 @@ and **both** under the same [`forward_fast`](/performance/methodology.md#load-sh
 <!-- perf-study-deltas:start -->
 ## At a glance
 
-- **metrics and dnstap combined (forward_fast):** `metrics_standard_scrape` costs about **11%** QPS versus `metrics_off` (~69k vs ~77k); `dnstap_full` costs about **10%** QPS versus `metrics_off` (~70k vs ~77k); `metrics_standard_dnstap_full` costs about **17%** QPS versus `metrics_off` (~64k vs ~77k).
+- **metrics and dnstap combined (forward_fast):** `metrics_standard_scrape` costs about **8%** QPS versus `metrics_off` (~70k vs ~75k); `dnstap_full` costs about **11%** QPS versus `metrics_off` (~67k vs ~75k); `metrics_standard_dnstap_full` costs about **16%** QPS versus `metrics_off` (~63k vs ~75k).
 <!-- perf-study-deltas:end -->
 
 ## Takeaway
 
-**Scrape and dnstap each cost roughly 10%, and together about 17%.** Versus
-observability off on this lab: standard scrape alone ~**11%**, fuller dnstap
-alone ~**10%**, both on ~**17%** (~77k / ~69k / ~70k / ~64k). Combined cost is
-higher than either alone, without a large super-linear spike.
+**Scrape and dnstap each cost QPS; together they cost more.** Versus
+observability off (~75k): standard scrape about **8%** (~70k), fuller dnstap
+about **11%** (~67k), both on about **16%** (~63k). Combined is higher than
+either alone without claiming a precise interaction model.
 
 **What to do:** enable each surface only if you need it. Size them separately
 with the [metrics scrape tax](/performance/studies/metrics-scrape-ladder.md)

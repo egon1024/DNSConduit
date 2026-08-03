@@ -42,8 +42,8 @@ both). Pipeline traces use the separate
 
 | Posture | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| [logging_warn](/performance/scenarios.md#feature-tax-logging-warn-forward-fast) | sync | 75892.1 | 4.0 | 762598 | 759249 | 3407 | ingress=2 |
-| [logging_debug](/performance/scenarios.md#feature-tax-logging-debug-forward-fast) | sync | 63526.0 | 4.4 | 639007 | 635562 | 3445 | ingress=2 |
+| [logging_warn](/performance/scenarios.md#feature-tax-logging-warn-forward-fast) | sync | 72516.1 | 2.4 | 729137 | 725473 | 3664 | ingress=2 |
+| [logging_debug](/performance/scenarios.md#feature-tax-logging-debug-forward-fast) | sync | 75279.4 | 4.2 | 756471 | 753111 | 3364 | ingress=2 |
 
 </div>
 <!-- perf-study-evidence:end -->
@@ -51,19 +51,18 @@ both). Pipeline traces use the separate
 <!-- perf-study-deltas:start -->
 ## At a glance
 
-- **logging warn vs debug (forward_fast):** `logging_debug` costs about **16%** QPS versus `logging_warn` (~64k vs ~76k).
+- **logging warn vs debug (forward_fast):** `logging_debug` is about **1.0×** `logging_warn` (~75k vs ~73k).
 <!-- perf-study-deltas:end -->
 
 ## Takeaway
 
-**Debug logging is expensive on the hot path.** On this lab it costs about
-**16%** QPS versus warn (~64k vs ~76k) and raises average latency.
+**Debug logging was not a large standing tax on this median.** Warn and debug
+land within about **4%** QPS of each other (~73k / ~75k). That is much smaller
+than older single-shot refreshes suggested — treat debug under load as
+remeasure-required, not as a fixed mid-teens penalty.
 
-**What to do:** keep production at warn/info. Turn debug on only for short
-diagnosis windows, then turn it off. For per-query diagnosis, prefer
-[pipeline tracing](/observability/tracing.md) with narrow selectors — see
-[Pipeline tracing tax](/performance/studies/tracing-tax-under-load.md) for the
-cost of leaving tracing wide open.
+**What to do:** keep production at warn (or quieter). Use debug for diagnosis
+windows and remeasure on your hardware if you need a standing debug posture.
 
 ## Related guides
 

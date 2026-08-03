@@ -12,8 +12,8 @@ compare_axis: io_workers
 primary_metric: achieved_qps
 takeaway: >
   No published answer yet: every forward_slow io_workers cell failed the
-  successful-answer check and was omitted. Size io_workers from the tuning guide
-  or a local remeasure that clears the answer gate.
+  successful-answer check and was omitted. Size io_workers from the tuning
+  guide or a local remeasure that clears the answer gate.
 related_guides:
   - /guides/dataplane-runtime-tuning.md
 figures:

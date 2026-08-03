@@ -9,8 +9,9 @@ members:
 compare_axis: obs_posture
 primary_metric: achieved_qps
 takeaway: >
-  Under split_io on this lab, standard scrape is not separable from round noise
-  versus obs-off (~1%); do not assume the sync scrape-tax percentage transfers.
+  Under split_io, standard scrape stays within about 3% of obs-off on this
+  median (~131k / ~135k); remeasure — do not assume the sync ladder
+  percentage.
 related_guides:
   - /guides/operator-metrics-bases.md
   - /concepts/runtime-and-concurrency.md

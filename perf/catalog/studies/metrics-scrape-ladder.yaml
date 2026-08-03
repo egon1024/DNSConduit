@@ -10,8 +10,8 @@ members:
 compare_axis: obs_posture
 primary_metric: achieved_qps
 takeaway: >
-  Under the published forward_fast recipe, richer scrape costs about 3% (minimal)
-  to 11% (standard) QPS versus obs-off; choose base from cardinality need.
+  Versus obs-off (~69k): minimal scrape within about 3–4% (favorable noise
+  here), standard about 4–7% (~67k).
 related_guides:
   - /guides/operator-metrics-bases.md
   - /observability/metrics-configurability.md

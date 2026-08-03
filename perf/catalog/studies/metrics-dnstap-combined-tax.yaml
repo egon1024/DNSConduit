@@ -11,8 +11,8 @@ members:
 compare_axis: obs_posture
 primary_metric: achieved_qps
 takeaway: >
-  Versus obs-off, standard scrape alone costs about 11%, fuller dnstap alone
-  about 10%, and both about 17% — enable each surface only if you need it.
+  Versus obs-off (~75k): standard scrape about 8%, fuller dnstap about 11%,
+  both about 16% — enable each surface only if needed.
 related_guides:
   - /observability/metrics-configurability.md
   - /observability/event-export.md

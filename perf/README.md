@@ -311,50 +311,86 @@ window on the reference lab profile (omit `--time` / `PERF_TIME`).
 
 ## Median merge for multi-round publish
 
-For scenarios where the published recipe is meant to reflect Conduit's
-sustained capacity (see the concurrency table above), run the same suite
-selection **N times** (N=3 for the 2026-07-31 publish refresh) and merge with:
+**Default publish bar: N=3** (median, not mean). Run the same selection three
+times, merge with `merge-median`, strip answer-gate invalids, then promote.
+That applies to curated **publish-set** refreshes and to `scale` /
+`feature_tax` comparative cells (including `forward_fast`, `cache_hit`, and
+`forward_slow` members in the bag). Smoke (`PERF_TIME=5`) and ad-hoc probes
+stay single-shot. `lifecycle` outside the publish-set path stays single-shot.
+
+**Selective N=5:** if a ranking cell's per-round min–max span in
+`quality.notes` is large relative to the median (roughly ≳20–25%), remeasure
+**that subset** (study or scenario list) at N=5 and merge-median again. Do not
+raise the default bag-wide N to 5.
+
+Canonical publish-set campaign (or `make perf-run-publish-set-median`):
 
 ```zsh
-PYTHONPATH=. python3 -m perf.runner run --conduit ./target/release/conduit \
-  --suite feature_tax --profile-id maintainer-ws-1 \
-  -o perf/results/runs/feature-tax-r1.json
-# … repeat for r2, r3 …
+OUTDIR=perf/results/runs/publish-set-median
+mkdir -p "$OUTDIR"
+for r in 1 2 3; do
+  PYTHONPATH=. python3 -m perf.runner run \
+    --conduit ./target/release/conduit \
+    --publish-set \
+    --profile-id maintainer-ws-1 \
+    --kill-strays \
+    -o "$OUTDIR/r$r.json"
+done
 
 PYTHONPATH=. python3 -m perf.runner merge-median \
-  --from perf/results/runs/feature-tax-r1.json \
-  --from perf/results/runs/feature-tax-r2.json \
-  --from perf/results/runs/feature-tax-r3.json \
-  -o perf/results/runs/feature-tax-median.json
+  --from "$OUTDIR/r1.json" \
+  --from "$OUTDIR/r2.json" \
+  --from "$OUTDIR/r3.json" \
+  -o "$OUTDIR/median.json"
 ```
 
 Per scenario, numeric `metrics`/`secondary` fields become the median across
 rounds with `status: ok`; the observed range is recorded in
 `quality.notes`. Non-numeric fields (axes, intent) come from the last round.
-Feed the merged document into `promote` like any other run JSON. Single-shot
-suites (`forward_slow` cells, `shutdown_drain`, `lifecycle`) skip this step.
+
+Suite-only example (same N=3 rule):
+
+```zsh
+PYTHONPATH=. python3 -m perf.runner run --conduit ./target/release/conduit \
+  --suite feature_tax --profile-id maintainer-ws-1 \
+  -o perf/results/runs/feature-tax-r1.json
+# … repeat for r2, r3, then merge-median as above …
+```
 
 ## Promote vs docs render
 
-1. Maintainer runs the publish-set (or selected studies) on the reference lab profile (`maintainer-ws-1`):
+1. Maintainer runs a **median-of-3** publish-set (or study) campaign on
+   `maintainer-ws-1` — see **Median merge** above / `make perf-run-publish-set-median`.
+
+2. Promote into `results/references/` (lands via PR — honesty gate).
+
+`promote` **refuses** any run document that still contains `status: invalid`
+scenarios (answer gate). After merge-median, strip invalids to an ok-only JSON,
+then promote that file. Omitted ids stay out of the reference; study pages show
+unavailable poles instead of fabricated QPS. Do not merge an older
+`thin-spine.json` that still carries a cell this refresh marked invalid.
 
 ```zsh
-PYTHONPATH=. python3 -m perf.runner run \
-  --conduit ./target/release/conduit \
-  --publish-set \
-  --profile-id maintainer-ws-1 \
-  -o perf/results/runs/publish-set-lab.json
-```
+PYTHONPATH=. python3 <<'PY'
+import json
+from pathlib import Path
+src = Path("perf/results/runs/publish-set-median/median.json")
+doc = json.loads(src.read_text())
+ok = [sc for sc in doc.get("scenarios") or [] if sc.get("status") == "ok"]
+print("ok", len(ok), "omit", [sc["id"] for sc in doc["scenarios"] if sc.get("status") != "ok"])
+out = Path("perf/results/runs/publish-set-median/median-promotable.json")
+doc = {**doc, "scenarios": ok}
+out.write_text(json.dumps(doc, indent=2) + "\n")
+print("wrote", out)
+PY
 
-2. Promote into `results/references/` (lands via PR — honesty gate):
-
-```zsh
 PYTHONPATH=. python3 -m perf.runner promote \
-  --from perf/results/runs/publish-set-lab.json \
+  --from perf/results/runs/publish-set-median/median-promotable.json \
   --name thin-spine \
   --publish-set \
+  --profile-id maintainer-ws-1 \
   --annotation-id ann-thin-spine-context
-# or: make perf-promote PERF_FROM=perf/results/runs/publish-set-lab.json
+# or: make perf-promote PERF_FROM=perf/results/runs/publish-set-median/median-promotable.json
 # Legacy thin-spine keep-set: add PERF_PROMOTE_MODE=thin-spine
 ```
 

@@ -160,8 +160,16 @@ Published `scale` and `feature_tax` cells are each the **median of 3
 independent rounds** (same scenario, same recipe, rerun end to end) rather than
 a single draw, so a one-off scheduling hiccup on the shared lab host cannot flip
 a ranking. The observed per-round range is recorded on each cell's
-`quality.notes` in the reference JSON. `shutdown_drain` and `lifecycle` cells
-remain single-shot.
+`quality.notes` in the reference JSON. A full curated **publish-set** lab refresh
+uses the same **N=3 → merge-median** bar for every member in that bag (including
+`shutdown_drain` when it is in the publish-set). `lifecycle` cells outside that
+refresh path remain single-shot.
+
+**N=3 is the default publish bar.** Maintainers may remeasure a **noisy subset**
+at **N=5** (then merge-median) when a cell's per-round min–max span in
+`quality.notes` is large relative to the median (roughly ≳20–25%) — for example
+an elevated `split_io` pole that swung by half in one round. Do not raise the
+default bag-wide N to 5; prefer subset remesure when one axis is the problem.
 
 ### Only successful answers count
 

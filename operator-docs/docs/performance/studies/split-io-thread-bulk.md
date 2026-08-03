@@ -44,7 +44,7 @@ To see which setting actually helps, change **one** count at a time:
 
 | Topology | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| [thin](/performance/scenarios.md#scale-split-io-forward-fast) | split_io | 140686.6 | 1.4 | 1424907 | 1421028 | 3879 | ingress=2, policy=2, io=2 |
+| [thin](/performance/scenarios.md#scale-split-io-forward-fast) | split_io | 147142.3 | 1.2 | 1479133 | 1475210 | 3912 | ingress=2, policy=2, io=2 |
 | — | — | — | — | — | — | — | — |
 
 </div>
@@ -53,13 +53,13 @@ To see which setting actually helps, change **one** count at a time:
 <!-- perf-study-deltas:start -->
 ## At a glance
 
-- **split_io topology (forward_fast):** only `thin` is published (~141k); no paired comparison on this reference.
+- **split_io topology (forward_fast):** only `thin` is published (~147k); no paired comparison on this reference.
 <!-- perf-study-deltas:end -->
 
 ## Takeaway
 
 **This page does not yet answer whether doubling all worker pools helps.** Only
-the modest baseline (2/2/2 at ~141k QPS) is published. The topology-heavy
+the modest baseline (2/2/2 at ~147k QPS) is published. The topology-heavy
 (4/4/4) cell failed the successful-answer check and was omitted — so there is
 no bulk-topology multiplier here.
 

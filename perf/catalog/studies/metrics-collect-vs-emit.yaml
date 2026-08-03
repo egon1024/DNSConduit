@@ -10,9 +10,9 @@ members:
 compare_axis: obs_posture
 primary_metric: achieved_qps
 takeaway: >
-  Most of the metrics cost is recording: collect-only is about 5% QPS versus
-  no-collect; collect+emit lands in the same band — turn off collect for
-  categories you do not need.
+  Versus no-collect (~68k): collect-only within about 3% (~70k); collect+emit
+  about 6–8% (~64k). Most standing cost is still collect, with export adding a
+  band.
 related_guides:
   - /observability/metrics-configurability.md
   - /guides/operator-metrics-bases.md

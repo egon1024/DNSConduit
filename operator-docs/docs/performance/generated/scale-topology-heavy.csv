@@ -1,2 +1,2 @@
 scenario_id,runtime,achieved_qps,latency_avg_ms,queries_sent,queries_completed,queries_lost,workers
-scale-split-io-forward-fast,split_io,140686.6,1.4,1424907,1421028,3879,2/2/2
+scale-split-io-forward-fast,split_io,147142.3,1.2,1479133,1475210,3912,2/2/2

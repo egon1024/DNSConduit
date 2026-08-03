@@ -33,7 +33,7 @@ Absolute QPS is not a portable cross-host capacity claim.
 <!-- perf-ann:ann-forward-slow-lossy-context:end -->
 
 <!-- perf-reference-body:start -->
-_Generated 2026-08-02T03:41:27Z from committed reference JSON (no live load suite in docs CI)._
+_Generated 2026-08-02T21:04:57Z from committed reference JSON (no live load suite in docs CI)._
 
 ## Lab profile
 
@@ -46,7 +46,7 @@ _Generated 2026-08-02T03:41:27Z from committed reference JSON (no live load suit
 | OS | Linux 6.8.0-136-generic |
 | Conduit | `target/release/conduit` (unknown) |
 | Loadgen | dnsperf mode=`docker` |
-| Run generated_at | `2026-08-02T00:05:32Z` |
+| Run generated_at | `2026-08-02T17:48:43Z` |
 
 Underlying JSON: [`perf/results/references/`](https://github.com/egon1024/DNSConduit/tree/main/perf/results/references) (see `latest-reference.json` pointer in a checkout).
 
@@ -64,8 +64,8 @@ Decision context: [Performance findings](/performance/index.md#findings) · [Tun
 
 | Scenario | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| [scale-sync-forward-fast](/performance/scenarios.md#scale-sync-forward-fast) | sync | 74932.5 | 3.6 | 753275 | 749881 | 3465 | ingress=2 |
-| [scale-split-io-forward-fast](/performance/scenarios.md#scale-split-io-forward-fast) | split_io | 140686.6 | 1.4 | 1424907 | 1421028 | 3879 | ingress=2, policy=2, io=2 |
+| [scale-sync-forward-fast](/performance/scenarios.md#scale-sync-forward-fast) | sync | 75601.1 | 3.8 | 759747 | 756344 | 3443 | ingress=2 |
+| [scale-split-io-forward-fast](/performance/scenarios.md#scale-split-io-forward-fast) | split_io | 147142.3 | 1.2 | 1479133 | 1475210 | 3912 | ingress=2, policy=2, io=2 |
 
 </div>
 
@@ -79,7 +79,7 @@ Decision context: [Performance findings](/performance/index.md#findings) · [Tun
 
 | Scenario | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| [scale-sync-forward-slow](/performance/scenarios.md#scale-sync-forward-slow) | sync | 5.7 | 2509.5 | 12188 | 198 | 11990 | ingress=2 |
+| [scale-sync-forward-slow](/performance/scenarios.md#scale-sync-forward-slow) | sync | 5.7 | 2507.6 | 12188 | 198 | 11990 | ingress=2 |
 | — | — | — | — | — | — | — | — |
 
 </div>
@@ -94,7 +94,7 @@ Decision context: [Performance findings](/performance/index.md#findings) · [Tun
 
 | Scenario | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| [scale-sync-cache-hit](/performance/scenarios.md#scale-sync-cache-hit) | sync | 336912.5 | 0.9 | 3373056 | 3369396 | 3454 | ingress=2 |
+| [scale-sync-cache-hit](/performance/scenarios.md#scale-sync-cache-hit) | sync | 333042.1 | 1.0 | 3334080 | 3330738 | 3398 | ingress=2 |
 
 </div>
 
@@ -108,7 +108,7 @@ Decision context: [Performance findings](/performance/index.md#findings) · [Tun
 
 | Scenario | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| [scale-split-io-forward-fast](/performance/scenarios.md#scale-split-io-forward-fast) | split_io | 140686.6 | 1.4 | 1424907 | 1421028 | 3879 | ingress=2, policy=2, io=2 |
+| [scale-split-io-forward-fast](/performance/scenarios.md#scale-split-io-forward-fast) | split_io | 147142.3 | 1.2 | 1479133 | 1475210 | 3912 | ingress=2, policy=2, io=2 |
 | — | — | — | — | — | — | — | — |
 
 </div>
@@ -125,9 +125,9 @@ Decision context: [Performance findings](/performance/index.md#findings) · [Tun
 
 | Drain policy | Drain duration (ms) | Client failures during stop | QPS | Avg latency (ms) | Sent | Completed |
 | --- | --- | --- | --- | --- | --- | --- |
-| [drain_complete](/performance/scenarios.md#shutdown-drain-complete-forward-slow) | 113.5 | 298 | 6.7 | 1020.8 | 378 | 80 |
-| [drain_budgeted](/performance/scenarios.md#shutdown-drain-budgeted-forward-slow) | 113.5 | 200 | 9.7 | 913.0 | 278 | 78 |
-| [drain_minimal](/performance/scenarios.md#shutdown-drain-minimal-forward-slow) | 63.4 | 200 | 9.7 | 896.6 | 278 | 78 |
+| [drain_complete](/performance/scenarios.md#shutdown-drain-complete-forward-slow) | 113.6 | 296 | 6.7 | 976.6 | 376 | 80 |
+| [drain_budgeted](/performance/scenarios.md#shutdown-drain-budgeted-forward-slow) | 63.4 | 200 | 9.7 | 896.6 | 278 | 78 |
+| [drain_minimal](/performance/scenarios.md#shutdown-drain-minimal-forward-slow) | 63.4 | 200 | 9.7 | 995.7 | 278 | 78 |
 
 </div>
 
@@ -143,9 +143,9 @@ Decision context: [Performance findings](/performance/index.md#findings) · [Tun
 
 | Posture | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost |
 | --- | --- | --- | --- | --- | --- |
-| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-scrape-ladder-forward-fast) | 75321.6 | 3.9 | 757077 | 753665 | 3410 |
-| [minimal_scrape](/performance/scenarios.md#feature-tax-metrics-minimal-scrape-ladder-forward-fast) | 73415.2 | 4.3 | 737853 | 734479 | 3393 |
-| [standard_scrape](/performance/scenarios.md#feature-tax-metrics-standard-scrape-ladder-forward-fast) | 66697.3 | 2.6 | 670934 | 667270 | 3664 |
+| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-scrape-ladder-forward-fast) | 69443.0 | 2.5 | 698389 | 694725 | 3664 |
+| [minimal_scrape](/performance/scenarios.md#feature-tax-metrics-minimal-scrape-ladder-forward-fast) | 71784.8 | 4.3 | 721553 | 718176 | 3401 |
+| [standard_scrape](/performance/scenarios.md#feature-tax-metrics-standard-scrape-ladder-forward-fast) | 66823.7 | 2.9 | 672247 | 668583 | 3664 |
 
 </div>
 
@@ -159,9 +159,9 @@ Decision context: [Performance findings](/performance/index.md#findings) · [Tun
 
 | Posture | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost |
 | --- | --- | --- | --- | --- | --- |
-| [dnstap_off](/performance/scenarios.md#feature-tax-dnstap-off-forward-fast) | 75749.0 | 4.0 | 761200 | 757807 | 3393 |
-| [dnstap_sampled](/performance/scenarios.md#feature-tax-dnstap-sampled-forward-fast) | 73408.5 | 4.2 | 737837 | 734444 | 3393 |
-| [dnstap_full](/performance/scenarios.md#feature-tax-dnstap-full-forward-fast) | 69573.8 | 4.1 | 699739 | 696075 | 3429 |
+| [dnstap_off](/performance/scenarios.md#feature-tax-dnstap-off-forward-fast) | 75250.1 | 4.0 | 756222 | 752823 | 3399 |
+| [dnstap_sampled](/performance/scenarios.md#feature-tax-dnstap-sampled-forward-fast) | 72484.3 | 4.3 | 728574 | 725189 | 3385 |
+| [dnstap_full](/performance/scenarios.md#feature-tax-dnstap-full-forward-fast) | 67178.8 | 4.4 | 675731 | 672299 | 3432 |
 
 </div>
 
@@ -175,9 +175,9 @@ Decision context: [Performance findings](/performance/index.md#findings) · [Tun
 
 | Posture | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost |
 | --- | --- | --- | --- | --- | --- |
-| [no_collect](/performance/scenarios.md#feature-tax-metrics-no-collect-forward-fast) | 73196.2 | 3.8 | 735710 | 732262 | 3448 |
-| [collect_only](/performance/scenarios.md#feature-tax-metrics-collect-only-forward-fast) | 69667.4 | 4.0 | 700420 | 696976 | 3448 |
-| [collect_emit](/performance/scenarios.md#feature-tax-metrics-collect-emit-forward-fast) | 70134.9 | 4.0 | 705169 | 701692 | 3439 |
+| [no_collect](/performance/scenarios.md#feature-tax-metrics-no-collect-forward-fast) | 67772.4 | 2.7 | 681748 | 678084 | 3664 |
+| [collect_only](/performance/scenarios.md#feature-tax-metrics-collect-only-forward-fast) | 69703.6 | 4.2 | 700769 | 697334 | 3418 |
+| [collect_emit](/performance/scenarios.md#feature-tax-metrics-collect-emit-forward-fast) | 63894.6 | 2.8 | 642896 | 639232 | 3664 |
 
 </div>
 
@@ -191,10 +191,10 @@ Decision context: [Performance findings](/performance/index.md#findings) · [Tun
 
 | Posture | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost |
 | --- | --- | --- | --- | --- | --- |
-| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-forward-fast) | 77319.5 | 3.8 | 776925 | 773506 | 3419 |
-| [standard_scrape](/performance/scenarios.md#feature-tax-metrics-standard-scrape-forward-fast) | 69173.3 | 2.6 | 695725 | 692061 | 3664 |
-| [dnstap_full](/performance/scenarios.md#feature-tax-dnstap-full-forward-fast) | 69573.8 | 4.1 | 699739 | 696075 | 3429 |
-| [standard_dnstap_full](/performance/scenarios.md#feature-tax-metrics-standard-dnstap-full-forward-fast) | 64335.1 | 4.4 | 647080 | 643702 | 3428 |
+| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-forward-fast) | 75462.4 | 4.0 | 758529 | 755155 | 3400 |
+| [standard_scrape](/performance/scenarios.md#feature-tax-metrics-standard-scrape-forward-fast) | 69628.0 | 4.5 | 700042 | 696579 | 3377 |
+| [dnstap_full](/performance/scenarios.md#feature-tax-dnstap-full-forward-fast) | 67178.8 | 4.4 | 675731 | 672299 | 3432 |
+| [standard_dnstap_full](/performance/scenarios.md#feature-tax-metrics-standard-dnstap-full-forward-fast) | 63336.3 | 4.5 | 637160 | 633740 | 3430 |
 
 </div>
 
@@ -208,9 +208,9 @@ Decision context: [Performance findings](/performance/index.md#findings) · [Tun
 
 | Posture | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost |
 | --- | --- | --- | --- | --- | --- |
-| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-forward-fast) | 77319.5 | 3.8 | 776925 | 773506 | 3419 |
-| [standard_scrape](/performance/scenarios.md#feature-tax-metrics-standard-scrape-forward-fast) | 69173.3 | 2.6 | 695725 | 692061 | 3664 |
-| [scrape_hammer](/performance/scenarios.md#feature-tax-metrics-standard-scrape-hammer-forward-fast) | 70104.3 | 4.4 | 704809 | 701424 | 3385 |
+| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-forward-fast) | 75462.4 | 4.0 | 758529 | 755155 | 3400 |
+| [standard_scrape](/performance/scenarios.md#feature-tax-metrics-standard-scrape-forward-fast) | 69628.0 | 4.5 | 700042 | 696579 | 3377 |
+| [scrape_hammer](/performance/scenarios.md#feature-tax-metrics-standard-scrape-hammer-forward-fast) | 68340.8 | 4.5 | 687351 | 683962 | 3389 |
 
 </div>
 
@@ -224,8 +224,8 @@ Decision context: [Performance findings](/performance/index.md#findings) · [Tun
 
 | Posture | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost |
 | --- | --- | --- | --- | --- | --- |
-| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-split-io-forward-fast) | 147740.6 | 1.6 | 1496150 | 1492215 | 3764 |
-| [standard_scrape](/performance/scenarios.md#feature-tax-metrics-standard-scrape-split-io-forward-fast) | 149292.0 | 1.6 | 1511135 | 1507307 | 3738 |
+| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-split-io-forward-fast) | 130924.8 | 1.4 | 1318112 | 1314408 | 3870 |
+| [standard_scrape](/performance/scenarios.md#feature-tax-metrics-standard-scrape-split-io-forward-fast) | 134804.5 | 1.8 | 1368825 | 1365195 | 3702 |
 
 </div>
 <!-- perf-reference-body:end -->

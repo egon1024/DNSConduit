@@ -10,9 +10,8 @@ members:
 compare_axis: obs_posture
 primary_metric: achieved_qps
 takeaway: >
-  Listener-only standard scrape costs about 11% QPS versus obs-off; an aggressive
-  lab scraper (~10/s) lands in the same band — size scrape tax from the scrape-tax study,
-  not from scrape interval alone.
+  Versus obs-off (~75k): standard scrape about 8%, aggressive scrape hammer
+  about 9% — size from the scrape ladder, not the hammer alone.
 related_guides:
   - /observability/metrics.md
   - /guides/operator-metrics-bases.md
