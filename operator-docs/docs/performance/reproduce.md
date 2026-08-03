@@ -131,26 +131,37 @@ governor (via `cpupower`, `powerprofilesctl`, or sysfs — see `perf/README.md`,
 CPU power state). Pass `--allow-suboptimal-cpu-power` only for an intentional noisy
 probe; that override is not publish-quality.
 
-Omit short `--time` overrides for publish-quality duration. Example:
+Omit short `--time` overrides for publish-quality duration. Curated publish uses
+**median of 3 independent rounds** (not a single draw); see
+[Methodology](/performance/methodology.md). Example:
 
 ```zsh
-python3 -m perf.runner run \
-  --conduit /path/to/conduit \
-  --publish-set \
-  --profile-id maintainer-ws-1 \
-  -o perf/results/runs/publish-set-lab.json
+# N=3 publish-set → merge-median → ok-only JSON (then promote)
+make perf-run-publish-set-median CONDUIT=/path/to/conduit \
+  PERF_PROFILE_ID=maintainer-ws-1 \
+  PERF_ROUNDS=3 \
+  PERF_MEDIAN_DIR=perf/results/runs/publish-set-median
+
+make perf-promote \
+  PERF_FROM=perf/results/runs/publish-set-median/median-promotable.json \
+  PERF_PROFILE_ID=maintainer-ws-1 \
+  PERF_PROMOTE_MODE=publish-set
 ```
 
-Promote the validated run into `perf/results/references/`, then regenerate operator
-docs (`make perf-docs`). Annotation catalog wiring is in
+If one ranking cell's per-round range in `quality.notes` is large (roughly
+≳20–25% of the median), remeasure that **subset** at `PERF_ROUNDS=5` rather than
+raising the default bag-wide N. Promote the validated median into
+`perf/results/references/`, then regenerate operator docs (`make perf-docs`).
+Annotation catalog wiring is in
 [Annotations](#annotations-harness-footnotes) above.
 
 ## Make targets
 
 From a checkout: `make perf-list`, `make perf-run-scale CONDUIT=/path/to/conduit`,
-`make perf-render PERF_FROM=…` (optional `PERF_FORMAT=plain|rich|yaml|json|html`;
-`FORMAT=` is an alias). `make performance` remains the microbench path and
-is distinct from these load suites.
+`make perf-run-publish-set-median`, `make perf-render PERF_FROM=…` (optional
+`PERF_FORMAT=plain|rich|yaml|json|html`; `FORMAT=` is an alias).
+`make performance` remains the microbench path and is distinct from these load
+suites.
 
 ## What you do not need
 

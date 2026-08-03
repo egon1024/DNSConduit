@@ -41,8 +41,8 @@ as a claim that production traffic is mostly hits. Configure instances under
 
 | Load shape | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| [forward_fast](/performance/scenarios.md#scale-sync-forward-fast) | sync | 74932.5 | 3.6 | 753275 | 749881 | 3465 | ingress=2 |
-| [cache_hit](/performance/scenarios.md#scale-sync-cache-hit) | sync | 336912.5 | 0.9 | 3373056 | 3369396 | 3454 | ingress=2 |
+| [forward_fast](/performance/scenarios.md#scale-sync-forward-fast) | sync | 75601.1 | 3.8 | 759747 | 756344 | 3443 | ingress=2 |
+| [cache_hit](/performance/scenarios.md#scale-sync-cache-hit) | sync | 333042.1 | 1.0 | 3334080 | 3330738 | 3398 | ingress=2 |
 
 </div>
 <!-- perf-study-evidence:end -->
@@ -50,15 +50,15 @@ as a claim that production traffic is mostly hits. Configure instances under
 <!-- perf-study-deltas:start -->
 ## At a glance
 
-- **sync cache_hit vs forward_fast:** `cache_hit` is about **4.5×** `forward_fast` (~337k vs ~75k).
+- **sync cache_hit vs forward_fast:** `cache_hit` is about **4.4×** `forward_fast` (~333k vs ~76k).
 <!-- perf-study-deltas:end -->
 
 ## Takeaway
 
 **A warm cache is much faster than forwarding on this lab.** Under
 [`cache_hit`](/performance/methodology.md#load-shapes), sync reaches about
-**4.5×** the QPS of [`forward_fast`](/performance/methodology.md#load-shapes)
-(~337k vs ~75k) with lower latency.
+**4.4×** the QPS of [`forward_fast`](/performance/methodology.md#load-shapes)
+(~333k vs ~76k) with lower latency.
 
 Treat that multiplier as an upper bound for “almost everything hits,” not as a
 capacity target or a claim about *your* hit rate.

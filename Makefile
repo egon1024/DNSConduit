@@ -57,7 +57,7 @@ endif
 	interop-docs interop-refresh \
 	perf-unit perf-list perf-run-scale perf-run-shutdown-drain \
 	perf-run-feature-tax perf-run-lifecycle perf-run-study perf-run-publish-set \
-	perf-render perf-docs perf-promote
+	perf-run-publish-set-median perf-render perf-docs perf-promote
 
 help:
 	@echo "DNSConduit Makefile targets:"
@@ -92,6 +92,8 @@ help:
 	@echo "                            PERF_CLIENTS / PERF_DNSPERF_THREADS / PERF_MAX_OUTSTANDING)"
 	@echo "  make perf-run-publish-set Run published study member union (optional PERF_TIME=;"
 	@echo "                            PERF_CLIENTS / PERF_DNSPERF_THREADS / PERF_MAX_OUTSTANDING)"
+	@echo "  make perf-run-publish-set-median  N-round publish-set → merge-median → *-promotable.json"
+	@echo "                            (PERF_ROUNDS=3 default; then make perf-promote PERF_FROM=…)"
 	@echo "  make perf-render          Render PERF_FROM=run.json PERF_FORMAT=$(PERF_FORMAT)"
 	@echo "                            (FORMAT= is an alias for PERF_FORMAT=)"
 	@echo "  make perf-docs            Generate operator-docs fragments from committed reference JSON (no load suite)"
@@ -213,6 +215,37 @@ perf-run-publish-set:
 		$(if $(PERF_MAX_OUTSTANDING),--max-outstanding $(PERF_MAX_OUTSTANDING),) \
 		--render plain \
 		$(if $(PERF_OUT),-o $(PERF_OUT),)
+
+# Publish-quality curated refresh: N independent rounds → merge-median → ok-only JSON.
+# Default PERF_ROUNDS=3 (methodology). Use PERF_ROUNDS=5 for a noisy subset remesure.
+# Promote separately: make perf-promote PERF_FROM=$(PERF_MEDIAN_DIR)/median-promotable.json
+PERF_ROUNDS ?= 3
+PERF_MEDIAN_DIR ?= perf/results/runs/publish-set-median
+perf-run-publish-set-median:
+	@mkdir -p $(PERF_MEDIAN_DIR)
+	@set -e; \
+	for r in $$(seq 1 $(PERF_ROUNDS)); do \
+		echo "=== publish-set round $$r / $(PERF_ROUNDS) ==="; \
+		PYTHONPATH=. $(PYTHON) -m perf.runner run --conduit $(CONDUIT) --publish-set \
+			--profile-id $(or $(PERF_PROFILE_ID),maintainer-ws-1) \
+			--kill-strays \
+			$(if $(PERF_TIME),--time $(PERF_TIME),) \
+			$(if $(PERF_CLIENTS),--clients $(PERF_CLIENTS),) \
+			$(if $(PERF_DNSPERF_THREADS),--dnsperf-threads $(PERF_DNSPERF_THREADS),) \
+			$(if $(PERF_MAX_OUTSTANDING),--max-outstanding $(PERF_MAX_OUTSTANDING),) \
+			--render plain \
+			-o $(PERF_MEDIAN_DIR)/r$$r.json; \
+	done; \
+	FROM_ARGS=$$(for r in $$(seq 1 $(PERF_ROUNDS)); do printf -- '--from %s ' "$(PERF_MEDIAN_DIR)/r$$r.json"; done); \
+	PYTHONPATH=. $(PYTHON) -m perf.runner merge-median $$FROM_ARGS -o $(PERF_MEDIAN_DIR)/median.json; \
+	PYTHONPATH=. $(PYTHON) -c "import json; from pathlib import Path; \
+d=Path('$(PERF_MEDIAN_DIR)'); src=d/'median.json'; doc=json.loads(src.read_text()); \
+ok=[sc for sc in doc.get('scenarios') or [] if sc.get('status')=='ok']; \
+bad=[sc.get('id') for sc in doc.get('scenarios') or [] if sc.get('status')!='ok']; \
+print('ok', len(ok), 'omit', bad); \
+doc=dict(doc); doc['scenarios']=ok; \
+out=d/'median-promotable.json'; out.write_text(json.dumps(doc, indent=2)+'\n'); \
+print('wrote', out)"
 
 perf-render:
 	@test -n "$(PERF_FROM)" || (echo "Set PERF_FROM=path/to/run.json" >&2; exit 1)

@@ -9,9 +9,9 @@ members:
 compare_axis: topology
 primary_metric: achieved_qps
 takeaway: >
-  Only the thin 2/2/2 baseline is published (~141k QPS); the topology-heavy
-  4/4/4 cell failed the answer gate and was omitted — do not treat
-  “double everything” as proven; size one dial at a time.
+  Only the thin 2/2/2 baseline is published (~147k QPS); the topology-heavy
+  4/4/4 cell failed the answer gate and was omitted — do not treat “double
+  everything” as proven; size one dial at a time.
 related_guides:
   - /guides/dataplane-runtime-tuning.md
 figures:

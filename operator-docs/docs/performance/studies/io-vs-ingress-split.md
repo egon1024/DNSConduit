@@ -59,15 +59,15 @@ _Study figure `io-vs-ingress-split-forward-slow` (io-vs-ingress-split) unavailab
 
 ## Takeaway
 
-**There is no published answer yet for this question.** Every
-[`forward_slow`](/performance/methodology.md#load-shapes) `io_workers` cell
-failed the successful-answer check (too many SERVFAILs), so nothing from this
-series was promoted. Empty figures are not a ranking.
+**There is no published ranking yet for this question.** Every
+[`forward_slow`](/performance/methodology.md#load-shapes) `io_workers` cell in
+this refresh failed the successful-answer check (SERVFAIL-dominated answers)
+and was omitted — empty figures are not a ranking.
 
 **What to do:** size `io_workers` from
 [Dataplane runtime tuning](/guides/dataplane-runtime-tuning.md), or remeasure
-locally with `--study io-vs-ingress-split` until the answer gate passes. Until
-then, use the published
+locally with `--study io-vs-ingress-split` until rungs clear the answer gate.
+Until then, use the published
 [`forward_fast`](/performance/methodology.md#load-shapes) comparison in
 [sync vs split_io](/performance/studies/sync-vs-split-io.md) and the sync
 ingress series in

@@ -39,9 +39,9 @@ scraper) hits Conduit aggressively under peak traffic.
 
 | Posture | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-forward-fast) | sync | 77319.5 | 3.8 | 776925 | 773506 | 3419 | ingress=2 |
-| [metrics_standard_scrape](/performance/scenarios.md#feature-tax-metrics-standard-scrape-forward-fast) | sync | 69173.3 | 2.6 | 695725 | 692061 | 3664 | ingress=2 |
-| [metrics_standard_scrape_hammer](/performance/scenarios.md#feature-tax-metrics-standard-scrape-hammer-forward-fast) | sync | 70104.3 | 4.4 | 704809 | 701424 | 3385 | ingress=2 |
+| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-forward-fast) | sync | 75462.4 | 4.0 | 758529 | 755155 | 3400 | ingress=2 |
+| [metrics_standard_scrape](/performance/scenarios.md#feature-tax-metrics-standard-scrape-forward-fast) | sync | 69628.0 | 4.5 | 700042 | 696579 | 3377 | ingress=2 |
+| [metrics_standard_scrape_hammer](/performance/scenarios.md#feature-tax-metrics-standard-scrape-hammer-forward-fast) | sync | 68340.8 | 4.5 | 687351 | 683962 | 3389 | ingress=2 |
 
 </div>
 <!-- perf-study-evidence:end -->
@@ -49,15 +49,14 @@ scraper) hits Conduit aggressively under peak traffic.
 <!-- perf-study-deltas:start -->
 ## At a glance
 
-- **scrape hammer under load (forward_fast):** `metrics_standard_scrape` costs about **11%** QPS versus `metrics_off` (~69k vs ~77k); `metrics_standard_scrape_hammer` costs about **9%** QPS versus `metrics_off` (~70k vs ~77k).
+- **scrape hammer under load (forward_fast):** `metrics_standard_scrape` costs about **8%** QPS versus `metrics_off` (~70k vs ~75k); `metrics_standard_scrape_hammer` costs about **9%** QPS versus `metrics_off` (~68k vs ~75k).
 <!-- perf-study-deltas:end -->
 
 ## Takeaway
 
-**A busier scraper did not add a clear extra tax beyond standard scrape on this
-lab.** Versus observability off, listener-only standard scrape costs about
-**11%** QPS; aggressive external scrape (~10/s) lands in the same band (~9%;
-~77k / ~69k / ~70k).
+**A busier scraper did not add a large extra tax beyond standard scrape on this
+median.** Versus observability off (~75k), standard scrape costs about **8%**
+(~70k); aggressive external scrape (~10/s) about **9%** (~68k).
 
 **What to do:** size the bulk of scrape cost from the
 [metrics scrape tax](/performance/studies/metrics-scrape-ladder.md) and

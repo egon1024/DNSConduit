@@ -9,8 +9,8 @@ members:
 compare_axis: load_shape
 primary_metric: achieved_qps
 takeaway: >
-  On the published lab, warm cache_hit is about 4.5× forward_fast QPS — an
-  upper-bound illustration when hits dominate, not a portable capacity target.
+  Warm cache_hit is about 4.4× forward_fast QPS on this lab (~333k vs ~76k) —
+  an upper bound for near-100% hit rate, not a capacity target.
 related_guides:
   - /guides/dataplane-runtime-tuning.md
 figures:
