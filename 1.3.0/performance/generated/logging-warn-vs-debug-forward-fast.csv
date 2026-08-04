@@ -1,0 +1,3 @@
+scenario_id,runtime,achieved_qps,latency_avg_ms,queries_sent,queries_completed,queries_lost,workers
+feature-tax-logging-warn-forward-fast,sync,76457.0,26.1,767234,767234,0,ingress_workers=2
+feature-tax-logging-debug-forward-fast,sync,64029.4,31.1,642890,642890,0,ingress_workers=2

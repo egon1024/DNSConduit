@@ -1,0 +1,31 @@
+/* Interop matrix outcome labels — change colors here only. */
+
+.md-typeset {
+  --interop-outcome-pass: #166534; /* dark green */
+  --interop-outcome-fail: #991b1b; /* dark red */
+  --interop-outcome-skip: #6b7280; /* muted grey */
+  /* Teal: distinct from Material indigo links and from pass/fail. */
+  --interop-outcome-characterized: #0e7490;
+}
+
+.md-typeset .interop-outcome {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.md-typeset .interop-outcome--pass {
+  color: var(--interop-outcome-pass);
+}
+
+.md-typeset .interop-outcome--fail {
+  color: var(--interop-outcome-fail);
+}
+
+.md-typeset .interop-outcome--skip {
+  color: var(--interop-outcome-skip);
+  font-weight: 500;
+}
+
+.md-typeset .interop-outcome--characterized {
+  color: var(--interop-outcome-characterized);
+}

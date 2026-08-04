@@ -1,0 +1,3 @@
+scenario_id,runtime,achieved_qps,latency_avg_ms,queries_sent,queries_completed,queries_lost,workers
+scale-sync-forward-slow,sync,5.7,2508.7,12188,198,11990,2
+scale-split-io-forward-slow,split_io,39080.2,51.1,1174342,1174342,0,2/2/2
