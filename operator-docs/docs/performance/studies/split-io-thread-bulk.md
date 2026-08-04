@@ -44,8 +44,8 @@ To see which setting actually helps, change **one** count at a time:
 
 | Topology | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| [thin](/performance/scenarios.md#scale-split-io-forward-fast) | split_io | 141401.1 | 14.0 | 1430029 | 1430029 | 0 | ingress=2, policy=2, io=2 |
-| [heavy](/performance/scenarios.md#scale-split-io-topology-heavy) | split_io | 210005.8 | 9.5 | 2102918 | 2102918 | 0 | ingress=4, policy=4, io=4 |
+| [thin](/performance/scenarios.md#scale-split-io-forward-fast) | split_io | 138744.2 | 14.4 | 1389252 | 1389252 | 0 | ingress=2, policy=2, io=2 |
+| [heavy](/performance/scenarios.md#scale-split-io-topology-heavy) | split_io | 258908.7 | 7.7 | 2590870 | 2590870 | 0 | ingress=4, policy=4, io=4 |
 
 </div>
 <!-- perf-study-evidence:end -->
@@ -53,15 +53,15 @@ To see which setting actually helps, change **one** count at a time:
 <!-- perf-study-deltas:start -->
 ## At a glance
 
-- **split_io topology (forward_fast):** `heavy` is about **1.5×** `thin` (~210k vs ~141k).
+- **split_io topology (forward_fast):** `heavy` is about **1.9×** `thin` (~259k vs ~139k).
 <!-- perf-study-deltas:end -->
 
 ## Takeaway
 
 **Raising ingress, policy, and I/O together helps on this median — and is still
 not a substitute for single-axis sizing.** Topology-heavy (4/4/4) reaches about
-**1.5×** the thin baseline (2/2/2) under
-[`forward_fast`](/performance/methodology.md#load-shapes) (~210k vs ~141k).
+**1.9×** the thin baseline (2/2/2) under
+[`forward_fast`](/performance/methodology.md#load-shapes) (~259k vs ~139k).
 
 **What to do:** treat the bulk pair as a ceiling check, not a tuning recipe.
 Size **one** setting at a time with

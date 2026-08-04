@@ -91,6 +91,17 @@ impl PolicyQueue {
         let shard = &self.shards[idx];
         shard.inner.lock().unwrap().push_back(work);
         shard.cv.notify_one();
+        // `derive_shard_count` may exceed `policy_workers`, so some shards have
+        // no home waiter. Those waiters only sleep on their *home* condvar and
+        // discover orphan-shard work via steal after `wait_timeout` — unless we
+        // wake them here. Without this, New/Resume on orphan shards add up to
+        // ~100 ms each (visible as ~2× upstream RTT in concurrent slow-upstream
+        // tests when workers < shard count).
+        for (i, s) in self.shards.iter().enumerate() {
+            if i != idx {
+                s.cv.notify_one();
+            }
+        }
     }
 
     fn try_pop_shard(&self, idx: usize) -> Option<PolicyWork> {
@@ -98,8 +109,9 @@ impl PolicyQueue {
         guard.pop_front()
     }
 
-    /// Pop preferring `home_shard`, then steal from other shards. Waiters use a
-    /// short timeout so they can steal work pushed to non-home shards.
+    /// Pop preferring `home_shard`, then steal from other shards. [`push`] wakes
+    /// all shard condvars so steal is prompt; waiters also use a short timeout
+    /// as a backup when a wakeup is missed.
     pub fn pop(&self, home_shard: usize, shutdown: &DataplaneShutdown) -> Option<PolicyWork> {
         let n = self.shards.len();
         let home = home_shard % n;
@@ -365,6 +377,36 @@ mod tests {
         let shutdown = DataplaneShutdown::new();
         let work = q.pop(0, &shutdown).expect("steal");
         assert!(matches!(work, PolicyWork::New(id) if id.index() == 2));
+    }
+
+    /// With shard_count > policy_workers, some shards have no home waiter.
+    /// Push must wake stealers promptly — not only after `wait_timeout` (100 ms).
+    #[test]
+    fn push_to_orphan_shard_wakes_stealer_promptly() {
+        let q = Arc::new(PolicyQueue::with_shards(4));
+        let shutdown = DataplaneShutdown::new();
+        let shutdown_pop = shutdown.clone();
+        let q_pop = q.clone();
+        let started = Arc::new(AtomicBool::new(false));
+        let started_flag = started.clone();
+        let joiner = thread::spawn(move || {
+            started_flag.store(true, Ordering::SeqCst);
+            let t0 = Instant::now();
+            let work = q_pop.pop(0, &shutdown_pop).expect("steal wake");
+            (t0.elapsed(), work)
+        });
+        while !started.load(Ordering::SeqCst) {
+            thread::sleep(Duration::from_millis(1));
+        }
+        // Let the stealer enter home-shard wait_timeout before the orphan push.
+        thread::sleep(Duration::from_millis(30));
+        q.push(PolicyWork::New(SlotId::from_index(2)));
+        let (elapsed, work) = joiner.join().unwrap();
+        assert!(matches!(work, PolicyWork::New(id) if id.index() == 2));
+        assert!(
+            elapsed < Duration::from_millis(80),
+            "orphan-shard push must wake stealers without waiting out 100ms timeout; took {elapsed:?}"
+        );
     }
 
     #[test]

@@ -42,8 +42,8 @@ A-heavy).
 
 | Posture | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-forward-fast) | sync | 75250.1 | 26.5 | 754909 | 754909 | 0 | ingress=2 |
-| [tracing_on](/performance/scenarios.md#feature-tax-tracing-on-forward-fast) | sync | 47100.1 | 42.3 | 473415 | 473415 | 0 | ingress=2 |
+| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-forward-fast) | sync | 75940.7 | 26.3 | 761386 | 761386 | 0 | ingress=2 |
+| [tracing_on](/performance/scenarios.md#feature-tax-tracing-on-forward-fast) | sync | 48719.5 | 40.9 | 489630 | 489630 | 0 | ingress=2 |
 
 </div>
 <!-- perf-study-evidence:end -->
@@ -51,13 +51,13 @@ A-heavy).
 <!-- perf-study-deltas:start -->
 ## At a glance
 
-- **tracing off vs on (forward_fast):** `tracing_on` costs about **37%** QPS versus `metrics_off` (~47k vs ~75k).
+- **tracing off vs on (forward_fast):** `tracing_on` costs about **36%** QPS versus `metrics_off` (~49k vs ~76k).
 <!-- perf-study-deltas:end -->
 
 ## Takeaway
 
-**Full pipeline tracing is expensive.** On this lab it costs about **37%** QPS
-versus observability off (~47k vs ~75k) and raises average latency.
+**Full pipeline tracing is expensive.** On this lab it costs about **36%** QPS
+versus observability off (~49k vs ~76k) and raises average latency.
 
 **What to do:** enable tracing for diagnosis windows; do not leave 100%
 sampling on in production. Narrow selectors and `sample_percent`, then

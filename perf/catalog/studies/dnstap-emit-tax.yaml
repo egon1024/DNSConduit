@@ -10,8 +10,8 @@ members:
 compare_axis: obs_posture
 primary_metric: achieved_qps
 takeaway: >
-  Versus dnstap off (~75k), sampled emit costs about 4% QPS (~72k) and full
-  emit about 11% (~67k). Prefer sampled until you need fuller capture.
+  Versus dnstap off (~78k), sampled emit costs about 5% QPS (~74k) and full
+  emit about 11% (~69k). Prefer sampled until you need fuller capture.
 related_guides:
   - /observability/event-export.md
   - /guides/event-export-dnstap.md

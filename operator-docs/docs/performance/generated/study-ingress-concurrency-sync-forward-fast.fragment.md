@@ -8,9 +8,9 @@
 
 | Ingress workers | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| [1](/performance/scenarios.md#scale-sync-ingress-1-forward-fast) | sync | 38267.6 | 52.1 | 384651 | 384651 | 0 | ingress=1 |
-| [2](/performance/scenarios.md#scale-sync-forward-fast) | sync | 73594.4 | 27.1 | 738415 | 738415 | 0 | ingress=2 |
-| [4](/performance/scenarios.md#scale-sync-ingress-4-forward-fast) | sync | 146451.1 | 13.6 | 1468917 | 1468917 | 0 | ingress=4 |
-| [8](/performance/scenarios.md#scale-sync-ingress-8-forward-fast) | sync | 239549.0 | 8.3 | 2400186 | 2400186 | 0 | ingress=8 |
+| [1](/performance/scenarios.md#scale-sync-ingress-1-forward-fast) | sync | 38784.3 | 51.4 | 389857 | 389857 | 0 | ingress=1 |
+| [2](/performance/scenarios.md#scale-sync-forward-fast) | sync | 76269.9 | 26.1 | 765379 | 765379 | 0 | ingress=2 |
+| [4](/performance/scenarios.md#scale-sync-ingress-4-forward-fast) | sync | 122065.3 | 16.3 | 1224397 | 1224397 | 0 | ingress=4 |
+| [8](/performance/scenarios.md#scale-sync-ingress-8-forward-fast) | sync | 187740.5 | 10.6 | 1881076 | 1881076 | 0 | ingress=8 |
 
 </div>

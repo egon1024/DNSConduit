@@ -7,16 +7,16 @@
 <line x1="56" y1="264.0" x2="616" y2="264.0" stroke="#eeeeee"/>
 <text x="50" y="268.0" text-anchor="end" font-family="sans-serif" font-size="10" fill="#757575">0</text>
 <line x1="56" y1="152.0" x2="616" y2="152.0" stroke="#eeeeee"/>
-<text x="50" y="156.0" text-anchor="end" font-family="sans-serif" font-size="10" fill="#757575">19428</text>
+<text x="50" y="156.0" text-anchor="end" font-family="sans-serif" font-size="10" fill="#757575">19575</text>
 <line x1="56" y1="40.0" x2="616" y2="40.0" stroke="#eeeeee"/>
-<text x="50" y="44.0" text-anchor="end" font-family="sans-serif" font-size="10" fill="#757575">38856</text>
-<rect x="91.0" y="40.1" width="59.5" height="223.9" fill="#3949ab"><title>achieved_qps / 1: 38839.49</title></rect>
+<text x="50" y="44.0" text-anchor="end" font-family="sans-serif" font-size="10" fill="#757575">39151</text>
+<rect x="91.0" y="40.0" width="59.5" height="224.0" fill="#3949ab"><title>achieved_qps / 1: 39149.75</title></rect>
 <text x="126.0" y="282" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#424242">1</text>
-<rect x="231.0" y="40.7" width="59.5" height="223.3" fill="#3949ab"><title>achieved_qps / 2: 38736.30</title></rect>
+<rect x="231.0" y="40.4" width="59.5" height="223.6" fill="#3949ab"><title>achieved_qps / 2: 39080.15</title></rect>
 <text x="266.0" y="282" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#424242">2</text>
-<rect x="371.0" y="40.0" width="59.5" height="224.0" fill="#3949ab"><title>achieved_qps / 4: 38855.54</title></rect>
+<rect x="371.0" y="40.1" width="59.5" height="223.9" fill="#3949ab"><title>achieved_qps / 4: 39132.20</title></rect>
 <text x="406.0" y="282" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#424242">4</text>
-<rect x="511.0" y="41.2" width="59.5" height="222.8" fill="#3949ab"><title>achieved_qps / 8: 38642.59</title></rect>
+<rect x="511.0" y="40.0" width="59.5" height="224.0" fill="#3949ab"><title>achieved_qps / 8: 39150.61</title></rect>
 <text x="546.0" y="282" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#424242">8</text>
 <rect x="56" y="298" width="12" height="12" fill="#3949ab"/>
 <text x="72" y="308" font-family="sans-serif" font-size="11" fill="#424242">achieved_qps</text>

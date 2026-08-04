@@ -10,8 +10,8 @@ members:
 compare_axis: obs_posture
 primary_metric: achieved_qps
 takeaway: >
-  Versus obs-off (~75k): standard scrape about 7% (~70k); aggressive scrape
-  hammer about 19% (~61k) — size standing cost from the scrape ladder, and
+  Versus obs-off (~76k): standard scrape about 8% (~70k); aggressive scrape
+  hammer about 24% (~58k) — size standing cost from the scrape series, and
   remeasure if your scraper is this hot.
 related_guides:
   - /observability/metrics.md

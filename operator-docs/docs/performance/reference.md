@@ -33,7 +33,7 @@ Absolute QPS is not a portable cross-host capacity claim.
 <!-- perf-ann:ann-forward-slow-lossy-context:end -->
 
 <!-- perf-reference-body:start -->
-_Generated 2026-08-03T21:31:22Z from committed reference JSON (no live load suite in docs CI)._
+_Generated 2026-08-04T03:36:38Z from committed reference JSON (no live load suite in docs CI)._
 
 ## Lab profile
 
@@ -46,7 +46,7 @@ _Generated 2026-08-03T21:31:22Z from committed reference JSON (no live load suit
 | OS | Linux 6.8.0-136-generic |
 | Conduit | `target/release/conduit` (unknown) |
 | Loadgen | dnsperf mode=`docker` |
-| Run generated_at | `2026-08-03T21:17:39Z` |
+| Run generated_at | `2026-08-04T03:17:58Z` |
 
 Underlying JSON: [`perf/results/references/`](https://github.com/egon1024/DNSConduit/tree/main/perf/results/references) (see `latest-reference.json` pointer in a checkout).
 
@@ -64,8 +64,8 @@ Decision context: [Performance findings](/performance/index.md#findings) · [Tun
 
 | Scenario | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| [scale-sync-forward-fast](/performance/scenarios.md#scale-sync-forward-fast) | sync | 73594.4 | 27.1 | 738415 | 738415 | 0 | ingress=2 |
-| [scale-split-io-forward-fast](/performance/scenarios.md#scale-split-io-forward-fast) | split_io | 141401.1 | 14.0 | 1430029 | 1430029 | 0 | ingress=2, policy=2, io=2 |
+| [scale-sync-forward-fast](/performance/scenarios.md#scale-sync-forward-fast) | sync | 76269.9 | 26.1 | 765379 | 765379 | 0 | ingress=2 |
+| [scale-split-io-forward-fast](/performance/scenarios.md#scale-split-io-forward-fast) | split_io | 138744.2 | 14.4 | 1389252 | 1389252 | 0 | ingress=2, policy=2, io=2 |
 
 </div>
 
@@ -79,8 +79,8 @@ Decision context: [Performance findings](/performance/index.md#findings) · [Tun
 
 | Scenario | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| [scale-sync-forward-slow](/performance/scenarios.md#scale-sync-forward-slow) | sync | 5.7 | 2509.2 | 12188 | 198 | 11990 | ingress=2 |
-| [scale-split-io-forward-slow](/performance/scenarios.md#scale-split-io-forward-slow) | split_io | 38736.3 | 51.3 | 1167745 | 1167745 | 0 | ingress=2, policy=2, io=2 |
+| [scale-sync-forward-slow](/performance/scenarios.md#scale-sync-forward-slow) | sync | 5.7 | 2508.7 | 12188 | 198 | 11990 | ingress=2 |
+| [scale-split-io-forward-slow](/performance/scenarios.md#scale-split-io-forward-slow) | split_io | 39080.2 | 51.1 | 1174342 | 1174342 | 0 | ingress=2, policy=2, io=2 |
 
 </div>
 
@@ -94,7 +94,7 @@ Decision context: [Performance findings](/performance/index.md#findings) · [Tun
 
 | Scenario | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| [scale-sync-cache-hit](/performance/scenarios.md#scale-sync-cache-hit) | sync | 254403.3 | 7.8 | 2546522 | 2546522 | 0 | ingress=2 |
+| [scale-sync-cache-hit](/performance/scenarios.md#scale-sync-cache-hit) | sync | 331636.6 | 6.0 | 3318431 | 3318431 | 0 | ingress=2 |
 
 </div>
 
@@ -108,8 +108,8 @@ Decision context: [Performance findings](/performance/index.md#findings) · [Tun
 
 | Scenario | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| [scale-split-io-forward-fast](/performance/scenarios.md#scale-split-io-forward-fast) | split_io | 141401.1 | 14.0 | 1430029 | 1430029 | 0 | ingress=2, policy=2, io=2 |
-| [scale-split-io-topology-heavy](/performance/scenarios.md#scale-split-io-topology-heavy) | split_io | 210005.8 | 9.5 | 2102918 | 2102918 | 0 | ingress=4, policy=4, io=4 |
+| [scale-split-io-forward-fast](/performance/scenarios.md#scale-split-io-forward-fast) | split_io | 138744.2 | 14.4 | 1389252 | 1389252 | 0 | ingress=2, policy=2, io=2 |
+| [scale-split-io-topology-heavy](/performance/scenarios.md#scale-split-io-topology-heavy) | split_io | 258908.7 | 7.7 | 2590870 | 2590870 | 0 | ingress=4, policy=4, io=4 |
 
 </div>
 
@@ -125,9 +125,9 @@ Decision context: [Performance findings](/performance/index.md#findings) · [Tun
 
 | Drain policy | Drain duration (ms) | Client failures during stop | QPS | Avg latency (ms) | Sent | Completed |
 | --- | --- | --- | --- | --- | --- | --- |
-| [drain_complete](/performance/scenarios.md#shutdown-drain-complete-forward-slow) | 113.8 | 298 | 6.6 | 1008.6 | 377 | 79 |
-| [drain_budgeted](/performance/scenarios.md#shutdown-drain-budgeted-forward-slow) | 163.6 | 200 | 10.2 | 1020.7 | 282 | 82 |
-| [drain_minimal](/performance/scenarios.md#shutdown-drain-minimal-forward-slow) | 63.4 | 200 | 9.7 | 900.3 | 278 | 78 |
+| [drain_complete](/performance/scenarios.md#shutdown-drain-complete-forward-slow) | 113.5 | 299 | 6.5 | 996.6 | 377 | 78 |
+| [drain_budgeted](/performance/scenarios.md#shutdown-drain-budgeted-forward-slow) | 113.6 | 200 | 10.0 | 909.2 | 280 | 80 |
+| [drain_minimal](/performance/scenarios.md#shutdown-drain-minimal-forward-slow) | 63.7 | 200 | 9.7 | 902.1 | 278 | 78 |
 
 </div>
 
@@ -143,9 +143,9 @@ Decision context: [Performance findings](/performance/index.md#findings) · [Tun
 
 | Posture | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost |
 | --- | --- | --- | --- | --- | --- |
-| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-scrape-ladder-forward-fast) | 74751.2 | 26.7 | 749541 | 749541 | 0 |
-| [minimal_scrape](/performance/scenarios.md#feature-tax-metrics-minimal-scrape-ladder-forward-fast) | 72057.1 | 27.7 | 723470 | 723470 | 0 |
-| [standard_scrape](/performance/scenarios.md#feature-tax-metrics-standard-scrape-ladder-forward-fast) | 68348.4 | 29.2 | 686051 | 686051 | 0 |
+| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-scrape-ladder-forward-fast) | 76124.1 | 26.2 | 763843 | 763843 | 0 |
+| [minimal_scrape](/performance/scenarios.md#feature-tax-metrics-minimal-scrape-ladder-forward-fast) | 73038.1 | 27.3 | 732337 | 732337 | 0 |
+| [standard_scrape](/performance/scenarios.md#feature-tax-metrics-standard-scrape-ladder-forward-fast) | 70157.8 | 28.4 | 703550 | 703550 | 0 |
 
 </div>
 
@@ -159,9 +159,9 @@ Decision context: [Performance findings](/performance/index.md#findings) · [Tun
 
 | Posture | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost |
 | --- | --- | --- | --- | --- | --- |
-| [dnstap_off](/performance/scenarios.md#feature-tax-dnstap-off-forward-fast) | 75505.8 | 26.4 | 757062 | 757062 | 0 |
-| [dnstap_sampled](/performance/scenarios.md#feature-tax-dnstap-sampled-forward-fast) | 71108.5 | 28.0 | 714045 | 714045 | 0 |
-| [dnstap_full](/performance/scenarios.md#feature-tax-dnstap-full-forward-fast) | 67911.4 | 29.4 | 681855 | 681855 | 0 |
+| [dnstap_off](/performance/scenarios.md#feature-tax-dnstap-off-forward-fast) | 77696.7 | 25.7 | 778975 | 778975 | 0 |
+| [dnstap_sampled](/performance/scenarios.md#feature-tax-dnstap-sampled-forward-fast) | 73759.2 | 27.1 | 739578 | 739578 | 0 |
+| [dnstap_full](/performance/scenarios.md#feature-tax-dnstap-full-forward-fast) | 68939.9 | 28.9 | 692386 | 692386 | 0 |
 
 </div>
 
@@ -175,9 +175,9 @@ Decision context: [Performance findings](/performance/index.md#findings) · [Tun
 
 | Posture | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost |
 | --- | --- | --- | --- | --- | --- |
-| [no_collect](/performance/scenarios.md#feature-tax-metrics-no-collect-forward-fast) | 72940.1 | 27.3 | 732015 | 732015 | 0 |
-| [collect_only](/performance/scenarios.md#feature-tax-metrics-collect-only-forward-fast) | 69562.3 | 28.7 | 697649 | 697649 | 0 |
-| [collect_emit](/performance/scenarios.md#feature-tax-metrics-collect-emit-forward-fast) | 68561.9 | 29.1 | 687918 | 687918 | 0 |
+| [no_collect](/performance/scenarios.md#feature-tax-metrics-no-collect-forward-fast) | 73615.4 | 27.1 | 738135 | 738135 | 0 |
+| [collect_only](/performance/scenarios.md#feature-tax-metrics-collect-only-forward-fast) | 70398.5 | 28.3 | 706795 | 706795 | 0 |
+| [collect_emit](/performance/scenarios.md#feature-tax-metrics-collect-emit-forward-fast) | 70635.6 | 28.2 | 708920 | 708920 | 0 |
 
 </div>
 
@@ -191,10 +191,10 @@ Decision context: [Performance findings](/performance/index.md#findings) · [Tun
 
 | Posture | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost |
 | --- | --- | --- | --- | --- | --- |
-| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-forward-fast) | 75250.1 | 26.5 | 754909 | 754909 | 0 |
-| [standard_scrape](/performance/scenarios.md#feature-tax-metrics-standard-scrape-forward-fast) | 69858.0 | 28.6 | 700756 | 700756 | 0 |
-| [dnstap_full](/performance/scenarios.md#feature-tax-dnstap-full-forward-fast) | 67911.4 | 29.4 | 681855 | 681855 | 0 |
-| [standard_dnstap_full](/performance/scenarios.md#feature-tax-metrics-standard-dnstap-full-forward-fast) | 63930.1 | 31.2 | 641638 | 641638 | 0 |
+| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-forward-fast) | 75940.7 | 26.3 | 761386 | 761386 | 0 |
+| [standard_scrape](/performance/scenarios.md#feature-tax-metrics-standard-scrape-forward-fast) | 70029.9 | 28.5 | 703153 | 703153 | 0 |
+| [dnstap_full](/performance/scenarios.md#feature-tax-dnstap-full-forward-fast) | 68939.9 | 28.9 | 692386 | 692386 | 0 |
+| [standard_dnstap_full](/performance/scenarios.md#feature-tax-metrics-standard-dnstap-full-forward-fast) | 64339.4 | 31.0 | 645499 | 645499 | 0 |
 
 </div>
 
@@ -208,9 +208,9 @@ Decision context: [Performance findings](/performance/index.md#findings) · [Tun
 
 | Posture | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost |
 | --- | --- | --- | --- | --- | --- |
-| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-forward-fast) | 75250.1 | 26.5 | 754909 | 754909 | 0 |
-| [standard_scrape](/performance/scenarios.md#feature-tax-metrics-standard-scrape-forward-fast) | 69858.0 | 28.6 | 700756 | 700756 | 0 |
-| [scrape_hammer](/performance/scenarios.md#feature-tax-metrics-standard-scrape-hammer-forward-fast) | 60779.5 | 32.8 | 611124 | 611124 | 0 |
+| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-forward-fast) | 75940.7 | 26.3 | 761386 | 761386 | 0 |
+| [standard_scrape](/performance/scenarios.md#feature-tax-metrics-standard-scrape-forward-fast) | 70029.9 | 28.5 | 703153 | 703153 | 0 |
+| [scrape_hammer](/performance/scenarios.md#feature-tax-metrics-standard-scrape-hammer-forward-fast) | 57968.8 | 34.4 | 582917 | 582917 | 0 |
 
 </div>
 
@@ -224,8 +224,8 @@ Decision context: [Performance findings](/performance/index.md#findings) · [Tun
 
 | Posture | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost |
 | --- | --- | --- | --- | --- | --- |
-| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-split-io-forward-fast) | 139604.8 | 14.3 | 1397888 | 1397888 | 0 |
-| [standard_scrape](/performance/scenarios.md#feature-tax-metrics-standard-scrape-split-io-forward-fast) | 142733.8 | 14.0 | 1429317 | 1429317 | 0 |
+| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-split-io-forward-fast) | 146802.2 | 13.6 | 1469986 | 1469986 | 0 |
+| [standard_scrape](/performance/scenarios.md#feature-tax-metrics-standard-scrape-split-io-forward-fast) | 139823.3 | 14.3 | 1400096 | 1400096 | 0 |
 
 </div>
 <!-- perf-reference-body:end -->

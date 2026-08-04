@@ -43,9 +43,9 @@ Compare sinks off, sampled (~10% responses), and fuller emit under the same
 
 | Posture | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| [dnstap_off](/performance/scenarios.md#feature-tax-dnstap-off-forward-fast) | sync | 75505.8 | 26.4 | 757062 | 757062 | 0 | ingress=2 |
-| [dnstap_sampled](/performance/scenarios.md#feature-tax-dnstap-sampled-forward-fast) | sync | 71108.5 | 28.0 | 714045 | 714045 | 0 | ingress=2 |
-| [dnstap_full](/performance/scenarios.md#feature-tax-dnstap-full-forward-fast) | sync | 67911.4 | 29.4 | 681855 | 681855 | 0 | ingress=2 |
+| [dnstap_off](/performance/scenarios.md#feature-tax-dnstap-off-forward-fast) | sync | 77696.7 | 25.7 | 778975 | 778975 | 0 | ingress=2 |
+| [dnstap_sampled](/performance/scenarios.md#feature-tax-dnstap-sampled-forward-fast) | sync | 73759.2 | 27.1 | 739578 | 739578 | 0 | ingress=2 |
+| [dnstap_full](/performance/scenarios.md#feature-tax-dnstap-full-forward-fast) | sync | 68939.9 | 28.9 | 692386 | 692386 | 0 | ingress=2 |
 
 </div>
 <!-- perf-study-evidence:end -->
@@ -53,14 +53,14 @@ Compare sinks off, sampled (~10% responses), and fuller emit under the same
 <!-- perf-study-deltas:start -->
 ## At a glance
 
-- **dnstap off / sampled / full (forward_fast):** `dnstap_sampled` costs about **6%** QPS versus `dnstap_off` (~71k vs ~76k); `dnstap_full` costs about **10%** QPS versus `dnstap_off` (~68k vs ~76k).
+- **dnstap off / sampled / full (forward_fast):** `dnstap_sampled` costs about **5%** QPS versus `dnstap_off` (~74k vs ~78k); `dnstap_full` costs about **11%** QPS versus `dnstap_off` (~69k vs ~78k).
 <!-- perf-study-deltas:end -->
 
 ## Takeaway
 
 **Dnstap costs scale with how much you emit.** Versus dnstap off on this lab
-(~75k), sampled emit costs about **4%** QPS (~72k), and full emit about
-**11%** (~67k).
+(~78k), sampled emit costs about **5%** QPS (~74k), and full emit about
+**11%** (~69k).
 
 **What to do:** leave dnstap off until you have a consumer. Prefer **sampled**
 for standing capture; turn on fuller emit only for surfaces you will store and

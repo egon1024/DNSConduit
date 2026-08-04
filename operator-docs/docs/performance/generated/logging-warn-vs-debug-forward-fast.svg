@@ -7,12 +7,12 @@
 <line x1="56" y1="264.0" x2="536" y2="264.0" stroke="#eeeeee"/>
 <text x="50" y="268.0" text-anchor="end" font-family="sans-serif" font-size="10" fill="#757575">0</text>
 <line x1="56" y1="152.0" x2="536" y2="152.0" stroke="#eeeeee"/>
-<text x="50" y="156.0" text-anchor="end" font-family="sans-serif" font-size="10" fill="#757575">33341</text>
+<text x="50" y="156.0" text-anchor="end" font-family="sans-serif" font-size="10" fill="#757575">38229</text>
 <line x1="56" y1="40.0" x2="536" y2="40.0" stroke="#eeeeee"/>
-<text x="50" y="44.0" text-anchor="end" font-family="sans-serif" font-size="10" fill="#757575">66682</text>
-<rect x="116.0" y="40.0" width="102.0" height="224.0" fill="#3949ab"><title>achieved_qps / logging_warn: 66682.33</title></rect>
+<text x="50" y="44.0" text-anchor="end" font-family="sans-serif" font-size="10" fill="#757575">76457</text>
+<rect x="116.0" y="40.0" width="102.0" height="224.0" fill="#3949ab"><title>achieved_qps / logging_warn: 76457.05</title></rect>
 <text x="176.0" y="282" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#424242">logging_warn</text>
-<rect x="356.0" y="51.0" width="102.0" height="213.0" fill="#3949ab"><title>achieved_qps / logging_debug: 63415.42</title></rect>
+<rect x="356.0" y="76.4" width="102.0" height="187.6" fill="#3949ab"><title>achieved_qps / logging_debug: 64029.35</title></rect>
 <text x="416.0" y="282" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#424242">logging_debug</text>
 <rect x="56" y="298" width="12" height="12" fill="#3949ab"/>
 <text x="72" y="308" font-family="sans-serif" font-size="11" fill="#424242">achieved_qps</text>

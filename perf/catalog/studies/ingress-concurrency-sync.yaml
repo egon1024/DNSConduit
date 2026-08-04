@@ -15,8 +15,8 @@ members:
 compare_axis: ingress_workers
 primary_metric: achieved_qps
 takeaway: >
-  More sync ingress threads raise forward_fast throughput on this lab (~38k →
-  74k → 146k → 240k at 1/2/4/8). Under forward_slow, completed QPS scales but
+  More sync ingress threads raise forward_fast throughput on this lab (~39k →
+  ~76k → ~122k → ~188k at 1/2/4/8). Under forward_slow, completed QPS scales but
   stays tiny and lossy — prefer split_io when upstream wait owns the path.
 related_guides:
   - /guides/dataplane-runtime-tuning.md

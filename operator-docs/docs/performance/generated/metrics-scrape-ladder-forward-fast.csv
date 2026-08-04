@@ -1,4 +1,4 @@
 scenario_id,runtime,achieved_qps,latency_avg_ms,queries_sent,queries_completed,queries_lost,workers
-feature-tax-metrics-off-scrape-ladder-forward-fast,sync,74751.2,26.7,749541,749541,0,ingress_workers=2
-feature-tax-metrics-minimal-scrape-ladder-forward-fast,sync,72057.1,27.7,723470,723470,0,ingress_workers=2
-feature-tax-metrics-standard-scrape-ladder-forward-fast,sync,68348.4,29.2,686051,686051,0,ingress_workers=2
+feature-tax-metrics-off-scrape-ladder-forward-fast,sync,76124.1,26.2,763843,763843,0,ingress_workers=2
+feature-tax-metrics-minimal-scrape-ladder-forward-fast,sync,73038.1,27.3,732337,732337,0,ingress_workers=2
+feature-tax-metrics-standard-scrape-ladder-forward-fast,sync,70157.8,28.4,703550,703550,0,ingress_workers=2

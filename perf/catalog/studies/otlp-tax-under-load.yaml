@@ -10,7 +10,7 @@ members:
 compare_axis: obs_posture
 primary_metric: achieved_qps
 takeaway: >
-  Versus obs-off (~75k): OTLP push about 8% (~69k) and standard scrape about
+  Versus obs-off (~76k): OTLP push about 8% (~70k) and standard scrape about
   8% (~70k) on this median — enable OTLP only with a collector path.
 related_guides:
   - /guides/otlp-metrics-push.md

@@ -11,7 +11,7 @@ members:
 compare_axis: runtime
 primary_metric: achieved_qps
 takeaway: >
-  Under forward_fast, split_io reaches about 1.9× sync QPS (~141k vs ~74k).
+  Under forward_fast, split_io reaches about 1.8× sync QPS (~139k vs ~76k).
   Under forward_slow, split_io still completes far more (~39k vs sync ~6 QPS
   lossy) — prefer split_io when upstream wait owns the path.
 related_guides:
