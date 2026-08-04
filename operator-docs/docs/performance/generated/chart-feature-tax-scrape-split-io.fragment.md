@@ -8,7 +8,7 @@
 
 | Posture | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost |
 | --- | --- | --- | --- | --- | --- |
-| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-split-io-forward-fast) | 139604.8 | 14.3 | 1397888 | 1397888 | 0 |
-| [standard_scrape](/performance/scenarios.md#feature-tax-metrics-standard-scrape-split-io-forward-fast) | 142733.8 | 14.0 | 1429317 | 1429317 | 0 |
+| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-split-io-forward-fast) | 146802.2 | 13.6 | 1469986 | 1469986 | 0 |
+| [standard_scrape](/performance/scenarios.md#feature-tax-metrics-standard-scrape-split-io-forward-fast) | 139823.3 | 14.3 | 1400096 | 1400096 | 0 |
 
 </div>

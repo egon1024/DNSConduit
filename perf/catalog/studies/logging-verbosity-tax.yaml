@@ -9,8 +9,7 @@ members:
 compare_axis: obs_posture
 primary_metric: achieved_qps
 takeaway: >
-  Debug logging costs about 5% QPS versus warn on this median (~63k vs ~67k)
-  — remeasure before assuming a large debug tax.
+  Debug logging costs about 16% QPS versus warn on this median (~64k vs ~76k).
 related_guides:
   - /observability/logging.md
   - /reference/config-schema/logging.md

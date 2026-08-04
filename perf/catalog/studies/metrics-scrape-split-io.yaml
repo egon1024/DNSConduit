@@ -9,9 +9,8 @@ members:
 compare_axis: obs_posture
 primary_metric: achieved_qps
 takeaway: >
-  Under split_io, standard scrape stays within about 2% of obs-off on this
-  median (~143k vs ~140k); remeasure — do not assume the sync ladder
-  percentage.
+  Under split_io, standard scrape costs about 5% versus obs-off on this median
+  (~140k vs ~147k); do not assume the sync scrape-series percentage.
 related_guides:
   - /guides/operator-metrics-bases.md
   - /concepts/runtime-and-concurrency.md

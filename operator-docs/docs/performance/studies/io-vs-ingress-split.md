@@ -52,10 +52,10 @@ and [dataplane runtime tuning](/guides/dataplane-runtime-tuning.md).
 
 | I/O workers | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| [1](/performance/scenarios.md#scale-split-io-io-1-forward-slow) | split_io | 38839.5 | 51.3 | 1168707 | 1168707 | 0 | ingress=2, policy=2, io=1 |
-| [2](/performance/scenarios.md#scale-split-io-forward-slow) | split_io | 38736.3 | 51.3 | 1167745 | 1167745 | 0 | ingress=2, policy=2, io=2 |
-| [4](/performance/scenarios.md#scale-split-io-io-4-forward-slow) | split_io | 38855.5 | 51.2 | 1171188 | 1171188 | 0 | ingress=2, policy=2, io=4 |
-| [8](/performance/scenarios.md#scale-split-io-io-8-forward-slow) | split_io | 38642.6 | 51.5 | 1165050 | 1165050 | 0 | ingress=2, policy=2, io=8 |
+| [1](/performance/scenarios.md#scale-split-io-io-1-forward-slow) | split_io | 39149.7 | 51.0 | 1176305 | 1176305 | 0 | ingress=2, policy=2, io=1 |
+| [2](/performance/scenarios.md#scale-split-io-forward-slow) | split_io | 39080.2 | 51.1 | 1174342 | 1174342 | 0 | ingress=2, policy=2, io=2 |
+| [4](/performance/scenarios.md#scale-split-io-io-4-forward-slow) | split_io | 39132.2 | 51.0 | 1175628 | 1175628 | 0 | ingress=2, policy=2, io=4 |
+| [8](/performance/scenarios.md#scale-split-io-io-8-forward-slow) | split_io | 39150.6 | 51.0 | 1176530 | 1176530 | 0 | ingress=2, policy=2, io=8 |
 
 </div>
 <!-- perf-study-evidence:end -->
@@ -63,23 +63,23 @@ and [dataplane runtime tuning](/guides/dataplane-runtime-tuning.md).
 <!-- perf-study-deltas:start -->
 ## At a glance
 
-- **split_io io_workers series (forward_slow):** `2` costs about **0%** QPS versus `1` (~39k vs ~39k); `4` is about **1.0×** `1` (~39k vs ~39k); `8` costs about **1%** QPS versus `1` (~39k vs ~39k).
+- **split_io io_workers series (forward_slow):** `2` costs about **0%** QPS versus `1` (~39k vs ~39k); `4` costs about **0%** QPS versus `1` (~39k vs ~39k); `8` is about **1.0×** `1` (~39k vs ~39k).
 <!-- perf-study-deltas:end -->
 
 ## Takeaway
 
-**There is no published ranking yet for this question.** Every
-[`forward_slow`](/performance/methodology.md#load-shapes) `io_workers` cell in
-this refresh failed the successful-answer check (SERVFAIL-dominated answers)
-and was omitted — empty figures are not a ranking.
+**Adding I/O workers did not raise QPS under this slow-upstream recipe.** With
+ingress and policy fixed on
+[`split_io`](/concepts/runtime-and-concurrency.md#split-io-runtime), the
+[`forward_slow`](/performance/methodology.md#load-shapes) series stays flat at
+about **~39k** QPS from `io_workers` 1 through 8 on this median — consistent
+with the loadgen outstanding window and the slow-upstream recipe delay, not
+with I/O thread starvation.
 
-**What to do:** size `io_workers` from
-[Dataplane runtime tuning](/guides/dataplane-runtime-tuning.md), or remeasure
-locally with `--study io-vs-ingress-split` until rungs clear the answer gate.
-Until then, use the published
-[`forward_fast`](/performance/methodology.md#load-shapes) comparison in
-[sync vs split_io](/performance/studies/sync-vs-split-io.md) and the sync
-ingress series in
+**What to do:** size `io_workers` for concurrency headroom and loss behavior on
+*your* hardware (`--study io-vs-ingress-split`), not from this shape’s QPS
+ceiling. For runtime choice and ingress sizing, see
+[sync vs split_io](/performance/studies/sync-vs-split-io.md) and
 [ingress concurrency (sync)](/performance/studies/ingress-concurrency-sync.md).
 
 ## Related guides

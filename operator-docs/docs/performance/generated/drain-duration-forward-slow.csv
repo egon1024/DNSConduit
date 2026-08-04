@@ -1,4 +1,4 @@
 scenario_id,category,drain_duration_ms,client_failures_during_stop,achieved_qps,latency_avg_ms
-shutdown-drain-complete-forward-slow,drain_complete,113.8,298,6.6,1008.6
-shutdown-drain-budgeted-forward-slow,drain_budgeted,163.6,200,10.2,1020.7
-shutdown-drain-minimal-forward-slow,drain_minimal,63.4,200,9.7,900.3
+shutdown-drain-complete-forward-slow,drain_complete,113.5,299,6.5,996.6
+shutdown-drain-budgeted-forward-slow,drain_budgeted,113.6,200,10.0,909.2
+shutdown-drain-minimal-forward-slow,drain_minimal,63.7,200,9.7,902.1

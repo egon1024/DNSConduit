@@ -46,9 +46,9 @@ clearly.
 
 | Drain policy | Drain duration (ms) | Client failures during stop | QPS | Avg latency (ms) |
 | --- | --- | --- | --- | --- |
-| [drain_complete](/performance/scenarios.md#shutdown-drain-complete-forward-slow) | 113.8 | 298 | 6.6 | 1008.6 |
-| [drain_budgeted](/performance/scenarios.md#shutdown-drain-budgeted-forward-slow) | 163.6 | 200 | 10.2 | 1020.7 |
-| [drain_minimal](/performance/scenarios.md#shutdown-drain-minimal-forward-slow) | 63.4 | 200 | 9.7 | 900.3 |
+| [drain_complete](/performance/scenarios.md#shutdown-drain-complete-forward-slow) | 113.5 | 299 | 6.5 | 996.6 |
+| [drain_budgeted](/performance/scenarios.md#shutdown-drain-budgeted-forward-slow) | 113.6 | 200 | 10.0 | 909.2 |
+| [drain_minimal](/performance/scenarios.md#shutdown-drain-minimal-forward-slow) | 63.7 | 200 | 9.7 | 902.1 |
 
 </div>
 <!-- perf-study-evidence:end -->
@@ -56,15 +56,15 @@ clearly.
 <!-- perf-study-deltas:start -->
 ## At a glance
 
-- **Drain duration under forward_slow:** `drain_complete` ≈ **114 ms**, `drain_budgeted` ≈ **164 ms**, `drain_minimal` ≈ **63 ms**
+- **Drain duration under forward_slow:** `drain_complete` ≈ **114 ms**, `drain_budgeted` ≈ **114 ms**, `drain_minimal` ≈ **64 ms**
 <!-- perf-study-deltas:end -->
 
 ## Takeaway
 
 **Minimal drain stops fastest; complete leaves the most in-flight clients to
-fail.** On this lab (median of three rounds), minimal finishes in ~**63 ms**;
+fail.** On this lab (median of three rounds), minimal finishes in ~**64 ms**;
 complete and budgeted both take ~**114 ms**. Complete records the most client
-failures during stop (298 vs 200 for the others) — a longer wait gives doomed
+failures during stop (299 vs 200 for the others) — a longer wait gives doomed
 slow-upstream requests more time to time out.
 
 **What to do:** choose complete, budgeted, or minimal for your upgrade/restart

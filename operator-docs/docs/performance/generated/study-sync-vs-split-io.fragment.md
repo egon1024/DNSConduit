@@ -10,8 +10,8 @@
 
 | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- |
-| [sync](/performance/scenarios.md#scale-sync-forward-fast) | 73594.4 | 27.1 | 738415 | 738415 | 0 | ingress=2 |
-| [split_io](/performance/scenarios.md#scale-split-io-forward-fast) | 141401.1 | 14.0 | 1430029 | 1430029 | 0 | ingress=2, policy=2, io=2 |
+| [sync](/performance/scenarios.md#scale-sync-forward-fast) | 76269.9 | 26.1 | 765379 | 765379 | 0 | ingress=2 |
+| [split_io](/performance/scenarios.md#scale-split-io-forward-fast) | 138744.2 | 14.4 | 1389252 | 1389252 | 0 | ingress=2, policy=2, io=2 |
 
 </div>
 
@@ -25,7 +25,7 @@
 
 | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- |
-| [sync](/performance/scenarios.md#scale-sync-forward-slow) | 5.7 | 2509.2 | 12188 | 198 | 11990 | ingress=2 |
-| [split_io](/performance/scenarios.md#scale-split-io-forward-slow) | 38736.3 | 51.3 | 1167745 | 1167745 | 0 | ingress=2, policy=2, io=2 |
+| [sync](/performance/scenarios.md#scale-sync-forward-slow) | 5.7 | 2508.7 | 12188 | 198 | 11990 | ingress=2 |
+| [split_io](/performance/scenarios.md#scale-split-io-forward-slow) | 39080.2 | 51.1 | 1174342 | 1174342 | 0 | ingress=2, policy=2, io=2 |
 
 </div>

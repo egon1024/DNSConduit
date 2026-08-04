@@ -1,2 +1,2 @@
 scenario_id,runtime,achieved_qps,latency_avg_ms,queries_sent,queries_completed,queries_lost,workers
-scale-sync-cache-hit,sync,254403.3,7.8,2546522,2546522,0,
+scale-sync-cache-hit,sync,331636.6,6.0,3318431,3318431,0,

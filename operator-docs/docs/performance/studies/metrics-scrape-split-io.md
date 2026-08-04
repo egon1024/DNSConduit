@@ -41,8 +41,8 @@ comparison. This study pairs observability off and standard scrape under
 
 | Posture | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-split-io-forward-fast) | split_io | 139604.8 | 14.3 | 1397888 | 1397888 | 0 | ingress=2, policy=2, io=2 |
-| [metrics_standard_scrape](/performance/scenarios.md#feature-tax-metrics-standard-scrape-split-io-forward-fast) | split_io | 142733.8 | 14.0 | 1429317 | 1429317 | 0 | ingress=2, policy=2, io=2 |
+| [metrics_off](/performance/scenarios.md#feature-tax-metrics-off-split-io-forward-fast) | split_io | 146802.2 | 13.6 | 1469986 | 1469986 | 0 | ingress=2, policy=2, io=2 |
+| [metrics_standard_scrape](/performance/scenarios.md#feature-tax-metrics-standard-scrape-split-io-forward-fast) | split_io | 139823.3 | 14.3 | 1400096 | 1400096 | 0 | ingress=2, policy=2, io=2 |
 
 </div>
 <!-- perf-study-evidence:end -->
@@ -50,14 +50,14 @@ comparison. This study pairs observability off and standard scrape under
 <!-- perf-study-deltas:start -->
 ## At a glance
 
-- **metrics scrape under split_io (forward_fast):** `metrics_standard_scrape` is about **1.0×** `metrics_off` (~143k vs ~140k).
+- **metrics scrape under split_io (forward_fast):** `metrics_standard_scrape` costs about **5%** QPS versus `metrics_off` (~140k vs ~147k).
 <!-- perf-study-deltas:end -->
 
 ## Takeaway
 
-**Under `split_io`, standard scrape did not show a clear QPS tax on this
-median.** Obs-off and standard scrape are within about **2%** (~143k vs ~140k).
-Do not assume the sync ladder percentage transfers — remeasure on your runtime.
+**Under `split_io`, standard scrape costs a modest QPS tax on this median.**
+Obs-off versus standard scrape is about **5%** (~147k vs ~140k). Do not assume
+the sync scrape-series percentage transfers — remeasure on your runtime.
 
 **What to do:** when sizing scrape on a `split_io` deployment, remeasure this
 pair on your hardware. Still pick minimal vs standard from

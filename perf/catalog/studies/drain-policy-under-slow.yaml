@@ -11,7 +11,7 @@ compare_axis: drain_policy
 primary_metric: drain_duration_ms
 takeaway: >
   On the published forward_slow cells (median of three rounds), minimal drain
-  finishes fastest (~63 ms); complete and budgeted both take ~114 ms. Complete
+  finishes fastest (~64 ms); complete and budgeted both take ~114 ms. Complete
   records the most client failures during stop — pick deliberately for your
   upgrade window.
 related_guides:

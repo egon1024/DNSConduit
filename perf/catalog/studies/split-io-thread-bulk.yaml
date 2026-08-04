@@ -10,7 +10,7 @@ compare_axis: topology
 primary_metric: achieved_qps
 takeaway: >
   Raising ingress/policy/I/O together (4/4/4 vs thin 2/2/2) reaches about
-  1.5× QPS on this median (~210k vs ~141k). Still size one dial at a time —
+  1.9× QPS on this median (~259k vs ~139k). Still size one dial at a time —
   this bulk pair is not a substitute for single-axis studies.
 related_guides:
   - /guides/dataplane-runtime-tuning.md

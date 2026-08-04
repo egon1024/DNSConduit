@@ -11,8 +11,8 @@ members:
 compare_axis: obs_posture
 primary_metric: achieved_qps
 takeaway: >
-  Versus obs-off (~75k): standard scrape about 8%, fuller dnstap about 11%,
-  both about 16% — enable each surface only if needed.
+  Versus obs-off (~76k): standard scrape about 8% (~70k), fuller dnstap about
+  10% (~69k), both about 16% (~64k) — enable each surface only if needed.
 related_guides:
   - /observability/metrics-configurability.md
   - /observability/event-export.md

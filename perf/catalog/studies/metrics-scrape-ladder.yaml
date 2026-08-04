@@ -10,8 +10,8 @@ members:
 compare_axis: obs_posture
 primary_metric: achieved_qps
 takeaway: >
-  Versus obs-off (~75k): minimal scrape about 4% (~72k); standard scrape about
-  9% (~68k).
+  Versus obs-off (~76k): minimal scrape about 4% (~73k); standard scrape about
+  8% (~70k).
 related_guides:
   - /guides/operator-metrics-bases.md
   - /observability/metrics-configurability.md

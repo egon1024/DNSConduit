@@ -42,9 +42,9 @@ See also the [metrics scrape tax](/performance/studies/metrics-scrape-ladder.md)
 
 | Posture | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| [metrics_no_collect](/performance/scenarios.md#feature-tax-metrics-no-collect-forward-fast) | sync | 72940.1 | 27.3 | 732015 | 732015 | 0 | ingress=2 |
-| [metrics_collect_only](/performance/scenarios.md#feature-tax-metrics-collect-only-forward-fast) | sync | 69562.3 | 28.7 | 697649 | 697649 | 0 | ingress=2 |
-| [metrics_collect_emit](/performance/scenarios.md#feature-tax-metrics-collect-emit-forward-fast) | sync | 68561.9 | 29.1 | 687918 | 687918 | 0 | ingress=2 |
+| [metrics_no_collect](/performance/scenarios.md#feature-tax-metrics-no-collect-forward-fast) | sync | 73615.4 | 27.1 | 738135 | 738135 | 0 | ingress=2 |
+| [metrics_collect_only](/performance/scenarios.md#feature-tax-metrics-collect-only-forward-fast) | sync | 70398.5 | 28.3 | 706795 | 706795 | 0 | ingress=2 |
+| [metrics_collect_emit](/performance/scenarios.md#feature-tax-metrics-collect-emit-forward-fast) | sync | 70635.6 | 28.2 | 708920 | 708920 | 0 | ingress=2 |
 
 </div>
 <!-- perf-study-evidence:end -->
@@ -52,14 +52,14 @@ See also the [metrics scrape tax](/performance/studies/metrics-scrape-ladder.md)
 <!-- perf-study-deltas:start -->
 ## At a glance
 
-- **collect vs emit (forward_fast):** `metrics_collect_only` costs about **5%** QPS versus `metrics_no_collect` (~70k vs ~73k); `metrics_collect_emit` costs about **6%** QPS versus `metrics_no_collect` (~69k vs ~73k).
+- **collect vs emit (forward_fast):** `metrics_collect_only` costs about **4%** QPS versus `metrics_no_collect` (~70k vs ~74k); `metrics_collect_emit` costs about **4%** QPS versus `metrics_no_collect` (~71k vs ~74k).
 <!-- perf-study-deltas:end -->
 
 ## Takeaway
 
-**Collect carries most of the standing metrics cost; emit adds a thin band on
-this median.** Versus no-collect (~73k), collect-only costs about **5%** (~70k);
-collect+emit about **6%** (~69k).
+**Collect carries most of the standing metrics cost; emit adds little on this
+median.** Versus no-collect (~74k), collect-only costs about **4%** (~70k);
+collect+emit about **4%** (~71k).
 
 **What to do:** turn off collect for categories you do not need. Choose minimal
 vs standard with [operator metrics bases](/guides/operator-metrics-bases.md);

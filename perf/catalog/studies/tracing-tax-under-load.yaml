@@ -9,7 +9,7 @@ members:
 compare_axis: obs_posture
 primary_metric: achieved_qps
 takeaway: >
-  Full pipeline tracing costs about 37% QPS versus obs-off (~47k vs ~75k) —
+  Full pipeline tracing costs about 36% QPS versus obs-off (~49k vs ~76k) —
   diagnosis windows only, not standing production.
 related_guides:
   - /observability/tracing.md

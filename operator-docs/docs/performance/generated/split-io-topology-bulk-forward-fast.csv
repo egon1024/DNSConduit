@@ -1,3 +1,3 @@
 scenario_id,runtime,achieved_qps,latency_avg_ms,queries_sent,queries_completed,queries_lost,workers
-scale-split-io-forward-fast,split_io,141401.1,14.0,1430029,1430029,0,"ingress_workers=2, policy_workers=2, io_workers=2"
-scale-split-io-topology-heavy,split_io,210005.8,9.5,2102918,2102918,0,"ingress_workers=4, policy_workers=4, io_workers=4"
+scale-split-io-forward-fast,split_io,138744.2,14.4,1389252,1389252,0,"ingress_workers=2, policy_workers=2, io_workers=2"
+scale-split-io-topology-heavy,split_io,258908.7,7.7,2590870,2590870,0,"ingress_workers=4, policy_workers=4, io_workers=4"
