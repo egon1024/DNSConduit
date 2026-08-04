@@ -10,6 +10,7 @@
 
 - **Concurrent transaction slots:** The shared transaction slot pool no longer holds one process-wide lock across policy work — distinct slots can progress concurrently (important under multi-worker `sync` and `split_io`).
 - **Sharded `split_io` handoff:** Policy work queues (and reply routes) are partitioned by slot so ingress producers are not serialized on a single queue lock. See [Runtime and concurrency](/concepts/runtime-and-concurrency.md) and [Dataplane runtime tuning](/guides/dataplane-runtime-tuning.md).
+- **Prompt `split_io` policy wake:** When `policy_workers` is smaller than the internal queue shard count, new and resumed work is handed to idle workers immediately instead of waiting up to about 100 ms for a steal poll — overlapping queries under thin `split_io` topologies stay near one upstream RTT. See [Runtime and concurrency](/concepts/runtime-and-concurrency.md) and [Dataplane runtime tuning](/guides/dataplane-runtime-tuning.md).
 - **Unique upstream DNS IDs:** Outstanding forwards to the same backend use allocated demux IDs (client IDs restored on the reply), so colliding client query IDs no longer orphan in-flight waits under multi-client load.
 - **Event sink drop-oldest:** When an event queue is full under `drop_oldest`, Conduit drops one oldest event instead of draining the whole queue on the producer path.
 
