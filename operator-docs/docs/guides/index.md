@@ -13,7 +13,7 @@ After your first successful query ([First query](/getting-started/first-query.md
 | Guide | What you practice |
 |-------|-------------------|
 | [Backend health](/guides/backend-health.md) | Enable probes, watch a dead backend go down, practice `conduitctl health` drain/resume |
-| [DNS answer cache](/guides/dns-answer-cache.md) | Enable in-memory caching, hit/miss path, `on_hit` and metrics tradeoffs |
+| [DNS answer cache](/guides/dns-answer-cache.md) | Enable memory or LMDB caching, hit/miss path, `on_hit` and metrics tradeoffs |
 | [Dual-stack forwarding](/guides/dual-stack-forwarding.md) | Global and per-pool egress sources, rules, and Rhai overrides |
 
 ### Policy

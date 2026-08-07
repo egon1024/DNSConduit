@@ -408,6 +408,7 @@ mod tests {
                 shard_count: 4,
                 eviction: EvictionMode::Passive,
             },
+            lmdb: None,
             max_entries,
         }
     }

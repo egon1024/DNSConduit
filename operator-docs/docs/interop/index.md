@@ -1,6 +1,6 @@
 # Interop
 
-This section publishes correctness results for DNSConduit against peer DNS software under test. **Peer contract** cases are split **by publisher** (alphabetical). **Conduit behavior** cases (cache path, rules, dataplane runtime) use a single stub peer — see [Conduit behavior](/interop/conduit-behavior.md). No peer is preferred or recommended.
+Published correctness results for DNSConduit against peer DNS software under test. **Peer contract** cases are split **by publisher** (alphabetical). **Conduit behavior** cases (cache path, rules, dataplane runtime) use a single stub peer — see [Conduit behavior](/interop/conduit-behavior.md). No peer is preferred or recommended.
 
 By default, Conduit’s forward path **passes peer response shapes through** (rcode, answer section, and flags such as AA/TC) so operators see the same backend quirks they would when querying the peer directly. Cases that document those quirks use parity against a direct dig; `characterized` cells record expected peer-specific shapes. Configuration that rewrites or sanitizes peer answers is covered separately when those knobs are under test.
 
@@ -16,7 +16,7 @@ By default, Conduit’s forward path **passes peer response shapes through** (rc
 - [PowerDNS](/interop/publishers/powerdns.md) — Authoritative Server, Recursor
 - [thekelleys](/interop/publishers/thekelleys.md) — dnsmasq
 
-*Last tested 2026-07-21 · No failures; 8 characterized*
+*Last tested 2026-08-06 · No failures; 8 characterized*
 
 ## Outcomes
 

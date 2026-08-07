@@ -94,10 +94,12 @@ Use **`dataplane startup summary`** to confirm generation, pool/rule counts, for
 At **`debug`**, each completed [transaction](/glossary/index.md#transaction) emits a structured **`query complete`** line (not shown at default **`info`**):
 
 ```text
-DEBUG … query complete txn_id=1 dns_id=… qname=example.com. rcode=NOERROR pool=default backend=127.0.0.1:5300 attempts=1
+DEBUG … query complete txn_id=1 dns_id=… qname=example.com. rcode=NOERROR pool=default backend=127.0.0.1:5300 cache=- attempts=1
 ```
 
 The **`backend`** field is the backend **label** — the configured backend `name` when set, otherwise the `ip:port` address — matching the identity used in [metrics](/observability/built-in-metrics.md), [traces](/observability/tracing.md), and [event sinks](/observability/event-export.md).
+
+**`cache`** is the named cache instance when the answer came from cache (for example **`durable`**); otherwise **`-`** (same sentinel as an unused **pool** / **backend** on a cache hit).
 
 Policy **drops** (no reply sent) log at **`debug`** as **`query dropped`** and increment [`conduit_queries_dropped_total`](/observability/built-in-metrics.md#conduit_queries_dropped_total):
 
@@ -168,7 +170,7 @@ Production deployments usually stay at **`info`**. Use **`debug`** briefly when 
    ```
 
    Restart Conduit and send another query.
-6. Expect a **`DEBUG`** line **`query complete`** with **`qname`**, **`rcode`**, **`pool`**, **`backend`**, and **`txn_id`** — use **`txn_id`** with [Tracing](/observability/tracing.md) when needed.
+6. Expect a **`DEBUG`** line **`query complete`** with **`qname`**, **`rcode`**, **`pool`**, **`backend`**, **`cache`**, and **`txn_id`** — use **`txn_id`** with [Tracing](/observability/tracing.md) when needed.
 
 Unset **`debug`** after the lab — production should remain at **`info`** unless you are actively investigating.
 

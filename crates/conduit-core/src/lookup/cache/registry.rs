@@ -1,13 +1,15 @@
 //! Runtime cache store registry (outside snapshot; shared across workers).
 
+use super::backend::CacheBackend;
 use super::entry::{CacheEntry, EntryKind};
 use super::inflight::{InFlightRole, InFlightTable};
 use super::key::{
     build_key_from_parts, build_query_key, build_truncated_udp_key, CacheKey, TransportKey,
 };
 use super::memory::entry_from_wire;
-use super::memory::{MemoryCacheBackend, ReapBudget, ReapCursor};
+use super::memory::{ReapBudget, ReapCursor};
 use super::serve::prepare_served_arc;
+use arc_swap::ArcSwap;
 use conduit_config::lookup::CompiledCacheInstance;
 use conduit_metrics::MetricsHub;
 use parking_lot::RwLock;
@@ -37,12 +39,12 @@ fn try_ancestor_nxdomain_hit(
     txn: &crate::transaction::Transaction,
     now: Instant,
 ) -> Option<CacheEntry> {
-    if !inst.config.negative_cache.enabled
-        || !inst.config.negative_cache.nxdomain_covers_descendants
-    {
+    let cfg = inst.config.load();
+    if !cfg.negative_cache.enabled || !cfg.negative_cache.nxdomain_covers_descendants {
         return None;
     }
     let qname = txn.qname.as_deref().unwrap_or(".");
+    let backend = inst.backend.load();
     for ancestor in ancestor_qnames(qname) {
         let key = build_key_from_parts(
             &ancestor,
@@ -52,7 +54,7 @@ fn try_ancestor_nxdomain_hit(
             TransportKey::Complete,
         )
         .ok()?;
-        let entry = inst.backend.get(&key, now)?;
+        let entry = backend.get(&key, now)?;
         if entry.kind == EntryKind::NxDomain {
             return Some(entry);
         }
@@ -81,8 +83,10 @@ pub enum CacheLookupOutcome {
 }
 
 pub struct CacheInstanceRuntime {
-    pub config: CompiledCacheInstance,
-    backend: MemoryCacheBackend,
+    config: ArcSwap<CompiledCacheInstance>,
+    backend: ArcSwap<CacheBackend>,
+    /// When true, lookups Bypass and fills skip store (map_size shrink ladder).
+    rebuilding: AtomicBool,
     inflight: InFlightTable,
     /// Round-robin shard index for the next active-reaper pass.
     next_reap_shard: AtomicUsize,
@@ -90,21 +94,58 @@ pub struct CacheInstanceRuntime {
 
 impl CacheInstanceRuntime {
     pub fn new(config: CompiledCacheInstance) -> Self {
-        let backend = MemoryCacheBackend::from_config(&config);
-        Self {
-            config,
-            backend,
-            inflight: InFlightTable::new(),
-            next_reap_shard: AtomicUsize::new(0),
+        match Self::try_new(config) {
+            Ok(inst) => inst,
+            Err(e) => {
+                tracing::error!(
+                    error = %e,
+                    "failed to open cache backend; falling back is not possible — panicking"
+                );
+                panic!("failed to open cache backend: {e}");
+            }
         }
     }
 
+    pub fn try_new(config: CompiledCacheInstance) -> Result<Self, String> {
+        let name = config.name.clone();
+        let backend = CacheBackend::from_config(&config).map_err(|e| {
+            tracing::error!(cache = %name, error = %e, "failed to open cache backend");
+            format!("cache '{name}': {e}")
+        })?;
+        Ok(Self {
+            config: ArcSwap::from_pointee(config),
+            backend: ArcSwap::from_pointee(backend),
+            rebuilding: AtomicBool::new(false),
+            inflight: InFlightTable::new(),
+            next_reap_shard: AtomicUsize::new(0),
+        })
+    }
+
+    pub fn is_rebuilding(&self) -> bool {
+        self.rebuilding.load(Ordering::Acquire)
+    }
+
+    fn set_rebuilding(&self, v: bool) {
+        self.rebuilding.store(v, Ordering::Release);
+    }
+
     pub fn apply_max_entries(&self, max_entries: u64) {
-        self.backend.set_max_entries(max_entries);
+        self.backend.load().set_max_entries(max_entries);
+        let cfg = self.config.load_full();
+        if cfg.max_entries != max_entries {
+            let mut next = (*cfg).clone();
+            next.max_entries = max_entries;
+            self.config.store(Arc::new(next));
+        }
     }
 
     pub fn max_entries(&self) -> u64 {
-        self.backend.max_entries()
+        self.backend.load().max_entries()
+    }
+
+    fn swap_backend(&self, backend: CacheBackend, config: CompiledCacheInstance) {
+        self.backend.store(Arc::new(backend));
+        self.config.store(Arc::new(config));
     }
 }
 
@@ -136,29 +177,166 @@ impl LookupCacheRegistry {
         *self.metrics.write() = Some(metrics);
     }
 
-    /// Reconcile named cache instances after a snapshot swap: add new instances and
-    /// apply live `max_entries` updates to existing backends without rebuilding shards.
+    /// Reconcile named cache instances after a snapshot swap.
+    ///
+    /// - Adds new instances; drops names removed from config (closes LMDB env, keeps files).
+    /// - Memory: live `max_entries` updates without rebuilding shards.
+    /// - LMDB: Hot-apply `when_full` / `sample_size` / `max_entries`; grow/shrink `map_size`;
+    ///   warm path reopen (Arc swap, no migrate); type flip rebuilds the backend in place
+    ///   (single-flight table retained). Failed reopen / grow / shrink / type rebuild returns
+    ///   `Err` and leaves the registry unchanged for that apply when the failure happens in
+    ///   preflight (open). Grow/shrink run after successful preflight; failure rejects the
+    ///   apply after those ops (caller must not install the snapshot).
     pub fn reconcile(
         &self,
         prev: &HashMap<String, CompiledCacheInstance>,
         new: &HashMap<String, CompiledCacheInstance>,
-    ) {
-        let mut guard = self.instances.write();
-        for (name, cfg) in new {
-            match guard.get(name) {
-                Some(inst) => {
-                    if prev.get(name).map(|p| p.max_entries) != Some(cfg.max_entries) {
-                        inst.apply_max_entries(cfg.max_entries);
+    ) -> Result<(), String> {
+        // Phase 1: preflight opens (path/type change and new names) without mutating live backends.
+        let mut pending_opens: HashMap<String, (CacheBackend, CompiledCacheInstance)> =
+            HashMap::new();
+        {
+            let guard = self.instances.read();
+            for (name, cfg) in new {
+                match guard.get(name) {
+                    Some(inst) => {
+                        let cur_cfg = inst.config.load_full();
+                        let type_or_path_change = cur_cfg.backend_type != cfg.backend_type
+                            || lmdb_path(cur_cfg.as_ref()) != lmdb_path(cfg);
+                        if type_or_path_change {
+                            let backend = CacheBackend::from_config(cfg).map_err(|e| {
+                                tracing::error!(
+                                    cache = %name,
+                                    error = %e,
+                                    "cache replacement backend open failed; rejecting apply"
+                                );
+                                format!("cache '{name}': failed to open replacement backend: {e}")
+                            })?;
+                            pending_opens.insert(name.clone(), (backend, cfg.clone()));
+                        }
                     }
+                    None => {
+                        let backend = CacheBackend::from_config(cfg).map_err(|e| {
+                            tracing::error!(
+                                cache = %name,
+                                error = %e,
+                                "new cache backend open failed; rejecting apply"
+                            );
+                            format!("cache '{name}': failed to open new backend: {e}")
+                        })?;
+                        pending_opens.insert(name.clone(), (backend, cfg.clone()));
+                    }
+                }
+            }
+        }
+
+        // Phase 2: same-path Hot ops first (may fail and reject); then commit preflighted
+        // opens; then drop removed names.
+        let mut guard = self.instances.write();
+
+        for (name, cfg) in new {
+            if pending_opens.contains_key(name) {
+                continue;
+            }
+            let Some(inst) = guard.get(name) else {
+                continue;
+            };
+
+            if prev.get(name).map(|p| p.max_entries) != Some(cfg.max_entries) {
+                inst.apply_max_entries(cfg.max_entries);
+            }
+
+            let be = inst.backend.load();
+            if let (Some(lmdb_backend), Some(new_lmdb)) = (be.as_lmdb(), cfg.lmdb.as_ref()) {
+                lmdb_backend.apply_policy(new_lmdb.when_full, new_lmdb.sample_size);
+                let cur = lmdb_backend.map_size_bytes();
+                if new_lmdb.map_size_bytes > cur {
+                    lmdb_backend
+                        .grow_map_size(new_lmdb.map_size_bytes)
+                        .map_err(|e| {
+                            tracing::error!(
+                                cache = %name,
+                                error = %e,
+                                "LMDB map_size grow failed; rejecting apply"
+                            );
+                            format!("cache '{name}': LMDB map_size grow failed: {e}")
+                        })?;
+                    tracing::info!(
+                        cache = %name,
+                        from = cur,
+                        to = new_lmdb.map_size_bytes,
+                        "LMDB map_size grown"
+                    );
+                } else if new_lmdb.map_size_bytes < cur {
+                    inst.set_rebuilding(true);
+                    let shrink_result = lmdb_backend.shrink_map_size(new_lmdb.map_size_bytes);
+                    inst.set_rebuilding(false);
+                    shrink_result.map_err(|e| {
+                        tracing::error!(
+                            cache = %name,
+                            error = %e,
+                            "LMDB map_size shrink failed; rejecting apply"
+                        );
+                        format!("cache '{name}': LMDB map_size shrink failed: {e}")
+                    })?;
+                    tracing::info!(
+                        cache = %name,
+                        from = cur,
+                        to = new_lmdb.map_size_bytes,
+                        "LMDB map_size shrunk"
+                    );
+                }
+            }
+            inst.config.store(Arc::new(cfg.clone()));
+        }
+
+        for (name, (backend, opened_cfg)) in pending_opens {
+            match guard.get(&name) {
+                Some(inst) => {
+                    let old_cfg = inst.config.load_full();
+                    let old_path = lmdb_path(old_cfg.as_ref())
+                        .map(|p| p.display().to_string())
+                        .unwrap_or_default();
+                    let new_path = lmdb_path(&opened_cfg)
+                        .map(|p| p.display().to_string())
+                        .unwrap_or_default();
+                    tracing::info!(
+                        cache = %name,
+                        from_type = old_cfg.backend_type.as_str(),
+                        to_type = opened_cfg.backend_type.as_str(),
+                        old_path = %old_path,
+                        new_path = %new_path,
+                        "cache backend replaced (type and/or LMDB path); entries not migrated"
+                    );
+                    inst.swap_backend(backend, opened_cfg);
                 }
                 None => {
                     guard.insert(
-                        name.clone(),
-                        Arc::new(CacheInstanceRuntime::new(cfg.clone())),
+                        name,
+                        Arc::new(CacheInstanceRuntime {
+                            config: ArcSwap::from_pointee(opened_cfg),
+                            backend: ArcSwap::from_pointee(backend),
+                            rebuilding: AtomicBool::new(false),
+                            inflight: InFlightTable::new(),
+                            next_reap_shard: AtomicUsize::new(0),
+                        }),
                     );
                 }
             }
         }
+
+        let removed: Vec<String> = guard
+            .keys()
+            .filter(|name| !new.contains_key(name.as_str()))
+            .cloned()
+            .collect();
+        for name in removed {
+            tracing::info!(cache = %name, "dropping cache instance from registry");
+            guard.remove(&name);
+        }
+
+        let _ = prev;
+        Ok(())
     }
 
     pub fn set_async_coalesce(&self, enabled: bool) {
@@ -184,6 +362,10 @@ impl LookupCacheRegistry {
             return CacheLookupOutcome::Bypass;
         };
 
+        if inst.is_rebuilding() {
+            return CacheLookupOutcome::Bypass;
+        }
+
         if !txn.cache_lookup_eligible {
             return CacheLookupOutcome::Bypass;
         }
@@ -204,9 +386,8 @@ impl LookupCacheRegistry {
             return self.hit_from_entry(&inst, &entry, txn, now);
         }
 
-        if inst.config.truncated_udp.enabled
-            && txn.protocol == crate::transaction::ClientProtocol::Udp
-        {
+        let cfg = inst.config.load();
+        if cfg.truncated_udp.enabled && txn.protocol == crate::transaction::ClientProtocol::Udp {
             if let Ok(tc_key) = build_truncated_udp_key(txn) {
                 if let Some(hit) = self.try_read_hit(&inst, &tc_key, txn, now) {
                     return hit;
@@ -224,7 +405,7 @@ impl LookupCacheRegistry {
                 let _wire = gate.wait_for_result(Duration::from_secs(30));
                 inst.inflight.remove(&key);
                 let now = Instant::now();
-                if let Some(entry) = inst.backend.get(&key, now) {
+                if let Some(entry) = inst.backend.load().get(&key, now) {
                     self.record_singleflight_coalesced(cache_name, txn);
                     return self.hit_from_entry(&inst, &entry, txn, now);
                 }
@@ -245,7 +426,7 @@ impl LookupCacheRegistry {
         txn: &crate::transaction::Transaction,
         now: Instant,
     ) -> Option<CacheLookupOutcome> {
-        let entry = inst.backend.get(key, now)?;
+        let entry = inst.backend.load().get(key, now)?;
         Some(self.hit_from_entry(inst, &entry, txn, now))
     }
 
@@ -256,11 +437,12 @@ impl LookupCacheRegistry {
         txn: &crate::transaction::Transaction,
         now: Instant,
     ) -> CacheLookupOutcome {
+        let cfg = inst.config.load();
         // Coalesced follower when fill did not store (uncacheable wire): serve with zero age.
         let wire = match prepare_served_arc(
             wire,
             txn.dns_id,
-            inst.config.rotate_rrset_on_serve,
+            cfg.rotate_rrset_on_serve,
             now,
             now,
             Some(&txn.query_wire),
@@ -268,7 +450,7 @@ impl LookupCacheRegistry {
             Ok(w) => w,
             Err(e) => {
                 tracing::warn!(
-                    cache = inst.config.name,
+                    cache = %cfg.name,
                     error = %e,
                     "failed to prepare coalesced wire"
                 );
@@ -277,9 +459,9 @@ impl LookupCacheRegistry {
         };
         CacheLookupOutcome::Hit {
             wire,
-            cache_name: inst.config.name.clone(),
+            cache_name: cfg.name.clone(),
             skip_response_rules: matches!(
-                inst.config.on_hit_response_rules,
+                cfg.on_hit_response_rules,
                 conduit_config::lookup::OnHitResponseRules::Skip
             ),
         }
@@ -292,10 +474,11 @@ impl LookupCacheRegistry {
         txn: &crate::transaction::Transaction,
         now: Instant,
     ) -> CacheLookupOutcome {
+        let cfg = inst.config.load();
         let wire = match prepare_served_arc(
             &entry.wire,
             txn.dns_id,
-            inst.config.rotate_rrset_on_serve,
+            cfg.rotate_rrset_on_serve,
             entry.filled_at,
             now,
             Some(&txn.query_wire),
@@ -303,7 +486,7 @@ impl LookupCacheRegistry {
             Ok(w) => w,
             Err(e) => {
                 tracing::warn!(
-                    cache = inst.config.name,
+                    cache = %cfg.name,
                     error = %e,
                     "failed to prepare cached wire"
                 );
@@ -312,9 +495,9 @@ impl LookupCacheRegistry {
         };
         CacheLookupOutcome::Hit {
             wire,
-            cache_name: inst.config.name.clone(),
+            cache_name: cfg.name.clone(),
             skip_response_rules: matches!(
-                inst.config.on_hit_response_rules,
+                cfg.on_hit_response_rules,
                 conduit_config::lookup::OnHitResponseRules::Skip
             ),
         }
@@ -335,11 +518,23 @@ impl LookupCacheRegistry {
             );
             return;
         };
+        let cfg = inst.config.load_full();
+        let backend = inst.backend.load();
         let now = Instant::now();
 
-        let store_key = if should_store_truncated(&inst.config, &wire, txn) {
+        if inst.is_rebuilding() {
+            tracing::debug!(
+                cache = cache_name,
+                "cache fill skipped: instance rebuilding (map_size shrink)"
+            );
+            let _ = gate.complete(None);
+            inst.inflight.remove(key);
+            return;
+        }
+
+        let store_key = if should_store_truncated(cfg.as_ref(), &wire, txn) {
             build_truncated_udp_key(txn)
-                .map(|k| (k, inst.config.truncated_udp.ttl_secs))
+                .map(|k| (k, cfg.truncated_udp.ttl_secs))
                 .ok()
         } else {
             None
@@ -364,8 +559,8 @@ impl LookupCacheRegistry {
 
         let mut entry = match entry_from_wire(
             wire.clone(),
-            inst.config.negative_cache.enabled,
-            inst.config.negative_cache.servfail_ttl_secs,
+            cfg.negative_cache.enabled,
+            cfg.negative_cache.servfail_ttl_secs,
             now,
         ) {
             Some(e) => e,
@@ -386,10 +581,10 @@ impl LookupCacheRegistry {
 
         // Insert the complete answer first so lookups (which prefer the complete
         // key) never see a gap. Then drop any truncated-UDP sibling.
-        inst.backend.insert(insert_key, entry, now);
-        if !storing_truncated {
+        let stored = backend.insert(insert_key, entry, now);
+        if stored && !storing_truncated {
             if let Ok(tc_key) = build_truncated_udp_key(txn) {
-                if inst.backend.remove(&tc_key) {
+                if backend.remove(&tc_key) {
                     tracing::debug!(
                         cache = cache_name,
                         "removed truncated UDP sibling after complete cache fill"
@@ -397,7 +592,11 @@ impl LookupCacheRegistry {
                 }
             }
         }
-        self.record_cache_fill(cache_name, txn);
+        if stored {
+            self.record_cache_fill(cache_name, txn);
+        } else if backend.as_lmdb().is_some() {
+            self.record_cache_lmdb_error(cache_name, "capacity_pressure");
+        }
         let waiters = gate.complete(Some(wire));
         inst.inflight.remove(key);
         self.wake_waiters(waiters);
@@ -436,7 +635,7 @@ impl LookupCacheRegistry {
         };
         let gate = inst.inflight.gate_for(key);
         let now = Instant::now();
-        if let Some(entry) = inst.backend.get(key, now) {
+        if let Some(entry) = inst.backend.load().get(key, now) {
             inst.inflight.remove(key);
             self.record_singleflight_coalesced(cache_name, txn);
             return self.hit_from_entry(&inst, &entry, txn, now);
@@ -460,7 +659,7 @@ impl LookupCacheRegistry {
 
     pub fn entry_count(&self, cache_name: &str) -> u64 {
         self.instance(cache_name)
-            .map(|i| i.backend.entry_count())
+            .map(|i| i.backend.load().entry_count())
             .unwrap_or(0)
     }
 
@@ -472,7 +671,31 @@ impl LookupCacheRegistry {
         self.instances
             .read()
             .iter()
-            .map(|(name, inst)| (name.clone(), inst.backend.entry_count()))
+            .map(|(name, inst)| (name.clone(), inst.backend.load().entry_count()))
+            .collect()
+    }
+
+    /// Capacity samples for scrape-time gauges (entries/bytes limits and usage).
+    pub fn all_capacity_samples(&self) -> Vec<conduit_metrics::CacheCapacitySample> {
+        self.instances
+            .read()
+            .iter()
+            .map(|(name, inst)| {
+                let be = inst.backend.load();
+                let entries = be.entry_count();
+                let entries_limit = be.max_entries();
+                let (bytes_used, bytes_limit) = match be.as_lmdb() {
+                    Some(lmdb) => (lmdb.used_bytes(), lmdb.map_size_bytes()),
+                    None => (0, 0),
+                };
+                conduit_metrics::CacheCapacitySample {
+                    cache: name.clone(),
+                    entries,
+                    entries_limit,
+                    bytes_used,
+                    bytes_limit,
+                }
+            })
             .collect()
     }
 
@@ -480,7 +703,7 @@ impl LookupCacheRegistry {
     pub fn has_active_eviction(&self) -> bool {
         self.instances.read().values().any(|inst| {
             matches!(
-                inst.config.memory.eviction,
+                inst.config.load().memory.eviction,
                 conduit_config::lookup::EvictionMode::Active
             )
         })
@@ -502,7 +725,7 @@ impl LookupCacheRegistry {
             .iter()
             .filter(|(_, inst)| {
                 matches!(
-                    inst.config.memory.eviction,
+                    inst.config.load().memory.eviction,
                     conduit_config::lookup::EvictionMode::Active
                 )
             })
@@ -513,7 +736,10 @@ impl LookupCacheRegistry {
         for (name, inst) in instances {
             let start = inst.next_reap_shard.load(Ordering::Relaxed);
             let mut cursor = ReapCursor { next_shard: start };
-            let outcome = inst.backend.reap_expired_budgeted(now, budget, &mut cursor);
+            let outcome = inst
+                .backend
+                .load()
+                .reap_expired_budgeted(now, budget, &mut cursor);
             inst.next_reap_shard
                 .store(cursor.next_shard, Ordering::Relaxed);
             if outcome.removed > 0 {
@@ -573,6 +799,17 @@ impl LookupCacheRegistry {
         hub.builtin()
             .record_cache_evictions(cache_name, reason, count);
     }
+
+    fn record_cache_lmdb_error(&self, cache_name: &str, reason: &str) {
+        let hub = self.metrics.read();
+        let Some(hub) = hub.as_ref() else {
+            return;
+        };
+        if !hub.metrics_enabled() {
+            return;
+        }
+        hub.builtin().record_cache_lmdb_error(cache_name, reason);
+    }
 }
 
 fn should_store_truncated(
@@ -594,6 +831,10 @@ fn is_truncated_udp_wire(wire: &[u8], txn: &crate::transaction::Transaction) -> 
         .ok()
         .map(|m| m.header().truncated())
         .unwrap_or(false)
+}
+
+fn lmdb_path(cfg: &CompiledCacheInstance) -> Option<&std::path::Path> {
+    cfg.lmdb.as_ref().map(|l| l.path.as_path())
 }
 
 #[cfg(test)]
@@ -636,6 +877,7 @@ mod tests {
                 shard_count: 4,
                 eviction: EvictionMode::Passive,
             },
+            lmdb: None,
             max_entries: 1000,
         }
     }
@@ -756,6 +998,7 @@ mod tests {
         let inst = registry.instance("global").unwrap();
         let entry = inst
             .backend
+            .load()
             .get(&key, Instant::now())
             .expect("stored entry");
         let stored = Message::from_vec(&entry.wire).unwrap();
@@ -939,7 +1182,7 @@ mod tests {
         // Truncated key must be gone (lookup via backend through a fresh get path).
         let inst = registry.instance("global").expect("cache instance");
         assert!(
-            inst.backend.get(&tc_key, Instant::now()).is_none(),
+            inst.backend.load().get(&tc_key, Instant::now()).is_none(),
             "truncated UDP sibling key must be removed"
         );
 
@@ -1165,16 +1408,20 @@ mod tests {
         let active = registry.instance("active").unwrap();
         active
             .backend
+            .load()
             .insert(CacheKey(b"a-stale".to_vec()), stale.clone(), now);
         active
             .backend
+            .load()
             .insert(CacheKey(b"a-fresh".to_vec()), fresh.clone(), now);
         let passive = registry.instance("passive").unwrap();
         passive
             .backend
+            .load()
             .insert(CacheKey(b"p-stale".to_vec()), stale, now);
         passive
             .backend
+            .load()
             .insert(CacheKey(b"p-fresh".to_vec()), fresh, now);
 
         assert_eq!(registry.entry_count("active"), 2);
@@ -1227,7 +1474,7 @@ mod tests {
 
         let mut new_map = prev_map.clone();
         new_map.get_mut("global").unwrap().max_entries = 2;
-        registry.reconcile(&prev_map, &new_map);
+        registry.reconcile(&prev_map, &new_map).unwrap();
 
         assert_eq!(registry.max_entries("global"), Some(2));
         assert_eq!(registry.entry_count("global"), 2);
@@ -1255,9 +1502,213 @@ mod tests {
         let mut other = test_cache_instance(true);
         other.name = "regional".into();
         new_map.insert("regional".into(), other);
-        registry.reconcile(&prev_map, &new_map);
+        registry.reconcile(&prev_map, &new_map).unwrap();
 
         assert_eq!(registry.entry_count("global"), 1);
         assert_eq!(registry.entry_count("regional"), 0);
+    }
+
+    fn lmdb_cache_instance(path: std::path::PathBuf, map_size_bytes: u64) -> CompiledCacheInstance {
+        CompiledCacheInstance {
+            name: "durable".into(),
+            backend_type: CacheBackendType::Lmdb,
+            negative_cache: CompiledNegativeCache {
+                enabled: true,
+                nxdomain_covers_descendants: true,
+                servfail_ttl_secs: 10,
+            },
+            on_hit_response_rules: OnHitResponseRules::Run,
+            truncated_udp: CompiledTruncatedUdp {
+                enabled: false,
+                ttl_secs: 60,
+            },
+            rotate_rrset_on_serve: false,
+            memory: CompiledMemoryCache {
+                shard_count: 1,
+                eviction: EvictionMode::Passive,
+            },
+            lmdb: Some(conduit_config::lookup::CompiledLmdbCache {
+                path,
+                map_size_bytes,
+                when_full: conduit_config::lookup::LmdbWhenFull::EvictOne,
+                sample_size: 16,
+            }),
+            max_entries: 1000,
+        }
+    }
+
+    #[test]
+    fn reconcile_lmdb_path_change_does_not_migrate_entries() {
+        let dir = tempfile::tempdir().unwrap();
+        let path_a = dir.path().join("a");
+        let path_b = dir.path().join("b");
+        let mut prev_map = HashMap::new();
+        prev_map.insert(
+            "durable".into(),
+            lmdb_cache_instance(path_a, 2 * 1024 * 1024),
+        );
+        let registry = LookupCacheRegistry::from_snapshot(&prev_map);
+
+        let txn = txn_for("path-reopen.example.", 1);
+        let key = build_query_key(&txn).unwrap();
+        let gate = registry.instance_gate("durable", &key).unwrap();
+        registry.fill_from_forward(
+            "durable",
+            &key,
+            &gate,
+            nxdomain_wire("path-reopen.example."),
+            &txn,
+        );
+        assert_eq!(registry.entry_count("durable"), 1);
+        assert!(matches!(
+            registry.lookup("durable", &txn, Instant::now()),
+            CacheLookupOutcome::Hit { .. }
+        ));
+
+        let mut new_map = HashMap::new();
+        new_map.insert(
+            "durable".into(),
+            lmdb_cache_instance(path_b, 2 * 1024 * 1024),
+        );
+        registry.reconcile(&prev_map, &new_map).unwrap();
+
+        // New path is empty — miss (no automatic migration).
+        assert!(matches!(
+            registry.lookup("durable", &txn, Instant::now()),
+            CacheLookupOutcome::Miss { .. }
+        ));
+        assert_eq!(registry.entry_count("durable"), 0);
+    }
+
+    #[test]
+    fn reconcile_lmdb_path_change_failure_keeps_prior_backend() {
+        let dir = tempfile::tempdir().unwrap();
+        let path_a = dir.path().join("a");
+        let mut prev_map = HashMap::new();
+        prev_map.insert(
+            "durable".into(),
+            lmdb_cache_instance(path_a, 2 * 1024 * 1024),
+        );
+        let registry = LookupCacheRegistry::from_snapshot(&prev_map);
+
+        let txn = txn_for("path-fail.example.", 2);
+        let key = build_query_key(&txn).unwrap();
+        let gate = registry.instance_gate("durable", &key).unwrap();
+        registry.fill_from_forward(
+            "durable",
+            &key,
+            &gate,
+            nxdomain_wire("path-fail.example."),
+            &txn,
+        );
+        assert!(matches!(
+            registry.lookup("durable", &txn, Instant::now()),
+            CacheLookupOutcome::Hit { .. }
+        ));
+
+        let bad_file = dir.path().join("not-a-dir");
+        std::fs::write(&bad_file, b"x").unwrap();
+        let mut new_map = HashMap::new();
+        // Path exists as a regular file — open must fail.
+        new_map.insert(
+            "durable".into(),
+            lmdb_cache_instance(bad_file, 2 * 1024 * 1024),
+        );
+        let err = registry.reconcile(&prev_map, &new_map).unwrap_err();
+        assert!(
+            err.contains("failed to open") || err.contains("not a directory"),
+            "unexpected error: {err}"
+        );
+
+        // Prior env still serves.
+        assert!(matches!(
+            registry.lookup("durable", &txn, Instant::now()),
+            CacheLookupOutcome::Hit { .. }
+        ));
+        assert_eq!(registry.entry_count("durable"), 1);
+    }
+
+    #[test]
+    fn reconcile_lmdb_map_size_grow_and_shrink_empty() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("env");
+        let mut prev_map = HashMap::new();
+        prev_map.insert(
+            "durable".into(),
+            lmdb_cache_instance(path.clone(), 2 * 1024 * 1024),
+        );
+        let registry = LookupCacheRegistry::from_snapshot(&prev_map);
+
+        let mut grown = prev_map.clone();
+        grown
+            .get_mut("durable")
+            .unwrap()
+            .lmdb
+            .as_mut()
+            .unwrap()
+            .map_size_bytes = 4 * 1024 * 1024;
+        registry.reconcile(&prev_map, &grown).unwrap();
+        assert_eq!(
+            registry
+                .instance("durable")
+                .unwrap()
+                .backend
+                .load()
+                .as_lmdb()
+                .unwrap()
+                .map_size_bytes(),
+            4 * 1024 * 1024
+        );
+
+        let mut shrunk = grown.clone();
+        shrunk
+            .get_mut("durable")
+            .unwrap()
+            .lmdb
+            .as_mut()
+            .unwrap()
+            .map_size_bytes = 2 * 1024 * 1024;
+        registry.reconcile(&grown, &shrunk).unwrap();
+        assert_eq!(
+            registry
+                .instance("durable")
+                .unwrap()
+                .backend
+                .load()
+                .as_lmdb()
+                .unwrap()
+                .map_size_bytes(),
+            2 * 1024 * 1024
+        );
+    }
+
+    #[test]
+    fn reconcile_removes_lmdb_instance_keeps_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("env");
+        let mut prev_map = HashMap::new();
+        prev_map.insert(
+            "durable".into(),
+            lmdb_cache_instance(path.clone(), 2 * 1024 * 1024),
+        );
+        let registry = LookupCacheRegistry::from_snapshot(&prev_map);
+        let txn = txn_for("drop-keep.example.", 3);
+        let key = build_query_key(&txn).unwrap();
+        let gate = registry.instance_gate("durable", &key).unwrap();
+        registry.fill_from_forward(
+            "durable",
+            &key,
+            &gate,
+            nxdomain_wire("drop-keep.example."),
+            &txn,
+        );
+
+        let new_map = HashMap::new();
+        registry.reconcile(&prev_map, &new_map).unwrap();
+        assert!(registry.instance("durable").is_none());
+        assert!(
+            path.exists(),
+            "LMDB files must remain on disk after instance removal"
+        );
     }
 }

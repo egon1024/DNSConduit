@@ -20,6 +20,7 @@ tracing = { workspace = true }
 hickory-proto = { workspace = true }
 parking_lot = "0.12"
 serde_json = { workspace = true }
+heed = { workspace = true }
 
 [dev-dependencies]
 conduit-config = { path = "../conduit-config" }

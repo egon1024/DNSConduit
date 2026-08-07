@@ -363,6 +363,46 @@ class CellStack:
             f"control endpoint not ready at {self.control_endpoint}: {last_err}"
         )
 
+    def wait_for_conduit_dns(self, attempts: int = 40, delay: float = 0.25) -> None:
+        """Poll until Conduit answers DNS on the published host port."""
+        qname, _ = self._readiness_qname()
+        last: QueryResult | None = None
+        for _ in range(attempts):
+            result = dig_query("127.0.0.1", self.host_port, qname)
+            last = result
+            if result.rcode not in ("UNKNOWN", "TIMEOUT"):
+                return
+            time.sleep(delay)
+        raise RuntimeError(
+            f"Conduit DNS not ready on 127.0.0.1:{self.host_port} after "
+            f"{attempts} attempts (last rcode={last.rcode if last else 'n/a'})"
+        )
+
+    def restart_conduit(self) -> None:
+        """Restart only the Conduit service; keep peer and data volume intact."""
+        if self._env is None:
+            raise RuntimeError("cell stack is not started")
+        try:
+            subprocess.check_call(
+                [
+                    "docker",
+                    "compose",
+                    "-p",
+                    self.project,
+                    *self._compose_files(),
+                    "restart",
+                    "conduit",
+                ],
+                cwd=ROOT,
+                env=self._env,
+            )
+        except subprocess.CalledProcessError as exc:
+            raise RuntimeError(
+                f"docker compose restart conduit failed (project {self.project}): "
+                f"exit {exc.returncode}"
+            ) from exc
+        self.wait_for_conduit_dns()
+
     def _compose_files(self) -> list[str]:
         files = ["-f", str(COMPOSE_CELL)]
         if self._override is not None:
@@ -377,6 +417,7 @@ class CellStack:
                 "CONDUIT_IMAGE": self.conduit_image,
                 "CONDUIT_CONFIG": str((tmp / "conduit.yaml").resolve()),
                 "CONDUIT_ASSETS_DIR": str((tmp / "assets").resolve()),
+                "CONDUIT_DATA_DIR": str((tmp / "data").resolve()),
                 "CONDUIT_HOST_PORT": str(self.host_port),
                 "CONDUIT_METRICS_HOST_PORT": str(self.metrics_host_port),
                 "CONDUIT_CONTROL_HOST_PORT": str(self.control_host_port),
@@ -396,6 +437,13 @@ class CellStack:
         tmp = Path(self._tmpdir.name)
         assets_dir = tmp / "assets"
         assets_dir.mkdir(parents=True, exist_ok=True)
+        # Writable data mount for LMDB (and future durable state). Mode 0777 so
+        # the image's non-root conduit user (uid 10001) can create env dirs.
+        data_dir = tmp / "data"
+        data_dir.mkdir(parents=True, exist_ok=True)
+        data_dir.chmod(0o777)
+        (data_dir / "lmdb").mkdir(parents=True, exist_ok=True)
+        (data_dir / "lmdb").chmod(0o777)
         self._materialize_conduit_assets(assets_dir)
         merge_conduit_profile(profile, self.conduit_delta, tmp / "conduit.yaml")
         self._override = materialize_peer_config(
@@ -492,8 +540,36 @@ class CellStack:
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
-        if self._tmpdir:
-            self._tmpdir.cleanup()
+        # LMDB (and similar) files are created as the image's non-root uid; wipe
+        # them via a root container so host TemporaryDirectory cleanup succeeds.
+        if self._tmpdir is not None:
+            data = Path(self._tmpdir.name) / "data"
+            if data.is_dir():
+                try:
+                    subprocess.call(
+                        [
+                            "docker",
+                            "run",
+                            "--rm",
+                            "--user",
+                            "0:0",
+                            "-v",
+                            f"{data.resolve()}:/wipe",
+                            "alpine:3.20",
+                            "rm",
+                            "-rf",
+                            "/wipe/lmdb",
+                        ],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    )
+                except OSError:
+                    pass
+            try:
+                self._tmpdir.cleanup()
+            except OSError:
+                # Best-effort: leftover /tmp dirs are preferable to failing the cell.
+                pass
             self._tmpdir = None
 
     def __enter__(self) -> CellStack:

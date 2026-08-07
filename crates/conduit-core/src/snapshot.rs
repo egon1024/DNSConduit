@@ -283,14 +283,30 @@ impl SnapshotStore {
     /// snapshot. The health side-table is reconciled against the new compiled
     /// health (preserve unchanged backends, reset new/changed ones — design §D9)
     /// so a reload never wipes hard-won health state.
+    ///
+    /// Cache reconcile runs **before** the snapshot pointer swaps. On failure the
+    /// previous snapshot remains current (last-good); callers that need soft
+    /// failure should use [`Self::try_swap`].
     pub fn swap(&self, snapshot: RuntimeSnapshot) -> Arc<RuntimeSnapshot> {
+        self.try_swap(snapshot)
+            .unwrap_or_else(|errors| panic!("cache reconcile failed during swap: {errors:?}"))
+    }
+
+    /// Like [`Self::swap`], but returns errors when cache reopen / map_size apply fails
+    /// so apply/reload can reject without installing the new snapshot.
+    pub fn try_swap(&self, snapshot: RuntimeSnapshot) -> Result<Arc<RuntimeSnapshot>, Vec<String>> {
         let new = Arc::new(snapshot);
+        let prev_loaded = self.current.load_full();
+        self.cache
+            .reconcile(
+                &prev_loaded.lookup.cache_instances,
+                &new.lookup.cache_instances,
+            )
+            .map_err(|e| vec![e])?;
         let prev = self.current.swap(new.clone());
         self.health.reconcile(&prev.health, &new.health);
-        self.cache
-            .reconcile(&prev.lookup.cache_instances, &new.lookup.cache_instances);
         self.generation.fetch_add(1, Ordering::Relaxed);
-        prev
+        Ok(prev)
     }
 
     /// Validate `cfg` and swap only if valid; on failure returns errors and leaves the store unchanged.
@@ -305,7 +321,7 @@ impl SnapshotStore {
         let mut snap = RuntimeSnapshot::try_from_config_with_base(cfg, None)
             .map_err(|e| vec![e.to_string()])?;
         snap.generation = self.generation() + 1;
-        self.swap(snap);
+        self.try_swap(snap)?;
         Ok(())
     }
 
@@ -321,7 +337,7 @@ impl SnapshotStore {
         let mut snap = RuntimeSnapshot::try_from_config_with_base(cfg, base_dir)
             .map_err(|e| vec![e.to_string()])?;
         snap.generation = self.generation() + 1;
-        self.swap(snap);
+        self.try_swap(snap)?;
         Ok(())
     }
 }

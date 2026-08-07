@@ -1,16 +1,17 @@
 # DNS answer cache
 
-Optional in-memory DNS answer caching stores upstream response wire bytes and serves repeat queries without a forward attempt. This guide covers when to enable caching, how hits and misses flow through the [Lookup](/concepts/architecture-and-packet-path.md#lookup) phase, and policy interactions with [Response rules](/concepts/architecture-and-packet-path.md#response-rules) and [Rhai](/rhai/index.md). Exact fields are in [Reference: caches](/reference/config-schema/caches.md) and [Reference: lookup](/reference/config-schema/lookup.md).
+Optional DNS answer caching stores upstream response wire bytes and serves repeat queries without a forward attempt. Backends are **in-memory** (`type: memory`) or **on-disk LMDB** (`type: lmdb`). This guide covers when to enable caching, how hits and misses flow through the [Lookup](/concepts/architecture-and-packet-path.md#lookup) phase, and policy interactions with [Response rules](/concepts/architecture-and-packet-path.md#response-rules) and [Rhai](/rhai/index.md). Exact fields are in [Reference: caches](/reference/config-schema/caches.md) and [Reference: lookup](/reference/config-schema/lookup.md).
 
 ## When to enable caching
 
 | Goal | Approach |
 |------|----------|
 | Reduce upstream load for hot names | Add **`caches:`** and a **cache** provider before **forward** in **`lookup.profiles.default`** |
+| Survive process restart for cached answers | Use **`type: lmdb`** with a durable **`lmdb.path`** |
 | Forward-only (default today) | Omit **`lookup:`** — Conduit uses an implicit **`default`** profile with one **forward** provider |
 | Per-query opt-out | Request-hook **`txn.set_cache_lookup_eligible(false)`** — see [Cache eligibility](#cache-eligibility) |
 
-Caching is **in-memory only**. Entries are lost on process restart. **`max_entries`** updates take effect on the live cache immediately when **apply** or **reload** succeeds (no restart; lowering the cap evicts entries). Other cache policy and **`memory.shard_count`** require a process restart — see [Reference: caches — Reload and apply](/reference/config-schema/caches.md#reload-and-apply).
+**Memory** entries live in the process heap and are lost on restart. **LMDB** entries persist across restart while still fresh; expiry is lazy on read. Shared policy (`max_entries`, `negative_cache`, `on_hit`, …) applies to both backends. **`max_entries`**, LMDB **`when_full`** / **`sample_size`**, LMDB **`map_size`** grow and shrink, and LMDB **`path`** warm reopen take effect on the live cache when **apply** or **reload** succeeds (no restart). Failed path reopen or map-size apply **rejects** the change and keeps the prior store serving. Other policy and memory shard layout may require a process restart — see [Reference: caches — Reload and apply](/reference/config-schema/caches.md#reload-and-apply).
 
 ## Minimal cache-enabled config
 
@@ -44,6 +45,45 @@ Validate before reload:
 ```bash
 conduitctl validate --file conduit-cache.yaml
 ```
+
+## LMDB durable cache
+
+Use **`type: lmdb`** when answers should survive process restart or you want capacity bounded by an on-disk map rather than heap alone. Conduit creates the environment directory under **`lmdb.path`** (and any missing parents) when the store is opened. **`map_size`** is required and accepts integer bytes or SI suffixes (`KB` / `MB` / `GB` / `TB` / `PB` only — not `MiB` / `GiB`).
+
+Save as `conduit-cache-lmdb.yaml` (or use the packaged copy under `/usr/share/doc/conduit/examples/dns-answer-cache/` after install):
+
+```yaml
+schema_version: 1
+listeners:
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+pools:
+  - name: default
+    backends:
+      - address: "127.0.0.1:5300"
+caches:
+  - name: durable
+    type: lmdb
+    max_entries: 100000
+    lmdb:
+      path: /var/lib/conduit/cache/durable
+      map_size: 64MB
+      when_full: evict_one
+lookup:
+  profiles:
+    default:
+      providers:
+        - type: cache
+          cache: durable
+        - type: forward
+```
+
+```bash
+conduitctl validate --file conduit-cache-lmdb.yaml
+```
+
+Under capacity pressure (`max_entries` or map full), **`when_full`** chooses **`refuse`**, **`evict_one`** (default), or **`sample`** (examine up to **`sample_size`** candidates). See [Reference: caches — lmdb](/reference/config-schema/caches.md#lmdb).
 
 ## Hit and miss path
 
@@ -154,6 +194,8 @@ When **`true`**, each cache **hit** may reorder records **within** each answer R
 |--------|-------|
 | Cache vs forward volume | [`conduit_responses_total{answer_source=...}`](/observability/built-in-metrics.md#conduit_responses_total) |
 | Cache read path | [`conduit_cache_lookups_total`](/observability/built-in-metrics.md#conduit_cache_lookups_total) |
+| Capacity (LMDB bytes / entries) | [`conduit_cache_entries`](/observability/built-in-metrics.md#conduit_cache_entries), [`conduit_cache_bytes_used`](/observability/built-in-metrics.md#conduit_cache_bytes_used) |
+| LMDB capacity refusals | [`conduit_cache_lmdb_errors_total`](/observability/built-in-metrics.md#conduit_cache_lmdb_errors_total) |
 | Provider outcomes | [`conduit_lookup_provider_outcomes_total`](/observability/built-in-metrics.md#conduit_lookup_provider_outcomes_total) |
 | Traces | Top-level **`lookup`** phase; nested events for cache and forward internals |
 | Event export | Selectors **`answer_source`**, **`cache_instance`** — [Event export](/observability/event-export.md) |
@@ -162,6 +204,7 @@ Example PromQL:
 
 ```promql
 sum(rate(conduit_responses_total[5m])) by (listener, answer_source)
+conduit_cache_bytes_used / conduit_cache_bytes_limit
 ```
 
 ## Related topics

@@ -108,6 +108,7 @@ pub fn build_scrape_snapshot(
         health_backends,
         pool_backends_active: pool_active,
         cache_entry_counts: Vec::new(),
+        cache_capacity: Vec::new(),
     }
 }
 
@@ -118,7 +119,9 @@ pub fn scrape_snapshot_fn(
 ) -> Arc<dyn Fn() -> ScrapeGaugeSnapshot + Send + Sync> {
     Arc::new(move || {
         let mut snap = build_scrape_snapshot(&store, &table, &txn_store);
-        snap.cache_entry_counts = store.cache().all_entry_counts();
+        let cache = store.cache();
+        snap.cache_entry_counts = cache.all_entry_counts();
+        snap.cache_capacity = cache.all_capacity_samples();
         snap
     })
 }
@@ -133,6 +136,7 @@ pub fn scrape_snapshot_fn_with_cache(
         let mut snap = build_scrape_snapshot(&store, &table, &txn_store);
         if let Some(cache) = cache.as_ref() {
             snap.cache_entry_counts = cache.all_entry_counts();
+            snap.cache_capacity = cache.all_capacity_samples();
         }
         snap
     })

@@ -85,6 +85,11 @@ for the **dnsmasq** family via query logs. Conduit-behavior cache cases pin
 (`CONDUITCTL`, `PATH`, or `target/{release,debug}/conduitctl` after
 `cargo build -p conduitctl`).
 
+**Durable data / `restart_conduit`:** cell compose mounts a writable
+`${CONDUIT_DATA_DIR}` → `/var/lib/conduit` (cell tempdir). Cases that need
+LMDB (or other on-disk Conduit state) point paths under that mount. Mid-query
+`action: restart_conduit` restarts only the Conduit service (peer and data
+volume stay up) and waits until Conduit answers DNS again.
 Recursive/stub peers must answer from local/static data only — no public
 internet dependency in committed cases. See
 `docs/superpowers/process/e2e-interop-testing.md` (Cursor-side) for the

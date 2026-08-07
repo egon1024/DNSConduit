@@ -100,7 +100,7 @@ The first completed query on a worker often has **`txn_id=1`**. If `conduitctl t
 conduitctl trace 1
 ```
 
-Expect top-level phase lines such as **`lookup`** and **`send`** (with nested route/forward events when upstream runs) and elapsed microseconds plus pool/backend fields on forward attempts. Alternative: gRPC **`GetTrace`** — [gRPC and conduitctl — trace](/control-plane/grpc-and-conduitctl.md#trace).
+Expect top-level phase lines such as **`lookup`** and **`send`** (with nested route/forward events when upstream runs) and elapsed microseconds plus pool/backend fields on forward attempts. Nested cache provider events include a **`cache`** field with the named instance. Alternative: gRPC **`GetTrace`** — [gRPC and conduitctl — trace](/control-plane/grpc-and-conduitctl.md#trace).
 
 Traces are stored in memory (**5 minute** TTL, **1000** entry cap). Activation must match the query — here, **`A`** queries only.
 

@@ -388,7 +388,7 @@ message LookupProvider {
 
 message CacheInstance {
   string name = 1;
-  string type = 2;              // "memory" (v1) | "lmdb" | "ebpf_map" (reserved)
+  string type = 2;              // "memory" | "lmdb" | "ebpf_map" (reserved)
   optional CacheNegativeConfig negative_cache = 3;
   optional CacheOnHitConfig on_hit = 4;
   reserved 5, 6;
@@ -398,6 +398,15 @@ message CacheInstance {
   optional CacheKeyConfig key = 9;  // reserved: key augmenters
   optional uint64 max_entries = 10;
   optional CacheTruncatedUdpConfig truncated_udp = 11;
+  optional CacheLmdbConfig lmdb = 12;
+}
+
+// LMDB durable answer-cache backend (nested under caches[].lmdb).
+message CacheLmdbConfig {
+  string path = 1;                       // required; parent directory must exist
+  uint64 map_size_bytes = 2;             // required; compiled from YAML map_size (bytes or SI string)
+  optional string when_full = 3;         // "refuse" | "evict_one" | "sample"; default evict_one
+  optional uint32 sample_size = 4;       // default 16; used when when_full is sample
 }
 
 // Opt-in TC=1 UDP answer caching (separate transport key and ttl_secs override).

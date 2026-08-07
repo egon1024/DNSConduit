@@ -178,6 +178,7 @@ nav:
           - auth-unknown-zone-refused: interop/cases/auth-unknown-zone-refused.md
           - basic-a-forward: interop/cases/basic-a-forward.md
           - cache-forward-a: interop/cases/cache-forward-a.md
+          - cache-lmdb-durability-restart-hit: interop/cases/cache-lmdb-durability-restart-hit.md
           - cache-miss-then-hit-a: interop/cases/cache-miss-then-hit-a.md
           - cache-nxdomain-miss-then-hit: interop/cases/cache-nxdomain-miss-then-hit.md
           - cache-rotate-rrset: interop/cases/cache-rotate-rrset.md

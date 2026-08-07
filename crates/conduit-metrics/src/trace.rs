@@ -11,6 +11,8 @@ pub struct TraceEvent {
     pub message: Option<String>,
     pub pool: Option<String>,
     pub backend: Option<String>,
+    /// Named cache instance on nested cache provider events (answered / miss / bypass).
+    pub cache: Option<String>,
 }
 
 #[derive(Debug, Default)]
@@ -26,6 +28,7 @@ impl TraceLog {
         message: Option<String>,
         pool: Option<String>,
         backend: Option<String>,
+        cache: Option<String>,
     ) {
         let elapsed_us = started_at.elapsed().as_micros() as u64;
         self.events.push(TraceEvent {
@@ -34,6 +37,7 @@ impl TraceLog {
             message,
             pool,
             backend,
+            cache,
         });
     }
 }

@@ -1,0 +1,53 @@
+# LMDB cache fill/hit lab. Procedure:
+# docs/superpowers/plans/2026-08-06-lmdb-cache-backend-manual-lab.md
+schema_version: 1
+listeners:
+  threads: 1
+  reuse_port: false
+  listeners:
+    - address: "127.0.2.1:15353"
+      protocol: udp
+      name: lab-udp
+forward:
+  outstanding_per_backend: 100
+  timeout_ms: 2000
+orchestrator:
+  max_attempts: 3
+  max_txn_duration_ms: 5000
+  txn_table_capacity: 1024
+events:
+  queue_depth: 4096
+  drop_policy: drop_oldest
+pools:
+  - name: default
+    backends:
+      - address: "127.0.2.1:15300"
+        name: resolver-east
+        weight: 100
+caches:
+  - name: durable
+    type: lmdb
+    max_entries: 10000
+    negative_cache:
+      enabled: true
+      nxdomain_covers_descendants: true
+      servfail_ttl_secs: 10
+    lmdb:
+      path: /tmp/conduit-lmdb-lab/durable
+      map_size: 64MB
+lookup:
+  profiles:
+    default:
+      providers:
+        - type: cache
+          cache: durable
+        - type: forward
+control:
+  listen_address: "127.0.2.1:5199"
+  reflection_enabled: true
+metrics:
+  enabled: true
+  profile: full
+  prometheus:
+    listen_address: "127.0.2.1:19090"
+    path: /metrics

@@ -1,0 +1,26 @@
+# Lab example for the DNS answer cache guide — LMDB durable backend.
+# Default ports: DNS 15353; upstream :5300.
+schema_version: 1
+listeners:
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+pools:
+  - name: default
+    backends:
+      - address: "127.0.0.1:5300"
+caches:
+  - name: durable
+    type: lmdb
+    max_entries: 100000
+    lmdb:
+      path: /var/lib/conduit/cache/durable
+      map_size: 64MB
+      when_full: evict_one
+lookup:
+  profiles:
+    default:
+      providers:
+        - type: cache
+          cache: durable
+        - type: forward

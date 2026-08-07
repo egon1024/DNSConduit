@@ -50,6 +50,20 @@ pub struct ScrapeGaugeSnapshot {
     pub pool_backends_active: Vec<(String, u32)>,
     /// Approximate live cache entry count per named instance (full profile gauge).
     pub cache_entry_counts: Vec<(String, u64)>,
+    /// Per-instance capacity samples for LMDB/memory gauges (full profile).
+    pub cache_capacity: Vec<CacheCapacitySample>,
+}
+
+/// Capacity gauges for one named cache instance.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CacheCapacitySample {
+    pub cache: String,
+    pub entries: u64,
+    /// `0` means unlimited (`max_entries: 0`).
+    pub entries_limit: u64,
+    pub bytes_used: u64,
+    /// LMDB `map_size`; `0` when not an LMDB backend.
+    pub bytes_limit: u64,
 }
 
 /// One backend row for health Prometheus series (phase 1c §10).
@@ -228,6 +242,10 @@ pub struct BuiltinRegistry {
     cache_lookup_duration: Option<HistogramVec>,
     cache_evictions: Option<IntCounterVec>,
     cache_entries: Option<GaugeVec>,
+    cache_entries_limit: Option<GaugeVec>,
+    cache_bytes_used: Option<GaugeVec>,
+    cache_bytes_limit: Option<GaugeVec>,
+    cache_lmdb_errors: Option<IntCounterVec>,
     parse_rejected_total: Option<IntCounterVec>,
     queries_by_pool_total: IntCounterVec,
     phase_duration: HistogramVec,
@@ -551,6 +569,10 @@ impl BuiltinRegistry {
             cache_lookup_duration,
             cache_evictions,
             cache_entries,
+            cache_entries_limit,
+            cache_bytes_used,
+            cache_bytes_limit,
+            cache_lmdb_errors,
         ) = if effective && is_full {
             let fills = get_counter(
                 "conduit_cache_fills_total",
@@ -584,6 +606,26 @@ impl BuiltinRegistry {
                 "Approximate live cache entries per instance",
                 &["cache"],
             );
+            let entries_limit = get_gauge(
+                "conduit_cache_entries_limit",
+                "Configured max_entries per cache instance (0 = unlimited)",
+                &["cache"],
+            );
+            let bytes_used = get_gauge(
+                "conduit_cache_bytes_used",
+                "Approximate bytes used by the cache store (LMDB page stats; 0 for memory)",
+                &["cache"],
+            );
+            let bytes_limit = get_gauge(
+                "conduit_cache_bytes_limit",
+                "Configured LMDB map_size in bytes (0 for memory)",
+                &["cache"],
+            );
+            let lmdb_errors = get_counter(
+                "conduit_cache_lmdb_errors_total",
+                "LMDB cache backend error and capacity-pressure events",
+                &["cache", "reason"],
+            );
             (
                 Some(fills),
                 Some(coalesced),
@@ -591,9 +633,13 @@ impl BuiltinRegistry {
                 Some(cache_dur),
                 Some(evictions),
                 Some(entries),
+                Some(entries_limit),
+                Some(bytes_used),
+                Some(bytes_limit),
+                Some(lmdb_errors),
             )
         } else {
-            (None, None, None, None, None, None)
+            (None, None, None, None, None, None, None, None, None, None)
         };
 
         let parse_rejected_total = if effective {
@@ -907,6 +953,10 @@ impl BuiltinRegistry {
             cache_lookup_duration,
             cache_evictions,
             cache_entries,
+            cache_entries_limit,
+            cache_bytes_used,
+            cache_bytes_limit,
+            cache_lmdb_errors,
             parse_rejected_total,
             queries_by_pool_total,
             phase_duration,
@@ -1213,6 +1263,16 @@ impl BuiltinRegistry {
         }
     }
 
+    /// Record an LMDB backend error or capacity-pressure event (`reason` is a low-cardinality enum).
+    pub fn record_cache_lmdb_error(&self, cache: &str, reason: &str) {
+        if !self.enabled || self.profile != BuiltinProfile::Full {
+            return;
+        }
+        if let Some(c) = self.cache_lmdb_errors.as_ref() {
+            c.with_label_values(&[cache, reason]).inc();
+        }
+    }
+
     pub fn observe_phase(&self, phase: &str, duration_secs: f64) {
         if !self.enabled || !self.collect_timing {
             return;
@@ -1473,6 +1533,30 @@ impl BuiltinRegistry {
                 gauge
                     .with_label_values(&[cache.as_str()])
                     .set(*count as f64);
+            }
+        }
+        if let Some(gauge) = self.cache_entries_limit.as_ref() {
+            gauge.reset();
+            for sample in &snapshot.cache_capacity {
+                gauge
+                    .with_label_values(&[sample.cache.as_str()])
+                    .set(sample.entries_limit as f64);
+            }
+        }
+        if let Some(gauge) = self.cache_bytes_used.as_ref() {
+            gauge.reset();
+            for sample in &snapshot.cache_capacity {
+                gauge
+                    .with_label_values(&[sample.cache.as_str()])
+                    .set(sample.bytes_used as f64);
+            }
+        }
+        if let Some(gauge) = self.cache_bytes_limit.as_ref() {
+            gauge.reset();
+            for sample in &snapshot.cache_capacity {
+                gauge
+                    .with_label_values(&[sample.cache.as_str()])
+                    .set(sample.bytes_limit as f64);
             }
         }
 
@@ -1823,6 +1907,7 @@ mod tests {
             health_backends: Vec::new(),
             pool_backends_active: Vec::new(),
             cache_entry_counts: Vec::new(),
+            cache_capacity: Vec::new(),
         }));
         let body = encode_builtin(reg.gather());
         assert!(body.contains("conduit_config_generation 7"));

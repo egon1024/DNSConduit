@@ -104,6 +104,7 @@ impl LookupStage {
         message: &str,
         pool: Option<&str>,
         backend: Option<&str>,
+        cache: Option<&str>,
     ) {
         if txn.trace_log.is_some() {
             txn.trace_record_phase(
@@ -111,6 +112,7 @@ impl LookupStage {
                 Some(message.to_string()),
                 pool.map(str::to_string),
                 backend.map(str::to_string),
+                cache.map(str::to_string),
             );
         }
     }
@@ -151,6 +153,7 @@ impl LookupStage {
                     "route selected backend",
                     pool.as_deref(),
                     backend.as_deref(),
+                    None,
                 );
             }
             StageOutcome::Continue(Phase::Send) => return StageOutcome::Continue(Phase::Send),
@@ -173,7 +176,7 @@ impl LookupStage {
         match forward_out {
             StageOutcome::Suspend(Phase::WaitResponse) => {
                 txn.lookup_forward_step = Some(LookupForwardStep::Wait);
-                Self::trace_nested(txn, "provider forward pending", None, None);
+                Self::trace_nested(txn, "provider forward pending", None, None, None);
                 self.record_provider_outcome(&profile, "forward", "pending");
                 self.observe_lookup_provider_duration(&profile, "forward", forward_started);
                 StageOutcome::Suspend(Phase::Lookup)
@@ -231,7 +234,7 @@ impl LookupStage {
         txn.lookup_outcome = Some(LookupOutcome::Answered);
         txn.answer_source = Some(AnswerSource::Forward);
         txn.cache_instance = None;
-        Self::trace_nested(txn, "provider forward answered", None, None);
+        Self::trace_nested(txn, "provider forward answered", None, None, None);
         self.record_provider_outcome(profile, "forward", "answered");
         self.observe_lookup_provider_duration(profile, "forward", forward_started);
         StageOutcome::Continue(continue_phase)
@@ -263,7 +266,7 @@ impl LookupStage {
         txn.cache_instance = Some(cache_name.to_string());
         txn.last_forward_ms = 0;
         let profile = Self::profile_label(txn);
-        Self::trace_nested(txn, "provider cache answered", None, None);
+        Self::trace_nested(txn, "provider cache answered", None, None, Some(cache_name));
         self.record_provider_outcome(&profile, "cache", "answered");
         if skip_response_rules {
             StageOutcome::Continue(Phase::Send)
@@ -296,7 +299,7 @@ impl LookupStage {
                 Some(self.apply_cache_hit(txn, wire, &cache_name, skip_response_rules, snapshot))
             }
             CacheLookupOutcome::Miss { key, gate: _ } => {
-                Self::trace_nested(txn, "provider cache miss", None, None);
+                Self::trace_nested(txn, "provider cache miss", None, None, Some(cache_name));
                 self.record_cache_lookup_metric(cache_name, &profile, "miss");
                 self.observe_cache_lookup_metric(cache_name, &profile, cache_started);
                 self.record_provider_outcome(&profile, "cache", "miss");
@@ -318,7 +321,7 @@ impl LookupStage {
                 Some(StageOutcome::Suspend(Phase::Lookup))
             }
             CacheLookupOutcome::Bypass => {
-                Self::trace_nested(txn, "provider cache bypass", None, None);
+                Self::trace_nested(txn, "provider cache bypass", None, None, Some(cache_name));
                 self.record_cache_lookup_metric(cache_name, &profile, "bypass");
                 self.observe_cache_lookup_metric(cache_name, &profile, cache_started);
                 self.record_provider_outcome(&profile, "cache", "bypass");
@@ -386,7 +389,13 @@ impl PipelineStage for LookupStage {
                 CompiledLookupProvider::Cache { cache_name } => {
                     if !txn.cache_lookup_eligible {
                         let profile = Self::profile_label(txn);
-                        Self::trace_nested(txn, "provider cache bypass", None, None);
+                        Self::trace_nested(
+                            txn,
+                            "provider cache bypass",
+                            None,
+                            None,
+                            Some(cache_name.as_str()),
+                        );
                         self.record_cache_lookup_metric(cache_name, &profile, "bypass");
                         self.record_provider_outcome(&profile, "cache", "bypass");
                         continue;

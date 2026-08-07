@@ -2,13 +2,14 @@
 
 These cases exercise **Conduit** (lookup/cache path, request rules, dataplane runtime, backend health) rather than peer-product interoperability. They run against a **single stub peer** (`thekelleys-dnsmasq-2.90` (dnsmasq 2.90)) so results are not spread across every publisher column. Cache hit proofs that use `peer-query-count` rely on that stub’s dnsmasq query logs — not a general multi-peer count facility. Peer contract cases remain under [By publisher](/interop/publishers/thekelleys.md).
 
-*Last tested 2026-07-21 · All executed cases passed*
+*Last tested 2026-08-06 · All executed cases passed*
 
 ## Results
 
 | Test | `cache-forward` | `forward-only` | `forward-split-io` |
 | --- | --- | --- | --- |
 | [`cache-forward-a`](/interop/cases/cache-forward-a.md) | <span class="interop-outcome interop-outcome--pass">pass</span> | <span class="interop-outcome interop-outcome--skip">skip</span> | <span class="interop-outcome interop-outcome--skip">skip</span> |
+| [`cache-lmdb-durability-restart-hit`](/interop/cases/cache-lmdb-durability-restart-hit.md) | <span class="interop-outcome interop-outcome--pass">pass</span> | — | — |
 | [`cache-miss-then-hit-a`](/interop/cases/cache-miss-then-hit-a.md) | <span class="interop-outcome interop-outcome--pass">pass</span> | <span class="interop-outcome interop-outcome--skip">skip</span> | <span class="interop-outcome interop-outcome--skip">skip</span> |
 | [`cache-nxdomain-miss-then-hit`](/interop/cases/cache-nxdomain-miss-then-hit.md) | <span class="interop-outcome interop-outcome--pass">pass</span> | <span class="interop-outcome interop-outcome--skip">skip</span> | <span class="interop-outcome interop-outcome--skip">skip</span> |
 | [`cache-rotate-rrset`](/interop/cases/cache-rotate-rrset.md) | <span class="interop-outcome interop-outcome--pass">pass</span> | <span class="interop-outcome interop-outcome--skip">skip</span> | <span class="interop-outcome interop-outcome--skip">skip</span> |

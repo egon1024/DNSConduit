@@ -77,7 +77,8 @@ Providers run **top to bottom** within the active profile:
 |--------|-------------------------|-------|
 | `lookup:` profiles and provider order | Yes | New queries use the updated profile |
 | `caches:` — `max_entries` | Yes | Live cap updates immediately on **apply** or **reload** (no restart) — see [Caches — Reload](/reference/config-schema/caches.md#reload-and-apply) |
-| Other `caches:` policy | Yes | Restart required for live behavior today (except `max_entries`) |
+| `caches:` — LMDB `when_full` / `sample_size` / `map_size` increase | Yes | Hot-applied on the live LMDB backend (same path); `map_size` decrease is not applied yet |
+| Other `caches:` policy | Yes | Restart required for live behavior today (except the hot fields above) |
 | In-flight transactions | — | Keep the snapshot they started under |
 
 ## Validation summary

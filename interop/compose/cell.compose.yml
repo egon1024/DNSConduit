@@ -14,6 +14,7 @@ services:
     volumes:
       - ${CONDUIT_CONFIG}:/etc/conduit/conduit.yaml:ro
       - ${CONDUIT_ASSETS_DIR}:/etc/conduit/assets:ro
+      - ${CONDUIT_DATA_DIR}:/var/lib/conduit:rw
     command: ["/etc/conduit/conduit.yaml"]
     ports:
       - "${CONDUIT_HOST_PORT}:5353/udp"

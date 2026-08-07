@@ -32,8 +32,8 @@ pub use build_metadata::{
     label_pairs as build_info_label_pairs, BUILD_PROFILE, DIRTY, REVISION, VERSION,
 };
 pub use builtin::{
-    encode_builtin, BackendIdentity, BuiltinRegistry, HealthScrapeBackend, ListenerIdentity,
-    ScrapeGaugeSnapshot, ScrapeSnapshotFn,
+    encode_builtin, BackendIdentity, BuiltinRegistry, CacheCapacitySample, HealthScrapeBackend,
+    ListenerIdentity, ScrapeGaugeSnapshot, ScrapeSnapshotFn,
 };
 pub use compile::{
     compile_from_config, trace_activation_matches, validate_metrics_tracing, BuiltinProfile,

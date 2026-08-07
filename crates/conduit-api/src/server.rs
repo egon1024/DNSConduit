@@ -181,6 +181,7 @@ impl ConduitControl for ControlService {
                     message: e.message,
                     pool: e.pool,
                     backend: e.backend,
+                    cache: e.cache,
                 })
                 .collect(),
         }))

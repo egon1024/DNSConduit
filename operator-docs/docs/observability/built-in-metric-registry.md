@@ -25,7 +25,7 @@ Opt-in-only families (none on day one) appear here when added; they stay off unt
 | `failures` | <span class="membership-yes">yes</span> | <span class="membership-yes">yes</span> | Parse / forward / script errors, retries, slot exhaustion |
 | `lookup` | <span class="membership-yes">yes</span> | <span class="membership-yes">yes</span> | Lookup outcomes and cache lookups |
 | `timing` | <span class="membership-no">no</span> | <span class="membership-yes">yes</span> | Duration histograms and forward attempts |
-| `cache_detail` | <span class="membership-no">no</span> | <span class="membership-yes">yes</span> | Cache fills, singleflight, entries / evictions |
+| `cache_detail` | <span class="membership-no">no</span> | <span class="membership-yes">yes</span> | Cache fills, singleflight, entries / bytes / evictions / LMDB errors |
 | `forward_detail` | <span class="membership-no">no</span> | <span class="membership-yes">yes</span> | Forward outstanding gauge (scrape) |
 | `health` | <span class="membership-yes">yes</span> | <span class="membership-yes">yes</span> | Probe results and backend health gauges (**included in minimal**) |
 | `runtime` | <span class="membership-no">no</span> | <span class="membership-yes">yes</span> | Slot in-use / capacity gauges |
@@ -82,7 +82,7 @@ Pool-only overrides (for example `granularity.timing: [pool]`) drop `backend` wh
 
 | Family | Category | Timing |
 |--------|----------|--------|
-| Cache fill / singleflight / entries / evictions series | `cache_detail` | hot / scrape as documented in [Built-in metrics](/observability/built-in-metrics.md) |
+| Cache fill / singleflight / entries / bytes / evictions / LMDB errors | `cache_detail` | hot / scrape as documented in [Built-in metrics](/observability/built-in-metrics.md) |
 | `conduit_forward_outstanding` | `forward_detail` | scrape |
 | `conduit_probe_results_total`, `conduit_backend_health_observed`, related health gauges | `health` | hot / scrape |
 | Slot in-use / capacity gauges | `runtime` | scrape |
