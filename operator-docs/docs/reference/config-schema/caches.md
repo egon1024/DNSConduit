@@ -1,6 +1,6 @@
 # Config schema: caches
 
-This page lists the fields for the top-level **`caches:`** list — named in-memory DNS answer cache instances referenced by **cache** providers in [Reference: lookup](/reference/config-schema/lookup.md). For behavior — hit path, negative cache, single-flight, and `on_hit` — see [DNS answer cache](/guides/dns-answer-cache.md).
+This page lists the fields for the top-level **`caches:`** list — named DNS answer cache instances referenced by **cache** providers in [Reference: lookup](/reference/config-schema/lookup.md). Backends are **`memory`** (process heap) or **`lmdb`** (on-disk LMDB). For behavior — hit path, negative cache, single-flight, and `on_hit` — see [DNS answer cache](/guides/dns-answer-cache.md).
 
 ## `caches`
 
@@ -17,13 +17,14 @@ Each entry **`name`** must be unique. Lookup cache providers reference instances
 | Field {: .column-no-wrap } | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
 | `name` | string | yes | — | Instance name used in `lookup.profiles.*.providers[].cache` |
-| `type` | string | yes | — | **`memory`** only in this release |
+| `type` | string | yes | — | **`memory`** or **`lmdb`** (`ebpf_map` is reserved and rejected) |
 | `max_entries` | integer | no | **0** (unlimited) | Cap on live entries; **0** = no limit. Takes effect on the live cache immediately when **apply** or **reload** succeeds (no restart) — see [Reload and apply](#reload-and-apply) |
 | `negative_cache` | object | no | see below | NXDOMAIN / NODATA / SERVFAIL caching |
 | `on_hit` | object | no | **`response_rules: run`** | Behavior on cache **hit** before [Send](/concepts/architecture-and-packet-path.md#send) |
 | `truncated_udp` | object | no | disabled | Opt-in caching of **TC=1** UDP answers |
 | `rotate_rrset_on_serve` | boolean | no | **`false`** | Shuffle answer RR order within each RRset on hit |
-| `memory` | object | no | see below | Sharding and eviction for `type: memory` |
+| `memory` | object | no | see below | Sharding and eviction for **`type: memory`** only |
+| `lmdb` | object | yes when `type: lmdb` | — | Path, map size, and capacity pressure for **`type: lmdb`** only |
 | `key` | object | no | — | Reserved for future key augmenters — not configurable today |
 
 ### `negative_cache`
@@ -60,7 +61,26 @@ Opt-in storage of truncated UDP upstream answers (TC bit set). Keys are distinct
 | `shard_count` | integer | **16** | Hash shards for concurrent access; must be **≥ 1** |
 | `eviction` | string | **`passive`** | **`passive`** — evict on insert when over `max_entries`; **`active`** — background reaper also trims expired entries |
 
+A **`memory:`** block on **`type: lmdb`** is rejected.
+
+### `lmdb` (`type: lmdb`) { #lmdb }
+
+On-disk LMDB store. Entries survive process restart while still fresh. Expiry is **lazy on read** (no full-database LMDB reaper). Missing environment directories (and parents) are created when the store is opened.
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `path` | string | yes | — | Filesystem path for the LMDB environment directory; created (with any missing parents) when the environment is opened. When the path already exists it must be a readable and writable directory |
+| `map_size` | integer or string | yes | — | LMDB map ceiling in bytes, or a decimal **SI** string (`KB` / `MB` / `GB` / `TB` / `PB`); fractional coefficients allowed (for example **`4.5GB`** → 4 500 000 000 bytes). Binary IEC suffixes (`MiB`, `GiB`, …) are **rejected** |
+| `when_full` | string | no | **`evict_one`** | Capacity pressure: **`refuse`** \| **`evict_one`** \| **`sample`** — applies when **`max_entries`** binds or the LMDB map is full |
+| `sample_size` | integer | no | **16** | Candidate window when **`when_full: sample`**; must be **≥ 1** |
+
+An **`lmdb:`** block on **`type: memory`** is rejected. Opening an environment with an unsupported on-disk format version **fails** with a message that recommends moving or deleting the environment files — Conduit does not silently migrate or wipe incompatible data.
+
+**Dual caps:** **`max_entries`** limits live key count (**`0`** = unlimited). **`map_size`** is the LMDB mmap/page ceiling. Space usage comes from LMDB page statistics, not a fixed per-entry size.
+
 ## Example
+
+Memory backend:
 
 ```yaml
 caches:
@@ -86,15 +106,39 @@ lookup:
         - type: forward
 ```
 
+LMDB backend:
+
+```yaml
+caches:
+  - name: durable
+    type: lmdb
+    max_entries: 500000
+    negative_cache:
+      enabled: true
+      nxdomain_covers_descendants: true
+      servfail_ttl_secs: 10
+    lmdb:
+      path: /var/lib/conduit/cache/durable
+      map_size: 4GB
+      when_full: evict_one
+```
+
 ## Reload and apply { #reload-and-apply }
 
 | Change | Stored in new snapshot? | Live runtime without restart? | Notes |
 |--------|-------------------------|-------------------------------|-------|
 | `max_entries` on an existing instance | Yes | **Yes** | Cap updates in place immediately when **apply** or **reload** succeeds (no restart); lowering the cap **evicts** entries until at or under the new limit |
+| `lmdb.when_full`, `lmdb.sample_size` | Yes | **Yes** | Hot-applied on the live LMDB backend (same path) |
+| `lmdb.map_size` **increase** | Yes | **Yes** | Grows the map in place when LMDB allows; failure **rejects** the apply and keeps the prior map size |
+| `lmdb.map_size` **decrease** | Yes | **Yes** (live ladder) | Lookups for that cache **Bypass** (forward) while shrinking; Conduit tries in-place shrink, then evicts until under the new ceiling, then clears all entries if needed. Step that clears entries **discards** cached answers. Failure **rejects** the apply |
 | Other cache policy (`negative_cache`, `on_hit`, `truncated_udp`, `rotate_rrset_on_serve`, `memory.eviction`) | Yes | No | Requires process **restart** today |
 | `memory.shard_count` | Yes | No | Conduit logs **`pending (restart required)`**; snapshot updates but shard layout is unchanged until restart |
-| New cache instance name | Yes | Yes (empty backend) | Reconcile adds a new in-memory backend |
-| In-memory entries | — | — | **Preserved** across reload/apply on the same instance; **not** preserved across process restart |
+| New cache instance name | Yes | Yes (empty backend) | Reconcile opens a new memory or LMDB backend; open failure **rejects** the apply |
+| `lmdb.path` change | Yes | **Yes** (warm reopen) | Opens the new environment first, then atomically switches the live handle; **no** automatic entry migration. Open failure **rejects** the apply; the previous path keeps serving |
+| `type` change (`memory` ↔ `lmdb`) | Yes | **Yes** (rebuild) | Tears down the old backend and builds a new empty store on the same instance (single-flight retained); open failure **rejects** the apply |
+| Removing an instance from **`caches:`** | Yes | Yes | Drops the runtime instance and closes the LMDB environment (frees mmap and handles); **does not delete** files under **`path`** |
+| Memory entries | — | — | **Preserved** across reload/apply on the same instance; **not** preserved across process restart |
+| LMDB entries | — | — | **Survive** process restart while still fresh (lazy expiry on read); same-path reload/apply keeps the open environment; path change does **not** copy entries |
 | Removing a cache provider from the profile | Yes | Yes | Hot path skips cache when no cache provider is active |
 
 Use **`conduitctl apply`**, **`conduitctl reload`**, or **SIGHUP** — same snapshot swap path as other config. In-flight transactions keep the snapshot they started under.
@@ -104,12 +148,17 @@ Use **`conduitctl apply`**, **`conduitctl reload`**, or **SIGHUP** — same snap
 | Rule | Error if violated |
 |------|-------------------|
 | Duplicate `name` | Duplicate cache instance name |
-| `type` not **`memory`** | Unsupported cache backend type |
+| `type` not **`memory`** or **`lmdb`** | Unsupported cache backend type |
+| **`memory:`** on **`type: lmdb`** or **`lmdb:`** on **`type: memory`** | Foreign backend block |
+| **`type: lmdb`** without **`lmdb.path`** / **`lmdb.map_size`**, or IEC **`map_size`** suffix | Invalid LMDB config |
+| LMDB path exists but is not a directory, or is not readable/writable; create/open failure | Path preflight or open failed |
 | Unknown cache reference from lookup provider | Undefined cache name |
 | `on_hit.response_rules` not **`run`** or **`skip`** | Invalid on-hit mode |
 | `truncated_udp.enabled: true` without `ttl_secs > 0` | Missing or invalid truncated UDP TTL |
 | `memory.shard_count` **< 1** | Invalid shard count |
 | `memory.eviction` not **`passive`** or **`active`** | Invalid eviction mode |
+| `lmdb.when_full` not **`refuse`** / **`evict_one`** / **`sample`** | Invalid when_full |
+| `lmdb.sample_size` **< 1** when used with **`sample`** | Invalid sample_size |
 
 Unreferenced cache instances (defined in **`caches:`** but not used by any lookup provider) **validate successfully** — for example an instance used only by some lookup profiles, or held for later open-by-name use. Cache attachment for answer lookup/fill is via **lookup profile providers** only (not pool or backend membership).
 

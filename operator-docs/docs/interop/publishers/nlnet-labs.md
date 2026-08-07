@@ -1,8 +1,8 @@
 # NLnet Labs
 
-This page lists **NLnet Labs** products under test for DNSConduit correctness. No peer is preferred or recommended. See the [interop overview](/interop/index.md).
+NLnet Labs products under test for DNSConduit correctness. No peer is preferred or recommended. See the [interop overview](/interop/index.md).
 
-*Last tested 2026-07-21 · No failures; 2 characterized*
+*Last tested 2026-08-06 · No failures; 2 characterized*
 
 ## Unbound
 

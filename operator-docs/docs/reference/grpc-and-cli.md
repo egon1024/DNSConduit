@@ -105,6 +105,7 @@ Each `TraceEvent` in the response includes:
 | `message` | Optional detail |
 | `pool` | Optional pool name |
 | `backend` | Optional backend address |
+| `cache` | Optional named cache instance (nested cache provider events) |
 
 ## Related topics
 

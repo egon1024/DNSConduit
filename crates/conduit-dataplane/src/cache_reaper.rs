@@ -77,6 +77,7 @@ mod tests {
                 shard_count: 2,
                 eviction,
             },
+            lmdb: None,
             max_entries: 0,
         }
     }

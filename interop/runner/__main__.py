@@ -251,10 +251,13 @@ def _run_cell(
                     )
                 stack.run_conduitctl([str(a) for a in args])
                 continue
+            if action == "restart_conduit":
+                stack.restart_conduit()
+                continue
             if action:
                 raise RuntimeError(
                     f"query step {idx + 1}: unknown action {action!r} "
-                    "(supported: conduitctl, or omit for dig)"
+                    "(supported: conduitctl, restart_conduit, or omit for dig)"
                 )
             step_q = str(step.get("qname", default_qname)).rstrip(".")
             step_t = str(step.get("qtype") or default_qtype or "A")

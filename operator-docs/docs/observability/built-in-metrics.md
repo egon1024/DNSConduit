@@ -60,6 +60,8 @@ Use **`standard`** for day-two operations, SLO dashboards, and debugging upstrea
 | Phase / forward-attempt / forward-duration / lookup-cache histograms below | no | yes | — |
 | [`conduit_lookup_provider_outcomes_total`](#conduit_lookup_provider_outcomes_total), [`conduit_cache_lookups_total`](#conduit_cache_lookups_total) | yes | yes | — |
 | [`conduit_cache_fills_total`](#conduit_cache_fills_total), [`conduit_cache_singleflight_coalesced_total`](#conduit_cache_singleflight_coalesced_total), lookup/cache duration histograms | no | yes | — |
+| [`conduit_cache_evictions_total`](#conduit_cache_evictions_total), [`conduit_cache_lmdb_errors_total`](#conduit_cache_lmdb_errors_total) | no | yes | — |
+| [`conduit_cache_entries`](#conduit_cache_entries), [`conduit_cache_entries_limit`](#conduit_cache_entries_limit), [`conduit_cache_bytes_used`](#conduit_cache_bytes_used), [`conduit_cache_bytes_limit`](#conduit_cache_bytes_limit) | — | — | yes (`full`) |
 | [`conduit_probe_results_total`](#conduit_probe_results_total) | yes (health enabled) | yes | — |
 | [`conduit_forward_outstanding`](#conduit_forward_outstanding) | — | — | yes (`standard`) |
 | [`conduit_pool_backends_configured`](#conduit_pool_backends_configured) | — | — | yes |
@@ -376,6 +378,68 @@ Same bucket layout as [`conduit_phase_duration_seconds`](#conduit_phase_duration
 | **Labels** | `cache`, `profile` |
 | **Profile** | `full` only |
 | **When** | Cache read path latency |
+
+### conduit_cache_evictions_total { #conduit_cache_evictions_total }
+
+| | |
+|--|--|
+| **Type** | Counter |
+| **Labels** | `cache`, `reason` |
+| **Profile** | `full` only |
+| **When** | An entry is removed to free capacity |
+
+`reason` values in use today: `active_reaper` (memory backend with **`memory.eviction: active`**).
+
+### conduit_cache_lmdb_errors_total { #conduit_cache_lmdb_errors_total }
+
+| | |
+|--|--|
+| **Type** | Counter |
+| **Labels** | `cache`, `reason` |
+| **Profile** | `full` only |
+| **When** | LMDB open, format, I/O, or capacity pressure fails on the fill or open path |
+
+`reason` values in use today: `capacity_pressure` (fill refused under `max_entries` or map-full when **`when_full: refuse`**, or after eviction retry is exhausted). Error and warning paths also emit `tracing` logs with the cache name and cause.
+
+### conduit_cache_entries { #conduit_cache_entries }
+
+| | |
+|--|--|
+| **Type** | Gauge |
+| **Labels** | `cache` |
+| **Profile** | `full` only (scrape-time) |
+| **When** | Export refreshes live entry count per named cache instance |
+
+### conduit_cache_entries_limit { #conduit_cache_entries_limit }
+
+| | |
+|--|--|
+| **Type** | Gauge |
+| **Labels** | `cache` |
+| **Profile** | `full` only (scrape-time) |
+| **When** | Export refreshes configured **`max_entries`** (**`0`** = unlimited) |
+
+### conduit_cache_bytes_used { #conduit_cache_bytes_used }
+
+| | |
+|--|--|
+| **Type** | Gauge |
+| **Labels** | `cache` |
+| **Profile** | `full` only (scrape-time) |
+| **When** | Export refreshes approximate bytes used from LMDB page statistics |
+
+**`0`** for memory backends (heap size is not reported on this series).
+
+### conduit_cache_bytes_limit { #conduit_cache_bytes_limit }
+
+| | |
+|--|--|
+| **Type** | Gauge |
+| **Labels** | `cache` |
+| **Profile** | `full` only (scrape-time) |
+| **When** | Export refreshes configured LMDB **`map_size`** |
+
+**`0`** for memory backends.
 
 ### conduit_response_duration_seconds { #conduit_response_duration_seconds }
 

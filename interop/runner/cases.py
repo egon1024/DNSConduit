@@ -21,7 +21,8 @@ class Case:
     conduit_delta: dict[str, Any] = field(default_factory=dict)
     # Optional per-step queries; empty → single dig using CLI/default or fixture qname.
     # Per step may include sleep_before_secs (float/int) before that dig, or
-    # action: conduitctl with args: [...] for mid-case control-plane commands.
+    # action: conduitctl with args: [...], or action: restart_conduit (restart
+    # Conduit only; peer + /var/lib/conduit data volume preserved).
     queries: list[dict[str, Any]] = field(default_factory=list)
     # Files copied into the cell's /etc/conduit/assets/ (src relative to interop/).
     conduit_assets: list[dict[str, str]] = field(default_factory=list)

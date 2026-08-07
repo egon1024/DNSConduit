@@ -9,7 +9,7 @@ page in the operator documentation (same YAML / scripts as the walkthrough).
 | `conduit.minimal.yaml` | Minimal configuration (also `/etc/conduit/conduit.yaml`) |
 | `conduit.reference.yaml` | Field tour — not intended to run unchanged |
 | `backend-health/` | Backend health |
-| `dns-answer-cache/` | DNS answer cache |
+| `dns-answer-cache/` | DNS answer cache (`conduit-cache.yaml` memory; `conduit-cache-lmdb.yaml` LMDB) |
 | `declarative-failover/` | Declarative failover |
 | `rule-action-order/` | Rule action order (includes `set-vip-pool.rhai`) |
 | `metrics-and-tracing/` | Metrics and tracing |

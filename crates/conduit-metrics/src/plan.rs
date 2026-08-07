@@ -488,7 +488,11 @@ pub fn builtin_metric_category(family_name: &str) -> Option<MetricCategory> {
         "conduit_cache_fills_total"
         | "conduit_cache_singleflight_coalesced_total"
         | "conduit_cache_evictions_total"
-        | "conduit_cache_entries" => Some(MetricCategory::CacheDetail),
+        | "conduit_cache_entries"
+        | "conduit_cache_entries_limit"
+        | "conduit_cache_bytes_used"
+        | "conduit_cache_bytes_limit"
+        | "conduit_cache_lmdb_errors_total" => Some(MetricCategory::CacheDetail),
 
         "conduit_forward_outstanding" => Some(MetricCategory::ForwardDetail),
 

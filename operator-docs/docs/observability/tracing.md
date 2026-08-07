@@ -110,11 +110,12 @@ Each event in a stored trace has:
 
 | Field {: .column-no-wrap } | Meaning |
 |-------|---------|
-| **`phase`** | Top-level pipeline phase — for example `parse`, `request_rules`, **`lookup`**, `response_rules`, `send`. Route, forward, and wait appear as **nested** events inside **`lookup`** when the forward provider runs |
+| **`phase`** | Top-level pipeline phase — for example `parse`, `request_rules`, **`lookup`**, `response_rules`, `send`. Route, forward, and wait appear as **nested** events inside **`lookup`** when the forward provider runs; cache provider outcomes are nested the same way |
 | **`elapsed_us`** | Microseconds since the transaction **started** (cumulative, not per-phase delta) |
 | **`pool`** | Selected pool at that phase, when applicable |
 | **`backend`** | Selected backend at that phase, when applicable — configured backend `name` when set, else the `ip:port` address (same name-when-set identity as metrics/logs/events) |
-| **`message`** | Optional detail string (reserved for future use) |
+| **`cache`** | Named cache instance on nested cache provider events (`provider cache answered` / `miss` / `bypass`) |
+| **`message`** | Optional detail string (for example nested provider outcome text) |
 
 Retries re-enter at **Lookup**; you will see additional **`lookup`** (with nested forward events when applicable) and **`response_rules`** events on the same transaction trace.
 
@@ -130,7 +131,7 @@ Requires a running control plane and matching **`control.listen_address`** (or *
 conduitctl trace 1
 ```
 
-Prints one line per event: phase, elapsed microseconds, pool, backend, message. Exits non-zero if no trace was found (wrong id, TTL expired, or activation did not match).
+Prints one line per event: phase, elapsed microseconds, pool, backend, cache, message. Exits non-zero if no trace was found (wrong id, TTL expired, or activation did not match).
 
 Details: [gRPC and conduitctl — trace](/control-plane/grpc-and-conduitctl.md#trace).
 

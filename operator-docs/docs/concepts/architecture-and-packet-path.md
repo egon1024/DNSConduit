@@ -289,7 +289,7 @@ Some changes update the snapshot immediately but still need a **process restart*
 
 - [Getting started](/getting-started/index.md) — install, minimal config, first query
 - [Runtime and concurrency](/concepts/runtime-and-concurrency.md) — runtime models, workers, slot pool, and shutdown drain
-- [DNS answer cache](/guides/dns-answer-cache.md) — optional in-memory caching
+- [DNS answer cache](/guides/dns-answer-cache.md) — optional memory or LMDB caching
 - [Pools and backends](/policy-routing/pools-and-backends.md) — pool selection inside the forward provider
 - [Backend health](/policy-routing/backend-health.md) — eligibility, probes, and fail-open at [Route](/concepts/architecture-and-packet-path.md#route)
 - [Rules and actions](/policy-routing/rules-and-actions.md) — [Request rules](/concepts/architecture-and-packet-path.md#request-rules) and [Response rules](/concepts/architecture-and-packet-path.md#response-rules) hooks

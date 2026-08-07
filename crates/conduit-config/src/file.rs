@@ -7,9 +7,10 @@ use crate::defaults::{
     DEFAULT_RHAI_MAX_CALL_DEPTH, DEFAULT_RHAI_MAX_OPERATIONS,
 };
 use crate::error::ConfigError;
+use crate::size::parse_si_size;
 use conduit_proto::config::{
     AclDeniedSample, AclRule, AclsConfig, Action, Backend, CacheInstance, CacheKeyAugmentConfig,
-    CacheKeyConfig, CacheMemoryConfig, CacheNegativeConfig, CacheOnHitConfig,
+    CacheKeyConfig, CacheLmdbConfig, CacheMemoryConfig, CacheNegativeConfig, CacheOnHitConfig,
     CacheTruncatedUdpConfig, Config, ControlConfig, ControlTlsConfig, DataSource, DataSourceLimits,
     DataplaneConfig, EventSinkFilters, EventsConfig, ForwardConfig, HealthCheck, Listener,
     ListenersConfig, LoggingConfig, LookupConfig, LookupProfile, LookupProvider, MetricsCategories,
@@ -965,6 +966,8 @@ pub(crate) struct YamlCacheInstance {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     memory: Option<YamlCacheMemoryConfig>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    lmdb: Option<YamlCacheLmdbConfig>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     key: Option<YamlCacheKeyConfig>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     max_entries: Option<u64>,
@@ -1001,6 +1004,24 @@ pub(crate) struct YamlCacheMemoryConfig {
     eviction: Option<String>,
 }
 
+/// YAML `lmdb.map_size`: bare integer bytes or SI string (`4GB`, `4.5GB`).
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(untagged)]
+pub(crate) enum YamlMapSize {
+    Bytes(u64),
+    Si(String),
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub(crate) struct YamlCacheLmdbConfig {
+    path: String,
+    map_size: YamlMapSize,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    when_full: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    sample_size: Option<u32>,
+}
+
 #[derive(Debug, Deserialize, Serialize, Default)]
 pub(crate) struct YamlCacheKeyConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1012,7 +1033,7 @@ pub(crate) struct YamlCacheKeyAugmentConfig {}
 
 pub fn load_yaml(input: &str) -> Result<Config, ConfigError> {
     let y: YamlConfig = serde_yaml::from_str(input)?;
-    Ok(y.into())
+    config_from_yaml(y)
 }
 
 /// Load a sparse YAML overlay patch for `conduitctl apply`.
@@ -1021,7 +1042,7 @@ pub fn load_yaml(input: &str) -> Result<Config, ConfigError> {
 /// which materializes file-layer defaults for a startup config document.
 pub fn load_overlay_patch(input: &str) -> Result<Config, ConfigError> {
     let y: YamlOverlayPatch = serde_yaml::from_str(input)?;
-    let cfg: Config = y.into();
+    let cfg = config_from_overlay(y)?;
     let validation = crate::overlay::validate_overlay_patch(&cfg);
     if !validation.ok {
         return Err(ConfigError::Invalid(validation.errors.join("; ")));
@@ -1029,55 +1050,101 @@ pub fn load_overlay_patch(input: &str) -> Result<Config, ConfigError> {
     Ok(cfg)
 }
 
+fn config_from_overlay(y: YamlOverlayPatch) -> Result<Config, ConfigError> {
+    Ok(Config {
+        schema_version: y.schema_version,
+        listeners: y.listeners.map(Into::into),
+        forward: y.forward.map(Into::into),
+        orchestrator: y.orchestrator.map(Into::into),
+        events: y.events.map(Into::into),
+        rhai: y.rhai.map(Into::into),
+        pools: y.pools.into_iter().map(Into::into).collect(),
+        control: y.control.map(Into::into),
+        rules: y.rules.map(Into::into),
+        logging: y.logging.map(Into::into),
+        data_sources: y.data_sources.into_iter().map(Into::into).collect(),
+        metrics: y.metrics.map(Into::into),
+        tracing: y.tracing.map(Into::into),
+        dataplane: y.dataplane.map(Into::into),
+        shutdown: y.shutdown.map(Into::into),
+        data_source_limits: y.data_source_limits.map(Into::into),
+        caches: y
+            .caches
+            .into_iter()
+            .map(cache_instance_from_yaml)
+            .collect::<Result<_, _>>()?,
+        lookup: y.lookup.map(Into::into),
+        acls: y.acls.map(Into::into),
+    })
+}
+
+fn config_from_yaml(y: YamlConfig) -> Result<Config, ConfigError> {
+    Ok(Config {
+        schema_version: y.schema_version,
+        listeners: Some(y.listeners.into()),
+        forward: Some(y.forward.into()),
+        orchestrator: Some(y.orchestrator.into()),
+        events: Some(y.events.into()),
+        rhai: Some(y.rhai.into()),
+        pools: y.pools.into_iter().map(Into::into).collect(),
+        control: y.control.map(Into::into),
+        rules: Some(y.rules.into()),
+        logging: Some(y.logging.into()),
+        data_sources: y.data_sources.into_iter().map(Into::into).collect(),
+        metrics: y.metrics.map(Into::into),
+        tracing: y.tracing.map(Into::into),
+        dataplane: y.dataplane.map(Into::into),
+        shutdown: y.shutdown.map(Into::into),
+        data_source_limits: y.data_source_limits.map(Into::into),
+        caches: y
+            .caches
+            .into_iter()
+            .map(cache_instance_from_yaml)
+            .collect::<Result<_, _>>()?,
+        lookup: y.lookup.map(Into::into),
+        acls: y.acls.map(Into::into),
+    })
+}
+
+fn cache_instance_from_yaml(y: YamlCacheInstance) -> Result<CacheInstance, ConfigError> {
+    Ok(CacheInstance {
+        name: y.name,
+        r#type: y.cache_type,
+        negative_cache: y.negative_cache.map(Into::into),
+        on_hit: y.on_hit.map(Into::into),
+        truncated_udp: y.truncated_udp.map(Into::into),
+        rotate_rrset_on_serve: y.rotate_rrset_on_serve,
+        memory: y.memory.map(Into::into),
+        lmdb: y.lmdb.map(cache_lmdb_from_yaml).transpose()?,
+        key: y.key.map(Into::into),
+        max_entries: y.max_entries,
+    })
+}
+
+fn cache_lmdb_from_yaml(y: YamlCacheLmdbConfig) -> Result<CacheLmdbConfig, ConfigError> {
+    let map_size_bytes = match y.map_size {
+        YamlMapSize::Bytes(n) => n,
+        YamlMapSize::Si(ref s) => parse_si_size(s).map_err(ConfigError::Invalid)?,
+    };
+    Ok(CacheLmdbConfig {
+        path: y.path,
+        map_size_bytes,
+        when_full: y.when_full,
+        sample_size: y.sample_size,
+    })
+}
+
 impl From<YamlOverlayPatch> for Config {
     fn from(y: YamlOverlayPatch) -> Self {
-        Config {
-            schema_version: y.schema_version,
-            listeners: y.listeners.map(Into::into),
-            forward: y.forward.map(Into::into),
-            orchestrator: y.orchestrator.map(Into::into),
-            events: y.events.map(Into::into),
-            rhai: y.rhai.map(Into::into),
-            pools: y.pools.into_iter().map(Into::into).collect(),
-            control: y.control.map(Into::into),
-            rules: y.rules.map(Into::into),
-            logging: y.logging.map(Into::into),
-            data_sources: y.data_sources.into_iter().map(Into::into).collect(),
-            metrics: y.metrics.map(Into::into),
-            tracing: y.tracing.map(Into::into),
-            dataplane: y.dataplane.map(Into::into),
-            shutdown: y.shutdown.map(Into::into),
-            data_source_limits: y.data_source_limits.map(Into::into),
-            caches: y.caches.into_iter().map(Into::into).collect(),
-            lookup: y.lookup.map(Into::into),
-            acls: y.acls.map(Into::into),
-        }
+        // Fallible cache conversion lives in [`config_from_overlay`]; this path is
+        // retained for callers that only need non-cache overlay fields.
+        config_from_overlay(y).expect("overlay without invalid lmdb.map_size")
     }
 }
 
 impl From<YamlConfig> for Config {
     fn from(y: YamlConfig) -> Self {
-        Config {
-            schema_version: y.schema_version,
-            listeners: Some(y.listeners.into()),
-            forward: Some(y.forward.into()),
-            orchestrator: Some(y.orchestrator.into()),
-            events: Some(y.events.into()),
-            rhai: Some(y.rhai.into()),
-            pools: y.pools.into_iter().map(Into::into).collect(),
-            control: y.control.map(Into::into),
-            rules: Some(y.rules.into()),
-            logging: Some(y.logging.into()),
-            data_sources: y.data_sources.into_iter().map(Into::into).collect(),
-            metrics: y.metrics.map(Into::into),
-            tracing: y.tracing.map(Into::into),
-            dataplane: y.dataplane.map(Into::into),
-            shutdown: y.shutdown.map(Into::into),
-            data_source_limits: y.data_source_limits.map(Into::into),
-            caches: y.caches.into_iter().map(Into::into).collect(),
-            lookup: y.lookup.map(Into::into),
-            acls: y.acls.map(Into::into),
-        }
+        config_from_yaml(y).expect("config without invalid lmdb.map_size")
     }
 }
 
@@ -1574,17 +1641,7 @@ impl From<YamlLookupProvider> for LookupProvider {
 
 impl From<YamlCacheInstance> for CacheInstance {
     fn from(y: YamlCacheInstance) -> Self {
-        CacheInstance {
-            name: y.name,
-            r#type: y.cache_type,
-            negative_cache: y.negative_cache.map(Into::into),
-            on_hit: y.on_hit.map(Into::into),
-            truncated_udp: y.truncated_udp.map(Into::into),
-            rotate_rrset_on_serve: y.rotate_rrset_on_serve,
-            memory: y.memory.map(Into::into),
-            key: y.key.map(Into::into),
-            max_entries: y.max_entries,
-        }
+        cache_instance_from_yaml(y).expect("cache instance without invalid lmdb.map_size")
     }
 }
 
@@ -1620,6 +1677,18 @@ impl From<YamlCacheMemoryConfig> for CacheMemoryConfig {
         CacheMemoryConfig {
             shard_count: y.shard_count,
             eviction: y.eviction,
+        }
+    }
+}
+
+impl From<&CacheLmdbConfig> for YamlCacheLmdbConfig {
+    fn from(c: &CacheLmdbConfig) -> Self {
+        YamlCacheLmdbConfig {
+            path: c.path.clone(),
+            // Export as bare bytes; operators may rewrite as SI in source YAML.
+            map_size: YamlMapSize::Bytes(c.map_size_bytes),
+            when_full: c.when_full.clone(),
+            sample_size: c.sample_size,
         }
     }
 }
@@ -2198,6 +2267,7 @@ impl From<&CacheInstance> for YamlCacheInstance {
                 .map(YamlCacheTruncatedUdpConfig::from),
             rotate_rrset_on_serve: c.rotate_rrset_on_serve,
             memory: c.memory.as_ref().map(YamlCacheMemoryConfig::from),
+            lmdb: c.lmdb.as_ref().map(YamlCacheLmdbConfig::from),
             key: c.key.as_ref().map(YamlCacheKeyConfig::from),
             max_entries: c.max_entries,
         }

@@ -73,6 +73,7 @@ message TraceEvent {
   optional string message = 3;
   optional string pool = 4;
   optional string backend = 5;
+  optional string cache = 6;    // named cache instance on nested cache provider events
 }
 
 message GetTraceResponse {

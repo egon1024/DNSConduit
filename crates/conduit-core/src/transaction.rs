@@ -229,9 +229,10 @@ impl Transaction {
         message: Option<String>,
         pool: Option<String>,
         backend: Option<String>,
+        cache: Option<String>,
     ) {
         if let Some(log) = self.trace_log.as_mut() {
-            log.record(phase, self.started_at, message, pool, backend);
+            log.record(phase, self.started_at, message, pool, backend, cache);
         }
     }
 

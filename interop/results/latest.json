@@ -1678,6 +1678,17 @@
       "profile_id": "forward-split-io"
     },
     {
+      "case_id": "cache-lmdb-durability-restart-hit",
+      "detail": "2 dig step(s): property ok; property ok; peer-query-count lmdb-durable.smoke.test/A=1",
+      "oracles": [
+        "property",
+        "peer-query-count"
+      ],
+      "outcome": "pass",
+      "peer_id": "thekelleys-dnsmasq-2.90",
+      "profile_id": "cache-forward"
+    },
+    {
       "case_id": "cache-miss-then-hit-a",
       "detail": "applicability",
       "oracles": [
@@ -14665,13 +14676,13 @@
       "profile_id": "forward-split-io"
     }
   ],
-  "generated_at": "2026-07-18T12:20:19Z",
-  "inputs_fingerprint": "sha256:fc5378622e8a37ef1be8289b90f3e0936a2c024008681c26df2c87be98d5b6b9",
+  "generated_at": "2026-08-06T22:21:03Z",
+  "inputs_fingerprint": "sha256:e85cac06c513aafd89cb9bab18b04488c0acc0f4162f3bf97c9dda69403f363f",
   "provenance": {
     "conduit_image": "conduit:local",
-    "conduit_image_digest": "sha256:8e2956bb5913407a537abc9a19bb49ed7f74a173ba7914eef213f0ede1ed28b7",
+    "conduit_image_digest": "sha256:c6f28a36682e85b6ee9ac94ce5cbfcbcce171a80982c7e4d991878961d7bf038",
     "conduit_version": "dev",
-    "git_head": "d0ea2a93ca7e95012527b10942ef851c6a0220e5",
+    "git_head": "7d6f3f355dd2f94a1b45a9e3b7886c9a1547c983",
     "runner": "interop.runner/0.1.0"
   },
   "schema_version": 1

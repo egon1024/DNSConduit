@@ -259,6 +259,7 @@ impl Orchestrator {
                 None,
                 txn.selected_pool.clone(),
                 txn.selected_backend_display(),
+                None,
             );
             if phase == Phase::RequestRules {
                 observe_after_request_rules(txn, snapshot, events, tracing);
@@ -392,6 +393,7 @@ impl Orchestrator {
                         .selected_backend_display()
                         .unwrap_or_else(|| "-".into())
                 ),
+                cache = %log_text(txn.cache_instance.as_deref().unwrap_or("-")),
                 attempts = txn.attempt_count,
                 "query complete"
             ),
@@ -1238,11 +1240,14 @@ mod tests {
         assert_eq!(forward_calls.load(Ordering::Relaxed), 1);
 
         let events = cold.trace_log.as_ref().expect("trace").events.clone();
-        assert!(
-            events
-                .iter()
-                .any(|e| e.message.as_deref() == Some("provider cache miss")),
-            "cold miss: {:?}",
+        let miss = events
+            .iter()
+            .find(|e| e.message.as_deref() == Some("provider cache miss"))
+            .expect("cold miss event");
+        assert_eq!(
+            miss.cache.as_deref(),
+            Some("global"),
+            "cache miss must name the instance: {:?}",
             events
         );
         assert!(
@@ -1260,11 +1265,14 @@ mod tests {
         assert_eq!(forward_calls.load(Ordering::Relaxed), 1);
 
         let warm_events = warm.trace_log.as_ref().expect("trace").events.clone();
-        assert!(
-            warm_events
-                .iter()
-                .any(|e| e.message.as_deref() == Some("provider cache answered")),
-            "warm hit: {:?}",
+        let hit = warm_events
+            .iter()
+            .find(|e| e.message.as_deref() == Some("provider cache answered"))
+            .expect("warm hit event");
+        assert_eq!(
+            hit.cache.as_deref(),
+            Some("global"),
+            "cache hit must name the instance: {:?}",
             warm_events
         );
         assert!(

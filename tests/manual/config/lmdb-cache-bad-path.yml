@@ -1,0 +1,25 @@
+# Invalid: lmdb.path names an existing file (not a directory). Expect ctl validate failure.
+# Lab: touch /tmp/conduit-lmdb-lab/not-a-directory before validate.
+schema_version: 1
+listeners:
+  threads: 1
+  listeners:
+    - address: "127.0.2.1:15353"
+      protocol: udp
+pools:
+  - name: default
+    backends:
+      - address: "127.0.2.1:15300"
+caches:
+  - name: durable
+    type: lmdb
+    lmdb:
+      path: /tmp/conduit-lmdb-lab/not-a-directory
+      map_size: 16MB
+lookup:
+  profiles:
+    default:
+      providers:
+        - type: cache
+          cache: durable
+        - type: forward

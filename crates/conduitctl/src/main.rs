@@ -427,11 +427,12 @@ async fn main() -> anyhow::Result<()> {
             }
             for e in resp.events {
                 println!(
-                    "{} +{}us pool={:?} backend={:?} {}",
+                    "{} +{}us pool={:?} backend={:?} cache={:?} {}",
                     e.phase,
                     e.elapsed_us,
                     e.pool,
                     e.backend,
+                    e.cache,
                     e.message.as_deref().unwrap_or("")
                 );
             }
