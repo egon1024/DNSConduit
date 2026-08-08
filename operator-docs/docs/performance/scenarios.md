@@ -329,9 +329,10 @@ Thin curated spine pair with scale-split-io-forward-fast.
 ### scale-sync-cache-hit
 
 Maintainer-runnable cache_hit load shape: sync runtime with memory cache warmed
-before dnsperf. Not required for the initial curated publish spine.
+before dnsperf. Not required for the initial curated publish spine. Warm
+read-mostly — not a high-churn fill/evict shape.
 
-**Axes:** `runtime`=`sync`, `load_shape`=`cache_hit`, `ingress_workers`=`2`
+**Axes:** `runtime`=`sync`, `load_shape`=`cache_hit`, `ingress_workers`=`2`, `cache_backend`=`memory`
 
 **Recipe:** config `scale-sync-cache-hit.yml`; upstream `fast`; loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
 
@@ -507,6 +508,20 @@ curated publish.
 **Axes:** `runtime`=`split_io`, `load_shape`=`forward_fast`, `topology`=`heavy`, `ingress_workers`=`4`, `policy_workers`=`4`, `io_workers`=`4`
 
 **Recipe:** config `scale-split-io-topology-heavy.yml`; upstream `fast`; loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
+
+</div>
+
+<div class="perf-scenario" markdown="1">
+
+### scale-sync-lmdb-cache-hit
+
+Warm sync cache_hit using type: lmdb (real-disk env path). Read-mostly after
+warm — not a high-churn fill/evict shape. Fixed safe LMDB sync default.
+Compare with scale-sync-cache-hit via study memory-vs-lmdb-cache-hit.
+
+**Axes:** `runtime`=`sync`, `load_shape`=`cache_hit`, `ingress_workers`=`2`, `cache_backend`=`lmdb`
+
+**Recipe:** config `scale-sync-lmdb-cache-hit.yml`; upstream `fast`; loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
 
 </div>
 

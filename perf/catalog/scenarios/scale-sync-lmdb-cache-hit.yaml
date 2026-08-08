@@ -1,0 +1,22 @@
+schema_version: 1
+id: scale-sync-lmdb-cache-hit
+suite: scale
+curated: true
+intent: |
+  Warm sync cache_hit using type: lmdb (real-disk env path). Read-mostly after
+  warm — not a high-churn fill/evict shape. Fixed safe LMDB sync default.
+  Compare with scale-sync-cache-hit via study memory-vs-lmdb-cache-hit.
+axes:
+  runtime: sync
+  load_shape: cache_hit
+  ingress_workers: 2
+  cache_backend: lmdb
+recipe:
+  config: scale-sync-lmdb-cache-hit.yml
+  upstream: fast
+  loadgen: dnsperf
+  query_file: perf-a.txt
+  cache_warm: true
+  clients: 16
+  dnsperf_threads: 8
+  max_outstanding: 2000

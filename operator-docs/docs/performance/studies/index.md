@@ -22,6 +22,7 @@ explains how cells were measured.
 | More I/O workers on **[`split_io`](/concepts/runtime-and-concurrency.md#split-io-runtime)** (ingress fixed) | [I/O vs ingress (split_io)](/performance/studies/io-vs-ingress-split.md) |
 | Whether raising all worker pools together helps | [Split_io bulk topology](/performance/studies/split-io-thread-bulk.md) |
 | Warm answer-cache vs forwarding throughput | [Cache hit vs forward](/performance/studies/cache-hit-vs-forward.md) |
+| Warm memory vs LMDB answer-cache throughput | [Memory vs LMDB warm cache_hit](/performance/studies/memory-vs-lmdb-cache-hit.md) |
 
 ### Observability tax
 

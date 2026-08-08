@@ -33,7 +33,7 @@ Absolute QPS is not a portable cross-host capacity claim.
 <!-- perf-ann:ann-forward-slow-lossy-context:end -->
 
 <!-- perf-reference-body:start -->
-_Generated 2026-08-07T20:05:27Z from committed reference JSON (no live load suite in docs CI)._
+_Generated 2026-08-08T13:31:18Z from committed reference JSON (no live load suite in docs CI)._
 
 ## Lab profile
 
@@ -46,7 +46,7 @@ _Generated 2026-08-07T20:05:27Z from committed reference JSON (no live load suit
 | OS | Linux 6.8.0-136-generic |
 | Conduit | `target/release/conduit` (unknown) |
 | Loadgen | dnsperf mode=`docker` |
-| Run generated_at | `2026-08-04T03:17:58Z` |
+| Run generated_at | `2026-08-07T23:00:25Z` |
 
 Underlying JSON: [`perf/results/references/`](https://github.com/egon1024/DNSConduit/tree/main/perf/results/references) (see `latest-reference.json` pointer in a checkout).
 
@@ -94,7 +94,7 @@ Decision context: [Performance findings](/performance/index.md#findings) · [Tun
 
 | Scenario | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| [scale-sync-cache-hit](/performance/scenarios.md#scale-sync-cache-hit) | sync | 331636.6 | 6.0 | 3318431 | 3318431 | 0 | ingress=2 |
+| [scale-sync-cache-hit](/performance/scenarios.md#scale-sync-cache-hit) | sync | 329202.8 | 6.1 | 3294253 | 3294253 | 0 | ingress=2 |
 
 </div>
 

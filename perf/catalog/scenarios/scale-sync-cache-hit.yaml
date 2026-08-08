@@ -4,11 +4,13 @@ suite: scale
 curated: true
 intent: |
   Maintainer-runnable cache_hit load shape: sync runtime with memory cache warmed
-  before dnsperf. Not required for the initial curated publish spine.
+  before dnsperf. Not required for the initial curated publish spine. Warm
+  read-mostly — not a high-churn fill/evict shape.
 axes:
   runtime: sync
   load_shape: cache_hit
   ingress_workers: 2
+  cache_backend: memory
 recipe:
   config: scale-sync-cache-hit.yml
   upstream: fast

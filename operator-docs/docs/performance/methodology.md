@@ -38,6 +38,23 @@ Answer-source shapes used by forward suites:
 | `forward_slow` | Stub upstream holds every answer for a fixed 50 ms |
 | `cache_hit` | [Lookup cache](/guides/dns-answer-cache.md) enabled and warmed |
 
+Warm `cache_hit` cells (memory or LMDB) are **read-mostly after warm**: the harness
+probes a small set of answers so the load window is near-100% hits with rare
+inserts. That shape measures lookup/serve cost, **not** fill/evict churn, capacity
+pressure, or hit-rate under turnover. A separate high-churn comparative study
+(memory vs LMDB) covers QPS and hit/miss under matched churn when that pole is
+published.
+
+### LMDB cache cells
+
+Published LMDB performance cells use a **real-disk** environment path (for
+example under `/var/tmp/…` on a disk-backed mount). Do **not** promote LMDB
+numbers from a **tmpfs** path — that understates durable-backend I/O cost.
+LMDB cells use the process **fixed safe sync** durability default until an
+operator `sync:` knob ships; methodology and study pages annotate that mode.
+Absolute LMDB QPS is lab- and disk-dependent; prefer **relative** claims versus
+the paired memory cell on the same host.
+
 ### The stub upstream is never the constraint
 
 Forward shapes answer from a stub responder, not a real resolver, and the stub is

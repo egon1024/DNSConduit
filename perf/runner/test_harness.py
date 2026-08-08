@@ -91,6 +91,11 @@ class CatalogTests(unittest.TestCase):
         ids = {s.id for s in scenarios}
         self.assertIn("scale-sync-forward-fast", ids)
         self.assertIn("scale-split-io-forward-slow", ids)
+        self.assertIn("scale-sync-cache-hit", ids)
+        self.assertIn("scale-sync-lmdb-cache-hit", ids)
+        lmdb = next(s for s in scenarios if s.id == "scale-sync-lmdb-cache-hit")
+        self.assertEqual(lmdb.axes.get("cache_backend"), "lmdb")
+        self.assertTrue(lmdb.recipe.get("cache_warm"))
         self.assertTrue(any(s.intent for s in scenarios))
 
     def test_load_shutdown_drain_scenarios(self):
@@ -163,6 +168,7 @@ class StudyCatalogTests(unittest.TestCase):
         self.assertIn("dnstap-emit-tax", ids)
         self.assertIn("drain-policy-under-slow", ids)
         self.assertIn("cache-hit-vs-forward", ids)
+        self.assertIn("memory-vs-lmdb-cache-hit", ids)
         self.assertIn("split-io-thread-bulk", ids)
         sync = next(s for s in studies if s.id == "sync-vs-split-io")
         self.assertTrue(sync.published)
