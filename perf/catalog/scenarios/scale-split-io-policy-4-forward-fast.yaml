@@ -1,12 +1,11 @@
-# Lab-only (uncurated) — multi-policy axis under forward_fast for maintainer remeasure.
 schema_version: 1
 id: scale-split-io-policy-4-forward-fast
 suite: scale
 curated: false
-intent: |
-  Ad-hoc policy-axis cell: same thin ingress/I/O as scale-split-io-forward-fast
-  but policy_workers: 4. Used to check that raising policy alone no longer
-  regresses vs thin after per-slot txn-store locking.
+summary: |
+  split_io under a fast stub upstream with the same thin ingress and I/O counts as scale-split-io-forward-fast, but four policy workers.
+notes: |
+  Checks that raising policy alone no longer regresses versus the thin cell after per-slot transaction-store locking.
 axes:
   runtime: split_io
   load_shape: forward_fast

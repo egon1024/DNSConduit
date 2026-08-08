@@ -5,14 +5,15 @@ toc_collapsible: true
 
 # Performance scenarios
 
-Deep-link glossary for each curated performance scenario — what it measures and
-which axes it holds. Table rows on
-[reference results](/performance/reference.md) and study evidence link here.
-This page is **not** the primary decision surface; start from
-[Performance findings](/performance/index.md#findings) or
+Each curated performance scenario is a named lab setup: what Conduit is doing,
+what kind of load it faces, and which knobs stay fixed. Table rows on
+[reference results](/performance/reference.md) and study evidence deep-link here.
+
+This page is a glossary for those links — not the primary decision surface. Start
+from [Performance findings](/performance/index.md#findings) or
 [Tuning evidence (studies)](/performance/studies/index.md).
 
-Axes such as [`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default) /
+Recurring terms such as [`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default) /
 [`split_io`](/concepts/runtime-and-concurrency.md#split-io-runtime) and load shapes
 [`forward_fast`](/performance/methodology.md#load-shapes) /
 [`forward_slow`](/performance/methodology.md#load-shapes) /
@@ -27,11 +28,13 @@ Axes such as [`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default)
 
 ### feature-tax-dnstap-off-forward-fast
 
-Dnstap/events off (no sinks) under forward_fast — pair baseline for sampled/fuller.
+Baseline for dnstap cost: forwarding to a fast stub upstream with dnstap and event sinks disabled.
 
-**Axes:** `runtime`=`sync`, `load_shape`=`forward_fast`, `obs_posture`=`dnstap_off`, `ingress_workers`=`2`
+**Notes:** Compare with the sampled and full dnstap cells in the same study.
 
-**Recipe:** config `feature-tax-dnstap-off.yml`; upstream `fast`; loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
+**What varies:** `runtime`=[`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default), `load_shape`=[`forward_fast`](/performance/methodology.md#load-shapes), `obs_posture`=`dnstap_off`, `ingress_workers`=`2`
+
+**How it was run:** config `feature-tax-dnstap-off.yml`; upstream `fast` (fast stub upstream); loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
 
 </div>
 
@@ -39,11 +42,13 @@ Dnstap/events off (no sinks) under forward_fast — pair baseline for sampled/fu
 
 ### feature-tax-dnstap-sampled-forward-fast
 
-Dnstap sampled (~10 percent response frames) under forward_fast with lab tracer.
+Measures dnstap cost when only about 10% of response frames are emitted to a lab receiver, still under a fast stub upstream.
 
-**Axes:** `runtime`=`sync`, `load_shape`=`forward_fast`, `obs_posture`=`dnstap_sampled`, `ingress_workers`=`2`
+**Notes:** Middle cell between dnstap-off and full dnstap emit. Requires the lab dnstap tracer.
 
-**Recipe:** config `feature-tax-dnstap-sampled.yml`; upstream `fast`; loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
+**What varies:** `runtime`=[`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default), `load_shape`=[`forward_fast`](/performance/methodology.md#load-shapes), `obs_posture`=`dnstap_sampled`, `ingress_workers`=`2`
+
+**How it was run:** config `feature-tax-dnstap-sampled.yml`; upstream `fast` (fast stub upstream); loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
 
 </div>
 
@@ -51,11 +56,13 @@ Dnstap sampled (~10 percent response frames) under forward_fast with lab tracer.
 
 ### feature-tax-dnstap-full-forward-fast
 
-Dnstap fuller emit (query, response, retry) under forward_fast with lab tracer.
+Measures how much throughput changes when Conduit emits full dnstap event frames (query, response, and retry) to a lab receiver while forwarding to a fast stub upstream.
 
-**Axes:** `runtime`=`sync`, `load_shape`=`forward_fast`, `obs_posture`=`dnstap_full`, `ingress_workers`=`2`
+**Notes:** Part of the dnstap cost series with dnstap-off and dnstap-sampled. Requires the lab dnstap tracer.
 
-**Recipe:** config `feature-tax-dnstap-full.yml`; upstream `fast`; loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
+**What varies:** `runtime`=[`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default), `load_shape`=[`forward_fast`](/performance/methodology.md#load-shapes), `obs_posture`=`dnstap_full`, `ingress_workers`=`2`
+
+**How it was run:** config `feature-tax-dnstap-full.yml`; upstream `fast` (fast stub upstream); loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
 
 </div>
 
@@ -63,13 +70,13 @@ Dnstap fuller emit (query, response, retry) under forward_fast with lab tracer.
 
 ### feature-tax-logging-warn-forward-fast
 
-Metrics off with logging.level warn under forward_fast — verbosity tax warn
-pole paired with feature-tax-logging-debug-forward-fast. Named for the logging
-axis (not the shared metrics_off baseline used by other feature_tax studies).
+Measures quieter logging: metrics are off and logging.level is warn while forwarding to a fast stub upstream.
 
-**Axes:** `runtime`=`sync`, `load_shape`=`forward_fast`, `obs_posture`=`logging_warn`, `ingress_workers`=`2`
+**Notes:** Paired with the logging-debug cell. Named for the logging axis — it is not the shared metrics-off baseline used by other feature_tax studies.
 
-**Recipe:** config `feature-tax-logging-warn.yml`; upstream `fast`; loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
+**What varies:** `runtime`=[`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default), `load_shape`=[`forward_fast`](/performance/methodology.md#load-shapes), `obs_posture`=`logging_warn`, `ingress_workers`=`2`
+
+**How it was run:** config `feature-tax-logging-warn.yml`; upstream `fast` (fast stub upstream); loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
 
 </div>
 
@@ -77,12 +84,13 @@ axis (not the shared metrics_off baseline used by other feature_tax studies).
 
 ### feature-tax-logging-debug-forward-fast
 
-Metrics off with logging.level debug under forward_fast — verbosity tax pair
-with feature-tax-logging-warn-forward-fast.
+Measures the cost of verbose logging: metrics are off and logging.level is debug while forwarding to a fast stub upstream.
 
-**Axes:** `runtime`=`sync`, `load_shape`=`forward_fast`, `obs_posture`=`logging_debug`, `ingress_workers`=`2`
+**Notes:** Paired with feature-tax-logging-warn-forward-fast for the logging verbosity comparison.
 
-**Recipe:** config `feature-tax-logging-debug.yml`; upstream `fast`; loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
+**What varies:** `runtime`=[`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default), `load_shape`=[`forward_fast`](/performance/methodology.md#load-shapes), `obs_posture`=`logging_debug`, `ingress_workers`=`2`
+
+**How it was run:** config `feature-tax-logging-debug.yml`; upstream `fast` (fast stub upstream); loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
 
 </div>
 
@@ -90,12 +98,13 @@ with feature-tax-logging-warn-forward-fast.
 
 ### feature-tax-metrics-no-collect-forward-fast
 
-No-collect on hot-path categories under forward_fast — neither record nor export
-for volume/failures/lookup/timing. Paired with collect-only and collect+emit.
+Hot-path metric categories neither record nor export (no collect) under a fast stub upstream.
 
-**Axes:** `runtime`=`sync`, `load_shape`=`forward_fast`, `obs_posture`=`metrics_no_collect`, `ingress_workers`=`2`
+**Notes:** Paired with collect-only and collect+emit.
 
-**Recipe:** config `feature-tax-metrics-no-collect.yml`; upstream `fast`; loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
+**What varies:** `runtime`=[`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default), `load_shape`=[`forward_fast`](/performance/methodology.md#load-shapes), `obs_posture`=`metrics_no_collect`, `ingress_workers`=`2`
+
+**How it was run:** config `feature-tax-metrics-no-collect.yml`; upstream `fast` (fast stub upstream); loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
 
 </div>
 
@@ -103,12 +112,13 @@ for volume/failures/lookup/timing. Paired with collect-only and collect+emit.
 
 ### feature-tax-metrics-collect-only-forward-fast
 
-Collect hot-path categories with emit false under forward_fast — records without
-scrape/OTLP export. Paired with collect+emit and no-collect.
+Records hot-path metrics in process but does not scrape or push them (collect on, emit off) under a fast stub upstream.
 
-**Axes:** `runtime`=`sync`, `load_shape`=`forward_fast`, `obs_posture`=`metrics_collect_only`, `ingress_workers`=`2`
+**Notes:** Paired with collect+emit and no-collect.
 
-**Recipe:** config `feature-tax-metrics-collect-only.yml`; upstream `fast`; loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
+**What varies:** `runtime`=[`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default), `load_shape`=[`forward_fast`](/performance/methodology.md#load-shapes), `obs_posture`=`metrics_collect_only`, `ingress_workers`=`2`
+
+**How it was run:** config `feature-tax-metrics-collect-only.yml`; upstream `fast` (fast stub upstream); loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
 
 </div>
 
@@ -116,12 +126,13 @@ scrape/OTLP export. Paired with collect+emit and no-collect.
 
 ### feature-tax-metrics-collect-emit-forward-fast
 
-Collect+emit on standard base under forward_fast — paired with collect-only and
-no-collect for emit-path secondary comparison.
+Records hot-path metrics and exports them (collect and emit) under a fast stub upstream, using the standard metrics base.
 
-**Axes:** `runtime`=`sync`, `load_shape`=`forward_fast`, `obs_posture`=`metrics_collect_emit`, `ingress_workers`=`2`
+**Notes:** Paired with collect-only and no-collect for the collect-versus-emit comparison.
 
-**Recipe:** config `feature-tax-metrics-collect-emit.yml`; upstream `fast`; loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
+**What varies:** `runtime`=[`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default), `load_shape`=[`forward_fast`](/performance/methodology.md#load-shapes), `obs_posture`=`metrics_collect_emit`, `ingress_workers`=`2`
+
+**How it was run:** config `feature-tax-metrics-collect-emit.yml`; upstream `fast` (fast stub upstream); loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
 
 </div>
 
@@ -129,12 +140,13 @@ no-collect for emit-path secondary comparison.
 
 ### feature-tax-metrics-off-forward-fast
 
-Observability-off baseline under forward_fast — metrics disabled, no dnstap sinks.
-Baseline pair for minimal/standard scrape tax deltas.
+Observability-off baseline under a fast stub upstream: metrics disabled and no dnstap sinks.
 
-**Axes:** `runtime`=`sync`, `load_shape`=`forward_fast`, `obs_posture`=`metrics_off`, `ingress_workers`=`2`
+**Notes:** Shared baseline for several feature_tax comparisons (scrape cost, combined surfaces, tracing, and similar).
 
-**Recipe:** config `feature-tax-metrics-off.yml`; upstream `fast`; loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
+**What varies:** `runtime`=[`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default), `load_shape`=[`forward_fast`](/performance/methodology.md#load-shapes), `obs_posture`=`metrics_off`, `ingress_workers`=`2`
+
+**How it was run:** config `feature-tax-metrics-off.yml`; upstream `fast` (fast stub upstream); loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
 
 </div>
 
@@ -142,12 +154,13 @@ Baseline pair for minimal/standard scrape tax deltas.
 
 ### feature-tax-metrics-standard-scrape-forward-fast
 
-Metrics base standard with Prometheus scrape (collect+emit) under forward_fast.
-Scrape-only high pole; also the collect+emit pole of the collect pair.
+Prometheus scrape with the standard metrics base (collect and emit) while forwarding to a fast stub upstream.
 
-**Axes:** `runtime`=`sync`, `load_shape`=`forward_fast`, `obs_posture`=`metrics_standard_scrape`, `ingress_workers`=`2`
+**Notes:** High end of the scrape cost series; also the collect+emit pole in collect comparisons that reuse this cell.
 
-**Recipe:** config `feature-tax-metrics-standard-scrape.yml`; upstream `fast`; loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
+**What varies:** `runtime`=[`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default), `load_shape`=[`forward_fast`](/performance/methodology.md#load-shapes), `obs_posture`=`metrics_standard_scrape`, `ingress_workers`=`2`
+
+**How it was run:** config `feature-tax-metrics-standard-scrape.yml`; upstream `fast` (fast stub upstream); loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
 
 </div>
 
@@ -155,11 +168,13 @@ Scrape-only high pole; also the collect+emit pole of the collect pair.
 
 ### feature-tax-metrics-standard-dnstap-full-forward-fast
 
-Combined tax — metrics standard scrape plus fuller dnstap under forward_fast.
+Combined observability cost: standard Prometheus scrape plus full dnstap emit under a fast stub upstream.
 
-**Axes:** `runtime`=`sync`, `load_shape`=`forward_fast`, `obs_posture`=`metrics_standard_dnstap_full`, `ingress_workers`=`2`
+**Notes:** Used in studies that stack scrape and dnstap together.
 
-**Recipe:** config `feature-tax-metrics-standard-dnstap-full.yml`; upstream `fast`; loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
+**What varies:** `runtime`=[`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default), `load_shape`=[`forward_fast`](/performance/methodology.md#load-shapes), `obs_posture`=`metrics_standard_dnstap_full`, `ingress_workers`=`2`
+
+**How it was run:** config `feature-tax-metrics-standard-dnstap-full.yml`; upstream `fast` (fast stub upstream); loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
 
 </div>
 
@@ -167,12 +182,13 @@ Combined tax — metrics standard scrape plus fuller dnstap under forward_fast.
 
 ### feature-tax-metrics-standard-scrape-hammer-forward-fast
 
-Standard scrape with a lab scrape hammer (~100ms GET loop) under forward_fast —
-aggressive scrape cadence vs listener-only standard scrape.
+Same standard scrape posture as the listener-only scrape cell, but a lab client hammers /metrics about every 100 ms during the run.
 
-**Axes:** `runtime`=`sync`, `load_shape`=`forward_fast`, `obs_posture`=`metrics_standard_scrape_hammer`, `ingress_workers`=`2`
+**Notes:** Shows aggressive scrape cadence versus ordinary scrape traffic on the listener.
 
-**Recipe:** config `feature-tax-metrics-standard-scrape.yml`; upstream `fast`; loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
+**What varies:** `runtime`=[`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default), `load_shape`=[`forward_fast`](/performance/methodology.md#load-shapes), `obs_posture`=`metrics_standard_scrape_hammer`, `ingress_workers`=`2`
+
+**How it was run:** config `feature-tax-metrics-standard-scrape.yml`; upstream `fast` (fast stub upstream); loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
 
 </div>
 
@@ -180,14 +196,13 @@ aggressive scrape cadence vs listener-only standard scrape.
 
 ### feature-tax-metrics-off-scrape-ladder-forward-fast
 
-Observability-off baseline for the metrics scrape tax under an elevated
-dnsperf outstanding window (publish recipe for this study). Pair with
-minimal/standard scrape-tax cells — not the shared metrics-off cell used
-by other feature_tax studies.
+Observability-off baseline for the metrics scrape cost series, using the same elevated dnsperf in-flight window as the other cells in that series.
 
-**Axes:** `runtime`=`sync`, `load_shape`=`forward_fast`, `obs_posture`=`metrics_off`, `ingress_workers`=`2`, `loadgen_recipe`=`elevated_outstanding`
+**Notes:** Not the shared metrics-off cell used by other feature_tax studies — this one matches the scrape-series loadgen recipe.
 
-**Recipe:** config `feature-tax-metrics-off.yml`; upstream `fast`; loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
+**What varies:** `runtime`=[`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default), `load_shape`=[`forward_fast`](/performance/methodology.md#load-shapes), `obs_posture`=`metrics_off`, `ingress_workers`=`2`, `loadgen_recipe`=`elevated_outstanding`
+
+**How it was run:** config `feature-tax-metrics-off.yml`; upstream `fast` (fast stub upstream); loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
 
 </div>
 
@@ -195,12 +210,13 @@ by other feature_tax studies.
 
 ### feature-tax-metrics-minimal-scrape-ladder-forward-fast
 
-Metrics base minimal + Prometheus scrape under elevated dnsperf outstanding
-(scrape-tax publish recipe). Pair with off/standard scrape-tax cells.
+Same minimal metrics scrape posture as the standard minimal-scrape cell, run with a larger dnsperf in-flight window so the scrape cost series is not limited by the load generator.
 
-**Axes:** `runtime`=`sync`, `load_shape`=`forward_fast`, `obs_posture`=`metrics_minimal_scrape`, `ingress_workers`=`2`, `loadgen_recipe`=`elevated_outstanding`
+**Notes:** Published recipe for the metrics scrape cost series; pair with the off and standard cells that share this elevated outstanding window.
 
-**Recipe:** config `feature-tax-metrics-minimal-scrape.yml`; upstream `fast`; loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
+**What varies:** `runtime`=[`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default), `load_shape`=[`forward_fast`](/performance/methodology.md#load-shapes), `obs_posture`=`metrics_minimal_scrape`, `ingress_workers`=`2`, `loadgen_recipe`=`elevated_outstanding`
+
+**How it was run:** config `feature-tax-metrics-minimal-scrape.yml`; upstream `fast` (fast stub upstream); loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
 
 </div>
 
@@ -208,12 +224,13 @@ Metrics base minimal + Prometheus scrape under elevated dnsperf outstanding
 
 ### feature-tax-metrics-standard-scrape-ladder-forward-fast
 
-Metrics base standard + Prometheus scrape under elevated dnsperf outstanding
-(scrape-tax publish recipe). Pair with off/minimal scrape-tax cells.
+Standard metrics scrape under the elevated dnsperf in-flight window used by the scrape cost series.
 
-**Axes:** `runtime`=`sync`, `load_shape`=`forward_fast`, `obs_posture`=`metrics_standard_scrape`, `ingress_workers`=`2`, `loadgen_recipe`=`elevated_outstanding`
+**Notes:** Pair with the off and minimal cells that share this loadgen recipe.
 
-**Recipe:** config `feature-tax-metrics-standard-scrape.yml`; upstream `fast`; loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
+**What varies:** `runtime`=[`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default), `load_shape`=[`forward_fast`](/performance/methodology.md#load-shapes), `obs_posture`=`metrics_standard_scrape`, `ingress_workers`=`2`, `loadgen_recipe`=`elevated_outstanding`
+
+**How it was run:** config `feature-tax-metrics-standard-scrape.yml`; upstream `fast` (fast stub upstream); loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
 
 </div>
 
@@ -221,12 +238,13 @@ Metrics base standard + Prometheus scrape under elevated dnsperf outstanding
 
 ### feature-tax-metrics-off-split-io-forward-fast
 
-Observability-off baseline under split_io + forward_fast — pair for scrape tax
-on the split_io runtime model.
+Observability-off baseline on the split_io runtime while forwarding to a fast stub upstream.
 
-**Axes:** `runtime`=`split_io`, `load_shape`=`forward_fast`, `obs_posture`=`metrics_off`, `ingress_workers`=`2`, `policy_workers`=`2`, `io_workers`=`2`
+**Notes:** Paired with feature-tax-metrics-standard-scrape-split-io-forward-fast for scrape cost on split_io.
 
-**Recipe:** config `feature-tax-metrics-off-split-io.yml`; upstream `fast`; loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
+**What varies:** `runtime`=[`split_io`](/concepts/runtime-and-concurrency.md#split-io-runtime), `load_shape`=[`forward_fast`](/performance/methodology.md#load-shapes), `obs_posture`=`metrics_off`, `ingress_workers`=`2`, `policy_workers`=`2`, `io_workers`=`2`
+
+**How it was run:** config `feature-tax-metrics-off-split-io.yml`; upstream `fast` (fast stub upstream); loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
 
 </div>
 
@@ -234,12 +252,13 @@ on the split_io runtime model.
 
 ### feature-tax-metrics-standard-scrape-split-io-forward-fast
 
-Metrics base standard with Prometheus scrape under split_io + forward_fast —
-scrape tax pair with feature-tax-metrics-off-split-io-forward-fast.
+Standard Prometheus scrape on the split_io runtime while forwarding to a fast stub upstream.
 
-**Axes:** `runtime`=`split_io`, `load_shape`=`forward_fast`, `obs_posture`=`metrics_standard_scrape`, `ingress_workers`=`2`, `policy_workers`=`2`, `io_workers`=`2`
+**Notes:** Paired with feature-tax-metrics-off-split-io-forward-fast for scrape cost on split_io.
 
-**Recipe:** config `feature-tax-metrics-standard-scrape-split-io.yml`; upstream `fast`; loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
+**What varies:** `runtime`=[`split_io`](/concepts/runtime-and-concurrency.md#split-io-runtime), `load_shape`=[`forward_fast`](/performance/methodology.md#load-shapes), `obs_posture`=`metrics_standard_scrape`, `ingress_workers`=`2`, `policy_workers`=`2`, `io_workers`=`2`
+
+**How it was run:** config `feature-tax-metrics-standard-scrape-split-io.yml`; upstream `fast` (fast stub upstream); loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
 
 </div>
 
@@ -247,12 +266,13 @@ scrape tax pair with feature-tax-metrics-off-split-io-forward-fast.
 
 ### feature-tax-metrics-otlp-push-forward-fast
 
-OTLP HTTP metrics push under forward_fast. Requires conduit-otlp-metrics-tracer;
-records secondary otlp_accepts / otlp_failures from the lab receiver.
+Measures the cost of pushing metrics over OTLP HTTP while forwarding to a fast stub upstream.
 
-**Axes:** `runtime`=`sync`, `load_shape`=`forward_fast`, `obs_posture`=`metrics_otlp_push`, `ingress_workers`=`2`
+**Notes:** Requires conduit-otlp-metrics-tracer. The lab receiver also records otlp_accepts / otlp_failures as secondary signals.
 
-**Recipe:** config `feature-tax-metrics-otlp-push.yml`; upstream `fast`; loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
+**What varies:** `runtime`=[`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default), `load_shape`=[`forward_fast`](/performance/methodology.md#load-shapes), `obs_posture`=`metrics_otlp_push`, `ingress_workers`=`2`
+
+**How it was run:** config `feature-tax-metrics-otlp-push.yml`; upstream `fast` (fast stub upstream); loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
 
 </div>
 
@@ -260,12 +280,13 @@ records secondary otlp_accepts / otlp_failures from the lab receiver.
 
 ### feature-tax-tracing-on-forward-fast
 
-Metrics off with pipeline tracing enabled (qtype A @ 100% sample) under
-forward_fast — pair with feature-tax-metrics-off-forward-fast.
+Metrics stay off while pipeline tracing is enabled (query type A at 100% sample) under a fast stub upstream.
 
-**Axes:** `runtime`=`sync`, `load_shape`=`forward_fast`, `obs_posture`=`tracing_on`, `ingress_workers`=`2`
+**Notes:** Paired with feature-tax-metrics-off-forward-fast.
 
-**Recipe:** config `feature-tax-tracing-on.yml`; upstream `fast`; loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
+**What varies:** `runtime`=[`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default), `load_shape`=[`forward_fast`](/performance/methodology.md#load-shapes), `obs_posture`=`tracing_on`, `ingress_workers`=`2`
+
+**How it was run:** config `feature-tax-tracing-on.yml`; upstream `fast` (fast stub upstream); loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
 
 </div>
 
@@ -273,12 +294,13 @@ forward_fast — pair with feature-tax-metrics-off-forward-fast.
 
 ### feature-tax-metrics-minimal-scrape-forward-fast
 
-Metrics base minimal with Prometheus scrape (collect+emit) under forward_fast.
-Middle cell between metrics-off and standard scrape.
+Prometheus scrape with the minimal metrics base (collect and emit) while forwarding to a fast stub upstream.
 
-**Axes:** `runtime`=`sync`, `load_shape`=`forward_fast`, `obs_posture`=`metrics_minimal_scrape`, `ingress_workers`=`2`
+**Notes:** Middle cell between metrics-off and standard scrape.
 
-**Recipe:** config `feature-tax-metrics-minimal-scrape.yml`; upstream `fast`; loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
+**What varies:** `runtime`=[`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default), `load_shape`=[`forward_fast`](/performance/methodology.md#load-shapes), `obs_posture`=`metrics_minimal_scrape`, `ingress_workers`=`2`
+
+**How it was run:** config `feature-tax-metrics-minimal-scrape.yml`; upstream `fast` (fast stub upstream); loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
 
 </div>
 
@@ -288,11 +310,11 @@ Middle cell between metrics-off and standard scrape.
 
 ### lifecycle-cold-start
 
-Cold-start wall time from process start to first successful DNS answer.
+Wall-clock time from process start until Conduit returns its first successful DNS answer.
 
-**Axes:** `runtime`=`sync`, `load_shape`=`forward_fast`, `obs_posture`=`metrics_off`, `ingress_workers`=`2`
+**What varies:** `runtime`=[`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default), `load_shape`=[`forward_fast`](/performance/methodology.md#load-shapes), `obs_posture`=`metrics_off`, `ingress_workers`=`2`
 
-**Recipe:** config `lifecycle-cold-start.yml`; upstream `fast`; loadgen `none`.
+**How it was run:** config `lifecycle-cold-start.yml`; upstream `fast` (fast stub upstream); loadgen `none`.
 
 </div>
 
@@ -300,12 +322,13 @@ Cold-start wall time from process start to first successful DNS answer.
 
 ### lifecycle-config-apply
 
-Config apply latency via conduitctl apply sparse overlay (logging level).
-Thin lifecycle cell; not required for curated publish spine.
+How long a conduitctl apply takes for a sparse overlay that only changes the logging level.
 
-**Axes:** `runtime`=`sync`, `load_shape`=`forward_fast`, `obs_posture`=`metrics_off`, `ingress_workers`=`2`
+**Notes:** Small lifecycle cell for local runs; not required in the published reference set.
 
-**Recipe:** config `lifecycle-config-apply-base.yml`; upstream `fast`; loadgen `none`.
+**What varies:** `runtime`=[`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default), `load_shape`=[`forward_fast`](/performance/methodology.md#load-shapes), `obs_posture`=`metrics_off`, `ingress_workers`=`2`
+
+**How it was run:** config `lifecycle-config-apply-base.yml`; upstream `fast` (fast stub upstream); loadgen `none`.
 
 </div>
 
@@ -315,12 +338,13 @@ Thin lifecycle cell; not required for curated publish spine.
 
 ### scale-sync-forward-fast
 
-Compare sync runtime under a fast stub upstream (forward_fast load shape).
-Thin curated spine pair with scale-split-io-forward-fast.
+Throughput for the sync runtime while forwarding to a fast stub upstream.
 
-**Axes:** `runtime`=`sync`, `load_shape`=`forward_fast`, `ingress_workers`=`2`
+**Notes:** Thin published pair with scale-split-io-forward-fast.
 
-**Recipe:** config `scale-sync-obs-off.yml`; upstream `fast`; loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
+**What varies:** `runtime`=[`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default), `load_shape`=[`forward_fast`](/performance/methodology.md#load-shapes), `ingress_workers`=`2`
+
+**How it was run:** config `scale-sync-obs-off.yml`; upstream `fast` (fast stub upstream); loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
 
 </div>
 
@@ -328,13 +352,13 @@ Thin curated spine pair with scale-split-io-forward-fast.
 
 ### scale-sync-cache-hit
 
-Maintainer-runnable cache_hit load shape: sync runtime with memory cache warmed
-before dnsperf. Not required for the initial curated publish spine. Warm
-read-mostly — not a high-churn fill/evict shape.
+Warm memory-cache hits on the sync runtime: the harness fills the cache before dnsperf, then measures near-100% hits against a small answer set.
 
-**Axes:** `runtime`=`sync`, `load_shape`=`cache_hit`, `ingress_workers`=`2`, `cache_backend`=`memory`
+**Notes:** Read-mostly after warm — not a high-churn fill/evict shape. Optional for the published reference set; compare with scale-sync-lmdb-cache-hit via the memory-vs-lmdb-cache-hit study.
 
-**Recipe:** config `scale-sync-cache-hit.yml`; upstream `fast`; loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
+**What varies:** `runtime`=[`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default), `load_shape`=[`cache_hit`](/performance/methodology.md#load-shapes), `ingress_workers`=`2`, `cache_backend`=`memory`
+
+**How it was run:** config `scale-sync-cache-hit.yml`; upstream `fast` (fast stub upstream); loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
 
 </div>
 
@@ -342,13 +366,13 @@ read-mostly — not a high-churn fill/evict shape.
 
 ### scale-sync-ingress-1-forward-fast
 
-Ingress concurrency (sync): one ingress worker under forward_fast.
-Published forward_fast recipe (elevated outstanding) so achieved QPS reflects
-Conduit ingress capacity rather than the loadgen outstanding window.
+Sync runtime with one ingress worker under a fast stub upstream.
 
-**Axes:** `runtime`=`sync`, `load_shape`=`forward_fast`, `ingress_workers`=`1`
+**Notes:** Uses an elevated dnsperf outstanding window so achieved QPS reflects Conduit ingress capacity rather than the load generator. Part of the ingress concurrency series (1/2/4/8).
 
-**Recipe:** config `scale-sync-ingress-1-obs-off.yml`; upstream `fast`; loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
+**What varies:** `runtime`=[`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default), `load_shape`=[`forward_fast`](/performance/methodology.md#load-shapes), `ingress_workers`=`1`
+
+**How it was run:** config `scale-sync-ingress-1-obs-off.yml`; upstream `fast` (fast stub upstream); loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
 
 </div>
 
@@ -356,13 +380,13 @@ Conduit ingress capacity rather than the loadgen outstanding window.
 
 ### scale-sync-ingress-4-forward-fast
 
-Ingress concurrency (sync): four ingress workers under forward_fast.
-Published forward_fast recipe (elevated outstanding) so achieved QPS reflects
-Conduit ingress capacity rather than the loadgen outstanding window.
+Sync runtime with four ingress workers under a fast stub upstream.
 
-**Axes:** `runtime`=`sync`, `load_shape`=`forward_fast`, `ingress_workers`=`4`
+**Notes:** Elevated dnsperf outstanding window so QPS reflects ingress capacity. Part of the ingress concurrency series (1/2/4/8).
 
-**Recipe:** config `scale-sync-ingress-4-obs-off.yml`; upstream `fast`; loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
+**What varies:** `runtime`=[`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default), `load_shape`=[`forward_fast`](/performance/methodology.md#load-shapes), `ingress_workers`=`4`
+
+**How it was run:** config `scale-sync-ingress-4-obs-off.yml`; upstream `fast` (fast stub upstream); loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
 
 </div>
 
@@ -370,13 +394,13 @@ Conduit ingress capacity rather than the loadgen outstanding window.
 
 ### scale-sync-ingress-8-forward-fast
 
-Ingress concurrency (sync): eight ingress workers under forward_fast.
-Published forward_fast recipe (elevated outstanding) so achieved QPS reflects
-Conduit ingress capacity rather than the loadgen outstanding window.
+Sync runtime with eight ingress workers under a fast stub upstream.
 
-**Axes:** `runtime`=`sync`, `load_shape`=`forward_fast`, `ingress_workers`=`8`
+**Notes:** Elevated dnsperf outstanding window so QPS reflects ingress capacity. Part of the ingress concurrency series (1/2/4/8).
 
-**Recipe:** config `scale-sync-ingress-8-obs-off.yml`; upstream `fast`; loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
+**What varies:** `runtime`=[`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default), `load_shape`=[`forward_fast`](/performance/methodology.md#load-shapes), `ingress_workers`=`8`
+
+**How it was run:** config `scale-sync-ingress-8-obs-off.yml`; upstream `fast` (fast stub upstream); loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
 
 </div>
 
@@ -384,12 +408,13 @@ Conduit ingress capacity rather than the loadgen outstanding window.
 
 ### scale-sync-ingress-1-forward-slow
 
-Ingress concurrency (sync): one ingress worker under forward_slow.
-Paired with ingress 2/4/8 cells for the ingress-concurrency-sync study.
+Sync runtime with one ingress worker under a slow stub upstream.
 
-**Axes:** `runtime`=`sync`, `load_shape`=`forward_slow`, `ingress_workers`=`1`
+**Notes:** Paired with ingress 2/4/8 cells for the ingress-concurrency-sync study.
 
-**Recipe:** config `scale-sync-ingress-1-obs-off.yml`; upstream `slow`; loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
+**What varies:** `runtime`=[`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default), `load_shape`=[`forward_slow`](/performance/methodology.md#load-shapes), `ingress_workers`=`1`
+
+**How it was run:** config `scale-sync-ingress-1-obs-off.yml`; upstream `slow` (slow stub upstream (50 ms hold)); loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
 
 </div>
 
@@ -397,12 +422,13 @@ Paired with ingress 2/4/8 cells for the ingress-concurrency-sync study.
 
 ### scale-sync-forward-slow
 
-Compare sync runtime under an artificially slow upstream (forward_slow).
-Paired with scale-split-io-forward-slow for relative comparison.
+Throughput for the sync runtime while every upstream answer is held for 50 ms (forward_slow).
 
-**Axes:** `runtime`=`sync`, `load_shape`=`forward_slow`, `ingress_workers`=`2`
+**Notes:** Paired with scale-split-io-forward-slow for relative comparison.
 
-**Recipe:** config `scale-sync-obs-off.yml`; upstream `slow`; loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
+**What varies:** `runtime`=[`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default), `load_shape`=[`forward_slow`](/performance/methodology.md#load-shapes), `ingress_workers`=`2`
+
+**How it was run:** config `scale-sync-obs-off.yml`; upstream `slow` (slow stub upstream (50 ms hold)); loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
 
 </div>
 
@@ -410,12 +436,13 @@ Paired with scale-split-io-forward-slow for relative comparison.
 
 ### scale-sync-ingress-4-forward-slow
 
-Ingress concurrency (sync): four ingress workers under forward_slow.
-Paired with ingress 1/2/8 cells for the ingress-concurrency-sync study.
+Sync runtime with four ingress workers under a slow stub upstream.
 
-**Axes:** `runtime`=`sync`, `load_shape`=`forward_slow`, `ingress_workers`=`4`
+**Notes:** Paired with ingress 1/2/8 cells for the ingress-concurrency-sync study.
 
-**Recipe:** config `scale-sync-ingress-4-obs-off.yml`; upstream `slow`; loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
+**What varies:** `runtime`=[`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default), `load_shape`=[`forward_slow`](/performance/methodology.md#load-shapes), `ingress_workers`=`4`
+
+**How it was run:** config `scale-sync-ingress-4-obs-off.yml`; upstream `slow` (slow stub upstream (50 ms hold)); loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
 
 </div>
 
@@ -423,12 +450,13 @@ Paired with ingress 1/2/8 cells for the ingress-concurrency-sync study.
 
 ### scale-sync-ingress-8-forward-slow
 
-Ingress concurrency (sync): eight ingress workers under forward_slow.
-Optional noisy rung — keep in catalog; publish may omit if unstable on the lab.
+Sync runtime with eight ingress workers under a slow stub upstream.
 
-**Axes:** `runtime`=`sync`, `load_shape`=`forward_slow`, `ingress_workers`=`8`
+**Notes:** Optional noisy rung in the ingress series — keep in the catalog; publish may omit it if the lab is unstable.
 
-**Recipe:** config `scale-sync-ingress-8-obs-off.yml`; upstream `slow`; loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
+**What varies:** `runtime`=[`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default), `load_shape`=[`forward_slow`](/performance/methodology.md#load-shapes), `ingress_workers`=`8`
+
+**How it was run:** config `scale-sync-ingress-8-obs-off.yml`; upstream `slow` (slow stub upstream (50 ms hold)); loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
 
 </div>
 
@@ -436,12 +464,13 @@ Optional noisy rung — keep in catalog; publish may omit if unstable on the lab
 
 ### scale-split-io-io-1-forward-slow
 
-I/O vs ingress (split_io): one I/O worker with fixed ingress/policy=2
-under forward_slow. Paired with io_workers 2/4/8 for io-vs-ingress-split.
+split_io under a slow stub upstream with one I/O worker and ingress/policy fixed at two each.
 
-**Axes:** `runtime`=`split_io`, `load_shape`=`forward_slow`, `ingress_workers`=`2`, `policy_workers`=`2`, `io_workers`=`1`
+**Notes:** Part of the I/O-versus-ingress sizing series (io_workers 1/2/4/8).
 
-**Recipe:** config `scale-split-io-io-1-obs-off.yml`; upstream `slow`; loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
+**What varies:** `runtime`=[`split_io`](/concepts/runtime-and-concurrency.md#split-io-runtime), `load_shape`=[`forward_slow`](/performance/methodology.md#load-shapes), `ingress_workers`=`2`, `policy_workers`=`2`, `io_workers`=`1`
+
+**How it was run:** config `scale-split-io-io-1-obs-off.yml`; upstream `slow` (slow stub upstream (50 ms hold)); loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
 
 </div>
 
@@ -449,12 +478,13 @@ under forward_slow. Paired with io_workers 2/4/8 for io-vs-ingress-split.
 
 ### scale-split-io-forward-slow
 
-Compare split_io runtime under an artificially slow upstream (forward_slow).
-Paired with scale-sync-forward-slow; slow upstream is where split_io should shine.
+Throughput for the split_io runtime while every upstream answer is held for 50 ms (forward_slow).
 
-**Axes:** `runtime`=`split_io`, `load_shape`=`forward_slow`, `ingress_workers`=`2`, `policy_workers`=`2`, `io_workers`=`2`
+**Notes:** Paired with scale-sync-forward-slow; slow upstream is where split_io should show its advantage.
 
-**Recipe:** config `scale-split-io-obs-off.yml`; upstream `slow`; loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
+**What varies:** `runtime`=[`split_io`](/concepts/runtime-and-concurrency.md#split-io-runtime), `load_shape`=[`forward_slow`](/performance/methodology.md#load-shapes), `ingress_workers`=`2`, `policy_workers`=`2`, `io_workers`=`2`
+
+**How it was run:** config `scale-split-io-obs-off.yml`; upstream `slow` (slow stub upstream (50 ms hold)); loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
 
 </div>
 
@@ -462,12 +492,13 @@ Paired with scale-sync-forward-slow; slow upstream is where split_io should shin
 
 ### scale-split-io-io-4-forward-slow
 
-I/O vs ingress (split_io): four I/O workers with fixed ingress/policy=2
-under forward_slow. Paired with io_workers 1/2/8 for io-vs-ingress-split.
+split_io under a slow stub upstream with four I/O workers and ingress/policy fixed at two each.
 
-**Axes:** `runtime`=`split_io`, `load_shape`=`forward_slow`, `ingress_workers`=`2`, `policy_workers`=`2`, `io_workers`=`4`
+**Notes:** Part of the I/O-versus-ingress sizing series (io_workers 1/2/4/8).
 
-**Recipe:** config `scale-split-io-io-4-obs-off.yml`; upstream `slow`; loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
+**What varies:** `runtime`=[`split_io`](/concepts/runtime-and-concurrency.md#split-io-runtime), `load_shape`=[`forward_slow`](/performance/methodology.md#load-shapes), `ingress_workers`=`2`, `policy_workers`=`2`, `io_workers`=`4`
+
+**How it was run:** config `scale-split-io-io-4-obs-off.yml`; upstream `slow` (slow stub upstream (50 ms hold)); loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
 
 </div>
 
@@ -475,12 +506,13 @@ under forward_slow. Paired with io_workers 1/2/8 for io-vs-ingress-split.
 
 ### scale-split-io-io-8-forward-slow
 
-I/O vs ingress (split_io): eight I/O workers with fixed ingress/policy=2
-under forward_slow. Optional noisy rung — keep in catalog; publish may omit if unstable.
+split_io under a slow stub upstream with eight I/O workers and ingress/policy fixed at two each.
 
-**Axes:** `runtime`=`split_io`, `load_shape`=`forward_slow`, `ingress_workers`=`2`, `policy_workers`=`2`, `io_workers`=`8`
+**Notes:** Optional noisy rung in the I/O series — keep in the catalog; publish may omit it if the lab is unstable.
 
-**Recipe:** config `scale-split-io-io-8-obs-off.yml`; upstream `slow`; loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
+**What varies:** `runtime`=[`split_io`](/concepts/runtime-and-concurrency.md#split-io-runtime), `load_shape`=[`forward_slow`](/performance/methodology.md#load-shapes), `ingress_workers`=`2`, `policy_workers`=`2`, `io_workers`=`8`
+
+**How it was run:** config `scale-split-io-io-8-obs-off.yml`; upstream `slow` (slow stub upstream (50 ms hold)); loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
 
 </div>
 
@@ -488,12 +520,13 @@ under forward_slow. Optional noisy rung — keep in catalog; publish may omit if
 
 ### scale-split-io-forward-fast
 
-Compare split_io runtime under a fast stub upstream (forward_fast load shape).
-Thin curated spine pair with scale-sync-forward-fast.
+Throughput for the split_io runtime while forwarding to a fast stub upstream.
 
-**Axes:** `runtime`=`split_io`, `load_shape`=`forward_fast`, `topology`=`thin`, `ingress_workers`=`2`, `policy_workers`=`2`, `io_workers`=`2`
+**Notes:** Thin published pair with scale-sync-forward-fast.
 
-**Recipe:** config `scale-split-io-obs-off.yml`; upstream `fast`; loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
+**What varies:** `runtime`=[`split_io`](/concepts/runtime-and-concurrency.md#split-io-runtime), `load_shape`=[`forward_fast`](/performance/methodology.md#load-shapes), `topology`=`thin`, `ingress_workers`=`2`, `policy_workers`=`2`, `io_workers`=`2`
+
+**How it was run:** config `scale-split-io-obs-off.yml`; upstream `fast` (fast stub upstream); loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
 
 </div>
 
@@ -501,13 +534,13 @@ Thin curated spine pair with scale-sync-forward-fast.
 
 ### scale-split-io-topology-heavy
 
-Maintainer topology / threads-vs-cores scenario: higher ingress, policy, and
-I/O worker counts under forward_fast. Runnable locally; not required for G1
-curated publish.
+Higher worker counts on split_io (ingress, policy, and I/O at four each) under a fast stub upstream — a threads-versus-cores topology check.
 
-**Axes:** `runtime`=`split_io`, `load_shape`=`forward_fast`, `topology`=`heavy`, `ingress_workers`=`4`, `policy_workers`=`4`, `io_workers`=`4`
+**Notes:** Runnable locally; not required in the published reference set.
 
-**Recipe:** config `scale-split-io-topology-heavy.yml`; upstream `fast`; loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
+**What varies:** `runtime`=[`split_io`](/concepts/runtime-and-concurrency.md#split-io-runtime), `load_shape`=[`forward_fast`](/performance/methodology.md#load-shapes), `topology`=`heavy`, `ingress_workers`=`4`, `policy_workers`=`4`, `io_workers`=`4`
+
+**How it was run:** config `scale-split-io-topology-heavy.yml`; upstream `fast` (fast stub upstream); loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
 
 </div>
 
@@ -515,13 +548,13 @@ curated publish.
 
 ### scale-sync-lmdb-cache-hit
 
-Warm sync cache_hit using type: lmdb (real-disk env path). Read-mostly after
-warm — not a high-churn fill/evict shape. Fixed safe LMDB sync default.
-Compare with scale-sync-cache-hit via study memory-vs-lmdb-cache-hit.
+Warm LMDB cache hits on the sync runtime using a real-disk environment path. After warm-up the load is read-mostly (near-100% hits).
 
-**Axes:** `runtime`=`sync`, `load_shape`=`cache_hit`, `ingress_workers`=`2`, `cache_backend`=`lmdb`
+**Notes:** Uses the fixed safe LMDB sync durability default. Not a high-churn fill/evict shape. Compare with scale-sync-cache-hit via the memory-vs-lmdb-cache-hit study.
 
-**Recipe:** config `scale-sync-lmdb-cache-hit.yml`; upstream `fast`; loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
+**What varies:** `runtime`=[`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default), `load_shape`=[`cache_hit`](/performance/methodology.md#load-shapes), `ingress_workers`=`2`, `cache_backend`=`lmdb`
+
+**How it was run:** config `scale-sync-lmdb-cache-hit.yml`; upstream `fast` (fast stub upstream); loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
 
 </div>
 
@@ -531,13 +564,13 @@ Compare with scale-sync-cache-hit via study memory-vs-lmdb-cache-hit.
 
 ### shutdown-drain-complete-forward-slow
 
-Drain-complete policy (long drain_timeout_ms budget) under forward_slow load.
-Records drain duration and client loss during the stop window. Paired with
-budgeted and minimal policies for relative comparison.
+Stop under load with a long drain timeout budget (drain-complete) while forwarding to a slow stub upstream. Records drain duration and client loss during the stop window.
 
-**Axes:** `runtime`=`sync`, `load_shape`=`forward_slow`, `drain_policy`=`drain_complete`, `ingress_workers`=`2`
+**Notes:** Paired with drain-budgeted and drain-minimal for relative comparison.
 
-**Recipe:** config `shutdown-drain-complete-forward-slow.yml`; upstream `slow`; loadgen `dnsperf`; clients=4, threads=2 (dnsperf default outstanding ≈ 100).
+**What varies:** `runtime`=[`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default), `load_shape`=[`forward_slow`](/performance/methodology.md#load-shapes), `drain_policy`=`drain_complete`, `ingress_workers`=`2`
+
+**How it was run:** config `shutdown-drain-complete-forward-slow.yml`; upstream `slow` (slow stub upstream (50 ms hold)); loadgen `dnsperf`; clients=4, threads=2 (dnsperf default outstanding ≈ 100).
 
 </div>
 
@@ -545,13 +578,13 @@ budgeted and minimal policies for relative comparison.
 
 ### shutdown-drain-budgeted-forward-slow
 
-Drain-budgeted policy (short drain_timeout_ms) under forward_slow load.
-Records drain duration and client loss during the stop window. Paired with
-complete and minimal policies for relative comparison.
+Stop under load with a short drain timeout (drain-budgeted) while forwarding to a slow stub upstream. Records how long drain takes and how many client queries are lost in the stop window.
 
-**Axes:** `runtime`=`sync`, `load_shape`=`forward_slow`, `drain_policy`=`drain_budgeted`, `ingress_workers`=`2`
+**Notes:** Paired with drain-complete and drain-minimal for relative comparison.
 
-**Recipe:** config `shutdown-drain-budgeted-forward-slow.yml`; upstream `slow`; loadgen `dnsperf`; clients=4, threads=2 (dnsperf default outstanding ≈ 100).
+**What varies:** `runtime`=[`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default), `load_shape`=[`forward_slow`](/performance/methodology.md#load-shapes), `drain_policy`=`drain_budgeted`, `ingress_workers`=`2`
+
+**How it was run:** config `shutdown-drain-budgeted-forward-slow.yml`; upstream `slow` (slow stub upstream (50 ms hold)); loadgen `dnsperf`; clients=4, threads=2 (dnsperf default outstanding ≈ 100).
 
 </div>
 
@@ -559,13 +592,13 @@ complete and minimal policies for relative comparison.
 
 ### shutdown-drain-minimal-forward-slow
 
-Drain-minimal policy (shutdown.drain false — no wait) under forward_slow load.
-Records drain duration and client loss during the stop window. Paired with
-complete and budgeted policies for relative comparison.
+Stop under load with drain disabled (shutdown.drain false — no wait) while forwarding to a slow stub upstream. Records drain duration and client loss during the stop window.
 
-**Axes:** `runtime`=`sync`, `load_shape`=`forward_slow`, `drain_policy`=`drain_minimal`, `ingress_workers`=`2`
+**Notes:** Paired with drain-complete and drain-budgeted for relative comparison.
 
-**Recipe:** config `shutdown-drain-minimal-forward-slow.yml`; upstream `slow`; loadgen `dnsperf`; clients=4, threads=2 (dnsperf default outstanding ≈ 100).
+**What varies:** `runtime`=[`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default), `load_shape`=[`forward_slow`](/performance/methodology.md#load-shapes), `drain_policy`=`drain_minimal`, `ingress_workers`=`2`
+
+**How it was run:** config `shutdown-drain-minimal-forward-slow.yml`; upstream `slow` (slow stub upstream (50 ms hold)); loadgen `dnsperf`; clients=4, threads=2 (dnsperf default outstanding ≈ 100).
 
 </div>
 <!-- perf-scenarios-body:end -->

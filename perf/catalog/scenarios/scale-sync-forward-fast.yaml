@@ -2,9 +2,10 @@ schema_version: 1
 id: scale-sync-forward-fast
 suite: scale
 curated: true
-intent: |
-  Compare sync runtime under a fast stub upstream (forward_fast load shape).
-  Thin curated spine pair with scale-split-io-forward-fast.
+summary: |
+  Throughput for the sync runtime while forwarding to a fast stub upstream.
+notes: |
+  Thin published pair with scale-split-io-forward-fast.
 axes:
   runtime: sync
   load_shape: forward_fast

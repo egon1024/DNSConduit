@@ -2,8 +2,10 @@ schema_version: 1
 id: feature-tax-dnstap-off-forward-fast
 suite: feature_tax
 curated: true
-intent: |
-  Dnstap/events off (no sinks) under forward_fast — pair baseline for sampled/fuller.
+summary: |
+  Baseline for dnstap cost: forwarding to a fast stub upstream with dnstap and event sinks disabled.
+notes: |
+  Compare with the sampled and full dnstap cells in the same study.
 axes:
   runtime: sync
   load_shape: forward_fast

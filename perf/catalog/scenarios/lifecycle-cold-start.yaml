@@ -2,8 +2,8 @@ schema_version: 1
 id: lifecycle-cold-start
 suite: lifecycle
 curated: true
-intent: |
-  Cold-start wall time from process start to first successful DNS answer.
+summary: |
+  Wall-clock time from process start until Conduit returns its first successful DNS answer.
 axes:
   runtime: sync
   load_shape: forward_fast

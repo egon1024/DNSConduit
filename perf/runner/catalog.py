@@ -20,15 +20,30 @@ VALID_SUITES = frozenset(
 )
 
 
+def compose_scenario_intent(summary: str, notes: str = "") -> str:
+    """Compose the run-JSON ``intent`` string from summary + optional notes."""
+    summary = summary.strip()
+    notes = notes.strip()
+    if summary and notes:
+        return f"{summary}\n\n{notes}"
+    return summary or notes
+
+
 @dataclass(frozen=True)
 class Scenario:
     id: str
     suite: str
-    intent: str
+    summary: str
     axes: dict[str, Any]
     recipe: dict[str, Any]
+    notes: str = ""
     curated: bool = False
     path: Path | None = None
+
+    @property
+    def intent(self) -> str:
+        """Backward-compatible composed prose for run JSON and older callers."""
+        return compose_scenario_intent(self.summary, self.notes)
 
     @classmethod
     def from_dict(cls, raw: dict[str, Any], path: Path | None = None) -> Scenario:
@@ -38,10 +53,18 @@ class Scenario:
         suite = raw["suite"]
         if suite not in VALID_SUITES:
             raise ValueError(f"scenario {sid}: unknown suite {suite!r}")
+        summary = (raw.get("summary") or "").strip()
+        notes = (raw.get("notes") or "").strip()
+        # Legacy: single ``intent`` blob becomes summary when summary is absent.
+        if not summary:
+            summary = (raw.get("intent") or "").strip()
+        if not summary:
+            raise ValueError(f"scenario {sid}: missing summary (or legacy intent)")
         return cls(
             id=sid,
             suite=suite,
-            intent=raw.get("intent", "").strip(),
+            summary=summary,
+            notes=notes,
             axes=dict(raw.get("axes") or {}),
             recipe=dict(raw.get("recipe") or {}),
             curated=bool(raw.get("curated", False)),

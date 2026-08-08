@@ -2,9 +2,10 @@ schema_version: 1
 id: feature-tax-tracing-on-forward-fast
 suite: feature_tax
 curated: true
-intent: |
-  Metrics off with pipeline tracing enabled (qtype A @ 100% sample) under
-  forward_fast — pair with feature-tax-metrics-off-forward-fast.
+summary: |
+  Metrics stay off while pipeline tracing is enabled (query type A at 100% sample) under a fast stub upstream.
+notes: |
+  Paired with feature-tax-metrics-off-forward-fast.
 axes:
   runtime: sync
   load_shape: forward_fast

@@ -684,13 +684,90 @@ toc_collapsible: true
 
 # Performance scenarios
 
-What each curated performance scenario measures. Rows on the
-[reference results](/performance/reference.md) page link here.
+Each curated performance scenario is a named lab setup: what Conduit is doing,
+what kind of load it faces, and which knobs stay fixed. Table rows on
+[reference results](/performance/reference.md) and study evidence deep-link here.
+
+This page is a glossary for those links — not the primary decision surface. Start
+from [Performance findings](/performance/index.md#findings) or
+[Tuning evidence (studies)](/performance/studies/index.md).
+
+Recurring terms such as [`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default) /
+[`split_io`](/concepts/runtime-and-concurrency.md#split-io-runtime) and load shapes
+[`forward_fast`](/performance/methodology.md#load-shapes) /
+[`forward_slow`](/performance/methodology.md#load-shapes) /
+[`cache_hit`](/performance/methodology.md#load-shapes) are defined in
+[methodology](/performance/methodology.md#load-shapes) and
+[runtime and concurrency](/concepts/runtime-and-concurrency.md).
 
 {SCENARIOS_BODY_START}
 _Scenario catalog body is generated (run `make perf-docs`)._
 {SCENARIOS_BODY_END}
 """
+
+
+_RUNTIME_LINKS = {
+    "sync": "/concepts/runtime-and-concurrency.md#sync-runtime-default",
+    "split_io": "/concepts/runtime-and-concurrency.md#split-io-runtime",
+    "tokio": "/concepts/runtime-and-concurrency.md",
+}
+
+_LOAD_SHAPE_LINK = "/performance/methodology.md#load-shapes"
+
+_UPSTREAM_GLOSS = {
+    "fast": "fast stub upstream",
+    "slow": "slow stub upstream (50 ms hold)",
+    "none": "no upstream",
+}
+
+
+def _format_axis_value(key: str, value: Any) -> str:
+    """Render one axis value with a docs link when we have a known gloss."""
+    text = f"`{value}`"
+    if key == "runtime":
+        href = _RUNTIME_LINKS.get(str(value))
+        if href:
+            return f"[`{value}`]({href})"
+    if key == "load_shape":
+        return f"[`{value}`]({_LOAD_SHAPE_LINK})"
+    return text
+
+
+def _format_axes_line(axes: dict[str, Any]) -> str:
+    bits = [f"`{k}`={_format_axis_value(k, v)}" for k, v in axes.items()]
+    return ", ".join(bits)
+
+
+def _format_recipe_line(recipe: dict[str, Any]) -> str | None:
+    if not (
+        recipe.get("config") or recipe.get("load_shape") or recipe.get("upstream")
+    ):
+        return None
+    bits: list[str] = []
+    if recipe.get("config"):
+        bits.append(f"config `{recipe['config']}`")
+    if recipe.get("upstream") is not None:
+        up = recipe["upstream"]
+        gloss = _UPSTREAM_GLOSS.get(str(up))
+        if gloss:
+            bits.append(f"upstream `{up}` ({gloss})")
+        else:
+            bits.append(f"upstream `{up}`")
+    if recipe.get("loadgen"):
+        bits.append(f"loadgen `{recipe['loadgen']}`")
+    if recipe.get("loadgen") == "dnsperf":
+        clients = recipe.get("clients", 4)
+        threads = recipe.get("dnsperf_threads", 2)
+        outstanding = recipe.get("max_outstanding")
+        concurrency = f"clients={clients}, threads={threads}"
+        if outstanding is not None:
+            concurrency += f", max_outstanding={outstanding}"
+        else:
+            concurrency += " (dnsperf default outstanding \u2248 100)"
+        bits.append(concurrency)
+    if not bits:
+        return None
+    return "; ".join(bits) + "."
 
 
 def _scenarios_body_markdown(doc: dict[str, Any] | None) -> str:
@@ -730,42 +807,26 @@ def _scenarios_body_markdown(doc: dict[str, Any] | None) -> str:
                 lines.append("</div>")
                 lines.append("")
                 continue
-            intent = sc.intent.strip() or "_No intent text in catalog._"
-            lines.append(intent)
+            summary = sc.summary.strip() or "_No summary text in catalog._"
+            lines.append(summary)
             lines.append("")
-            if sc.axes:
-                axis_bits = ", ".join(f"`{k}`=`{v}`" for k, v in sc.axes.items())
-                lines.append(f"**Axes:** {axis_bits}")
+            if sc.notes.strip():
+                lines.append(f"**Notes:** {sc.notes.strip()}")
                 lines.append("")
-            recipe = sc.recipe or {}
-            if recipe.get("config") or recipe.get("load_shape") or recipe.get("upstream"):
-                bits = []
-                if recipe.get("config"):
-                    bits.append(f"config `{recipe['config']}`")
-                if recipe.get("upstream"):
-                    bits.append(f"upstream `{recipe['upstream']}`")
-                if recipe.get("loadgen"):
-                    bits.append(f"loadgen `{recipe['loadgen']}`")
-                if recipe.get("loadgen") == "dnsperf":
-                    clients = recipe.get("clients", 4)
-                    threads = recipe.get("dnsperf_threads", 2)
-                    outstanding = recipe.get("max_outstanding")
-                    concurrency = f"clients={clients}, threads={threads}"
-                    if outstanding is not None:
-                        concurrency += f", max_outstanding={outstanding}"
-                    else:
-                        concurrency += " (dnsperf default outstanding \u2248 100)"
-                    bits.append(concurrency)
-                if bits:
-                    lines.append("**Recipe:** " + "; ".join(bits) + ".")
-                    lines.append("")
+            if sc.axes:
+                lines.append(f"**What varies:** {_format_axes_line(sc.axes)}")
+                lines.append("")
+            recipe_line = _format_recipe_line(sc.recipe or {})
+            if recipe_line:
+                lines.append(f"**How it was run:** {recipe_line}")
+                lines.append("")
             lines.append("</div>")
             lines.append("")
     return "\n".join(lines).rstrip() + "\n"
 
 
 def _write_scenarios_page(doc: dict[str, Any] | None) -> Path:
-    """Inject catalog scenario intents into the hand-authored scenarios page."""
+    """Inject catalog scenario summaries into the hand-authored scenarios page."""
     path = OPERATOR_PERF / "scenarios.md"
     _ensure_page_shell(path, SCENARIOS_SHELL)
     body = _scenarios_body_markdown(doc)
@@ -934,7 +995,7 @@ def _reference_body_markdown(
             "",
             "Decision context: [Performance findings](/performance/index.md#findings) · "
             "[Tuning evidence (studies)](/performance/studies/index.md). "
-            "Row intents: [Performance scenarios](/performance/scenarios.md) "
+            "Scenario glosses: [Performance scenarios](/performance/scenarios.md) "
             "(glossary, not a browse-first surface).",
             "",
         ]

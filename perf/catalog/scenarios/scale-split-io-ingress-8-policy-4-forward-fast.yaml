@@ -1,12 +1,11 @@
-# Lab-only (uncurated) — ingress high step under forward_fast.
-# Fixed policy_workers: 4 and io_workers: 2; listeners.threads: 8.
 schema_version: 1
 id: scale-split-io-ingress-8-policy-4-forward-fast
 suite: scale
 curated: false
-intent: |
-  Ad-hoc ingress-axis cell: policy 4 / I/O 2 with listeners.threads: 8.
-  Paired with policy-4 (2/4/2) and ingress-4 (4/4/2) for sharded handoff remeasure.
+summary: |
+  split_io under a fast stub upstream with eight ingress threads, four policy workers, and two I/O workers.
+notes: |
+  Ad-hoc ingress-axis cell; paired with policy-4 (2/4/2) and ingress-4 (4/4/2) for sharded handoff remeasure.
 axes:
   runtime: split_io
   load_shape: forward_fast

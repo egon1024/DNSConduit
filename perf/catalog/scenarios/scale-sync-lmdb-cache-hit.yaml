@@ -2,10 +2,10 @@ schema_version: 1
 id: scale-sync-lmdb-cache-hit
 suite: scale
 curated: true
-intent: |
-  Warm sync cache_hit using type: lmdb (real-disk env path). Read-mostly after
-  warm — not a high-churn fill/evict shape. Fixed safe LMDB sync default.
-  Compare with scale-sync-cache-hit via study memory-vs-lmdb-cache-hit.
+summary: |
+  Warm LMDB cache hits on the sync runtime using a real-disk environment path. After warm-up the load is read-mostly (near-100% hits).
+notes: |
+  Uses the fixed safe LMDB sync durability default. Not a high-churn fill/evict shape. Compare with scale-sync-cache-hit via the memory-vs-lmdb-cache-hit study.
 axes:
   runtime: sync
   load_shape: cache_hit

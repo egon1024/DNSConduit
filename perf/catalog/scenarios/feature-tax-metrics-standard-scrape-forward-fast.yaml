@@ -2,9 +2,10 @@ schema_version: 1
 id: feature-tax-metrics-standard-scrape-forward-fast
 suite: feature_tax
 curated: true
-intent: |
-  Metrics base standard with Prometheus scrape (collect+emit) under forward_fast.
-  Scrape-only high pole; also the collect+emit pole of the collect pair.
+summary: |
+  Prometheus scrape with the standard metrics base (collect and emit) while forwarding to a fast stub upstream.
+notes: |
+  High end of the scrape cost series; also the collect+emit pole in collect comparisons that reuse this cell.
 axes:
   runtime: sync
   load_shape: forward_fast

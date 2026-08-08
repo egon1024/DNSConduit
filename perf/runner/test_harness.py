@@ -96,9 +96,44 @@ class CatalogTests(unittest.TestCase):
         lmdb = next(s for s in scenarios if s.id == "scale-sync-lmdb-cache-hit")
         self.assertEqual(lmdb.axes.get("cache_backend"), "lmdb")
         self.assertTrue(lmdb.recipe.get("cache_warm"))
-        self.assertTrue(any(s.intent for s in scenarios))
+        self.assertTrue(any(s.summary for s in scenarios))
+        self.assertTrue(any(s.intent for s in scenarios))  # composed for run JSON
 
-    def test_load_shutdown_drain_scenarios(self):
+    def test_scenario_summary_notes_compose_intent(self):
+        from perf.runner.catalog import Scenario, compose_scenario_intent
+
+        self.assertEqual(compose_scenario_intent("A", ""), "A")
+        self.assertEqual(compose_scenario_intent("A", "B"), "A\n\nB")
+        sc = Scenario.from_dict(
+            {
+                "schema_version": 1,
+                "id": "example-cell",
+                "suite": "scale",
+                "summary": "Measures sync under a fast upstream.",
+                "notes": "Paired with the split_io cell.",
+                "axes": {"runtime": "sync"},
+                "recipe": {"config": "x.yml", "upstream": "fast", "loadgen": "none"},
+            }
+        )
+        self.assertEqual(sc.summary, "Measures sync under a fast upstream.")
+        self.assertEqual(sc.notes, "Paired with the split_io cell.")
+        self.assertEqual(
+            sc.intent,
+            "Measures sync under a fast upstream.\n\nPaired with the split_io cell.",
+        )
+        legacy = Scenario.from_dict(
+            {
+                "schema_version": 1,
+                "id": "legacy-cell",
+                "suite": "scale",
+                "intent": "Old single blob.",
+                "axes": {},
+                "recipe": {},
+            }
+        )
+        self.assertEqual(legacy.summary, "Old single blob.")
+        self.assertEqual(legacy.notes, "")
+        self.assertEqual(legacy.intent, "Old single blob.")
         scenarios = filter_scenarios(load_scenarios(), suite="shutdown_drain")
         ids = {s.id for s in scenarios}
         self.assertEqual(

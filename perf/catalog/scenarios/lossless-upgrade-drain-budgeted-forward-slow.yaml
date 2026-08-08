@@ -2,11 +2,10 @@ schema_version: 1
 id: lossless-upgrade-drain-budgeted-forward-slow
 suite: lossless_upgrade
 curated: false
-intent: |
-  Zero-downtime upgrade handoff under forward_slow with drain-budgeted policy.
-  Records upgrade gap/loss, child READY time, and drain duration when the binary
-  supports lossless upgrade. Skipped until zero-downtime upgrade is available
-  (pass --zdu to the runner when testing a ZDU-capable binary).
+summary: |
+  Zero-downtime upgrade handoff under a slow stub upstream with a drain-budgeted stop policy. Records upgrade gap or loss, child READY time, and drain duration when the binary supports lossless upgrade.
+notes: |
+  Skipped until zero-downtime upgrade is available (pass --zdu when testing a ZDU-capable binary).
 axes:
   runtime: sync
   load_shape: forward_slow
@@ -18,5 +17,4 @@ recipe:
   loadgen: dnsperf
   query_file: perf-a.txt
   skip_unless: zdu
-  # Failed answers during the stop window are the subject here, not a defect.
   min_answer_ok_percent: 0

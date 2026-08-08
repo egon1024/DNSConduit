@@ -2,9 +2,10 @@ schema_version: 1
 id: feature-tax-metrics-standard-scrape-split-io-forward-fast
 suite: feature_tax
 curated: true
-intent: |
-  Metrics base standard with Prometheus scrape under split_io + forward_fast —
-  scrape tax pair with feature-tax-metrics-off-split-io-forward-fast.
+summary: |
+  Standard Prometheus scrape on the split_io runtime while forwarding to a fast stub upstream.
+notes: |
+  Paired with feature-tax-metrics-off-split-io-forward-fast for scrape cost on split_io.
 axes:
   runtime: split_io
   load_shape: forward_fast

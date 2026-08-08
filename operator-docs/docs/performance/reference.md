@@ -33,7 +33,7 @@ Absolute QPS is not a portable cross-host capacity claim.
 <!-- perf-ann:ann-forward-slow-lossy-context:end -->
 
 <!-- perf-reference-body:start -->
-_Generated 2026-08-08T13:31:18Z from committed reference JSON (no live load suite in docs CI)._
+_Generated 2026-08-08T13:47:28Z from committed reference JSON (no live load suite in docs CI)._
 
 ## Lab profile
 
@@ -50,7 +50,7 @@ _Generated 2026-08-08T13:31:18Z from committed reference JSON (no live load suit
 
 Underlying JSON: [`perf/results/references/`](https://github.com/egon1024/DNSConduit/tree/main/perf/results/references) (see `latest-reference.json` pointer in a checkout).
 
-Decision context: [Performance findings](/performance/index.md#findings) · [Tuning evidence (studies)](/performance/studies/index.md). Row intents: [Performance scenarios](/performance/scenarios.md) (glossary, not a browse-first surface).
+Decision context: [Performance findings](/performance/index.md#findings) · [Tuning evidence (studies)](/performance/studies/index.md). Scenario glosses: [Performance scenarios](/performance/scenarios.md) (glossary, not a browse-first surface).
 
 ## Scale
 

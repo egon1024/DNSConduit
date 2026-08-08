@@ -2,8 +2,10 @@ schema_version: 1
 id: feature-tax-dnstap-full-forward-fast
 suite: feature_tax
 curated: true
-intent: |
-  Dnstap fuller emit (query, response, retry) under forward_fast with lab tracer.
+summary: |
+  Measures how much throughput changes when Conduit emits full dnstap event frames (query, response, and retry) to a lab receiver while forwarding to a fast stub upstream.
+notes: |
+  Part of the dnstap cost series with dnstap-off and dnstap-sampled. Requires the lab dnstap tracer.
 axes:
   runtime: sync
   load_shape: forward_fast

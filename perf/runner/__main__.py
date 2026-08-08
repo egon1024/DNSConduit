@@ -88,8 +88,8 @@ def cmd_list(args: argparse.Namespace) -> int:
     for sc in scenarios:
         curated = " curated" if sc.curated else ""
         print(f"  {sc.id}\tsuite={sc.suite}{curated}")
-        if args.verbose and sc.intent:
-            first = sc.intent.strip().splitlines()[0]
+        if args.verbose and sc.summary:
+            first = sc.summary.strip().splitlines()[0]
             print(f"    {first}")
     return 0
 

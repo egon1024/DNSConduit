@@ -2,9 +2,10 @@ schema_version: 1
 id: feature-tax-metrics-minimal-scrape-ladder-forward-fast
 suite: feature_tax
 curated: true
-intent: |
-  Metrics base minimal + Prometheus scrape under elevated dnsperf outstanding
-  (scrape-tax publish recipe). Pair with off/standard scrape-tax cells.
+summary: |
+  Same minimal metrics scrape posture as the standard minimal-scrape cell, run with a larger dnsperf in-flight window so the scrape cost series is not limited by the load generator.
+notes: |
+  Published recipe for the metrics scrape cost series; pair with the off and standard cells that share this elevated outstanding window.
 axes:
   runtime: sync
   load_shape: forward_fast

@@ -2,10 +2,10 @@ schema_version: 1
 id: shutdown-drain-budgeted-forward-slow
 suite: shutdown_drain
 curated: true
-intent: |
-  Drain-budgeted policy (short drain_timeout_ms) under forward_slow load.
-  Records drain duration and client loss during the stop window. Paired with
-  complete and minimal policies for relative comparison.
+summary: |
+  Stop under load with a short drain timeout (drain-budgeted) while forwarding to a slow stub upstream. Records how long drain takes and how many client queries are lost in the stop window.
+notes: |
+  Paired with drain-complete and drain-minimal for relative comparison.
 axes:
   runtime: sync
   load_shape: forward_slow
@@ -19,5 +19,4 @@ recipe:
   shutdown: true
   stop_wait_s: 10
   load_time_s: 8
-  # Failed answers during the stop window are the subject here, not a defect.
   min_answer_ok_percent: 0

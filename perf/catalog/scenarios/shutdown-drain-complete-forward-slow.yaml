@@ -2,10 +2,10 @@ schema_version: 1
 id: shutdown-drain-complete-forward-slow
 suite: shutdown_drain
 curated: true
-intent: |
-  Drain-complete policy (long drain_timeout_ms budget) under forward_slow load.
-  Records drain duration and client loss during the stop window. Paired with
-  budgeted and minimal policies for relative comparison.
+summary: |
+  Stop under load with a long drain timeout budget (drain-complete) while forwarding to a slow stub upstream. Records drain duration and client loss during the stop window.
+notes: |
+  Paired with drain-budgeted and drain-minimal for relative comparison.
 axes:
   runtime: sync
   load_shape: forward_slow
@@ -17,8 +17,6 @@ recipe:
   loadgen: dnsperf
   query_file: perf-a.txt
   shutdown: true
-  # Allow Conduit wait up to drain_timeout_ms (5s) plus teardown slack.
   stop_wait_s: 12
   load_time_s: 12
-  # Failed answers during the stop window are the subject here, not a defect.
   min_answer_ok_percent: 0
