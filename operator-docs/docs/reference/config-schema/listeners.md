@@ -32,13 +32,13 @@ Example — two UDP sockets and `threads: 2` (no overrides) starts **four** work
 
 ### `reuse_port` and `threads`
 
-| Client protocol | `threads` | Recommended `reuse_port` |
+| Client protocol | `threads` | `reuse_port` |
 |-----------------|-----------|----------------------------|
 | **UDP** | **1** | **`false`** (default) |
-| **UDP** | **> 1** | **`true`** — required on Unix so every worker can bind the same address |
+| **UDP** | **> 1** | **`true`** — required (config validate rejects otherwise) |
 | **TCP** | any | N/A — TCP uses **`SO_REUSEADDR`** internally; `reuse_port` is ignored |
 
-Without **`reuse_port: true`**, a second UDP worker binding the same address typically fails at process start with a bind error.
+Without **`reuse_port: true`**, a second UDP worker binding the same address cannot start. Conduit **rejects** that combination at config validate (and at load/apply) instead of failing later with a bind error.
 
 ## Listener object
 
@@ -111,8 +111,9 @@ After a successful reload that changes **`listeners`**, Conduit logs **`pending 
 | Per-listener `threads` ≥ **1** when set | `listener '<address>' threads must be >= 1` |
 | Per-listener `name` unique when set | `duplicate listener name '<name>'` |
 | Listener `address` non-empty | `listener address must not be empty` |
+| UDP resolved `threads` > **1** requires `reuse_port: true` | `listener '<name>' (UDP): threads is N but reuse_port is false; …` |
 | `address` parses as socket address | Bind error at startup (not caught by validate) |
-| Duplicate bind without `reuse_port` | Bind error at startup when `threads` > **1** or duplicate entries contend |
+| Duplicate UDP entries on one address without `reuse_port` | Bind error at startup (not caught by validate) |
 
 Validate with `conduitctl validate --file …` or load via the running process; see [Config file](/control-plane/config-file.md).
 

@@ -175,6 +175,10 @@ interop-refresh: interop-image
 perf-unit:
 	PYTHONPATH=. $(PYTHON) -m unittest discover -s perf/runner -p 'test_*.py'
 
+# Optional Textual TUI (pip install -r perf/requirements-tui.txt).
+perf-ui:
+	PYTHONPATH=. $(PYTHON) -m perf.tui
+
 perf-list:
 	PYTHONPATH=. $(PYTHON) -m perf.runner list
 

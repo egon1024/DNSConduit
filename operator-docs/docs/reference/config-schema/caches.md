@@ -56,7 +56,7 @@ Opt-in storage of truncated UDP upstream answers (TC bit set). Keys are distinct
 
 ### `memory` (`type: memory`)
 
-| Field | Type | Default | Description |
+| Field {: .column-no-wrap } | Type | Default | Description |
 |-------|------|---------|-------------|
 | `shard_count` | integer | **16** | Hash shards for concurrent access; must be **≥ 1** |
 | `eviction` | string | **`passive`** | **`passive`** — evict on insert when over `max_entries`; **`active`** — background reaper also trims expired entries |
@@ -67,16 +67,19 @@ A **`memory:`** block on **`type: lmdb`** is rejected.
 
 On-disk LMDB store. Entries survive process restart while still fresh. Expiry is **lazy on read** (no full-database LMDB reaper). Missing environment directories (and parents) are created when the store is opened.
 
-| Field | Type | Required | Default | Description |
+| Field {: .column-no-wrap } | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
 | `path` | string | yes | — | Filesystem path for the LMDB environment directory; created (with any missing parents) when the environment is opened. When the path already exists it must be a readable and writable directory |
-| `map_size` | integer or string | yes | — | LMDB map ceiling in bytes, or a decimal **SI** string (`KB` / `MB` / `GB` / `TB` / `PB`); fractional coefficients allowed (for example **`4.5GB`** → 4 500 000 000 bytes). Binary IEC suffixes (`MiB`, `GiB`, …) are **rejected** |
+| `map_size` | integer or string | yes | — | **Total** LMDB mmap/disk budget across all shard environments under **`path`**, as integer bytes or a decimal **SI** string (`KB` / `MB` / `GB` / `TB` / `PB`); fractional coefficients allowed (for example **`4.5GB`** → 4 500 000 000 bytes). Binary IEC suffixes (`MiB`, `GiB`, …) are **rejected**. Conduit splits the total across shards |
+| `shard_count` | integer | no | see below | Number of independent LMDB environments under **`path`** (hash-sharded writers). Must be **≥ 1** and **≤ 64** when set; **`0`** is rejected. When **omitted**: reuse on-disk shard count if a Conduit (or legacy single-env) store already exists at **`path`**; otherwise default to **twice** Lookup concurrency (`sync` → ingress worker count; `split_io` → **`dataplane.policy_workers`**), clamped to **1…64** |
 | `when_full` | string | no | **`evict_one`** | Capacity pressure: **`refuse`** \| **`evict_one`** \| **`sample`** — applies when **`max_entries`** binds or the LMDB map is full |
 | `sample_size` | integer | no | **16** | Candidate window when **`when_full: sample`**; must be **≥ 1** |
 
 An **`lmdb:`** block on **`type: memory`** is rejected. Opening an environment with an unsupported on-disk format version **fails** with a message that recommends moving or deleting the environment files — Conduit does not silently migrate or wipe incompatible data.
 
-**Dual caps:** **`max_entries`** limits live key count (**`0`** = unlimited). **`map_size`** is the LMDB mmap/page ceiling. Space usage comes from LMDB page statistics, not a fixed per-entry size.
+**Dual caps:** **`max_entries`** limits live key count (**`0`** = unlimited) and is enforced as per-shard shares that sum to the configured global cap. **`map_size`** is the **total** mmap/page ceiling split across shards. Space usage and entry gauges aggregate across shards. Multiple shard files under **`path`** are an in-directory writer-parallelism detail — not multi-volume placement.
+
+**Explicit `shard_count` change:** when an explicit clamped value differs from the on-disk layout **N**, apply/reload **Warm-reopens** a new empty shard set (same class as **`lmdb.path`** change): no key migration; abandoned prior files under that **`path`** are removed only after the new set is serving. Failed open **rejects** the apply and keeps the prior store. Omitting **`shard_count`** when a store already exists does **not** abandon solely because the fresh-path 2× heuristic would differ.
 
 ## Example
 
@@ -135,10 +138,11 @@ caches:
 | `memory.shard_count` | Yes | No | Conduit logs **`pending (restart required)`**; snapshot updates but shard layout is unchanged until restart |
 | New cache instance name | Yes | Yes (empty backend) | Reconcile opens a new memory or LMDB backend; open failure **rejects** the apply |
 | `lmdb.path` change | Yes | **Yes** (warm reopen) | Opens the new environment first, then atomically switches the live handle; **no** automatic entry migration. Open failure **rejects** the apply; the previous path keeps serving |
+| `lmdb.shard_count` explicit change (clamped value ≠ on-disk **N**) | Yes | **Yes** (warm reopen) | Same class as path reopen: opens a new empty shard layout, swaps the live handle, then removes abandoned prior files under **`path`**. **No** key migration. Open failure **rejects** the apply; prior layout keeps serving. Omitting **`shard_count`** keeps on-disk **N** |
 | `type` change (`memory` ↔ `lmdb`) | Yes | **Yes** (rebuild) | Tears down the old backend and builds a new empty store on the same instance (single-flight retained); open failure **rejects** the apply |
 | Removing an instance from **`caches:`** | Yes | Yes | Drops the runtime instance and closes the LMDB environment (frees mmap and handles); **does not delete** files under **`path`** |
 | Memory entries | — | — | **Preserved** across reload/apply on the same instance; **not** preserved across process restart |
-| LMDB entries | — | — | **Survive** process restart while still fresh (lazy expiry on read); same-path reload/apply keeps the open environment; path change does **not** copy entries |
+| LMDB entries | — | — | **Survive** process restart while still fresh (lazy expiry on read); same-path reload/apply keeps the open environment when layout **N** is unchanged; **`path`** or explicit **`shard_count`** change does **not** copy entries |
 | Removing a cache provider from the profile | Yes | Yes | Hot path skips cache when no cache provider is active |
 
 Use **`conduitctl apply`**, **`conduitctl reload`**, or **SIGHUP** — same snapshot swap path as other config. In-flight transactions keep the snapshot they started under.
@@ -159,6 +163,7 @@ Use **`conduitctl apply`**, **`conduitctl reload`**, or **SIGHUP** — same snap
 | `memory.eviction` not **`passive`** or **`active`** | Invalid eviction mode |
 | `lmdb.when_full` not **`refuse`** / **`evict_one`** / **`sample`** | Invalid when_full |
 | `lmdb.sample_size` **< 1** when used with **`sample`** | Invalid sample_size |
+| `lmdb.shard_count` **`0`** | Invalid shard_count (values above **64** are clamped to **64**) |
 
 Unreferenced cache instances (defined in **`caches:`** but not used by any lookup provider) **validate successfully** — for example an instance used only by some lookup profiles, or held for later open-by-name use. Cache attachment for answer lookup/fill is via **lookup profile providers** only (not pool or backend membership).
 

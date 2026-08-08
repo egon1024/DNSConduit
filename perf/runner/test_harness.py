@@ -96,6 +96,27 @@ class CatalogTests(unittest.TestCase):
         lmdb = next(s for s in scenarios if s.id == "scale-sync-lmdb-cache-hit")
         self.assertEqual(lmdb.axes.get("cache_backend"), "lmdb")
         self.assertTrue(lmdb.recipe.get("cache_warm"))
+        self.assertIn("scale-sync-memory-cache-churn", ids)
+        self.assertIn("scale-sync-lmdb-cache-churn", ids)
+        churn_mem = next(
+            s for s in scenarios if s.id == "scale-sync-memory-cache-churn"
+        )
+        churn_lmdb = next(
+            s for s in scenarios if s.id == "scale-sync-lmdb-cache-churn"
+        )
+        self.assertEqual(churn_mem.axes.get("load_shape"), "cache_churn")
+        self.assertEqual(churn_lmdb.axes.get("load_shape"), "cache_churn")
+        self.assertEqual(churn_mem.axes.get("cache_backend"), "memory")
+        self.assertEqual(churn_lmdb.axes.get("cache_backend"), "lmdb")
+        self.assertFalse(churn_mem.recipe.get("cache_warm"))
+        self.assertFalse(churn_lmdb.recipe.get("cache_warm"))
+        self.assertEqual(churn_mem.recipe.get("query_file"), "perf-churn-a.txt")
+        self.assertEqual(churn_lmdb.recipe.get("upstream_ttl_secs"), 60)
+        self.assertTrue(churn_mem.recipe.get("record_cache_metrics"))
+        self.assertTrue(churn_lmdb.recipe.get("record_cache_metrics"))
+        qfile = Path(__file__).resolve().parents[1] / "fixtures" / "queries" / "perf-churn-a.txt"
+        with qfile.open() as fh:
+            self.assertEqual(sum(1 for _ in fh), 4096)
         self.assertTrue(any(s.summary for s in scenarios))
         self.assertTrue(any(s.intent for s in scenarios))  # composed for run JSON
 
@@ -204,7 +225,19 @@ class StudyCatalogTests(unittest.TestCase):
         self.assertIn("drain-policy-under-slow", ids)
         self.assertIn("cache-hit-vs-forward", ids)
         self.assertIn("memory-vs-lmdb-cache-hit", ids)
+        self.assertIn("memory-vs-lmdb-cache-churn", ids)
         self.assertIn("split-io-thread-bulk", ids)
+        churn = next(s for s in studies if s.id == "memory-vs-lmdb-cache-churn")
+        self.assertTrue(churn.published)
+        self.assertEqual(
+            list(churn.members),
+            [
+                "scale-sync-memory-cache-churn",
+                "scale-sync-lmdb-cache-churn",
+            ],
+        )
+        self.assertEqual(len(churn.figures), 2)
+        self.assertEqual(churn.figures[1].metric, "cache_hit_rate")
         sync = next(s for s in studies if s.id == "sync-vs-split-io")
         self.assertTrue(sync.published)
         self.assertEqual(len(sync.figures), 2)

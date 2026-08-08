@@ -60,6 +60,20 @@ pub fn validate_listeners(cfg: &ListenersConfig) -> Vec<String> {
                 errors.push(format!("duplicate listener name '{name}'"));
             }
         }
+
+        // Multiple UDP ingress workers bind the same address; without SO_REUSEPORT the
+        // second bind fails at startup with EADDRINUSE (often after the first worker
+        // already claimed the port, which looks like "nothing listening" in ss).
+        let resolved = resolve_listener_ingress(cfg, ln);
+        let is_udp = ln.protocol.eq_ignore_ascii_case("udp");
+        if is_udp && resolved.threads > 1 && !resolved.reuse_port {
+            errors.push(format!(
+                "listener '{}' (UDP): threads is {} but reuse_port is false; \
+                 set listeners.reuse_port: true (or this listener's reuse_port: true) \
+                 so multiple ingress workers can bind the same address, or set threads: 1",
+                resolved.name, resolved.threads
+            ));
+        }
     }
 
     errors
@@ -114,5 +128,93 @@ mod tests {
         assert!(resolved.reuse_port);
         assert_eq!(resolved.rcvbuf, 1_048_576);
         assert_eq!(resolved.name, "public-udp");
+    }
+
+    #[test]
+    fn udp_threads_gt_one_requires_reuse_port() {
+        let mut cfg = block();
+        cfg.threads = 4;
+        cfg.reuse_port = false;
+        cfg.listeners = vec![Listener {
+            address: "127.0.2.1:15353".into(),
+            protocol: "udp".into(),
+            threads: None,
+            reuse_port: None,
+            name: Some("lab-udp".into()),
+            rcvbuf: None,
+            acls: None,
+        }];
+        let errors = validate_listeners(&cfg);
+        assert!(
+            errors.iter().any(|e| {
+                e.contains("reuse_port")
+                    && e.contains("threads")
+                    && (e.contains("lab-udp") || e.contains("127.0.2.1:15353"))
+            }),
+            "expected reuse_port/threads validation error, got {errors:?}"
+        );
+    }
+
+    #[test]
+    fn udp_threads_gt_one_ok_with_reuse_port() {
+        let mut cfg = block();
+        cfg.threads = 4;
+        cfg.reuse_port = true;
+        cfg.listeners = vec![Listener {
+            address: "127.0.2.1:15353".into(),
+            protocol: "udp".into(),
+            threads: None,
+            reuse_port: None,
+            name: Some("lab-udp".into()),
+            rcvbuf: None,
+            acls: None,
+        }];
+        assert!(
+            validate_listeners(&cfg).is_empty(),
+            "{:?}",
+            validate_listeners(&cfg)
+        );
+    }
+
+    #[test]
+    fn tcp_threads_gt_one_without_reuse_port_ok() {
+        let mut cfg = block();
+        cfg.threads = 4;
+        cfg.reuse_port = false;
+        cfg.listeners = vec![Listener {
+            address: "127.0.2.1:15353".into(),
+            protocol: "tcp".into(),
+            threads: None,
+            reuse_port: None,
+            name: Some("lab-tcp".into()),
+            rcvbuf: None,
+            acls: None,
+        }];
+        assert!(
+            validate_listeners(&cfg).is_empty(),
+            "{:?}",
+            validate_listeners(&cfg)
+        );
+    }
+
+    #[test]
+    fn per_listener_reuse_port_override_satisfies_threads() {
+        let mut cfg = block();
+        cfg.threads = 4;
+        cfg.reuse_port = false;
+        cfg.listeners = vec![Listener {
+            address: "127.0.2.1:15353".into(),
+            protocol: "udp".into(),
+            threads: None,
+            reuse_port: Some(true),
+            name: Some("lab-udp".into()),
+            rcvbuf: None,
+            acls: None,
+        }];
+        assert!(
+            validate_listeners(&cfg).is_empty(),
+            "{:?}",
+            validate_listeners(&cfg)
+        );
     }
 }

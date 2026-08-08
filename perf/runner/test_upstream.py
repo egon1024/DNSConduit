@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import socket
+import struct
 import time
 import unittest
 
@@ -38,6 +39,13 @@ class BuildResponseTests(unittest.TestCase):
         self.assertEqual(resp[2] & 0x80, 0x80)
         self.assertEqual(resp[6:8], b"\x00\x01")
         self.assertTrue(resp.endswith(socket.inet_aton("192.0.2.10")))
+
+    def test_custom_ttl_is_encoded(self):
+        resp = _build_a_response(QUERY, ttl=2)
+        # ANCOUNT=1 answer starts after question; TTL is bytes at offset after
+        # compression pointer (2) + type/class (4) = 6 bytes into answer RDATA header.
+        # Locate the A rdata TTL: last 10 bytes are type(2)+class(2)+ttl(4)+rdlen(2) before rdata.
+        self.assertEqual(struct.unpack("!I", resp[-10:-6])[0], 2)
 
 
 class FastUpstreamTests(unittest.TestCase):

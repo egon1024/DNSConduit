@@ -137,6 +137,7 @@ nav:
           - "Runtime — Split_io bulk topology": performance/studies/split-io-thread-bulk.md
           - "Runtime — Cache hit vs forward": performance/studies/cache-hit-vs-forward.md
           - "Runtime — Memory vs LMDB warm cache_hit": performance/studies/memory-vs-lmdb-cache-hit.md
+          - "Runtime — Memory vs LMDB high-churn cache": performance/studies/memory-vs-lmdb-cache-churn.md
           - "Observability — Metrics scrape tax": performance/studies/metrics-scrape-ladder.md
           - "Observability — Metrics collect vs emit": performance/studies/metrics-collect-vs-emit.md
           - "Observability — OTLP tax under load": performance/studies/otlp-tax-under-load.md

@@ -7,6 +7,7 @@ import shutil
 import signal
 import subprocess
 import time
+import urllib.error
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +20,7 @@ from .companions import (
     resolve_conduitctl,
     resolve_dnstap_tracer,
     resolve_otlp_tracer,
+    scrape_cache_lookup_counts,
     start_dnstap_tracer,
     start_otlp_tracer,
     start_scrape_hammer,
@@ -51,13 +53,19 @@ def _resolve_overlay(recipe: dict[str, Any]) -> Path:
     return path
 
 
-def _start_upstream(kind: str | None, *, cpuset: str | None = None) -> StubUpstream | None:
+def _start_upstream(
+    kind: str | None,
+    *,
+    cpuset: str | None = None,
+    ttl_secs: int | None = None,
+) -> StubUpstream | None:
     if not kind or kind == "none":
         return None
+    ttl = 60 if ttl_secs is None else max(0, int(ttl_secs))
     if kind == "fast":
-        return start_fast_upstream(cpuset=cpuset)
+        return start_fast_upstream(cpuset=cpuset, ttl=ttl)
     if kind == "slow":
-        return start_slow_upstream(delay_ms=50.0, cpuset=cpuset)
+        return start_slow_upstream(delay_ms=50.0, cpuset=cpuset, ttl=ttl)
     raise ValueError(f"unknown upstream recipe: {kind}")
 
 
@@ -292,7 +300,11 @@ def run_scenario(
             assert dnstap is not None
             companions.append(start_dnstap_tracer(dnstap, cpuset=e_cpus))
 
-        upstream = _start_upstream(recipe.get("upstream"), cpuset=e_cpus)
+        upstream = _start_upstream(
+            recipe.get("upstream"),
+            cpuset=e_cpus,
+            ttl_secs=recipe.get("upstream_ttl_secs"),
+        )
         config = _resolve_config(recipe)
         cp = start_conduit(conduit, config, cpuset=p_cpus)
 
@@ -346,6 +358,8 @@ def run_scenario(
             )
             if upstream is not None:
                 quality["upstream_workers"] = upstream.workers
+            if recipe.get("upstream_ttl_secs") is not None:
+                quality["upstream_ttl_secs"] = int(recipe["upstream_ttl_secs"])
 
         secondary: dict[str, Any] = {}
         for companion in companions:
@@ -357,6 +371,14 @@ def run_scenario(
                     secondary.update(stats)
         if scrape_hammer is not None:
             secondary.update(scrape_hammer.stats())
+        if recipe.get("record_cache_metrics"):
+            scrape_url = str(
+                recipe.get("scrape_url") or "http://127.0.2.1:19090/metrics"
+            )
+            try:
+                secondary.update(scrape_cache_lookup_counts(scrape_url))
+            except (OSError, TimeoutError, urllib.error.URLError) as exc:
+                quality["cache_metrics_error"] = str(exc)
 
         result["metrics"] = metrics
         result["quality"] = quality

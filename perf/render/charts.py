@@ -203,6 +203,7 @@ _BAR_LABEL_ALIASES: dict[str, str] = {
     "forward_fast": "fast",
     "forward_slow": "slow",
     "cache_hit": "cache_hit",
+    "cache_churn": "cache_churn",
     "cold_start": "cold_start",
     "config_apply": "apply",
 }
@@ -442,6 +443,7 @@ _AXIS_TABLE_HEADERS = {
     "drain_policy": "Drain policy",
     "load_shape": "Load shape",
     "topology": "Topology",
+    "cache_backend": "Cache Backend",
 }
 
 
@@ -991,6 +993,12 @@ def _study_metric(sc: dict[str, Any] | None, key: str) -> float | None:
         return lat_avg(sc)
     if key == "drain_duration_ms":
         return metric(sc, "drain_duration_ms")
+    if key in (
+        "cache_hit_rate",
+        "cache_lookups_hit",
+        "cache_lookups_miss",
+    ):
+        return secondary(sc, key)
     return metric(sc, key)
 
 
@@ -1051,6 +1059,31 @@ def build_study_figure_chart(
                     fmt(lat_avg(sc)),
                 ]
             )
+        elif primary_metric in (
+            "cache_hit_rate",
+            "cache_lookups_hit",
+            "cache_lookups_miss",
+        ):
+            name = scenario_md_link(mid, cat) if link_scenarios and sc else cat
+            md_rows.append(
+                [
+                    name,
+                    fmt(secondary(sc, "cache_hit_rate")),
+                    fmt(secondary(sc, "cache_lookups_hit"), 0),
+                    fmt(secondary(sc, "cache_lookups_miss"), 0),
+                    fmt(qps(sc)),
+                ]
+            )
+            csv_rows.append(
+                [
+                    mid,
+                    cat,
+                    fmt(secondary(sc, "cache_hit_rate")),
+                    fmt(secondary(sc, "cache_lookups_hit"), 0),
+                    fmt(secondary(sc, "cache_lookups_miss"), 0),
+                    fmt(qps(sc)),
+                ]
+            )
         else:
             row = _rich_scale_row(sc, link=link_scenarios, label=cat)
             if axis == "runtime":
@@ -1075,6 +1108,28 @@ def build_study_figure_chart(
                     ", ".join(workers),
                 ]
             )
+
+    enrich_cache = primary_metric not in (
+        "drain_duration_ms",
+        "cache_hit_rate",
+        "cache_lookups_hit",
+        "cache_lookups_miss",
+    ) and any(
+        secondary(smap.get(mid), "cache_hit_rate") is not None for mid in member_ids
+    )
+    if enrich_cache:
+        for i, mid in enumerate(member_ids):
+            sc = smap.get(mid)
+            md_rows[i] = md_rows[i] + [
+                fmt(secondary(sc, "cache_hit_rate")),
+                fmt(secondary(sc, "cache_lookups_hit"), 0),
+                fmt(secondary(sc, "cache_lookups_miss"), 0),
+            ]
+            csv_rows[i] = csv_rows[i] + [
+                fmt(secondary(sc, "cache_hit_rate")),
+                fmt(secondary(sc, "cache_lookups_hit"), 0),
+                fmt(secondary(sc, "cache_lookups_miss"), 0),
+            ]
 
     chart_id = figure_id
     if all(v is None for v in values):
@@ -1106,12 +1161,39 @@ def build_study_figure_chart(
             "achieved_qps",
             "latency_avg_ms",
         ]
+    elif primary_metric in (
+        "cache_hit_rate",
+        "cache_lookups_hit",
+        "cache_lookups_miss",
+    ):
+        headers = [
+            _axis_table_header(axis),
+            "Hit rate (%)",
+            "Cache hits",
+            "Cache misses",
+            "Achieved QPS",
+        ]
+        csv_headers = [
+            "scenario_id",
+            "category",
+            "cache_hit_rate",
+            "cache_lookups_hit",
+            "cache_lookups_miss",
+            "achieved_qps",
+        ]
     else:
         headers = list(SCALE_TABLE_HEADERS)
         headers[0] = _axis_table_header(axis)
         if axis == "runtime":
             headers = [headers[0]] + headers[2:]
-        csv_headers = SCALE_CSV_HEADERS
+        csv_headers = list(SCALE_CSV_HEADERS)
+        if enrich_cache:
+            headers = headers + ["Hit rate (%)", "Cache hits", "Cache misses"]
+            csv_headers = csv_headers + [
+                "cache_hit_rate",
+                "cache_lookups_hit",
+                "cache_lookups_miss",
+            ]
 
     return ChartSpec(
         id=chart_id,
@@ -1149,7 +1231,7 @@ def charts_for_studies(
                     y_label=fig.y_label,
                     member_ids=fig.members,
                     smap=smap,
-                    primary_metric=study.primary_metric,
+                    primary_metric=fig.metric or study.primary_metric,
                     compare_axis=study.compare_axis,
                     category_axis=fig.category_axis,
                     link_scenarios=link_scenarios,

@@ -1,0 +1,24 @@
+schema_version: 1
+id: scale-sync-lmdb-cache-churn
+suite: scale
+curated: true
+summary: |
+  High-churn LMDB-cache load on the sync runtime using a real-disk environment path. Matched entry cap, query diversity, and stub TTL keep the store under continuous fill/evict pressure (no warm plateau).
+notes: |
+  Fixed safe LMDB sync durability default. when_full=evict_one (arbitrary victims under pressure). Recipe matches memory cell: 4096 unique names, max_entries 2048, stub TTL 60s. Compare via memory-vs-lmdb-cache-churn. Lazy TTL expiry is wall-clock deterministic; do not attribute hit-rate noise to “random expiry.”
+axes:
+  runtime: sync
+  load_shape: cache_churn
+  ingress_workers: 2
+  cache_backend: lmdb
+recipe:
+  config: scale-sync-lmdb-cache-churn.yml
+  upstream: fast
+  loadgen: dnsperf
+  query_file: perf-churn-a.txt
+  cache_warm: false
+  upstream_ttl_secs: 60
+  record_cache_metrics: true
+  clients: 16
+  dnsperf_threads: 8
+  max_outstanding: 2000

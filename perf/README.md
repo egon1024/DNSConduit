@@ -254,6 +254,7 @@ Release tarballs and packages include the prebuilt companion alongside
 
 ```zsh
 make perf-unit          # harness unit tests (no live loadgen)
+make perf-ui            # optional Textual lifecycle TUI (see below)
 make perf-list          # list catalog
 make perf-run-scale     # run scale suite (requires CONDUIT=)
 make perf-run-shutdown-drain  # run shutdown_drain suite
@@ -272,6 +273,17 @@ reference JSON for published studies SHOULD use the harness **default** duration
 on the reference profile (`maintainer-ws-1`) — omit `PERF_TIME` for publish-quality.
 `make performance` remains the **microbench** (Rhai Criterion) path and is distinct.
 `make docs-build` runs `perf-docs` first so operator-docs stay aligned with committed JSON.
+
+### Optional lifecycle TUI
+
+A Textual UI wraps the same facade the CLI uses (run → merge/promote → generate-docs)
+with sync badges between stages. It is optional and not required for docs CI:
+
+```zsh
+pip install -r perf/requirements-tui.txt
+make perf-ui
+# or: PYTHONPATH=. python3 -m perf.tui
+```
 
 ### Takeaway integrity (Gate G5)
 

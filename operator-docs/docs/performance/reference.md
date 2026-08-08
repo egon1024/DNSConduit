@@ -33,7 +33,7 @@ Absolute QPS is not a portable cross-host capacity claim.
 <!-- perf-ann:ann-forward-slow-lossy-context:end -->
 
 <!-- perf-reference-body:start -->
-_Generated 2026-08-08T13:47:28Z from committed reference JSON (no live load suite in docs CI)._
+_Generated 2026-08-08T17:35:30Z from committed reference JSON (no live load suite in docs CI)._
 
 ## Lab profile
 
@@ -46,7 +46,7 @@ _Generated 2026-08-08T13:47:28Z from committed reference JSON (no live load suit
 | OS | Linux 6.8.0-136-generic |
 | Conduit | `target/release/conduit` (unknown) |
 | Loadgen | dnsperf mode=`docker` |
-| Run generated_at | `2026-08-07T23:00:25Z` |
+| Run generated_at | `2026-08-08T15:16:08Z` |
 
 Underlying JSON: [`perf/results/references/`](https://github.com/egon1024/DNSConduit/tree/main/perf/results/references) (see `latest-reference.json` pointer in a checkout).
 

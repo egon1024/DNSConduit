@@ -21,6 +21,8 @@ target
 # Operator docs (generated at build/deploy)
 operator-docs/.doc-version
 operator-docs/site/
+# Local TUI/generate-docs sync marker (not published site content)
+operator-docs/docs/performance/generated/source-reference.stamp
 
 # Local cargo-cyclonedx output (release SBOM generation)
 *.cdx.json

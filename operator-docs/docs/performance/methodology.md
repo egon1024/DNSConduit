@@ -37,13 +37,19 @@ Answer-source shapes used by forward suites:
 | `forward_fast` | Stub upstream answers immediately |
 | `forward_slow` | Stub upstream holds every answer for a fixed 50 ms |
 | `cache_hit` | [Lookup cache](/guides/dns-answer-cache.md) enabled and warmed |
+| `cache_churn` | Lookup cache under matched high turnover (short TTL, small `max_entries`, diverse queries; no warm plateau) |
 
 Warm `cache_hit` cells (memory or LMDB) are **read-mostly after warm**: the harness
 probes a small set of answers so the load window is near-100% hits with rare
 inserts. That shape measures lookup/serve cost, **not** fill/evict churn, capacity
-pressure, or hit-rate under turnover. A separate high-churn comparative study
-(memory vs LMDB) covers QPS and hit/miss under matched churn when that pole is
-published.
+pressure, or hit-rate under turnover.
+
+High-churn `cache_churn` cells intentionally keep the cache under continuous
+fill/evict pressure (large query file, short stub TTLs, entry cap below query
+cardinality). Published takeaways for that pole lead with **relative QPS and
+hit/miss** (or hit-rate), not QPS alone. Lazy TTL expiry is **wall-clock
+deterministic** on read; what is arbitrary under LMDB capacity pressure is
+`when_full` victim selection (`evict_one` / `sample`), not the expiry clock.
 
 ### LMDB cache cells
 
@@ -53,7 +59,9 @@ numbers from a **tmpfs** path — that understates durable-backend I/O cost.
 LMDB cells use the process **fixed safe sync** durability default until an
 operator `sync:` knob ships; methodology and study pages annotate that mode.
 Absolute LMDB QPS is lab- and disk-dependent; prefer **relative** claims versus
-the paired memory cell on the same host.
+the paired memory cell on the same host. If sync durability changes later,
+revisit absolute LMDB churn (and warm) QPS before treating older numbers as
+current.
 
 ### The stub upstream is never the constraint
 
@@ -178,7 +186,7 @@ itself is the intended object of study.
 
 | Load shape | Recipe | Why |
 |------------|--------|-----|
-| `forward_fast`, `cache_hit`, `forward_slow` (scale, feature_tax) | Elevated: `clients` 16 / `dnsperf_threads` 8 / `max_outstanding` 2000 | One recipe across published comparative cells. The elevated window lets achieved QPS reflect Conduit's own capacity instead of restating 1/latency, and on the slow shape it keeps a multiplexing runtime from being capped by the loadgen rather than by Conduit. |
+| `forward_fast`, `cache_hit`, `cache_churn`, `forward_slow` (scale, feature_tax) | Elevated: `clients` 16 / `dnsperf_threads` 8 / `max_outstanding` 2000 | One recipe across published comparative cells. The elevated window lets achieved QPS reflect Conduit's own capacity instead of restating 1/latency, and on the slow shape it keeps a multiplexing runtime from being capped by the loadgen rather than by Conduit. |
 | `shutdown_drain`, `lossless_upgrade` | Thin: dnsperf default (`-q` ≈ 100), `-c 4`/`-T 2` | These cells measure drain timing and client loss during a stop window, not steady-state throughput. |
 
 `forward_slow` cells run a **30 second** window instead of 10. A runtime that
