@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-08-04T03:17:58Z",
+  "generated_at": "2026-08-07T23:00:25Z",
   "lab_profile": {
     "id": "maintainer-ws-1",
     "display_name": "Maintainer workstation (maintainer-ws-1)",
@@ -22,7 +22,7 @@
       "threads": 2,
       "image": "dnsconduit-dnsperf:2.14.0"
     },
-    "git_sha": "20d0ed116a5d47cf8d134f88b3669f202a559c9a"
+    "git_sha": "57c56a097af97dd20d9af2be16998c42cb8a3352"
   },
   "quality": {
     "warmup_seconds": 2.0,
@@ -67,23 +67,24 @@
     {
       "id": "scale-sync-cache-hit",
       "suite": "scale",
-      "intent": "Maintainer-runnable cache_hit load shape: sync runtime with memory cache warmed\nbefore dnsperf. Not required for the initial curated publish spine.",
+      "intent": "Maintainer-runnable cache_hit load shape: sync runtime with memory cache warmed\nbefore dnsperf. Not required for the initial curated publish spine. Warm\nread-mostly \u2014 not a high-churn fill/evict shape.",
       "status": "ok",
       "axes": {
         "runtime": "sync",
         "load_shape": "cache_hit",
-        "ingress_workers": 2
+        "ingress_workers": 2,
+        "cache_backend": "memory"
       },
       "metrics": {
-        "achieved_qps": 331636.589895,
-        "queries_sent": 3318431,
-        "queries_completed": 3318431,
+        "achieved_qps": 329202.758935,
+        "queries_sent": 3294253,
+        "queries_completed": 3294253,
         "queries_lost": 0,
         "response_codes": {
-          "NOERROR": 3318431
+          "NOERROR": 3294253
         },
         "latency_ms": {
-          "avg": 6.018
+          "avg": 6.061999999999999
         },
         "answer_ok_percent": 100.0
       },
@@ -94,7 +95,7 @@
         "dnsperf_threads": 8,
         "dnsperf_max_outstanding": 2000,
         "upstream_workers": 8,
-        "notes": "median of 3 rounds; achieved_qps range 327150.4-335470.7"
+        "notes": "median of 3 rounds; achieved_qps range 320207.8-329507.9"
       }
     },
     {
@@ -1310,6 +1311,40 @@
         "dnsperf_max_outstanding": 2000,
         "upstream_workers": 8,
         "notes": "median of 3 rounds; achieved_qps range 48358.0-48982.5"
+      }
+    },
+    {
+      "id": "scale-sync-lmdb-cache-hit",
+      "suite": "scale",
+      "intent": "Warm sync cache_hit using type: lmdb (real-disk env path). Read-mostly after\nwarm \u2014 not a high-churn fill/evict shape. Fixed safe LMDB sync default.\nCompare with scale-sync-cache-hit via study memory-vs-lmdb-cache-hit.",
+      "status": "ok",
+      "axes": {
+        "runtime": "sync",
+        "load_shape": "cache_hit",
+        "ingress_workers": 2,
+        "cache_backend": "lmdb"
+      },
+      "metrics": {
+        "achieved_qps": 311061.680427,
+        "queries_sent": 3113021,
+        "queries_completed": 3113021,
+        "queries_lost": 0,
+        "response_codes": {
+          "NOERROR": 3113021
+        },
+        "latency_ms": {
+          "avg": 6.415
+        },
+        "answer_ok_percent": 100.0
+      },
+      "quality": {
+        "warmup_seconds": 2.0,
+        "duration_seconds": 10.0,
+        "dnsperf_clients": 16,
+        "dnsperf_threads": 8,
+        "dnsperf_max_outstanding": 2000,
+        "upstream_workers": 8,
+        "notes": "median of 3 rounds; achieved_qps range 305985.1-311705.7"
       }
     }
   ],

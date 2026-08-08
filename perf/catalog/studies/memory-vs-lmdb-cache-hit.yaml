@@ -1,0 +1,26 @@
+schema_version: 1
+id: memory-vs-lmdb-cache-hit
+title: Memory vs LMDB warm cache_hit
+question: >
+  How does a warm LMDB answer cache compare to a warm memory cache under sync
+  cache_hit (read-mostly after warm)?
+published: true
+members:
+  - scale-sync-cache-hit
+  - scale-sync-lmdb-cache-hit
+compare_axis: cache_backend
+primary_metric: achieved_qps
+takeaway: >
+  Warm LMDB costs about 6% QPS versus warm memory on this lab under sync
+  cache_hit (read-mostly after warm — not high-churn fill/evict). Absolute LMDB
+  QPS is disk/page-cache sensitive; prefer the relative claim.
+related_guides:
+  - /guides/dns-answer-cache.md
+  - /reference/config-schema/caches.md
+figures:
+  - id: memory-vs-lmdb-cache-hit-qps
+    title: Achieved QPS — sync warm cache_hit (memory vs LMDB)
+    y_label: Achieved QPS
+    members:
+      - scale-sync-cache-hit
+      - scale-sync-lmdb-cache-hit
