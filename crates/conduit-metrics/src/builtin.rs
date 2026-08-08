@@ -64,6 +64,8 @@ pub struct CacheCapacitySample {
     pub bytes_used: u64,
     /// LMDB `map_size`; `0` when not an LMDB backend.
     pub bytes_limit: u64,
+    /// Effective LMDB shard environments for this instance; `0` for memory.
+    pub lmdb_shards: u64,
 }
 
 /// One backend row for health Prometheus series (phase 1c §10).
@@ -245,6 +247,7 @@ pub struct BuiltinRegistry {
     cache_entries_limit: Option<GaugeVec>,
     cache_bytes_used: Option<GaugeVec>,
     cache_bytes_limit: Option<GaugeVec>,
+    cache_lmdb_shards: Option<GaugeVec>,
     cache_lmdb_errors: Option<IntCounterVec>,
     parse_rejected_total: Option<IntCounterVec>,
     queries_by_pool_total: IntCounterVec,
@@ -572,6 +575,7 @@ impl BuiltinRegistry {
             cache_entries_limit,
             cache_bytes_used,
             cache_bytes_limit,
+            cache_lmdb_shards,
             cache_lmdb_errors,
         ) = if effective && is_full {
             let fills = get_counter(
@@ -621,6 +625,11 @@ impl BuiltinRegistry {
                 "Configured LMDB map_size in bytes (0 for memory)",
                 &["cache"],
             );
+            let lmdb_shards = get_gauge(
+                "conduit_cache_lmdb_shards",
+                "Effective LMDB shard environment count per cache instance (0 for memory)",
+                &["cache"],
+            );
             let lmdb_errors = get_counter(
                 "conduit_cache_lmdb_errors_total",
                 "LMDB cache backend error and capacity-pressure events",
@@ -636,10 +645,13 @@ impl BuiltinRegistry {
                 Some(entries_limit),
                 Some(bytes_used),
                 Some(bytes_limit),
+                Some(lmdb_shards),
                 Some(lmdb_errors),
             )
         } else {
-            (None, None, None, None, None, None, None, None, None, None)
+            (
+                None, None, None, None, None, None, None, None, None, None, None,
+            )
         };
 
         let parse_rejected_total = if effective {
@@ -956,6 +968,7 @@ impl BuiltinRegistry {
             cache_entries_limit,
             cache_bytes_used,
             cache_bytes_limit,
+            cache_lmdb_shards,
             cache_lmdb_errors,
             parse_rejected_total,
             queries_by_pool_total,
@@ -1557,6 +1570,14 @@ impl BuiltinRegistry {
                 gauge
                     .with_label_values(&[sample.cache.as_str()])
                     .set(sample.bytes_limit as f64);
+            }
+        }
+        if let Some(gauge) = self.cache_lmdb_shards.as_ref() {
+            gauge.reset();
+            for sample in &snapshot.cache_capacity {
+                gauge
+                    .with_label_values(&[sample.cache.as_str()])
+                    .set(sample.lmdb_shards as f64);
             }
         }
 
@@ -2385,6 +2406,52 @@ Max locked memory         8388608              8388608              bytes     \n
         assert!(
             body_full.contains(r#"conduit_pool_backends_configured{pool="default"} 2"#),
             "body:\n{body_full}"
+        );
+    }
+
+    #[test]
+    fn cache_capacity_gauges_include_lmdb_shards_on_full_profile() {
+        let sample = CacheCapacitySample {
+            cache: "durable".into(),
+            entries: 10,
+            entries_limit: 100,
+            bytes_used: 4096,
+            bytes_limit: 64 * 1024 * 1024,
+            lmdb_shards: 4,
+        };
+        let minimal = BuiltinRegistry::new(true, BuiltinProfile::Minimal);
+        minimal.set_scrape_snapshot_fn(Arc::new(move || ScrapeGaugeSnapshot {
+            cache_capacity: vec![sample.clone()],
+            cache_entry_counts: vec![("durable".into(), 10)],
+            ..Default::default()
+        }));
+        let body_min = encode_builtin(minimal.gather());
+        assert!(
+            !body_min.contains("conduit_cache_lmdb_shards"),
+            "minimal must omit capacity gauges, body:\n{body_min}"
+        );
+
+        let full = BuiltinRegistry::new(true, BuiltinProfile::Full);
+        full.set_scrape_snapshot_fn(Arc::new(move || ScrapeGaugeSnapshot {
+            cache_capacity: vec![CacheCapacitySample {
+                cache: "durable".into(),
+                entries: 10,
+                entries_limit: 100,
+                bytes_used: 4096,
+                bytes_limit: 64 * 1024 * 1024,
+                lmdb_shards: 4,
+            }],
+            cache_entry_counts: vec![("durable".into(), 10)],
+            ..Default::default()
+        }));
+        let body = encode_builtin(full.gather());
+        assert!(
+            body.contains(r#"conduit_cache_lmdb_shards{cache="durable"} 4"#),
+            "body:\n{body}"
+        );
+        assert!(
+            body.contains(r#"conduit_cache_entries{cache="durable"} 10"#),
+            "body:\n{body}"
         );
     }
 

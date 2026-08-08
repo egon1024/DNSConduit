@@ -17,8 +17,8 @@ service-level objectives. See the
 Use this pair when choosing between an in-process memory cache and a durable
 LMDB store for a **warm, hit-dominated** path. Both cells use the same elevated
 dnsperf window and warm probes before load. This study does **not** describe
-fill/evict churn, capacity pressure, or hit-rate under turnover — that is a
-separate high-churn comparative study when published.
+fill/evict churn, capacity pressure, or hit-rate under turnover — see
+[Memory vs LMDB high-churn cache](/performance/studies/memory-vs-lmdb-cache-churn.md).
 
 Configure backends under [`caches:`](/reference/config-schema/caches.md) and
 [`lookup` profiles](/reference/config-schema/lookup.md). See
@@ -64,8 +64,10 @@ Configure backends under [`caches:`](/reference/config-schema/caches.md) and
 [`cache_hit`](/performance/methodology.md#load-shapes) recipe, LMDB costs about
 **6%** QPS versus memory (~311k vs ~329k). Treat that as a same-host upper-bound
 comparison for a **read-mostly** path after warm — not a capacity target, not a
-churn or hit-rate claim, and sensitive to disk / page cache. High-churn memory
-vs LMDB is a separate study when published. See
+churn or hit-rate claim, and sensitive to disk / page cache. For turnover under
+pressure, see
+[Memory vs LMDB high-churn cache](/performance/studies/memory-vs-lmdb-cache-churn.md).
+See
 [Performance methodology — LMDB cache cells](/performance/methodology.md#lmdb-cache-cells).
 
 ## Related guides
@@ -81,6 +83,7 @@ vs LMDB is a separate study when published. See
 
 ## Related
 
+- [Memory vs LMDB high-churn cache](/performance/studies/memory-vs-lmdb-cache-churn.md)
 - [Cache hit vs forward](/performance/studies/cache-hit-vs-forward.md)
 - [Studies hub](/performance/studies/index.md)
 - [Reference results](/performance/reference.md)

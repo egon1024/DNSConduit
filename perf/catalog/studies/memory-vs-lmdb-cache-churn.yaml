@@ -1,0 +1,39 @@
+schema_version: 1
+id: memory-vs-lmdb-cache-churn
+title: Memory vs LMDB high-churn cache
+question: >
+  Under a matched high-churn recipe, how do memory and LMDB answer caches
+  differ in achieved QPS and cache hit/miss ratios?
+published: true
+members:
+  - scale-sync-memory-cache-churn
+  - scale-sync-lmdb-cache-churn
+compare_axis: cache_backend
+primary_metric: achieved_qps
+takeaway: >
+  Under matched high-churn on this lab, LMDB achieves about 1% of memory QPS
+  (~1k vs ~92k; about 95.8× slower) — write-serialized durable commits under
+  entry-cap turnover with the fixed safe sync default. Memory steadies near
+  half hits for this recipe; LMDB’s measured hit rate is lower in the same
+  window because it completes only a few query-file cycles at that QPS (not
+  because TTL expiry is random). Lazy TTL expiry is wall-clock deterministic;
+  arbitrary under pressure is when_full victim selection. This is not the warm
+  cache_hit pole (~6% LMDB cost when read-mostly). Absolute LMDB churn QPS is
+  disk- and sync-mode sensitive; prefer the relative claim.
+related_guides:
+  - /guides/dns-answer-cache.md
+  - /reference/config-schema/caches.md
+figures:
+  - id: memory-vs-lmdb-cache-churn-qps
+    title: Achieved QPS — sync high-churn cache (memory vs LMDB)
+    y_label: Achieved QPS
+    members:
+      - scale-sync-memory-cache-churn
+      - scale-sync-lmdb-cache-churn
+  - id: memory-vs-lmdb-cache-churn-hit-rate
+    title: Cache hit rate — sync high-churn (memory vs LMDB)
+    y_label: Hit rate (%)
+    metric: cache_hit_rate
+    members:
+      - scale-sync-memory-cache-churn
+      - scale-sync-lmdb-cache-churn

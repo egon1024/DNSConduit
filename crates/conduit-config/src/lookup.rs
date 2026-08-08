@@ -16,6 +16,8 @@ pub const DEFAULT_EVICTION_MODE: &str = "passive";
 pub const DEFAULT_MEMORY_SHARD_COUNT: u32 = 16;
 pub const DEFAULT_LMDB_SAMPLE_SIZE: u32 = 16;
 pub const DEFAULT_LMDB_WHEN_FULL: &str = "evict_one";
+/// Maximum LMDB env shard count (fds/mmap safety).
+pub const MAX_LMDB_SHARD_COUNT: u32 = 64;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CacheBackendType {
@@ -149,6 +151,10 @@ pub struct CompiledLmdbCache {
     pub map_size_bytes: u64,
     pub when_full: LmdbWhenFull,
     pub sample_size: u32,
+    /// Explicit `lmdb.shard_count` after clamp to [`MAX_LMDB_SHARD_COUNT`]; `None` when omitted.
+    pub shard_count: Option<u32>,
+    /// Lookup concurrency for empty-path default (`2 ×` this value, then clamp).
+    pub lookup_thread_count: u32,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -187,7 +193,8 @@ pub struct CompiledLookup {
 
 impl CompiledLookup {
     pub fn compile_from_config(cfg: &Config) -> Result<Self, String> {
-        let cache_instances = compile_cache_instances(&cfg.caches)?;
+        let lookup_threads = lookup_concurrency_for_lmdb_default(cfg);
+        let cache_instances = compile_cache_instances(&cfg.caches, lookup_threads)?;
         let lookup_cfg = match cfg.lookup.as_ref() {
             None => {
                 let mut profiles = HashMap::new();
@@ -319,6 +326,7 @@ fn compile_provider(
 
 fn compile_cache_instances(
     instances: &[CacheInstance],
+    lookup_thread_count: u32,
 ) -> Result<HashMap<String, CompiledCacheInstance>, String> {
     let mut names = HashSet::new();
     let mut compiled = HashMap::new();
@@ -367,7 +375,7 @@ fn compile_cache_instances(
                 (memory, None)
             }
             CacheBackendType::Lmdb => {
-                let lmdb = compile_lmdb(instance.lmdb.as_ref(), &ctx)?;
+                let lmdb = compile_lmdb(instance.lmdb.as_ref(), &ctx, lookup_thread_count)?;
                 (
                     CompiledMemoryCache {
                         shard_count: DEFAULT_MEMORY_SHARD_COUNT,
@@ -477,7 +485,11 @@ fn compile_memory(
     }
 }
 
-fn compile_lmdb(cfg: Option<&CacheLmdbConfig>, ctx: &str) -> Result<CompiledLmdbCache, String> {
+fn compile_lmdb(
+    cfg: Option<&CacheLmdbConfig>,
+    ctx: &str,
+    lookup_thread_count: u32,
+) -> Result<CompiledLmdbCache, String> {
     let Some(l) = cfg else {
         return Err(format!(
             "{ctx}: type lmdb requires an lmdb block with path and map_size"
@@ -499,6 +511,14 @@ fn compile_lmdb(cfg: Option<&CacheLmdbConfig>, ctx: &str) -> Result<CompiledLmdb
         ));
     }
 
+    let shard_count = match l.shard_count {
+        None => None,
+        Some(0) => {
+            return Err(format!("{ctx}.lmdb.shard_count must be >= 1"));
+        }
+        Some(n) => Some(n.min(MAX_LMDB_SHARD_COUNT)),
+    };
+
     let path = PathBuf::from(&l.path);
     preflight_lmdb_path(&path, ctx)?;
 
@@ -507,7 +527,42 @@ fn compile_lmdb(cfg: Option<&CacheLmdbConfig>, ctx: &str) -> Result<CompiledLmdb
         map_size_bytes: l.map_size_bytes,
         when_full,
         sample_size,
+        shard_count,
+        lookup_thread_count: lookup_thread_count.max(1),
     })
+}
+
+/// Threads that run Lookup for the empty-path LMDB shard_count default (`2 ×` this value).
+///
+/// `sync`: sum of resolved per-listener ingress threads. `split_io` / `tokio`: policy workers.
+pub fn lookup_concurrency_for_lmdb_default(cfg: &Config) -> u32 {
+    use crate::dataplane::{
+        effective_dataplane_runtime, effective_policy_workers, DEFAULT_DATAPLANE_RUNTIME,
+    };
+    use crate::defaults::DEFAULT_LISTENER_THREADS;
+    use crate::listeners::resolve_listener_ingress;
+
+    let runtime = effective_dataplane_runtime(cfg);
+    if runtime == "split_io" || runtime == "tokio" {
+        return effective_policy_workers(cfg).max(1);
+    }
+    // sync (and unknown treated as sync via DEFAULT)
+    let _ = DEFAULT_DATAPLANE_RUNTIME;
+    match &cfg.listeners {
+        None => DEFAULT_LISTENER_THREADS.max(1),
+        Some(block) => {
+            if block.listeners.is_empty() {
+                block.threads.max(1)
+            } else {
+                block
+                    .listeners
+                    .iter()
+                    .map(|ln| resolve_listener_ingress(block, ln).threads)
+                    .sum::<u32>()
+                    .max(1)
+            }
+        }
+    }
 }
 
 /// When the path already exists it must be a readable/writable directory.
@@ -761,6 +816,7 @@ mod tests {
                 map_size_bytes: 1_000_000_000,
                 when_full: None,
                 sample_size: None,
+                shard_count: None,
             }),
             key: None,
             max_entries: Some(1000),
@@ -776,6 +832,96 @@ mod tests {
         assert_eq!(lmdb.map_size_bytes, 1_000_000_000);
         assert_eq!(lmdb.when_full, LmdbWhenFull::EvictOne);
         assert_eq!(lmdb.sample_size, DEFAULT_LMDB_SAMPLE_SIZE);
+        assert_eq!(lmdb.shard_count, None);
+        assert!(lmdb.lookup_thread_count >= 1);
+    }
+
+    #[test]
+    fn lmdb_shard_count_omit_ok() {
+        let path = unique_lmdb_path();
+        let yaml = sparse_lmdb_yaml(&format!(
+            r#"  - name: durable
+    type: lmdb
+    lmdb:
+      path: {path}
+      map_size: 1GB"#,
+            path = path.display()
+        ));
+        let cfg = load_yaml(&yaml).expect("parse");
+        assert!(cfg.caches[0].lmdb.as_ref().unwrap().shard_count.is_none());
+        let compiled = CompiledLookup::compile_from_config(&cfg).expect("compile");
+        assert_eq!(
+            compiled.cache_instances["durable"]
+                .lmdb
+                .as_ref()
+                .unwrap()
+                .shard_count,
+            None
+        );
+    }
+
+    #[test]
+    fn lmdb_shard_count_zero_rejected() {
+        let path = unique_lmdb_path();
+        let yaml = sparse_lmdb_yaml(&format!(
+            r#"  - name: durable
+    type: lmdb
+    lmdb:
+      path: {path}
+      map_size: 1GB
+      shard_count: 0"#,
+            path = path.display()
+        ));
+        let cfg = load_yaml(&yaml).expect("parse");
+        let err = CompiledLookup::compile_from_config(&cfg).unwrap_err();
+        assert!(
+            err.contains("shard_count") && err.contains(">= 1"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn lmdb_shard_count_explicit_accepted_and_clamped() {
+        let path = unique_lmdb_path();
+        let yaml = sparse_lmdb_yaml(&format!(
+            r#"  - name: durable
+    type: lmdb
+    lmdb:
+      path: {path}
+      map_size: 1GB
+      shard_count: 4"#,
+            path = path.display()
+        ));
+        let cfg = load_yaml(&yaml).expect("parse");
+        let compiled = CompiledLookup::compile_from_config(&cfg).expect("compile");
+        assert_eq!(
+            compiled.cache_instances["durable"]
+                .lmdb
+                .as_ref()
+                .unwrap()
+                .shard_count,
+            Some(4)
+        );
+
+        let yaml_hi = sparse_lmdb_yaml(&format!(
+            r#"  - name: durable
+    type: lmdb
+    lmdb:
+      path: {path}
+      map_size: 1GB
+      shard_count: 128"#,
+            path = path.display()
+        ));
+        let cfg_hi = load_yaml(&yaml_hi).expect("parse");
+        let compiled_hi = CompiledLookup::compile_from_config(&cfg_hi).expect("compile");
+        assert_eq!(
+            compiled_hi.cache_instances["durable"]
+                .lmdb
+                .as_ref()
+                .unwrap()
+                .shard_count,
+            Some(MAX_LMDB_SHARD_COUNT)
+        );
     }
 
     #[test]
@@ -898,6 +1044,7 @@ lookup:
                 map_size_bytes: 1_000_000,
                 when_full: None,
                 sample_size: None,
+                shard_count: None,
             }),
             key: None,
             max_entries: None,
@@ -931,6 +1078,7 @@ lookup:
                 map_size_bytes: 1_000_000,
                 when_full: None,
                 sample_size: None,
+                shard_count: None,
             }),
             key: None,
             max_entries: None,

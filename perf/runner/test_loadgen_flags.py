@@ -59,6 +59,21 @@ class DnsperfFlagsTest(unittest.TestCase):
         self.assertEqual(flags[flags.index("-q") + 1], "2000")
         self.assertEqual(flags[flags.index("-d") + 1], "/queries/perf-a.txt")
 
+    def test_docker_uses_query_file_basename(self) -> None:
+        flags = _dnsperf_flags(
+            server="127.0.2.1",
+            port=15353,
+            query_file=Path("perf/fixtures/queries/perf-churn-a.txt"),
+            clients=4,
+            threads=2,
+            limit_qps=None,
+            max_outstanding=None,
+            time_s=5,
+            mode="docker",
+            extra_flags=(),
+        )
+        self.assertEqual(flags[flags.index("-d") + 1], "/queries/perf-churn-a.txt")
+
 
 if __name__ == "__main__":
     unittest.main()

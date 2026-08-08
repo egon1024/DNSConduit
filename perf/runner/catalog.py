@@ -168,6 +168,7 @@ class StudyFigure:
     members: tuple[str, ...]
     y_label: str = "Achieved QPS"
     category_axis: str | None = None
+    metric: str | None = None
 
 
 @dataclass(frozen=True)
@@ -215,6 +216,11 @@ class Study:
                     members=fig_members,
                     y_label=str(fig.get("y_label") or "Achieved QPS"),
                     category_axis=fig.get("category_axis"),
+                    metric=(
+                        str(fig["metric"])
+                        if fig.get("metric") is not None
+                        else None
+                    ),
                 )
             )
         return cls(

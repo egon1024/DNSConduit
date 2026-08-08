@@ -34,7 +34,7 @@ fields:
     type: object
     properties:
       runtime: { enum: [sync, split_io, tokio] }
-      load_shape: { enum: [cache_hit, forward_fast, forward_slow] }
+      load_shape: { enum: [cache_hit, cache_churn, forward_fast, forward_slow] }
       drain_policy: { enum: [drain_complete, drain_budgeted, drain_minimal] }
       obs_posture: { type: string }
       ingress_workers: { type: integer, minimum: 1 }
@@ -50,6 +50,16 @@ fields:
       otlp_receiver: { type: boolean, default: false }
       dnstap_receiver: { type: boolean, default: false }
       cache_warm: { type: boolean, default: false }
+      upstream_ttl_secs:
+        type: integer
+        minimum: 0
+        description: "Positive A TTL (seconds) emitted by the stub upstream"
+      record_cache_metrics:
+        type: boolean
+        default: false
+        description: >
+          After dnsperf, scrape Prometheus for conduit_cache_lookups_total
+          hit/miss into run secondary (cache_lookups_hit/miss, cache_hit_rate)
       shutdown: { type: boolean, default: false }
       lifecycle:
         type: string

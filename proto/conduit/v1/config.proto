@@ -407,6 +407,7 @@ message CacheLmdbConfig {
   uint64 map_size_bytes = 2;             // required; compiled from YAML map_size (bytes or SI string)
   optional string when_full = 3;         // "refuse" | "evict_one" | "sample"; default evict_one
   optional uint32 sample_size = 4;       // default 16; used when when_full is sample
+  optional uint32 shard_count = 5;       // omit = on-disk N or 2× Lookup concurrency; 0 rejected at validate
 }
 
 // Opt-in TC=1 UDP answer caching (separate transport key and ttl_secs override).

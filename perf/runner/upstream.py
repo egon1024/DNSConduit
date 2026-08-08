@@ -85,11 +85,14 @@ def _bind_worker_socket(host: str, port: int) -> socket.socket:
     return sock
 
 
-def _serve_forever(sock: socket.socket, *, delay_s: float, answer: str) -> None:
+def _serve_forever(
+    sock: socket.socket, *, delay_s: float, answer: str, ttl: int = 60
+) -> None:
     """Reply loop for one worker process (never returns)."""
     sock.setblocking(False)
     recv = sock.recvfrom
     send = sock.sendto
+    answer_ttl = max(0, int(ttl))
     if delay_s <= 0:
         selector = selectors.DefaultSelector()
         selector.register(sock, selectors.EVENT_READ)
@@ -103,7 +106,10 @@ def _serve_forever(sock: socket.socket, *, delay_s: float, answer: str) -> None:
                 except OSError:
                     return
                 try:
-                    send(_build_a_response(data, addr=answer), peer)
+                    send(
+                        _build_a_response(data, addr=answer, ttl=answer_ttl),
+                        peer,
+                    )
                 except (OSError, ValueError):
                     continue
         return
@@ -126,7 +132,7 @@ def _serve_forever(sock: socket.socket, *, delay_s: float, answer: str) -> None:
             except OSError:
                 return
             try:
-                resp = _build_a_response(data, addr=answer)
+                resp = _build_a_response(data, addr=answer, ttl=answer_ttl)
             except (ValueError, IndexError):
                 continue
             seq += 1
@@ -150,6 +156,7 @@ class StubUpstream:
     answer: str = "192.0.2.10"
     workers: int = DEFAULT_FAST_WORKERS
     cpuset: str | None = None
+    ttl: int = 60
     _pids: list[int] = field(default_factory=list)
     _sockets: list[socket.socket] = field(default_factory=list)
 
@@ -172,7 +179,12 @@ class StubUpstream:
                     if cpus:
                         os.sched_setaffinity(0, cpus)
                     signal.signal(signal.SIGTERM, signal.SIG_DFL)
-                    _serve_forever(sock, delay_s=delay_s, answer=self.answer)
+                    _serve_forever(
+                        sock,
+                        delay_s=delay_s,
+                        answer=self.answer,
+                        ttl=self.ttl,
+                    )
                 except BaseException:  # noqa: BLE001 — child must never unwind
                     pass
                 finally:
@@ -206,9 +218,15 @@ def start_fast_upstream(
     port: int = 15300,
     workers: int = DEFAULT_FAST_WORKERS,
     cpuset: str | None = None,
+    ttl: int = 60,
 ) -> StubUpstream:
     stub = StubUpstream(
-        host=host, port=port, delay_ms=0, workers=workers, cpuset=cpuset
+        host=host,
+        port=port,
+        delay_ms=0,
+        workers=workers,
+        cpuset=cpuset,
+        ttl=ttl,
     )
     stub.start()
     return stub
@@ -220,9 +238,15 @@ def start_slow_upstream(
     delay_ms: float = 50.0,
     workers: int = DEFAULT_SLOW_WORKERS,
     cpuset: str | None = None,
+    ttl: int = 60,
 ) -> StubUpstream:
     stub = StubUpstream(
-        host=host, port=port, delay_ms=delay_ms, workers=workers, cpuset=cpuset
+        host=host,
+        port=port,
+        delay_ms=delay_ms,
+        workers=workers,
+        cpuset=cpuset,
+        ttl=ttl,
     )
     stub.start()
     return stub

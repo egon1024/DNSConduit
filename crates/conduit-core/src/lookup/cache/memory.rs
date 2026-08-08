@@ -54,6 +54,10 @@ pub struct ReapOutcome {
 pub struct MemoryCacheBackend {
     shard_count: usize,
     max_entries: AtomicU64,
+    /// Live map entries across shards (includes not-yet-reaped expired keys).
+    /// Maintained under the same shard write locks that mutate maps so callers
+    /// never need to nest shard locks while holding a write guard.
+    live_entries: AtomicU64,
     shards: Vec<RwLock<Shard>>,
 }
 
@@ -80,6 +84,7 @@ impl MemoryCacheBackend {
         Self {
             shard_count,
             max_entries: AtomicU64::new(cfg.max_entries),
+            live_entries: AtomicU64::new(0),
             shards,
         }
     }
@@ -140,51 +145,73 @@ impl MemoryCacheBackend {
 
     pub fn insert(&self, key: CacheKey, entry: CacheEntry, now: Instant) {
         let idx = self.shard_index(&key);
-        let mut guard = self.shards[idx].write();
-        if let CacheGetResult::Expired = guard
-            .entries
-            .get(&key)
-            .map(|e| {
-                if e.is_fresh(now) {
-                    CacheGetResult::Hit
-                } else {
-                    CacheGetResult::Expired
+        // May release the shard write lock to evict on another shard (never nest
+        // shard locks — that ABBA-deadlocks under concurrent inserts at cap).
+        loop {
+            let mut guard = self.shards[idx].write();
+            let prior = guard.entries.get(&key).map(|e| e.is_fresh(now));
+            match prior {
+                Some(true) => {
+                    guard.entries.insert(key, entry);
+                    return;
                 }
-            })
-            .unwrap_or(CacheGetResult::Miss)
-        {
-            guard.entries.remove(&key);
+                Some(false) => {
+                    guard.entries.remove(&key);
+                    self.live_entries.fetch_sub(1, Ordering::Relaxed);
+                }
+                None => {}
+            }
+
+            let max = self.max_entries.load(Ordering::Relaxed);
+            if max > 0 {
+                let before = guard.entries.len();
+                guard.entries.retain(|_, e| e.is_fresh(now));
+                let dropped = (before - guard.entries.len()) as u64;
+                if dropped > 0 {
+                    self.live_entries.fetch_sub(dropped, Ordering::Relaxed);
+                }
+
+                if self.live_entries.load(Ordering::Relaxed) >= max {
+                    if Self::evict_one_in_shard(&mut guard, now) {
+                        self.live_entries.fetch_sub(1, Ordering::Relaxed);
+                    } else {
+                        drop(guard);
+                        if !self.evict_one_excluding(idx, now) {
+                            // Nothing left to evict (race with concurrent removers).
+                            continue;
+                        }
+                        continue;
+                    }
+                }
+            }
+
+            guard.entries.insert(key, entry);
+            self.live_entries.fetch_add(1, Ordering::Relaxed);
+            drop(guard);
+            // Concurrent inserters can briefly overshoot the cap; trim without
+            // nesting shard locks (one write lock at a time in evict_one).
+            let max = self.max_entries.load(Ordering::Relaxed);
+            if max > 0 {
+                while self.live_entries.load(Ordering::Relaxed) > max {
+                    if !self.evict_one(now) {
+                        break;
+                    }
+                }
+            }
+            return;
         }
-        if self.max_entries.load(Ordering::Relaxed) > 0 {
-            self.evict_if_needed(&mut guard, idx, now);
-        }
-        guard.entries.insert(key, entry);
     }
 
     /// Remove an entry by key if present. Returns `true` when an entry was removed.
     pub fn remove(&self, key: &CacheKey) -> bool {
         let idx = self.shard_index(key);
         let mut guard = self.shards[idx].write();
-        guard.entries.remove(key).is_some()
-    }
-
-    fn evict_if_needed(&self, shard: &mut Shard, shard_idx: usize, now: Instant) {
-        let max_entries = self.max_entries.load(Ordering::Relaxed);
-        if max_entries == 0 {
-            return;
+        if guard.entries.remove(key).is_some() {
+            self.live_entries.fetch_sub(1, Ordering::Relaxed);
+            true
+        } else {
+            false
         }
-        shard.entries.retain(|_, e| e.is_fresh(now));
-        let mut total = shard.entries.len() as u64;
-        for (i, s) in self.shards.iter().enumerate() {
-            if i == shard_idx {
-                continue;
-            }
-            total += s.read().entries.len() as u64;
-        }
-        if total < max_entries {
-            return;
-        }
-        Self::evict_one_in_shard(shard, now);
     }
 
     /// Remove one entry from any shard (stale first). Returns false when the cache is empty.
@@ -192,10 +219,32 @@ impl MemoryCacheBackend {
         for shard in &self.shards {
             let mut guard = shard.write();
             if Self::evict_one_in_shard(&mut guard, now) {
+                self.live_entries.fetch_sub(1, Ordering::Relaxed);
                 return true;
             }
         }
         false
+    }
+
+    /// Evict from some shard other than `exclude_idx` first (caller released that shard).
+    fn evict_one_excluding(&self, exclude_idx: usize, now: Instant) -> bool {
+        for (i, shard) in self.shards.iter().enumerate() {
+            if i == exclude_idx {
+                continue;
+            }
+            let mut guard = shard.write();
+            if Self::evict_one_in_shard(&mut guard, now) {
+                self.live_entries.fetch_sub(1, Ordering::Relaxed);
+                return true;
+            }
+        }
+        let mut guard = self.shards[exclude_idx].write();
+        if Self::evict_one_in_shard(&mut guard, now) {
+            self.live_entries.fetch_sub(1, Ordering::Relaxed);
+            true
+        } else {
+            false
+        }
     }
 
     fn evict_one_in_shard(shard: &mut Shard, now: Instant) -> bool {
@@ -216,10 +265,7 @@ impl MemoryCacheBackend {
     }
 
     pub fn entry_count(&self) -> u64 {
-        self.shards
-            .iter()
-            .map(|s| s.read().entries.len() as u64)
-            .sum()
+        self.live_entries.load(Ordering::Relaxed)
     }
 
     pub fn shard_count(&self) -> usize {
@@ -305,6 +351,9 @@ impl MemoryCacheBackend {
         let removed = to_remove.len() as u64;
         for key in to_remove {
             guard.entries.remove(&key);
+        }
+        if removed > 0 {
+            self.live_entries.fetch_sub(removed, Ordering::Relaxed);
         }
         (removed, finished)
     }
@@ -627,6 +676,36 @@ mod tests {
         backend.insert(key.clone(), entry, now);
         assert_eq!(backend.get_result(&key, now), CacheGetResult::Hit);
         assert_eq!(backend.entry_count(), 1);
+    }
+
+    #[test]
+    fn concurrent_inserts_at_max_entries_do_not_deadlock() {
+        use std::thread;
+        // Many shards + concurrent writers at a small cap used to ABBA-deadlock:
+        // write(shard A) then read(shard B) while another thread held the reverse.
+        let backend = Arc::new(MemoryCacheBackend::from_config(&test_instance_shards(
+            64, 16,
+        )));
+        let now = Instant::now();
+        let mut handles = Vec::new();
+        for t in 0..8 {
+            let backend = Arc::clone(&backend);
+            handles.push(thread::spawn(move || {
+                for i in 0..400 {
+                    let key = CacheKey(format!("t{t}-k{i}").into_bytes());
+                    backend.insert(
+                        key,
+                        entry_from_wire(sample_wire(), true, 60, now).unwrap(),
+                        now,
+                    );
+                }
+            }));
+        }
+        for h in handles {
+            h.join().expect("worker panicked or deadlocked");
+        }
+        assert!(backend.entry_count() > 0);
+        assert!(backend.entry_count() <= 64);
     }
 
     #[test]

@@ -6,26 +6,25 @@ import argparse
 import sys
 from pathlib import Path
 
-from .catalog import (
-    load_annotations,
-    load_scenarios,
-    load_studies,
-    select_scenarios,
+from .api import (
+    DEFAULT_IMAGE,
+    FORMATS,
+    FacadeError,
+    PreflightError,
+    RunParams,
+    RunProgressEvent,
+    TakeawayIntegrityError,
+    generate_docs,
+    list_scenario_summaries,
+    list_study_summaries,
+    merge_median,
+    promote,
+    render_run,
+    run_benchmarks,
 )
-from .cpupower import check_host_cpu_power, require_cpu_power_ok
-from .execute import DEFAULT_LOAD_SECONDS, build_run_document, run_scenario
-from .udpbuffers import check_host_udp_buffers, require_udp_buffers_ok
-from .loadgen import DEFAULT_IMAGE
-from .paths import REFERENCES_DIR, ROOT, load_json
-from .procs import find_stray_lab_processes, kill_stray_lab_processes
-from .publish import (
-    generate_operator_docs_fragments,
-    merge_median_documents,
-    promote_runs,
-    publish_set_scenario_ids,
-)
-from .run_record import write_run_document
-from ..render import FORMATS, render
+from .catalog import load_annotations
+from .execute import DEFAULT_LOAD_SECONDS
+from .paths import REFERENCES_DIR, ROOT
 
 
 def _suite_args(args: argparse.Namespace) -> list[str] | None:
@@ -57,39 +56,36 @@ def _study_args(args: argparse.Namespace) -> list[str] | None:
 
 def cmd_list(args: argparse.Namespace) -> int:
     if getattr(args, "studies", False):
-        scenarios = load_scenarios()
         try:
-            studies = load_studies(scenarios=scenarios)
-        except ValueError as exc:
+            studies = list_study_summaries()
+        except FacadeError as exc:
             print(str(exc), file=sys.stderr)
             return 1
         print("Studies:")
-        for study in studies:
-            pub = " published" if study.published else ""
-            print(f"  {study.id}\tmembers={len(study.members)}{pub}")
+        for sid, n_members, published, question in studies:
+            pub = " published" if published else ""
+            print(f"  {sid}\tmembers={n_members}{pub}")
             if args.verbose:
-                print(f"    {study.question}")
-                print(f"    members: {', '.join(study.members)}")
+                print(f"    {question}")
         return 0
 
     try:
-        scenarios = select_scenarios(
-            load_scenarios(),
+        scenarios = list_scenario_summaries(
             suites=_suite_args(args),
             scenario_ids=_scenario_args(args),
             curated_only=bool(getattr(args, "curated", False)),
             study_ids=_study_args(args),
             publish_set=bool(getattr(args, "publish_set", False)),
         )
-    except ValueError as exc:
+    except FacadeError as exc:
         print(str(exc), file=sys.stderr)
         return 1
     print("Scenarios:")
-    for sc in scenarios:
-        curated = " curated" if sc.curated else ""
-        print(f"  {sc.id}\tsuite={sc.suite}{curated}")
-        if args.verbose and sc.summary:
-            first = sc.summary.strip().splitlines()[0]
+    for sid, suite, curated, summary in scenarios:
+        curated_s = " curated" if curated else ""
+        print(f"  {sid}\tsuite={suite}{curated_s}")
+        if args.verbose and summary:
+            first = summary.strip().splitlines()[0]
             print(f"    {first}")
     return 0
 
@@ -111,102 +107,32 @@ def cmd_annotations(args: argparse.Namespace) -> int:
 
 
 def cmd_render(args: argparse.Namespace) -> int:
-    doc = load_json(Path(args.from_json))
-    text = render(doc, args.format)
+    try:
+        text = render_run(
+            Path(args.from_json),
+            args.format,
+            output=Path(args.output) if args.output else None,
+        )
+    except FacadeError as exc:
+        print(str(exc), file=sys.stderr)
+        return exc.exit_code
     if args.output:
-        Path(args.output).write_text(text, encoding="utf-8")
         print(args.output)
     else:
         sys.stdout.write(text)
     return 0
 
 
+def _cli_progress(event: RunProgressEvent) -> None:
+    if event.kind == "scenario_start" and event.message:
+        print(event.message, file=sys.stderr)
+    elif event.kind == "message" and event.message:
+        print(event.message, file=sys.stderr)
+    elif event.kind == "cancelled" and event.message:
+        print(event.message, file=sys.stderr)
+
+
 def cmd_run(args: argparse.Namespace) -> int:
-    try:
-        scenarios = select_scenarios(
-            load_scenarios(),
-            suites=_suite_args(args),
-            scenario_ids=_scenario_args(args),
-            curated_only=bool(args.curated),
-            study_ids=_study_args(args),
-            publish_set=bool(args.publish_set),
-        )
-    except ValueError as exc:
-        print(str(exc), file=sys.stderr)
-        return 1
-    if not scenarios:
-        print("no scenarios matched filters", file=sys.stderr)
-        return 1
-    conduit = Path(args.conduit)
-    if not conduit.is_file():
-        print(f"conduit binary not found: {conduit}", file=sys.stderr)
-        return 1
-    if args.clients < 1:
-        print("--clients must be >= 1", file=sys.stderr)
-        return 2
-    if args.dnsperf_threads < 1:
-        print("--dnsperf-threads must be >= 1", file=sys.stderr)
-        return 2
-    if args.max_outstanding is not None and args.max_outstanding < 1:
-        print("--max-outstanding must be >= 1 when set", file=sys.stderr)
-        return 2
-
-    power = check_host_cpu_power()
-    allow_suboptimal = bool(getattr(args, "allow_suboptimal_cpu_power", False))
-    power_err = require_cpu_power_ok(power, allow_suboptimal=allow_suboptimal)
-    if power_err is not None:
-        print(power_err, file=sys.stderr)
-        return 2
-    if power.status == "suboptimal" and allow_suboptimal:
-        observed = ", ".join(sorted(power.governors)) or "(unknown)"
-        print(
-            f"warning: CPU governor(s) {observed} are suboptimal; "
-            "continuing because --allow-suboptimal-cpu-power was set "
-            "(results may be noisy)",
-            file=sys.stderr,
-        )
-
-    udp_buf = check_host_udp_buffers()
-    allow_udp = bool(getattr(args, "allow_suboptimal_udp_buffers", False))
-    udp_err = require_udp_buffers_ok(udp_buf, allow_suboptimal=allow_udp)
-    if udp_err is not None:
-        print(udp_err, file=sys.stderr)
-        return 2
-    if udp_buf.status == "suboptimal" and allow_udp:
-        print(
-            f"warning: net.core.rmem_max={udp_buf.rmem_max} is below fixture "
-            "listeners.rcvbuf; continuing because --allow-suboptimal-udp-buffers "
-            "was set (expect Queries lost from kernel RcvbufErrors)",
-            file=sys.stderr,
-        )
-
-    # Only refuse/kill processes recorded in a dead runner's PID ledger —
-    # never a /proc cmdline guess (that matched Cursor agent shells before).
-    strays = find_stray_lab_processes()
-    if strays:
-        if getattr(args, "kill_strays", False):
-            kill_stray_lab_processes(strays)
-            print(
-                f"killed {len(strays)} ledger-tracked orphan(s) before measuring",
-                file=sys.stderr,
-            )
-        else:
-            print(
-                "refusing to measure: ledger-tracked orphans from a dead runner "
-                "are still alive. They keep their affinity, so they tax every "
-                "cell measured after them.",
-                file=sys.stderr,
-            )
-            for stray in strays:
-                print(
-                    f"  pid {stray.pid} ({stray.kind}): {stray.cmdline[:120]}",
-                    file=sys.stderr,
-                )
-            print("Re-run with --kill-strays to clear them.", file=sys.stderr)
-            return 2
-
-    run_annotation_ids = list(args.annotation_id or [])
-    # scenario_id -> [annotation ids]
     per_scenario: dict[str, list[str]] = {}
     for item in args.scenario_annotation or []:
         if "=" not in item:
@@ -222,109 +148,99 @@ def cmd_run(args: argparse.Namespace) -> int:
             return 2
         per_scenario.setdefault(sid, []).append(aid)
 
-    catalog_ids = {a.id for a in load_annotations()}
-    for aid in run_annotation_ids:
-        if aid not in catalog_ids:
-            print(f"warning: annotation id not in catalog: {aid}", file=sys.stderr)
-    for aids in per_scenario.values():
-        for aid in aids:
-            if aid not in catalog_ids:
-                print(f"warning: annotation id not in catalog: {aid}", file=sys.stderr)
-
-    otlp = Path(args.otlp_tracer) if args.otlp_tracer else None
-    dnstap = Path(args.dnstap_tracer) if args.dnstap_tracer else None
-    ctl = Path(args.conduitctl) if args.conduitctl else None
-    results = []
-    for sc in scenarios:
-        print(f"running {sc.id} …", file=sys.stderr)
-        sc_anns = list(per_scenario.get(sc.id) or [])
-        # When a single scenario is selected, run-level ids also attach to it.
-        if len(scenarios) == 1 and run_annotation_ids:
-            for aid in run_annotation_ids:
-                if aid not in sc_anns:
-                    sc_anns.append(aid)
-        results.append(
-            run_scenario(
-                sc,
-                conduit=conduit,
-                loadgen_mode=args.loadgen_mode,
-                loadgen_image=args.loadgen_image,
-                time_s=args.time,
-                warmup_s=args.warmup,
-                clients=args.clients,
-                dnsperf_threads=args.dnsperf_threads,
-                max_outstanding=args.max_outstanding,
-                otlp_tracer=otlp,
-                dnstap_tracer=dnstap,
-                conduitctl=ctl,
-                zdu=args.zdu,
-                annotation_ids=sc_anns or None,
-            )
-        )
-
-    doc = build_run_document(
-        results,
-        conduit=conduit,
+    params = RunParams(
+        conduit=Path(args.conduit),
+        suites=_suite_args(args),
+        scenario_ids=_scenario_args(args),
+        study_ids=_study_args(args),
+        curated_only=bool(args.curated),
+        publish_set=bool(args.publish_set),
         profile_id=args.profile_id,
         loadgen_mode=args.loadgen_mode,
         loadgen_image=args.loadgen_image,
-        warmup_s=args.warmup,
         time_s=args.time,
+        warmup_s=args.warmup,
         clients=args.clients,
         dnsperf_threads=args.dnsperf_threads,
         max_outstanding=args.max_outstanding,
-        run_annotation_ids=run_annotation_ids or None,
+        otlp_tracer=Path(args.otlp_tracer) if args.otlp_tracer else None,
+        dnstap_tracer=Path(args.dnstap_tracer) if args.dnstap_tracer else None,
+        conduitctl=Path(args.conduitctl) if args.conduitctl else None,
+        zdu=args.zdu,
+        allow_suboptimal_cpu_power=bool(
+            getattr(args, "allow_suboptimal_cpu_power", False)
+        ),
+        allow_suboptimal_udp_buffers=bool(
+            getattr(args, "allow_suboptimal_udp_buffers", False)
+        ),
+        kill_strays=bool(getattr(args, "kill_strays", False)),
+        annotation_ids=list(args.annotation_id or []),
+        scenario_annotations=per_scenario,
+        output=Path(args.output) if args.output else None,
+        cycles=1,
+        on_progress=_cli_progress,
     )
-    out = write_run_document(doc, path=Path(args.output) if args.output else None)
-    print(out)
-    if args.render:
+    try:
+        paths = run_benchmarks(params)
+    except FacadeError as exc:
+        print(str(exc), file=sys.stderr)
+        return exc.exit_code
+    except PreflightError as exc:
+        print(str(exc), file=sys.stderr)
+        return exc.exit_code
+    for path in paths:
+        print(path)
+    if args.render and paths:
+        from .paths import load_json
+        from ..render import render
+
+        doc = load_json(paths[-1])
         sys.stdout.write(render(doc, args.render))
     return 0
 
 
 def cmd_promote(args: argparse.Namespace) -> int:
-    sources = [Path(p) for p in args.from_json]
-    for p in sources:
-        if not p.is_file():
-            print(f"run JSON not found: {p}", file=sys.stderr)
-            return 1
-    dest = promote_runs(
-        sources,
-        name=args.name,
-        annotation_ids=list(args.annotation_id or []) or None,
-        profile_id=args.profile_id,
-        thin_spine=bool(args.thin_spine),
-        publish_set=bool(args.publish_set),
-    )
+    try:
+        dest = promote(
+            [Path(p) for p in args.from_json],
+            name=args.name,
+            annotation_ids=list(args.annotation_id or []) or None,
+            profile_id=args.profile_id,
+            thin_spine=bool(args.thin_spine),
+            publish_set=bool(args.publish_set),
+        )
+    except FacadeError as exc:
+        print(str(exc), file=sys.stderr)
+        return exc.exit_code
     print(dest)
     print(REFERENCES_DIR / "latest-reference.json")
     return 0
 
 
 def cmd_merge_median(args: argparse.Namespace) -> int:
-    sources = [Path(p) for p in args.from_json]
-    for p in sources:
-        if not p.is_file():
-            print(f"run JSON not found: {p}", file=sys.stderr)
-            return 1
-    docs = [load_json(p) for p in sources]
-    merged = merge_median_documents(docs)
-    out = write_run_document(merged, path=Path(args.output) if args.output else None)
+    try:
+        out = merge_median(
+            [Path(p) for p in args.from_json],
+            output=Path(args.output) if args.output else None,
+        )
+    except FacadeError as exc:
+        print(str(exc), file=sys.stderr)
+        return exc.exit_code
     print(out)
     return 0
 
 
 def cmd_generate_docs(args: argparse.Namespace) -> int:
-    from perf.runner.integrity import TakeawayIntegrityError
-
-    doc = None
-    if args.from_json:
-        doc = load_json(Path(args.from_json))
     try:
-        written = generate_operator_docs_fragments(doc)
+        written = generate_docs(
+            Path(args.from_json) if args.from_json else None,
+        )
     except TakeawayIntegrityError as exc:
         print(str(exc), file=sys.stderr)
         return 1
+    except FacadeError as exc:
+        print(str(exc), file=sys.stderr)
+        return exc.exit_code
     for path in written:
         try:
             print(path.relative_to(ROOT))

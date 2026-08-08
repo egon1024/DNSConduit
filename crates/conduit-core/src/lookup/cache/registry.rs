@@ -182,19 +182,20 @@ impl LookupCacheRegistry {
     /// - Adds new instances; drops names removed from config (closes LMDB env, keeps files).
     /// - Memory: live `max_entries` updates without rebuilding shards.
     /// - LMDB: Hot-apply `when_full` / `sample_size` / `max_entries`; grow/shrink `map_size`;
-    ///   warm path reopen (Arc swap, no migrate); type flip rebuilds the backend in place
-    ///   (single-flight table retained). Failed reopen / grow / shrink / type rebuild returns
-    ///   `Err` and leaves the registry unchanged for that apply when the failure happens in
-    ///   preflight (open). Grow/shrink run after successful preflight; failure rejects the
-    ///   apply after those ops (caller must not install the snapshot).
+    ///   warm path reopen and explicit `shard_count` layout reopen (Arc swap, no migrate);
+    ///   type flip rebuilds the backend in place (single-flight table retained). Failed reopen
+    ///   / grow / shrink / type rebuild returns `Err` and leaves the registry unchanged for that
+    ///   apply when the failure happens in preflight (open). Grow/shrink run after successful
+    ///   preflight; failure rejects the apply after those ops (caller must not install the
+    ///   snapshot).
     pub fn reconcile(
         &self,
         prev: &HashMap<String, CompiledCacheInstance>,
         new: &HashMap<String, CompiledCacheInstance>,
     ) -> Result<(), String> {
-        // Phase 1: preflight opens (path/type change and new names) without mutating live backends.
-        let mut pending_opens: HashMap<String, (CacheBackend, CompiledCacheInstance)> =
-            HashMap::new();
+        // Phase 1: preflight opens (path/type/shard-layout change and new names) without
+        // mutating live backends.
+        let mut pending_opens: HashMap<String, PendingBackendOpen> = HashMap::new();
         {
             let guard = self.instances.read();
             for (name, cfg) in new {
@@ -203,6 +204,9 @@ impl LookupCacheRegistry {
                         let cur_cfg = inst.config.load_full();
                         let type_or_path_change = cur_cfg.backend_type != cfg.backend_type
                             || lmdb_path(cur_cfg.as_ref()) != lmdb_path(cfg);
+                        let live = inst.backend.load();
+                        let shard_layout_change = !type_or_path_change
+                            && lmdb_explicit_shard_reopen_needed(cfg, live.as_ref());
                         if type_or_path_change {
                             let backend = CacheBackend::from_config(cfg).map_err(|e| {
                                 tracing::error!(
@@ -212,7 +216,36 @@ impl LookupCacheRegistry {
                                 );
                                 format!("cache '{name}': failed to open replacement backend: {e}")
                             })?;
-                            pending_opens.insert(name.clone(), (backend, cfg.clone()));
+                            pending_opens.insert(
+                                name.clone(),
+                                PendingBackendOpen::Replace {
+                                    backend,
+                                    cfg: cfg.clone(),
+                                },
+                            );
+                        } else if shard_layout_change {
+                            let (backend, operator, staging) =
+                                super::lmdb::LmdbCacheBackend::open_for_shard_reopen(cfg).map_err(
+                                    |e| {
+                                        tracing::error!(
+                                            cache = %name,
+                                            error = %e,
+                                            "LMDB shard_count reopen open failed; rejecting apply"
+                                        );
+                                        format!(
+                                            "cache '{name}': failed to open replacement shard layout: {e}"
+                                        )
+                                    },
+                                )?;
+                            pending_opens.insert(
+                                name.clone(),
+                                PendingBackendOpen::ShardReopen {
+                                    backend: CacheBackend::Lmdb(backend),
+                                    cfg: cfg.clone(),
+                                    operator,
+                                    staging,
+                                },
+                            );
                         }
                     }
                     None => {
@@ -224,7 +257,13 @@ impl LookupCacheRegistry {
                             );
                             format!("cache '{name}': failed to open new backend: {e}")
                         })?;
-                        pending_opens.insert(name.clone(), (backend, cfg.clone()));
+                        pending_opens.insert(
+                            name.clone(),
+                            PendingBackendOpen::Replace {
+                                backend,
+                                cfg: cfg.clone(),
+                            },
+                        );
                     }
                 }
             }
@@ -290,37 +329,86 @@ impl LookupCacheRegistry {
             inst.config.store(Arc::new(cfg.clone()));
         }
 
-        for (name, (backend, opened_cfg)) in pending_opens {
-            match guard.get(&name) {
-                Some(inst) => {
-                    let old_cfg = inst.config.load_full();
-                    let old_path = lmdb_path(old_cfg.as_ref())
-                        .map(|p| p.display().to_string())
-                        .unwrap_or_default();
-                    let new_path = lmdb_path(&opened_cfg)
-                        .map(|p| p.display().to_string())
-                        .unwrap_or_default();
+        for (name, pending) in pending_opens {
+            match pending {
+                PendingBackendOpen::Replace {
+                    backend,
+                    cfg: opened_cfg,
+                } => match guard.get(&name) {
+                    Some(inst) => {
+                        let old_cfg = inst.config.load_full();
+                        let old_path = lmdb_path(old_cfg.as_ref())
+                            .map(|p| p.display().to_string())
+                            .unwrap_or_default();
+                        let new_path = lmdb_path(&opened_cfg)
+                            .map(|p| p.display().to_string())
+                            .unwrap_or_default();
+                        tracing::info!(
+                            cache = %name,
+                            from_type = old_cfg.backend_type.as_str(),
+                            to_type = opened_cfg.backend_type.as_str(),
+                            old_path = %old_path,
+                            new_path = %new_path,
+                            "cache backend replaced (type and/or LMDB path); entries not migrated"
+                        );
+                        inst.swap_backend(backend, opened_cfg);
+                    }
+                    None => {
+                        guard.insert(
+                            name,
+                            Arc::new(CacheInstanceRuntime {
+                                config: ArcSwap::from_pointee(opened_cfg),
+                                backend: ArcSwap::from_pointee(backend),
+                                rebuilding: AtomicBool::new(false),
+                                inflight: InFlightTable::new(),
+                                next_reap_shard: AtomicUsize::new(0),
+                            }),
+                        );
+                    }
+                },
+                PendingBackendOpen::ShardReopen {
+                    backend,
+                    cfg: opened_cfg,
+                    operator,
+                    staging,
+                } => {
+                    let Some(inst) = guard.get(&name) else {
+                        // Should not happen — shard reopen is only for existing instances.
+                        let _ = std::fs::remove_dir_all(&staging);
+                        continue;
+                    };
+                    let from_n = inst
+                        .backend
+                        .load()
+                        .as_lmdb()
+                        .map(|l| l.shard_count())
+                        .unwrap_or(0);
+                    let to_n = opened_cfg
+                        .lmdb
+                        .as_ref()
+                        .and_then(|l| l.shard_count)
+                        .unwrap_or(0);
                     tracing::info!(
                         cache = %name,
-                        from_type = old_cfg.backend_type.as_str(),
-                        to_type = opened_cfg.backend_type.as_str(),
-                        old_path = %old_path,
-                        new_path = %new_path,
-                        "cache backend replaced (type and/or LMDB path); entries not migrated"
+                        path = %operator.display(),
+                        from_shards = from_n,
+                        to_shards = to_n,
+                        "LMDB shard_count layout replaced; entries not migrated"
                     );
+                    // Swap first so the prior env is dropped before we delete its files.
                     inst.swap_backend(backend, opened_cfg);
-                }
-                None => {
-                    guard.insert(
-                        name,
-                        Arc::new(CacheInstanceRuntime {
-                            config: ArcSwap::from_pointee(opened_cfg),
-                            backend: ArcSwap::from_pointee(backend),
-                            rebuilding: AtomicBool::new(false),
-                            inflight: InFlightTable::new(),
-                            next_reap_shard: AtomicUsize::new(0),
-                        }),
-                    );
+                    if let Some(lmdb) = inst.backend.load().as_lmdb() {
+                        if let Err(e) = lmdb.finalize_shard_reopen(&operator, &staging) {
+                            // Arc swap already succeeded; the new envs remain open on renamed
+                            // inodes. Log loudly — operator path may need manual repair.
+                            tracing::error!(
+                                cache = %name,
+                                error = %e,
+                                "LMDB shard_count reopen finalize failed after swap; \
+                                 new layout is serving but path relocate did not complete"
+                            );
+                        }
+                    }
                 }
             }
         }
@@ -684,9 +772,13 @@ impl LookupCacheRegistry {
                 let be = inst.backend.load();
                 let entries = be.entry_count();
                 let entries_limit = be.max_entries();
-                let (bytes_used, bytes_limit) = match be.as_lmdb() {
-                    Some(lmdb) => (lmdb.used_bytes(), lmdb.map_size_bytes()),
-                    None => (0, 0),
+                let (bytes_used, bytes_limit, lmdb_shards) = match be.as_lmdb() {
+                    Some(lmdb) => (
+                        lmdb.used_bytes(),
+                        lmdb.map_size_bytes(),
+                        lmdb.shard_count() as u64,
+                    ),
+                    None => (0, 0, 0),
                 };
                 conduit_metrics::CacheCapacitySample {
                     cache: name.clone(),
@@ -694,6 +786,7 @@ impl LookupCacheRegistry {
                     entries_limit,
                     bytes_used,
                     bytes_limit,
+                    lmdb_shards,
                 }
             })
             .collect()
@@ -835,6 +928,38 @@ fn is_truncated_udp_wire(wire: &[u8], txn: &crate::transaction::Transaction) -> 
 
 fn lmdb_path(cfg: &CompiledCacheInstance) -> Option<&std::path::Path> {
     cfg.lmdb.as_ref().map(|l| l.path.as_path())
+}
+
+enum PendingBackendOpen {
+    Replace {
+        backend: CacheBackend,
+        cfg: CompiledCacheInstance,
+    },
+    /// Explicit `shard_count` differs from the live on-disk layout — staging open + finalize.
+    ShardReopen {
+        backend: CacheBackend,
+        cfg: CompiledCacheInstance,
+        operator: std::path::PathBuf,
+        staging: std::path::PathBuf,
+    },
+}
+
+/// Warm reopen when new config has an explicit shard_count that differs from the live layout.
+fn lmdb_explicit_shard_reopen_needed(new: &CompiledCacheInstance, live: &CacheBackend) -> bool {
+    let Some(new_lmdb) = new.lmdb.as_ref() else {
+        return false;
+    };
+    let Some(explicit) = new_lmdb.shard_count else {
+        return false;
+    };
+    let Some(live_lmdb) = live.as_lmdb() else {
+        return false;
+    };
+    let want = explicit.clamp(1, conduit_config::lookup::MAX_LMDB_SHARD_COUNT) as usize;
+    if live_lmdb.layout_is_legacy() {
+        return want != 1;
+    }
+    want != live_lmdb.shard_count()
 }
 
 #[cfg(test)]
@@ -1509,6 +1634,14 @@ mod tests {
     }
 
     fn lmdb_cache_instance(path: std::path::PathBuf, map_size_bytes: u64) -> CompiledCacheInstance {
+        lmdb_cache_instance_shards(path, map_size_bytes, Some(1))
+    }
+
+    fn lmdb_cache_instance_shards(
+        path: std::path::PathBuf,
+        map_size_bytes: u64,
+        shard_count: Option<u32>,
+    ) -> CompiledCacheInstance {
         CompiledCacheInstance {
             name: "durable".into(),
             backend_type: CacheBackendType::Lmdb,
@@ -1532,6 +1665,8 @@ mod tests {
                 map_size_bytes,
                 when_full: conduit_config::lookup::LmdbWhenFull::EvictOne,
                 sample_size: 16,
+                shard_count,
+                lookup_thread_count: 1,
             }),
             max_entries: 1000,
         }
@@ -1709,6 +1844,184 @@ mod tests {
         assert!(
             path.exists(),
             "LMDB files must remain on disk after instance removal"
+        );
+    }
+
+    #[test]
+    fn reconcile_lmdb_shard_count_change_does_not_migrate_entries() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("env");
+        let mut prev_map = HashMap::new();
+        prev_map.insert(
+            "durable".into(),
+            lmdb_cache_instance_shards(path.clone(), 2 * 1024 * 1024, Some(2)),
+        );
+        let registry = LookupCacheRegistry::from_snapshot(&prev_map);
+
+        let txn = txn_for("shard-reopen.example.", 1);
+        let key = build_query_key(&txn).unwrap();
+        let gate = registry.instance_gate("durable", &key).unwrap();
+        registry.fill_from_forward(
+            "durable",
+            &key,
+            &gate,
+            nxdomain_wire("shard-reopen.example."),
+            &txn,
+        );
+        assert_eq!(registry.entry_count("durable"), 1);
+        assert_eq!(
+            registry
+                .instance("durable")
+                .unwrap()
+                .backend
+                .load()
+                .as_lmdb()
+                .unwrap()
+                .shard_count(),
+            2
+        );
+
+        let mut new_map = HashMap::new();
+        new_map.insert(
+            "durable".into(),
+            lmdb_cache_instance_shards(path.clone(), 2 * 1024 * 1024, Some(4)),
+        );
+        registry.reconcile(&prev_map, &new_map).unwrap();
+
+        assert!(matches!(
+            registry.lookup("durable", &txn, Instant::now()),
+            CacheLookupOutcome::Miss { .. }
+        ));
+        assert_eq!(registry.entry_count("durable"), 0);
+        assert_eq!(
+            registry
+                .instance("durable")
+                .unwrap()
+                .backend
+                .load()
+                .as_lmdb()
+                .unwrap()
+                .shard_count(),
+            4
+        );
+        assert_eq!(
+            registry
+                .instance("durable")
+                .unwrap()
+                .backend
+                .load()
+                .as_lmdb()
+                .unwrap()
+                .path(),
+            path
+        );
+    }
+
+    #[test]
+    fn reconcile_lmdb_shard_count_open_failure_keeps_prior() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("env");
+        let mut prev_map = HashMap::new();
+        prev_map.insert(
+            "durable".into(),
+            lmdb_cache_instance_shards(path.clone(), 2 * 1024 * 1024, Some(2)),
+        );
+        let registry = LookupCacheRegistry::from_snapshot(&prev_map);
+
+        let txn = txn_for("shard-fail.example.", 2);
+        let key = build_query_key(&txn).unwrap();
+        let gate = registry.instance_gate("durable", &key).unwrap();
+        registry.fill_from_forward(
+            "durable",
+            &key,
+            &gate,
+            nxdomain_wire("shard-fail.example."),
+            &txn,
+        );
+        assert!(matches!(
+            registry.lookup("durable", &txn, Instant::now()),
+            CacheLookupOutcome::Hit { .. }
+        ));
+
+        // Occupy the staging sibling path with a regular file so open_for_shard_reopen fails.
+        let mut staging = path.as_os_str().to_owned();
+        staging.push(".conduit-lmdb-reopen");
+        let staging = std::path::PathBuf::from(staging);
+        std::fs::write(&staging, b"not-a-directory").unwrap();
+
+        let mut new_map = HashMap::new();
+        new_map.insert(
+            "durable".into(),
+            lmdb_cache_instance_shards(path.clone(), 2 * 1024 * 1024, Some(8)),
+        );
+        let err = registry.reconcile(&prev_map, &new_map).unwrap_err();
+        assert!(
+            err.contains("failed to open") || err.contains("shard"),
+            "unexpected error: {err}"
+        );
+
+        assert!(matches!(
+            registry.lookup("durable", &txn, Instant::now()),
+            CacheLookupOutcome::Hit { .. }
+        ));
+        assert_eq!(registry.entry_count("durable"), 1);
+        assert_eq!(
+            registry
+                .instance("durable")
+                .unwrap()
+                .backend
+                .load()
+                .as_lmdb()
+                .unwrap()
+                .shard_count(),
+            2
+        );
+        // Prior on-disk files remain.
+        assert!(path.join("conduit-lmdb-shards.json").exists() || path.join("shard-0").exists());
+    }
+
+    #[test]
+    fn reconcile_omit_shard_count_keeps_live_layout() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("env");
+        let mut prev_map = HashMap::new();
+        prev_map.insert(
+            "durable".into(),
+            lmdb_cache_instance_shards(path.clone(), 2 * 1024 * 1024, Some(4)),
+        );
+        let registry = LookupCacheRegistry::from_snapshot(&prev_map);
+        let txn = txn_for("omit-keep.example.", 4);
+        let key = build_query_key(&txn).unwrap();
+        let gate = registry.instance_gate("durable", &key).unwrap();
+        registry.fill_from_forward(
+            "durable",
+            &key,
+            &gate,
+            nxdomain_wire("omit-keep.example."),
+            &txn,
+        );
+
+        let mut new_map = HashMap::new();
+        // Omit shard_count but bump lookup_thread_count — must not abandon.
+        let mut cfg = lmdb_cache_instance_shards(path, 2 * 1024 * 1024, None);
+        cfg.lmdb.as_mut().unwrap().lookup_thread_count = 32;
+        new_map.insert("durable".into(), cfg);
+        registry.reconcile(&prev_map, &new_map).unwrap();
+
+        assert!(matches!(
+            registry.lookup("durable", &txn, Instant::now()),
+            CacheLookupOutcome::Hit { .. }
+        ));
+        assert_eq!(
+            registry
+                .instance("durable")
+                .unwrap()
+                .backend
+                .load()
+                .as_lmdb()
+                .unwrap()
+                .shard_count(),
+            4
         );
     }
 }

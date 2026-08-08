@@ -63,3 +63,8 @@ fields:
         category_axis:
           type: string
           description: "Axis key used for bar categories (defaults to compare_axis)"
+        metric:
+          type: string
+          description: >
+            Optional per-figure metric key (defaults to study primary_metric).
+            Use cache_hit_rate for secondary hit-rate poles.

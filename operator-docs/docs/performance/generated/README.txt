@@ -1,3 +1,3 @@
 Generated performance fragments
 
-Generated at 2026-08-08T13:47:28Z from promoted reference JSON (lab profile maintainer-ws-1). Do not edit by hand — regenerate with python3 -m perf.runner generate-docs or make perf-docs.
+Generated at 2026-08-08T17:35:30Z from promoted reference JSON (lab profile maintainer-ws-1). Do not edit by hand — regenerate with python3 -m perf.runner generate-docs or make perf-docs.

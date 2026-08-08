@@ -11,7 +11,7 @@ Optional DNS answer caching stores upstream response wire bytes and serves repea
 | Forward-only (default today) | Omit **`lookup:`** — Conduit uses an implicit **`default`** profile with one **forward** provider |
 | Per-query opt-out | Request-hook **`txn.set_cache_lookup_eligible(false)`** — see [Cache eligibility](#cache-eligibility) |
 
-**Memory** entries live in the process heap and are lost on restart. **LMDB** entries persist across restart while still fresh; expiry is lazy on read. Shared policy (`max_entries`, `negative_cache`, `on_hit`, …) applies to both backends. **`max_entries`**, LMDB **`when_full`** / **`sample_size`**, LMDB **`map_size`** grow and shrink, and LMDB **`path`** warm reopen take effect on the live cache when **apply** or **reload** succeeds (no restart). Failed path reopen or map-size apply **rejects** the change and keeps the prior store serving. Other policy and memory shard layout may require a process restart — see [Reference: caches — Reload and apply](/reference/config-schema/caches.md#reload-and-apply).
+**Memory** entries live in the process heap and are lost on restart. **LMDB** entries persist across restart while still fresh; expiry is lazy on read. Shared policy (`max_entries`, `negative_cache`, `on_hit`, …) applies to both backends. **`max_entries`**, LMDB **`when_full`** / **`sample_size`**, LMDB **`map_size`** grow and shrink, LMDB **`path`** warm reopen, and an explicit LMDB **`shard_count`** change (Warm reopen that abandons the prior layout) take effect on the live cache when **apply** or **reload** succeeds (no restart). Failed path/shard reopen or map-size apply **rejects** the change and keeps the prior store serving. Other policy and memory shard layout may require a process restart — see [Reference: caches — Reload and apply](/reference/config-schema/caches.md#reload-and-apply).
 
 ## Minimal cache-enabled config
 
@@ -48,7 +48,7 @@ conduitctl validate --file conduit-cache.yaml
 
 ## LMDB durable cache
 
-Use **`type: lmdb`** when answers should survive process restart or you want capacity bounded by an on-disk map rather than heap alone. Conduit creates the environment directory under **`lmdb.path`** (and any missing parents) when the store is opened. **`map_size`** is required and accepts integer bytes or SI suffixes (`KB` / `MB` / `GB` / `TB` / `PB` only — not `MiB` / `GiB`).
+Use **`type: lmdb`** when cached answers should survive process restart. Size the durable store with required **`map_size`** (integer bytes or SI suffixes `KB` / `MB` / `GB` / `TB` / `PB` only — not `MiB` / `GiB`); that value is a **total** mmap/disk ceiling split across shard environments under **`lmdb.path`**. Conduit creates the environment directory (and any missing parents) when the store is opened. Optional **`lmdb.shard_count`** selects how many independent LMDB environments Conduit opens under **`path`** for writer parallelism (hash routing); omitting it reuses an existing on-disk layout, or defaults to twice Lookup concurrency on a fresh path — see [Reference: caches — lmdb](/reference/config-schema/caches.md#lmdb).
 
 Save as `conduit-cache-lmdb.yaml` (or use the packaged copy under `/usr/share/doc/conduit/examples/dns-answer-cache/` after install):
 
@@ -83,7 +83,7 @@ lookup:
 conduitctl validate --file conduit-cache-lmdb.yaml
 ```
 
-Under capacity pressure (`max_entries` or map full), **`when_full`** chooses **`refuse`**, **`evict_one`** (default), or **`sample`** (examine up to **`sample_size`** candidates). See [Reference: caches — lmdb](/reference/config-schema/caches.md#lmdb).
+Under capacity pressure (`max_entries` or map full), set **`when_full`** to **`refuse`**, **`evict_one`** (default), or **`sample`** (Conduit examines up to **`sample_size`** candidates). See [Reference: caches — lmdb](/reference/config-schema/caches.md#lmdb).
 
 ## Hit and miss path
 
@@ -93,6 +93,7 @@ flowchart LR
   L[Lookup phase]
   C[Cache provider]
   F[Forward provider]
+  Fill[Cache fill]
   RS[Response rules]
   S[Send]
 
@@ -100,14 +101,15 @@ flowchart LR
   L --> C
   C -->|hit| RS
   C -->|miss| F
-  F --> RS
+  F -->|answered| Fill
+  Fill --> RS
   RS --> S
 ```
 
 | Outcome | What happens |
 |---------|----------------|
 | **Cache hit** | Stored wire answer is prepared for this client (see [Serve rewriting](#serve-rewriting)); **`answer_source`** is **`cache`**; **no upstream forward** for that attempt |
-| **Cache miss** | Next provider runs (typically **forward**) |
+| **Cache miss** | Next provider runs (typically **forward**). When forward returns an answer, Conduit **attempts a cache fill** before [Response rules](/concepts/architecture-and-packet-path.md#response-rules) — capacity pressure or policy may refuse the store |
 | **Bypass** | Cache skipped (ineligible transaction or provider bypass); forward runs if listed |
 | **Parallel identical queries** | **Single-flight** — one upstream fetch; waiters resume when the fill completes |
 
@@ -194,7 +196,7 @@ When **`true`**, each cache **hit** may reorder records **within** each answer R
 |--------|-------|
 | Cache vs forward volume | [`conduit_responses_total{answer_source=...}`](/observability/built-in-metrics.md#conduit_responses_total) |
 | Cache read path | [`conduit_cache_lookups_total`](/observability/built-in-metrics.md#conduit_cache_lookups_total) |
-| Capacity (LMDB bytes / entries) | [`conduit_cache_entries`](/observability/built-in-metrics.md#conduit_cache_entries), [`conduit_cache_bytes_used`](/observability/built-in-metrics.md#conduit_cache_bytes_used) |
+| Capacity (LMDB bytes / entries / shards) | [`conduit_cache_entries`](/observability/built-in-metrics.md#conduit_cache_entries), [`conduit_cache_bytes_used`](/observability/built-in-metrics.md#conduit_cache_bytes_used), [`conduit_cache_lmdb_shards`](/observability/built-in-metrics.md#conduit_cache_lmdb_shards) |
 | LMDB capacity refusals | [`conduit_cache_lmdb_errors_total`](/observability/built-in-metrics.md#conduit_cache_lmdb_errors_total) |
 | Provider outcomes | [`conduit_lookup_provider_outcomes_total`](/observability/built-in-metrics.md#conduit_lookup_provider_outcomes_total) |
 | Traces | Top-level **`lookup`** phase; nested events for cache and forward internals |

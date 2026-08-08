@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import signal
 import socket
 import subprocess
@@ -192,6 +193,50 @@ def fetch_otlp_stats(
 
 
 PROMETHEUS_SCRAPE_DEFAULT = "http://127.0.2.1:19090/metrics"
+
+_CACHE_LOOKUPS_LINE = re.compile(
+    r"^conduit_cache_lookups_total\{([^}]*)\}\s+([0-9]+(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?)\s*$"
+)
+_RESULT_LABEL = re.compile(r'result="([^"]+)"')
+
+
+def scrape_cache_lookup_counts(
+    url: str = PROMETHEUS_SCRAPE_DEFAULT,
+    *,
+    timeout_s: float = 2.0,
+) -> dict[str, float | int]:
+    """Fetch Prometheus text and sum cache lookup hit/miss counters.
+
+    Returns keys suitable for run ``secondary``:
+    ``cache_lookups_hit``, ``cache_lookups_miss``, ``cache_hit_rate`` (0–100).
+    """
+    with urllib.request.urlopen(url, timeout=timeout_s) as resp:
+        body = resp.read().decode("utf-8", errors="replace")
+    hits = 0.0
+    misses = 0.0
+    for line in body.splitlines():
+        if line.startswith("#"):
+            continue
+        match = _CACHE_LOOKUPS_LINE.match(line.strip())
+        if not match:
+            continue
+        labels, raw_value = match.group(1), match.group(2)
+        result = _RESULT_LABEL.search(labels)
+        if result is None:
+            continue
+        value = float(raw_value)
+        kind = result.group(1)
+        if kind == "hit":
+            hits += value
+        elif kind == "miss":
+            misses += value
+    total = hits + misses
+    hit_rate = round((hits / total) * 100.0, 4) if total > 0 else 0.0
+    return {
+        "cache_lookups_hit": int(hits) if hits == int(hits) else hits,
+        "cache_lookups_miss": int(misses) if misses == int(misses) else misses,
+        "cache_hit_rate": hit_rate,
+    }
 
 
 @dataclass

@@ -135,6 +135,15 @@
           "type": "integer",
           "minimum": 1,
           "description": "Stub upstream responder processes serving this scenario."
+        },
+        "upstream_ttl_secs": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Positive A TTL (seconds) emitted by the stub upstream for this scenario."
+        },
+        "cache_metrics_error": {
+          "type": "string",
+          "description": "Set when record_cache_metrics scrape failed after load."
         }
       }
     },
@@ -183,7 +192,7 @@
         },
         "load_shape": {
           "type": "string",
-          "enum": ["cache_hit", "forward_fast", "forward_slow"]
+          "enum": ["cache_hit", "cache_churn", "forward_fast", "forward_slow"]
         },
         "drain_policy": {
           "type": "string",
@@ -244,7 +253,10 @@
         "otlp_accepts": { "type": "integer", "minimum": 0 },
         "otlp_failures": { "type": "integer", "minimum": 0 },
         "scrape_bytes": { "type": "integer", "minimum": 0 },
-        "client_failures_during_stop": { "type": "integer", "minimum": 0 }
+        "client_failures_during_stop": { "type": "integer", "minimum": 0 },
+        "cache_lookups_hit": { "type": "number", "minimum": 0 },
+        "cache_lookups_miss": { "type": "number", "minimum": 0 },
+        "cache_hit_rate": { "type": "number", "minimum": 0, "maximum": 100 }
       }
     }
   }

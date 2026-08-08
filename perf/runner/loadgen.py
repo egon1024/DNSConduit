@@ -217,13 +217,17 @@ def _dnsperf_flags(
     mode: str,
     extra_flags: Sequence[str],
 ) -> list[str]:
+    # Docker mounts query_file.parent at /queries; pass the basename inside the container.
+    data_path = (
+        f"/queries/{query_file.name}" if mode == "docker" else str(query_file)
+    )
     flags = [
         "-s",
         server,
         "-p",
         str(port),
         "-d",
-        "/queries/perf-a.txt" if mode == "docker" else str(query_file),
+        data_path,
         "-c",
         str(clients),
         "-T",
