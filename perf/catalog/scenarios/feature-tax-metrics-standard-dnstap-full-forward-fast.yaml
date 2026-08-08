@@ -2,8 +2,10 @@ schema_version: 1
 id: feature-tax-metrics-standard-dnstap-full-forward-fast
 suite: feature_tax
 curated: true
-intent: |
-  Combined tax — metrics standard scrape plus fuller dnstap under forward_fast.
+summary: |
+  Combined observability cost: standard Prometheus scrape plus full dnstap emit under a fast stub upstream.
+notes: |
+  Used in studies that stack scrape and dnstap together.
 axes:
   runtime: sync
   load_shape: forward_fast

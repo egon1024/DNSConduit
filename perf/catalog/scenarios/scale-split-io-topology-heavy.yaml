@@ -2,10 +2,10 @@ schema_version: 1
 id: scale-split-io-topology-heavy
 suite: scale
 curated: true
-intent: |
-  Maintainer topology / threads-vs-cores scenario: higher ingress, policy, and
-  I/O worker counts under forward_fast. Runnable locally; not required for G1
-  curated publish.
+summary: |
+  Higher worker counts on split_io (ingress, policy, and I/O at four each) under a fast stub upstream — a threads-versus-cores topology check.
+notes: |
+  Runnable locally; not required in the published reference set.
 axes:
   runtime: split_io
   load_shape: forward_fast

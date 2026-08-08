@@ -2,9 +2,10 @@ schema_version: 1
 id: feature-tax-metrics-off-forward-fast
 suite: feature_tax
 curated: true
-intent: |
-  Observability-off baseline under forward_fast — metrics disabled, no dnstap sinks.
-  Baseline pair for minimal/standard scrape tax deltas.
+summary: |
+  Observability-off baseline under a fast stub upstream: metrics disabled and no dnstap sinks.
+notes: |
+  Shared baseline for several feature_tax comparisons (scrape cost, combined surfaces, tracing, and similar).
 axes:
   runtime: sync
   load_shape: forward_fast

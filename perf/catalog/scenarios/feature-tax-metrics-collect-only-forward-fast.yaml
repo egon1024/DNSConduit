@@ -2,9 +2,10 @@ schema_version: 1
 id: feature-tax-metrics-collect-only-forward-fast
 suite: feature_tax
 curated: true
-intent: |
-  Collect hot-path categories with emit false under forward_fast — records without
-  scrape/OTLP export. Paired with collect+emit and no-collect.
+summary: |
+  Records hot-path metrics in process but does not scrape or push them (collect on, emit off) under a fast stub upstream.
+notes: |
+  Paired with collect+emit and no-collect.
 axes:
   runtime: sync
   load_shape: forward_fast

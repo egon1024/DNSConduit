@@ -2,11 +2,10 @@ schema_version: 1
 id: feature-tax-metrics-off-scrape-ladder-forward-fast
 suite: feature_tax
 curated: true
-intent: |
-  Observability-off baseline for the metrics scrape tax under an elevated
-  dnsperf outstanding window (publish recipe for this study). Pair with
-  minimal/standard scrape-tax cells — not the shared metrics-off cell used
-  by other feature_tax studies.
+summary: |
+  Observability-off baseline for the metrics scrape cost series, using the same elevated dnsperf in-flight window as the other cells in that series.
+notes: |
+  Not the shared metrics-off cell used by other feature_tax studies — this one matches the scrape-series loadgen recipe.
 axes:
   runtime: sync
   load_shape: forward_fast

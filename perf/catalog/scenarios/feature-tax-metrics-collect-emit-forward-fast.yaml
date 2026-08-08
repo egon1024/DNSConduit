@@ -2,9 +2,10 @@ schema_version: 1
 id: feature-tax-metrics-collect-emit-forward-fast
 suite: feature_tax
 curated: true
-intent: |
-  Collect+emit on standard base under forward_fast — paired with collect-only and
-  no-collect for emit-path secondary comparison.
+summary: |
+  Records hot-path metrics and exports them (collect and emit) under a fast stub upstream, using the standard metrics base.
+notes: |
+  Paired with collect-only and no-collect for the collect-versus-emit comparison.
 axes:
   runtime: sync
   load_shape: forward_fast

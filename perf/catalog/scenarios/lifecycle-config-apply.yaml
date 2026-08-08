@@ -2,9 +2,10 @@ schema_version: 1
 id: lifecycle-config-apply
 suite: lifecycle
 curated: true
-intent: |
-  Config apply latency via conduitctl apply sparse overlay (logging level).
-  Thin lifecycle cell; not required for curated publish spine.
+summary: |
+  How long a conduitctl apply takes for a sparse overlay that only changes the logging level.
+notes: |
+  Small lifecycle cell for local runs; not required in the published reference set.
 axes:
   runtime: sync
   load_shape: forward_fast

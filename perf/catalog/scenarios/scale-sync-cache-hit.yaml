@@ -2,10 +2,10 @@ schema_version: 1
 id: scale-sync-cache-hit
 suite: scale
 curated: true
-intent: |
-  Maintainer-runnable cache_hit load shape: sync runtime with memory cache warmed
-  before dnsperf. Not required for the initial curated publish spine. Warm
-  read-mostly — not a high-churn fill/evict shape.
+summary: |
+  Warm memory-cache hits on the sync runtime: the harness fills the cache before dnsperf, then measures near-100% hits against a small answer set.
+notes: |
+  Read-mostly after warm — not a high-churn fill/evict shape. Optional for the published reference set; compare with scale-sync-lmdb-cache-hit via the memory-vs-lmdb-cache-hit study.
 axes:
   runtime: sync
   load_shape: cache_hit

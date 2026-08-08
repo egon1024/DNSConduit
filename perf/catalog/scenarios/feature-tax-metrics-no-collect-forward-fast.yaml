@@ -2,9 +2,10 @@ schema_version: 1
 id: feature-tax-metrics-no-collect-forward-fast
 suite: feature_tax
 curated: true
-intent: |
-  No-collect on hot-path categories under forward_fast — neither record nor export
-  for volume/failures/lookup/timing. Paired with collect-only and collect+emit.
+summary: |
+  Hot-path metric categories neither record nor export (no collect) under a fast stub upstream.
+notes: |
+  Paired with collect-only and collect+emit.
 axes:
   runtime: sync
   load_shape: forward_fast

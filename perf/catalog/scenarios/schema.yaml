@@ -5,18 +5,21 @@
 #   schema_version: 1
 #   id: stable scenario id (kebab-case)
 #   suite: scale | feature_tax | lifecycle | shutdown_drain | lossless_upgrade | micro
-#   intent: human-readable purpose (available to docs/HTML renderers)
+#   summary: plain-language purpose for operators and maintainers (docs/HTML)
 #   axes: declared dimensions (runtime, load_shape, drain_policy, obs_posture, topology, …)
 #   recipe: hooks naming fixture configs / upstream / loadgen / optional companions
+# Optional:
+#   notes: maintainer pairing / publish-set / lab caveats (docs/HTML)
 schema_version: 1
 description: >
-  One YAML file per scenario. Intent text feeds published documentation.
+  One YAML file per scenario. Summary (and optional notes) feed published
+  documentation; run JSON still stores a composed intent string for compatibility.
   Suite membership drives --suite filters. Axes are recorded into run JSON.
 required:
   - schema_version
   - id
   - suite
-  - intent
+  - summary
   - axes
   - recipe
 fields:
@@ -25,7 +28,8 @@ fields:
   suite:
     type: string
     enum: [micro, scale, feature_tax, lifecycle, shutdown_drain, lossless_upgrade]
-  intent: { type: string }
+  summary: { type: string }
+  notes: { type: string }
   axes:
     type: object
     properties:

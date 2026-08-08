@@ -2,8 +2,10 @@ schema_version: 1
 id: feature-tax-dnstap-sampled-forward-fast
 suite: feature_tax
 curated: true
-intent: |
-  Dnstap sampled (~10 percent response frames) under forward_fast with lab tracer.
+summary: |
+  Measures dnstap cost when only about 10% of response frames are emitted to a lab receiver, still under a fast stub upstream.
+notes: |
+  Middle cell between dnstap-off and full dnstap emit. Requires the lab dnstap tracer.
 axes:
   runtime: sync
   load_shape: forward_fast

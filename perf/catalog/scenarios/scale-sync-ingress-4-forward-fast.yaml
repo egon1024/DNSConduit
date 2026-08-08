@@ -2,10 +2,10 @@ schema_version: 1
 id: scale-sync-ingress-4-forward-fast
 suite: scale
 curated: true
-intent: |
-  Ingress concurrency (sync): four ingress workers under forward_fast.
-  Published forward_fast recipe (elevated outstanding) so achieved QPS reflects
-  Conduit ingress capacity rather than the loadgen outstanding window.
+summary: |
+  Sync runtime with four ingress workers under a fast stub upstream.
+notes: |
+  Elevated dnsperf outstanding window so QPS reflects ingress capacity. Part of the ingress concurrency series (1/2/4/8).
 axes:
   runtime: sync
   load_shape: forward_fast

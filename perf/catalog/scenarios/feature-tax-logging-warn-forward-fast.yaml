@@ -2,10 +2,10 @@ schema_version: 1
 id: feature-tax-logging-warn-forward-fast
 suite: feature_tax
 curated: true
-intent: |
-  Metrics off with logging.level warn under forward_fast — verbosity tax warn
-  pole paired with feature-tax-logging-debug-forward-fast. Named for the logging
-  axis (not the shared metrics_off baseline used by other feature_tax studies).
+summary: |
+  Measures quieter logging: metrics are off and logging.level is warn while forwarding to a fast stub upstream.
+notes: |
+  Paired with the logging-debug cell. Named for the logging axis — it is not the shared metrics-off baseline used by other feature_tax studies.
 axes:
   runtime: sync
   load_shape: forward_fast

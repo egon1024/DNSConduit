@@ -2,8 +2,9 @@ schema_version: 1
 id: feature-tax-metrics-minimal-scrape-forward-fast
 suite: feature_tax
 curated: true
-intent: |
-  Metrics base minimal with Prometheus scrape (collect+emit) under forward_fast.
+summary: |
+  Prometheus scrape with the minimal metrics base (collect and emit) while forwarding to a fast stub upstream.
+notes: |
   Middle cell between metrics-off and standard scrape.
 axes:
   runtime: sync

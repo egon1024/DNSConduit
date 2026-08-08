@@ -2,9 +2,10 @@ schema_version: 1
 id: feature-tax-metrics-standard-scrape-hammer-forward-fast
 suite: feature_tax
 curated: true
-intent: |
-  Standard scrape with a lab scrape hammer (~100ms GET loop) under forward_fast —
-  aggressive scrape cadence vs listener-only standard scrape.
+summary: |
+  Same standard scrape posture as the listener-only scrape cell, but a lab client hammers /metrics about every 100 ms during the run.
+notes: |
+  Shows aggressive scrape cadence versus ordinary scrape traffic on the listener.
 axes:
   runtime: sync
   load_shape: forward_fast

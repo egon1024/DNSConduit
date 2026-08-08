@@ -2,9 +2,10 @@ schema_version: 1
 id: scale-split-io-forward-fast
 suite: scale
 curated: true
-intent: |
-  Compare split_io runtime under a fast stub upstream (forward_fast load shape).
-  Thin curated spine pair with scale-sync-forward-fast.
+summary: |
+  Throughput for the split_io runtime while forwarding to a fast stub upstream.
+notes: |
+  Thin published pair with scale-sync-forward-fast.
 axes:
   runtime: split_io
   load_shape: forward_fast

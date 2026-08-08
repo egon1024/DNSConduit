@@ -2,9 +2,10 @@ schema_version: 1
 id: feature-tax-metrics-otlp-push-forward-fast
 suite: feature_tax
 curated: true
-intent: |
-  OTLP HTTP metrics push under forward_fast. Requires conduit-otlp-metrics-tracer;
-  records secondary otlp_accepts / otlp_failures from the lab receiver.
+summary: |
+  Measures the cost of pushing metrics over OTLP HTTP while forwarding to a fast stub upstream.
+notes: |
+  Requires conduit-otlp-metrics-tracer. The lab receiver also records otlp_accepts / otlp_failures as secondary signals.
 axes:
   runtime: sync
   load_shape: forward_fast
