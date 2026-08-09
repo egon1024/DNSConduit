@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Sequence
 
 from .cpuaffinity import taskset_prefix
+from .lab_ports import cmdline_for_pid, pids_holding_udp
 from .procs import die_with_parent, register_child, unregister_child
 
 
@@ -130,6 +131,19 @@ def start_conduit(
     if not config.is_file():
         raise FileNotFoundError(f"conduit config not found: {config}")
 
+    # A foreign Conduit (manual lab left running) answers DNS on these ports
+    # and would make readiness succeed before *our* child binds — every
+    # subsequent dnsperf/scrape then measures the lab process. Refuse up front.
+    prior = pids_holding_udp(listen_host, listen_port)
+    if prior:
+        holders = "; ".join(
+            f"pid {pid} ({cmdline_for_pid(pid)})" for pid in sorted(prior)
+        )
+        raise RuntimeError(
+            f"UDP {listen_host}:{listen_port} already held ({holders}); "
+            "stop the leftover process before starting a perf Conduit"
+        )
+
     # Isolate the measured variable: do not let the harness's own default or
     # the operator's shell RUST_LOG override the scenario's `logging.level`.
     # Conduit's env_filter_from_config lets RUST_LOG win when set, so any
@@ -172,8 +186,24 @@ def start_conduit(
             raise RuntimeError(
                 f"conduit exited early (code={proc.returncode}): {tail}"
             )
-        if probe_dns_answer(listen_host, listen_port, timeout_s=0.3):
-            return cp
+        holders = pids_holding_udp(listen_host, listen_port)
+        if proc.pid is not None and proc.pid in holders:
+            # Require our child to own the socket — not merely that *someone*
+            # answers DNS (a race with a lab process that grabbed the port).
+            strangers = holders - {proc.pid}
+            if strangers:
+                proc.kill()
+                log_file.close()
+                detail = "; ".join(
+                    f"pid {pid} ({cmdline_for_pid(pid)})"
+                    for pid in sorted(strangers)
+                )
+                raise RuntimeError(
+                    f"UDP {listen_host}:{listen_port} is shared with foreign "
+                    f"holders ({detail}); refusing ambiguous readiness"
+                )
+            if probe_dns_answer(listen_host, listen_port, timeout_s=0.3):
+                return cp
         time.sleep(0.1)
     proc.kill()
     log_file.close()

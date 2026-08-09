@@ -66,6 +66,8 @@ pub struct CacheCapacitySample {
     pub bytes_limit: u64,
     /// Effective LMDB shard environments for this instance; `0` for memory.
     pub lmdb_shards: u64,
+    /// Effective `lmdb.sync` mode (`full` / `no_meta` / `none`); `None` for memory.
+    pub lmdb_sync: Option<String>,
 }
 
 /// One backend row for health Prometheus series (phase 1c §10).
@@ -250,6 +252,7 @@ pub struct BuiltinRegistry {
     cache_bytes_used: Option<GaugeVec>,
     cache_bytes_limit: Option<GaugeVec>,
     cache_lmdb_shards: Option<GaugeVec>,
+    cache_lmdb_sync: Option<GaugeVec>,
     cache_lmdb_errors: Option<IntCounterVec>,
     parse_rejected_total: Option<IntCounterVec>,
     queries_by_pool_total: IntCounterVec,
@@ -580,6 +583,7 @@ impl BuiltinRegistry {
             cache_bytes_used,
             cache_bytes_limit,
             cache_lmdb_shards,
+            cache_lmdb_sync,
             cache_lmdb_errors,
         ) = if effective && is_full {
             let fills = get_counter(
@@ -646,6 +650,11 @@ impl BuiltinRegistry {
                 "Effective LMDB shard environment count per cache instance (0 for memory)",
                 &["cache"],
             );
+            let lmdb_sync = get_gauge(
+                "conduit_cache_lmdb_sync",
+                "Configured LMDB sync durability mode (info gauge; join on cache)",
+                &["cache", "sync"],
+            );
             let lmdb_errors = get_counter(
                 "conduit_cache_lmdb_errors_total",
                 "LMDB cache backend error and capacity-pressure events",
@@ -664,11 +673,12 @@ impl BuiltinRegistry {
                 Some(bytes_used),
                 Some(bytes_limit),
                 Some(lmdb_shards),
+                Some(lmdb_sync),
                 Some(lmdb_errors),
             )
         } else {
             (
-                None, None, None, None, None, None, None, None, None, None, None, None, None,
+                None, None, None, None, None, None, None, None, None, None, None, None, None, None,
             )
         };
 
@@ -989,6 +999,7 @@ impl BuiltinRegistry {
             cache_bytes_used,
             cache_bytes_limit,
             cache_lmdb_shards,
+            cache_lmdb_sync,
             cache_lmdb_errors,
             parse_rejected_total,
             queries_by_pool_total,
@@ -1617,6 +1628,16 @@ impl BuiltinRegistry {
                 gauge
                     .with_label_values(&[sample.cache.as_str()])
                     .set(sample.lmdb_shards as f64);
+            }
+        }
+        if let Some(gauge) = self.cache_lmdb_sync.as_ref() {
+            gauge.reset();
+            for sample in &snapshot.cache_capacity {
+                if let Some(sync) = sample.lmdb_sync.as_deref() {
+                    gauge
+                        .with_label_values(&[sample.cache.as_str(), sync])
+                        .set(1.0);
+                }
             }
         }
 
@@ -2472,6 +2493,7 @@ Max locked memory         8388608              8388608              bytes     \n
             bytes_used: 4096,
             bytes_limit: 64 * 1024 * 1024,
             lmdb_shards: 4,
+            lmdb_sync: Some("no_meta".into()),
         };
         let minimal = BuiltinRegistry::new(true, BuiltinProfile::Minimal);
         minimal.set_scrape_snapshot_fn(Arc::new(move || ScrapeGaugeSnapshot {
@@ -2484,6 +2506,10 @@ Max locked memory         8388608              8388608              bytes     \n
             !body_min.contains("conduit_cache_lmdb_shards"),
             "minimal must omit capacity gauges, body:\n{body_min}"
         );
+        assert!(
+            !body_min.contains("conduit_cache_lmdb_sync"),
+            "minimal must omit sync gauge, body:\n{body_min}"
+        );
 
         let full = BuiltinRegistry::new(true, BuiltinProfile::Full);
         full.set_scrape_snapshot_fn(Arc::new(move || ScrapeGaugeSnapshot {
@@ -2494,6 +2520,7 @@ Max locked memory         8388608              8388608              bytes     \n
                 bytes_used: 4096,
                 bytes_limit: 64 * 1024 * 1024,
                 lmdb_shards: 4,
+                lmdb_sync: Some("no_meta".into()),
             }],
             cache_entry_counts: vec![("durable".into(), 10)],
             ..Default::default()
@@ -2501,6 +2528,10 @@ Max locked memory         8388608              8388608              bytes     \n
         let body = encode_builtin(full.gather());
         assert!(
             body.contains(r#"conduit_cache_lmdb_shards{cache="durable"} 4"#),
+            "body:\n{body}"
+        );
+        assert!(
+            body.contains(r#"conduit_cache_lmdb_sync{cache="durable",sync="no_meta"} 1"#),
             "body:\n{body}"
         );
         assert!(

@@ -69,12 +69,12 @@ expiry clock.
 Published LMDB performance cells use a **real-disk** environment path (for
 example under `/var/tmp/…` on a disk-backed mount). Do **not** promote LMDB
 numbers from a **tmpfs** path — that understates durable-backend I/O cost.
-LMDB cells use the process **fixed safe sync** durability default until an
-operator `sync:` knob ships; methodology and study pages annotate that mode.
-Absolute LMDB QPS is lab- and disk-dependent; prefer **relative** claims versus
-the paired memory cell on the same host. If sync durability changes later,
-revisit absolute LMDB churn (and warm) QPS before treating older numbers as
-current.
+Published **warm** LMDB cells use **`lmdb.sync: full`** (default); sync mode is
+not a warm-pole matrix. High-churn comparative cells annotate each LMDB member’s
+explicit **`lmdb.sync`** value (`full`, `no_meta`, or `none`) as first-class
+peers. Absolute LMDB QPS is lab-, disk-, and sync-mode-dependent; prefer
+**relative** claims on the same host. Revisit absolute LMDB churn QPS after
+changing sync mode or storage before treating older numbers as current.
 
 ### The stub upstream is never the constraint
 

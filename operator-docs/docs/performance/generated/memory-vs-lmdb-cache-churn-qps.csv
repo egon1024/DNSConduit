@@ -1,3 +1,5 @@
 scenario_id,runtime,achieved_qps,latency_avg_ms,queries_sent,queries_completed,queries_lost,workers,cache_hit_rate,cache_lookups_hit,cache_lookups_miss,cache_fill_duration_mean_ms,cache_eviction_duration_mean_ms
-scale-sync-ingress-8-memory-cache-churn,sync,268457.9,7.4,2687643,2687643,0,ingress_workers=8,49.7,1335770,1351874,0.0005,0.0003
-scale-sync-ingress-8-lmdb-cache-churn,sync,2875.1,652.8,32244,32244,0,ingress_workers=8,46.8,14368,16999,2.9683,1.6256
+scale-sync-ingress-8-memory-cache-churn,sync,268340.7,7.4,2686723,2686723,0,ingress_workers=8,49.7,1336029,1350695,0.0005,0.0003
+scale-sync-ingress-8-lmdb-full-cache-churn,sync,2957.0,653.1,31589,31589,0,ingress_workers=8,42.8,13528,16630,2.6745,1.4613
+scale-sync-ingress-8-lmdb-no_meta-cache-churn,sync,4576.2,420.9,49347,49347,0,ingress_workers=8,46.5,23183,25600,1.9003,1.0559
+scale-sync-ingress-8-lmdb-none-cache-churn,sync,160198.1,12.5,1605354,1605354,0,ingress_workers=8,50.1,803375,801980,0.0112,0.0059

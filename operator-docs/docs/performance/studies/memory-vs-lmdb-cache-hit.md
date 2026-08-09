@@ -24,7 +24,7 @@ Configure backends under [`caches:`](/reference/config-schema/caches.md) and
 [`lookup` profiles](/reference/config-schema/lookup.md). See
 [DNS answer cache](/guides/dns-answer-cache.md) and
 [Performance methodology — LMDB cache cells](/performance/methodology.md#lmdb-cache-cells)
-(real disk for publish; fixed safe sync default).
+(real disk for publish; `lmdb.sync: full`).
 
 ## What we varied
 

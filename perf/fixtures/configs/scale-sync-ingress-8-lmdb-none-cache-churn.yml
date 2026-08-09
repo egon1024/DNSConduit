@@ -28,9 +28,10 @@ caches:
     negative_cache:
       enabled: true
     lmdb:
-      path: /var/tmp/conduit-perf/lmdb-cache-churn-i8
+      path: /var/tmp/conduit-perf/lmdb-cache-churn-i8-none
       map_size: 64MB
       when_full: evict_one
+      sync: none
       shard_count: 16
 lookup:
   profiles:

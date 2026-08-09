@@ -495,6 +495,7 @@ pub fn builtin_metric_category(family_name: &str) -> Option<MetricCategory> {
         | "conduit_cache_bytes_used"
         | "conduit_cache_bytes_limit"
         | "conduit_cache_lmdb_shards"
+        | "conduit_cache_lmdb_sync"
         | "conduit_cache_lmdb_errors_total" => Some(MetricCategory::CacheDetail),
 
         "conduit_forward_outstanding" => Some(MetricCategory::ForwardDetail),

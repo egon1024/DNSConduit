@@ -181,7 +181,7 @@ impl LookupCacheRegistry {
     ///
     /// - Adds new instances; drops names removed from config (closes LMDB env, keeps files).
     /// - Memory: live `max_entries` updates without rebuilding shards.
-    /// - LMDB: Hot-apply `when_full` / `sample_size` / `max_entries`; grow/shrink `map_size`;
+    /// - LMDB: Hot-apply `when_full` / `sample_size` / `sync` / `max_entries`; grow/shrink `map_size`;
     ///   warm path reopen and explicit `shard_count` layout reopen (Arc swap, no migrate);
     ///   type flip rebuilds the backend in place (single-flight table retained). Failed reopen
     ///   / grow / shrink / type rebuild returns `Err` and leaves the registry unchanged for that
@@ -288,6 +288,14 @@ impl LookupCacheRegistry {
             let be = inst.backend.load();
             if let (Some(lmdb_backend), Some(new_lmdb)) = (be.as_lmdb(), cfg.lmdb.as_ref()) {
                 lmdb_backend.apply_policy(new_lmdb.when_full, new_lmdb.sample_size);
+                lmdb_backend.apply_sync(new_lmdb.sync).map_err(|e| {
+                    tracing::error!(
+                        cache = %name,
+                        error = %e,
+                        "LMDB sync mode Hot apply failed; rejecting apply"
+                    );
+                    format!("cache '{name}': LMDB sync mode Hot apply failed: {e}")
+                })?;
                 let cur = lmdb_backend.map_size_bytes();
                 if new_lmdb.map_size_bytes > cur {
                     lmdb_backend
@@ -779,13 +787,14 @@ impl LookupCacheRegistry {
                 let be = inst.backend.load();
                 let entries = be.entry_count();
                 let entries_limit = be.max_entries();
-                let (bytes_used, bytes_limit, lmdb_shards) = match be.as_lmdb() {
+                let (bytes_used, bytes_limit, lmdb_shards, lmdb_sync) = match be.as_lmdb() {
                     Some(lmdb) => (
                         lmdb.used_bytes(),
                         lmdb.map_size_bytes(),
                         lmdb.shard_count() as u64,
+                        Some(lmdb.sync_mode().as_str().to_string()),
                     ),
-                    None => (0, 0, 0),
+                    None => (0, 0, 0, None),
                 };
                 conduit_metrics::CacheCapacitySample {
                     cache: name.clone(),
@@ -794,6 +803,7 @@ impl LookupCacheRegistry {
                     bytes_used,
                     bytes_limit,
                     lmdb_shards,
+                    lmdb_sync,
                 }
             })
             .collect()
@@ -1708,6 +1718,7 @@ mod tests {
                 map_size_bytes,
                 when_full: conduit_config::lookup::LmdbWhenFull::EvictOne,
                 sample_size: 16,
+                sync: conduit_config::lookup::LmdbSync::Full,
                 shard_count,
                 lookup_thread_count: 1,
             }),
