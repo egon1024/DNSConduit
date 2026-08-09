@@ -16,6 +16,7 @@ pub const DEFAULT_EVICTION_MODE: &str = "passive";
 pub const DEFAULT_MEMORY_SHARD_COUNT: u32 = 16;
 pub const DEFAULT_LMDB_SAMPLE_SIZE: u32 = 16;
 pub const DEFAULT_LMDB_WHEN_FULL: &str = "evict_one";
+pub const DEFAULT_LMDB_SYNC: &str = "full";
 /// Maximum LMDB env shard count (fds/mmap safety).
 pub const MAX_LMDB_SHARD_COUNT: u32 = 64;
 
@@ -126,6 +127,38 @@ impl LmdbWhenFull {
     }
 }
 
+/// LMDB commit durability (`lmdb.sync`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LmdbSync {
+    /// fsync on commit (neither `NO_META_SYNC` nor `NO_SYNC`).
+    Full,
+    /// `NO_META_SYNC` — data flushed; meta deferred.
+    NoMeta,
+    /// `NO_SYNC` — no flush on commit.
+    None,
+}
+
+impl LmdbSync {
+    pub fn parse(raw: &str) -> Result<Self, String> {
+        match raw.trim() {
+            "" | "full" => Ok(Self::Full),
+            "no_meta" => Ok(Self::NoMeta),
+            "none" => Ok(Self::None),
+            other => Err(format!(
+                "lmdb.sync '{other}' must be full, no_meta, or none"
+            )),
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Full => "full",
+            Self::NoMeta => "no_meta",
+            Self::None => "none",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CompiledLookupProvider {
     Cache { cache_name: String },
@@ -151,6 +184,7 @@ pub struct CompiledLmdbCache {
     pub map_size_bytes: u64,
     pub when_full: LmdbWhenFull,
     pub sample_size: u32,
+    pub sync: LmdbSync,
     /// Explicit `lmdb.shard_count` after clamp to [`MAX_LMDB_SHARD_COUNT`]; `None` when omitted.
     pub shard_count: Option<u32>,
     /// Lookup concurrency for empty-path default (`2 ×` this value, then clamp).
@@ -510,6 +544,8 @@ fn compile_lmdb(
             "{ctx}.lmdb.sample_size must be >= 1 when when_full is sample"
         ));
     }
+    let sync = LmdbSync::parse(l.sync.as_deref().unwrap_or(DEFAULT_LMDB_SYNC))
+        .map_err(|e| format!("{ctx}.lmdb: {e}"))?;
 
     let shard_count = match l.shard_count {
         None => None,
@@ -527,6 +563,7 @@ fn compile_lmdb(
         map_size_bytes: l.map_size_bytes,
         when_full,
         sample_size,
+        sync,
         shard_count,
         lookup_thread_count: lookup_thread_count.max(1),
     })
@@ -817,6 +854,7 @@ mod tests {
                 when_full: None,
                 sample_size: None,
                 shard_count: None,
+                sync: None,
             }),
             key: None,
             max_entries: Some(1000),
@@ -832,6 +870,7 @@ mod tests {
         assert_eq!(lmdb.map_size_bytes, 1_000_000_000);
         assert_eq!(lmdb.when_full, LmdbWhenFull::EvictOne);
         assert_eq!(lmdb.sample_size, DEFAULT_LMDB_SAMPLE_SIZE);
+        assert_eq!(lmdb.sync, LmdbSync::Full);
         assert_eq!(lmdb.shard_count, None);
         assert!(lmdb.lookup_thread_count >= 1);
     }
@@ -1045,6 +1084,7 @@ lookup:
                 when_full: None,
                 sample_size: None,
                 shard_count: None,
+                sync: None,
             }),
             key: None,
             max_entries: None,
@@ -1079,6 +1119,7 @@ lookup:
                 when_full: None,
                 sample_size: None,
                 shard_count: None,
+                sync: None,
             }),
             key: None,
             max_entries: None,
@@ -1131,5 +1172,52 @@ lookup:
         ));
         let err = load_yaml(&yaml).unwrap_err().to_string();
         assert!(err.contains("IEC") || err.contains("binary"), "{err}");
+    }
+
+    #[test]
+    fn lmdb_sync_modes_compile() {
+        let path = unique_lmdb_path();
+        for (raw, expected) in [
+            ("full", LmdbSync::Full),
+            ("no_meta", LmdbSync::NoMeta),
+            ("none", LmdbSync::None),
+        ] {
+            let yaml = sparse_lmdb_yaml(&format!(
+                r#"  - name: durable
+    type: lmdb
+    lmdb:
+      path: {path}
+      map_size: 1GB
+      sync: {raw}"#,
+                path = path.display()
+            ));
+            let cfg = load_yaml(&yaml).expect("parse");
+            let compiled = CompiledLookup::compile_from_config(&cfg).expect("compile");
+            assert_eq!(
+                compiled.cache_instances["durable"]
+                    .lmdb
+                    .as_ref()
+                    .unwrap()
+                    .sync,
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn lmdb_sync_invalid_rejected() {
+        let path = unique_lmdb_path();
+        let yaml = sparse_lmdb_yaml(&format!(
+            r#"  - name: durable
+    type: lmdb
+    lmdb:
+      path: {path}
+      map_size: 1GB
+      sync: async"#,
+            path = path.display()
+        ));
+        let cfg = load_yaml(&yaml).expect("parse");
+        let err = CompiledLookup::compile_from_config(&cfg).unwrap_err();
+        assert!(err.contains("lmdb.sync"), "{err}");
     }
 }

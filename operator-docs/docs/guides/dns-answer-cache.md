@@ -11,7 +11,9 @@ Optional DNS answer caching stores upstream response wire bytes and serves repea
 | Forward-only (default today) | Omit **`lookup:`** — Conduit uses an implicit **`default`** profile with one **forward** provider |
 | Per-query opt-out | Request-hook **`txn.set_cache_lookup_eligible(false)`** — see [Cache eligibility](#cache-eligibility) |
 
-**Memory** entries live in the process heap and are lost on restart. **LMDB** entries persist across restart while still fresh; expiry is lazy on read. Shared policy (`max_entries`, `negative_cache`, `on_hit`, …) applies to both backends. **`max_entries`**, LMDB **`when_full`** / **`sample_size`**, LMDB **`map_size`** grow and shrink, LMDB **`path`** warm reopen, and an explicit LMDB **`shard_count`** change (Warm reopen that abandons the prior layout) take effect on the live cache when **apply** or **reload** succeeds (no restart). Failed path/shard reopen or map-size apply **rejects** the change and keeps the prior store serving. Other policy and memory shard layout may require a process restart — see [Reference: caches — Reload and apply](/reference/config-schema/caches.md#reload-and-apply).
+**Memory** entries live in the process heap and are lost on restart. **LMDB** entries persist across restart while still fresh; expiry is lazy on read. Shared policy (`max_entries`, `negative_cache`, `on_hit`, …) applies to both backends. **`max_entries`**, LMDB **`when_full`** / **`sample_size`** / **`sync`**, LMDB **`map_size`** grow and shrink, LMDB **`path`** warm reopen, and an explicit LMDB **`shard_count`** change (Warm reopen that abandons the prior layout) take effect on the live cache when **apply** or **reload** succeeds (no restart). Failed path/shard reopen, map-size, or sync-flag apply **rejects** the change and keeps the prior store serving. Other policy and memory shard layout may require a process restart — see [Reference: caches — Reload and apply](/reference/config-schema/caches.md#reload-and-apply).
+
+For LMDB write durability, start from the [**`lmdb.sync` decision tree**](/reference/config-schema/caches.md#lmdb-sync) (`full` default; `no_meta` / `none` are faster tradeoffs).
 
 ## Minimal cache-enabled config
 
@@ -196,7 +198,7 @@ When **`true`**, each cache **hit** may reorder records **within** each answer R
 |--------|-------|
 | Cache vs forward volume | [`conduit_responses_total{answer_source=...}`](/observability/built-in-metrics.md#conduit_responses_total) |
 | Cache read path | [`conduit_cache_lookups_total`](/observability/built-in-metrics.md#conduit_cache_lookups_total) |
-| Capacity (LMDB bytes / entries / shards) | [`conduit_cache_entries`](/observability/built-in-metrics.md#conduit_cache_entries), [`conduit_cache_bytes_used`](/observability/built-in-metrics.md#conduit_cache_bytes_used), [`conduit_cache_lmdb_shards`](/observability/built-in-metrics.md#conduit_cache_lmdb_shards) |
+| Capacity (LMDB bytes / entries / shards / sync mode) | [`conduit_cache_entries`](/observability/built-in-metrics.md#conduit_cache_entries), [`conduit_cache_bytes_used`](/observability/built-in-metrics.md#conduit_cache_bytes_used), [`conduit_cache_lmdb_shards`](/observability/built-in-metrics.md#conduit_cache_lmdb_shards), [`conduit_cache_lmdb_sync`](/observability/built-in-metrics.md#conduit_cache_lmdb_sync) |
 | LMDB capacity refusals | [`conduit_cache_lmdb_errors_total`](/observability/built-in-metrics.md#conduit_cache_lmdb_errors_total) |
 | Provider outcomes | [`conduit_lookup_provider_outcomes_total`](/observability/built-in-metrics.md#conduit_lookup_provider_outcomes_total) |
 | Traces | Top-level **`lookup`** phase; nested events for cache and forward internals |

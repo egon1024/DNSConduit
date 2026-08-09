@@ -54,9 +54,10 @@ pub use lookup::{
     compile_lookup_from_config, lookup_concurrency_for_lmdb_default, validate_lookup,
     CacheBackendType, CompiledCacheInstance, CompiledLmdbCache, CompiledLookup,
     CompiledLookupProfile, CompiledLookupProvider, CompiledMemoryCache, CompiledNegativeCache,
-    CompiledTruncatedUdp, EvictionMode, LmdbWhenFull, OnHitResponseRules, DEFAULT_LMDB_SAMPLE_SIZE,
-    DEFAULT_LOOKUP_PROFILE, DEFAULT_MEMORY_SHARD_COUNT, DEFAULT_ON_HIT_RESPONSE_RULES,
-    DEFAULT_SERVFAIL_TTL_SECS, DEFAULT_TRUNCATED_UDP_TTL_SECS, MAX_LMDB_SHARD_COUNT,
+    CompiledTruncatedUdp, EvictionMode, LmdbSync, LmdbWhenFull, OnHitResponseRules,
+    DEFAULT_LMDB_SAMPLE_SIZE, DEFAULT_LMDB_SYNC, DEFAULT_LOOKUP_PROFILE,
+    DEFAULT_MEMORY_SHARD_COUNT, DEFAULT_ON_HIT_RESPONSE_RULES, DEFAULT_SERVFAIL_TTL_SECS,
+    DEFAULT_TRUNCATED_UDP_TTL_SECS, MAX_LMDB_SHARD_COUNT,
 };
 pub use merge::{
     clear_overlay, is_overlay_patch_empty, merge_file_and_overlay, merge_overlay_patches,

@@ -1,10 +1,11 @@
-# High-churn load shape — sync + LMDB cache under entry/TTL pressure.
-# LMDB path must be on real disk for published/promoted runs (not tmpfs).
-# Matched with scale-sync-memory-cache-churn; when_full=evict_one; map_size sized so entry cap binds.
+# High-churn — sync with eight ingress workers + LMDB cache under entry pressure.
+# Real disk only for publish. Explicit shard_count=16 (= 2× ingress) so multi-env
+# writer parallelism is in play; path is separate from the thin-ingress churn cell.
+# Matched with scale-sync-ingress-8-memory-cache-churn.
 schema_version: 1
 listeners:
   rcvbuf: 4194304  # 4 MiB; needs net.core.rmem_max >= this
-  threads: 2
+  threads: 8
   reuse_port: true
   listeners:
     - address: "127.0.2.1:15353"
@@ -27,10 +28,11 @@ caches:
     negative_cache:
       enabled: true
     lmdb:
-      path: /var/tmp/conduit-perf/lmdb-cache-churn
+      path: /var/tmp/conduit-perf/lmdb-cache-churn-i8-no_meta
       map_size: 64MB
       when_full: evict_one
-      sync: full
+      sync: no_meta
+      shard_count: 16
 lookup:
   profiles:
     default:

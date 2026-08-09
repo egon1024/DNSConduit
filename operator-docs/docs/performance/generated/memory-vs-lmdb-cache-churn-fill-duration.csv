@@ -1,3 +1,5 @@
 scenario_id,category,cache_fill_duration_mean_ms,cache_fill_samples,cache_eviction_duration_mean_ms,cache_eviction_samples,achieved_qps
-scale-sync-ingress-8-memory-cache-churn,memory,0.0005,1351874,0.0003,1343747,268457.9
-scale-sync-ingress-8-lmdb-cache-churn,lmdb,2.9683,16999,1.6256,16360,2875.1
+scale-sync-ingress-8-memory-cache-churn,memory,0.0005,1350695,0.0003,1342166,268340.7
+scale-sync-ingress-8-lmdb-full-cache-churn,full,2.6745,16630,1.4613,15995,2957.0
+scale-sync-ingress-8-lmdb-no_meta-cache-churn,no_meta,1.9003,25600,1.0559,24576,4576.2
+scale-sync-ingress-8-lmdb-none-cache-churn,none,0.0112,801980,0.0059,799902,160198.1

@@ -1,3 +1,5 @@
 scenario_id,category,cache_hit_rate,cache_lookups_hit,cache_lookups_miss,achieved_qps
-scale-sync-ingress-8-memory-cache-churn,memory,49.7,1335770,1351874,268457.9
-scale-sync-ingress-8-lmdb-cache-churn,lmdb,46.8,14368,16999,2875.1
+scale-sync-ingress-8-memory-cache-churn,memory,49.7,1336029,1350695,268340.7
+scale-sync-ingress-8-lmdb-full-cache-churn,full,42.8,13528,16630,2957.0
+scale-sync-ingress-8-lmdb-no_meta-cache-churn,no_meta,46.5,23183,25600,4576.2
+scale-sync-ingress-8-lmdb-none-cache-churn,none,50.1,803375,801980,160198.1

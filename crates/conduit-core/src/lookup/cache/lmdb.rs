@@ -1,17 +1,19 @@
-//! LMDB durable answer-cache backend (`heed`, safe sync default).
+//! LMDB durable answer-cache backend (`heed`).
 //!
 //! Hash-sharded across N independent environments under one operator `path`
 //! (flat `NO_SUB_DIR` files + Conduit sidecar). Legacy single-directory envs
 //! (`data.mdb` / `lock.mdb`) open as N=1 when no sidecar is present.
+//!
+//! Commit durability is controlled by `lmdb.sync` (`full` | `no_meta` | `none`).
 
 use super::entry::{CacheEntry, EntryKind};
 use super::key::CacheKey;
 use super::memory::CacheGetResult;
 use conduit_config::lookup::{
-    CompiledCacheInstance, CompiledLmdbCache, LmdbWhenFull, MAX_LMDB_SHARD_COUNT,
+    CompiledCacheInstance, CompiledLmdbCache, LmdbSync, LmdbWhenFull, MAX_LMDB_SHARD_COUNT,
 };
 use heed::types::Bytes;
-use heed::{Database, Env, EnvFlags, EnvOpenOptions, MdbError};
+use heed::{Database, Env, EnvFlags, EnvOpenOptions, FlagSetMode, MdbError};
 use parking_lot::RwLock;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -65,6 +67,12 @@ pub enum LmdbBackendError {
         path: PathBuf,
         source: heed::Error,
     },
+    #[error("failed to set LMDB sync flags for cache '{cache}' at '{path}': {source}")]
+    SetSyncFlags {
+        cache: String,
+        path: PathBuf,
+        source: heed::Error,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -100,6 +108,32 @@ pub struct LmdbCacheBackend {
 struct LmdbPolicy {
     when_full: LmdbWhenFull,
     sample_size: u32,
+    sync: LmdbSync,
+}
+
+fn sync_env_flags(sync: LmdbSync) -> EnvFlags {
+    match sync {
+        LmdbSync::Full => EnvFlags::empty(),
+        LmdbSync::NoMeta => EnvFlags::NO_META_SYNC,
+        LmdbSync::None => EnvFlags::NO_SYNC,
+    }
+}
+
+/// Apply sync durability flags on an already-open environment (Hot apply).
+///
+/// # Safety
+///
+/// Caller must ensure exclusive access to `set_flags` for this env (single-threaded
+/// wrt other `set_flags` calls), matching heed/LMDB requirements.
+unsafe fn apply_sync_flags_to_env(env: &Env, sync: LmdbSync) -> Result<(), heed::Error> {
+    // Clear both durability flags, then enable the mode's flag (if any).
+    env.set_flags(EnvFlags::NO_SYNC, FlagSetMode::Disable)?;
+    env.set_flags(EnvFlags::NO_META_SYNC, FlagSetMode::Disable)?;
+    match sync {
+        LmdbSync::Full => Ok(()),
+        LmdbSync::NoMeta => env.set_flags(EnvFlags::NO_META_SYNC, FlagSetMode::Enable),
+        LmdbSync::None => env.set_flags(EnvFlags::NO_SYNC, FlagSetMode::Enable),
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -162,7 +196,7 @@ impl LmdbCacheBackend {
         let (layout, shards) = if on_disk == OnDiskLayout::Legacy && effective_n == 1 {
             let map_sizes = per_shard_map_sizes(lmdb.map_size_bytes, 1);
             let caps = per_shard_max_entries(max_entries, 1);
-            let shard = open_directory_env(cache_name, &path, map_sizes[0], caps[0])?;
+            let shard = open_directory_env(cache_name, &path, map_sizes[0], caps[0], lmdb.sync)?;
             (LayoutKind::Legacy, vec![shard])
         } else {
             let map_sizes = per_shard_map_sizes(lmdb.map_size_bytes, effective_n as usize);
@@ -175,6 +209,7 @@ impl LmdbCacheBackend {
                     &env_path,
                     map_sizes[i],
                     caps[i],
+                    lmdb.sync,
                 )?);
             }
             write_sidecar(&path, effective_n)?;
@@ -196,6 +231,7 @@ impl LmdbCacheBackend {
             policy: RwLock::new(LmdbPolicy {
                 when_full: lmdb.when_full,
                 sample_size: lmdb.sample_size,
+                sync: lmdb.sync,
             }),
         })
     }
@@ -309,10 +345,40 @@ impl LmdbCacheBackend {
     }
 
     pub fn apply_policy(&self, when_full: LmdbWhenFull, sample_size: u32) {
-        *self.policy.write() = LmdbPolicy {
-            when_full,
-            sample_size,
-        };
+        let mut policy = self.policy.write();
+        policy.when_full = when_full;
+        policy.sample_size = sample_size;
+    }
+
+    pub fn sync_mode(&self) -> LmdbSync {
+        self.policy.read().sync
+    }
+
+    /// Hot-apply `lmdb.sync` on every open shard environment.
+    pub fn apply_sync(&self, sync: LmdbSync) -> Result<(), LmdbBackendError> {
+        let prev = self.policy.read().sync;
+        if prev == sync {
+            return Ok(());
+        }
+        for shard in &self.shards {
+            // SAFETY: registry reconcile is single-threaded for this instance; no concurrent
+            // set_flags on these envs.
+            unsafe { apply_sync_flags_to_env(&shard.env, sync) }.map_err(|source| {
+                LmdbBackendError::SetSyncFlags {
+                    cache: self.cache_name.clone(),
+                    path: shard.env_path.read().clone(),
+                    source,
+                }
+            })?;
+        }
+        self.policy.write().sync = sync;
+        tracing::info!(
+            cache = %self.cache_name,
+            from = prev.as_str(),
+            to = sync.as_str(),
+            "LMDB sync mode updated"
+        );
+        Ok(())
     }
 
     pub fn set_max_entries(&self, max_entries: u64) {
@@ -955,13 +1021,18 @@ fn open_directory_env(
     path: &Path,
     map_size: usize,
     max_entries: u64,
+    sync: LmdbSync,
 ) -> Result<LmdbShard, LmdbBackendError> {
     // SAFETY: path is operator-controlled; registry holds one backend Arc per name.
+    // Sync durability flags (`NO_SYNC` / `NO_META_SYNC`) are intentional operator knobs.
     let env = unsafe {
-        EnvOpenOptions::new()
-            .map_size(map_size)
-            .max_dbs(2)
-            .open(path)
+        let mut opts = EnvOpenOptions::new();
+        opts.map_size(map_size).max_dbs(2);
+        let flags = sync_env_flags(sync);
+        if !flags.is_empty() {
+            opts.flags(flags);
+        }
+        opts.open(path)
     }
     .map_err(|source| LmdbBackendError::OpenEnv {
         path: path.to_path_buf(),
@@ -975,12 +1046,14 @@ fn open_nosubdir_env(
     env_path: &Path,
     map_size: usize,
     max_entries: u64,
+    sync: LmdbSync,
 ) -> Result<LmdbShard, LmdbBackendError> {
     // SAFETY: path is operator-controlled; NO_SUB_DIR opens a file path (not a directory).
+    // Sync durability flags are intentional operator knobs.
     let env = unsafe {
         let mut opts = EnvOpenOptions::new();
         opts.map_size(map_size).max_dbs(2);
-        opts.flags(EnvFlags::NO_SUB_DIR);
+        opts.flags(EnvFlags::NO_SUB_DIR | sync_env_flags(sync));
         opts.open(env_path)
     }
     .map_err(|source| LmdbBackendError::OpenEnv {
@@ -1507,7 +1580,7 @@ mod tests {
     use super::*;
     use conduit_config::lookup::{
         CacheBackendType, CompiledMemoryCache, CompiledNegativeCache, CompiledTruncatedUdp,
-        EvictionMode, OnHitResponseRules,
+        EvictionMode, LmdbSync, OnHitResponseRules,
     };
     use std::sync::Arc;
 
@@ -1545,6 +1618,7 @@ mod tests {
                 map_size_bytes: 2 * 1024 * 1024,
                 when_full,
                 sample_size: 16,
+                sync: LmdbSync::Full,
                 shard_count,
                 lookup_thread_count,
             }),
@@ -1642,6 +1716,38 @@ mod tests {
         let cfg2 = test_cfg(path, 0, LmdbWhenFull::EvictOne, None, 1);
         let backend2 = LmdbCacheBackend::open(&cfg2).unwrap();
         assert_eq!(backend2.shard_count(), 6);
+    }
+
+    #[test]
+    fn sync_hot_apply_updates_mode() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("env");
+        let mut cfg = test_cfg(path, 0, LmdbWhenFull::EvictOne, Some(2), 1);
+        cfg.lmdb.as_mut().unwrap().sync = LmdbSync::Full;
+        let backend = LmdbCacheBackend::open(&cfg).unwrap();
+        assert_eq!(backend.sync_mode(), LmdbSync::Full);
+        backend.apply_sync(LmdbSync::NoMeta).unwrap();
+        assert_eq!(backend.sync_mode(), LmdbSync::NoMeta);
+        backend.apply_sync(LmdbSync::None).unwrap();
+        assert_eq!(backend.sync_mode(), LmdbSync::None);
+        backend.apply_sync(LmdbSync::Full).unwrap();
+        assert_eq!(backend.sync_mode(), LmdbSync::Full);
+        let now = Instant::now();
+        assert!(
+            backend
+                .insert(CacheKey(b"k".to_vec()), entry(now, 60), now)
+                .stored
+        );
+    }
+
+    #[test]
+    fn open_with_no_meta_sync() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("env");
+        let mut cfg = test_cfg(path, 0, LmdbWhenFull::EvictOne, Some(1), 1);
+        cfg.lmdb.as_mut().unwrap().sync = LmdbSync::NoMeta;
+        let backend = LmdbCacheBackend::open(&cfg).unwrap();
+        assert_eq!(backend.sync_mode(), LmdbSync::NoMeta);
     }
 
     #[test]
@@ -1885,8 +1991,14 @@ mod tests {
         let path = dir.path().join("legacy");
         std::fs::create_dir_all(&path).unwrap();
         // Seed a legacy directory env by opening with NO_SUB_DIR false via open_directory_env.
-        let seeded =
-            open_directory_env("durable", &path, align_map_size(2 * 1024 * 1024), 0).unwrap();
+        let seeded = open_directory_env(
+            "durable",
+            &path,
+            align_map_size(2 * 1024 * 1024),
+            0,
+            LmdbSync::Full,
+        )
+        .unwrap();
         {
             let now = Instant::now();
             let key = CacheKey(b"legacy-key".to_vec());
@@ -1916,8 +2028,14 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("legacy");
         std::fs::create_dir_all(&path).unwrap();
-        let seeded =
-            open_directory_env("durable", &path, align_map_size(2 * 1024 * 1024), 0).unwrap();
+        let seeded = open_directory_env(
+            "durable",
+            &path,
+            align_map_size(2 * 1024 * 1024),
+            0,
+            LmdbSync::Full,
+        )
+        .unwrap();
         {
             let now = Instant::now();
             let key = CacheKey(b"legacy-key".to_vec());

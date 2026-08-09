@@ -233,7 +233,9 @@ class StudyCatalogTests(unittest.TestCase):
             list(churn.members),
             [
                 "scale-sync-ingress-8-memory-cache-churn",
-                "scale-sync-ingress-8-lmdb-cache-churn",
+                "scale-sync-ingress-8-lmdb-full-cache-churn",
+                "scale-sync-ingress-8-lmdb-no_meta-cache-churn",
+                "scale-sync-ingress-8-lmdb-none-cache-churn",
             ],
         )
         self.assertEqual(len(churn.figures), 3)

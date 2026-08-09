@@ -30,6 +30,7 @@ caches:
       path: /var/tmp/conduit-perf/lmdb-cache-hit
       map_size: 256MB
       when_full: evict_one
+      sync: full
 lookup:
   profiles:
     default:

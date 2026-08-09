@@ -19,6 +19,7 @@ from .execute import build_run_document, run_scenario
 from .integrity import TakeawayIntegrityError, verify_studies_integrity
 from .loadgen import DEFAULT_IMAGE
 from .paths import REFERENCES_DIR, ROOT, load_json, write_json
+from .lab_ports import refuse_if_lab_ports_busy
 from .procs import find_stray_lab_processes, kill_stray_lab_processes
 from .publish import (
     GENERATED_DIR,
@@ -345,6 +346,10 @@ def _preflight(params: RunParams) -> list[str]:
                 )
             lines.append("Re-run with kill_strays to clear them.")
             raise PreflightError("\n".join(lines))
+
+    port_err = refuse_if_lab_ports_busy()
+    if port_err is not None:
+        raise PreflightError(port_err)
     return warnings
 
 

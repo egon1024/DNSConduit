@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-08-08T23:08:30Z",
+  "generated_at": "2026-08-09T22:24:04Z",
   "lab_profile": {
     "id": "maintainer-ws-1",
     "display_name": "Maintainer workstation (maintainer-ws-1)",
@@ -22,7 +22,7 @@
       "threads": 2,
       "image": "dnsconduit-dnsperf:2.14.0"
     },
-    "git_sha": "3e286cb0ab86c540cf1d8882afb39576c453affd"
+    "git_sha": "2802b2c641bb704a37f7270f6a9d2fabf8796654"
   },
   "quality": {
     "warmup_seconds": 2.0,
@@ -1350,24 +1350,25 @@
     {
       "id": "scale-sync-ingress-8-memory-cache-churn",
       "suite": "scale",
-      "intent": "High-churn memory-cache load on sync with eight ingress workers: query set larger than max_entries, stub TTL long enough that entry-cap turnover drives misses, no warm plateau.\n\nPrimary memory member of study memory-vs-lmdb-cache-churn. Matched with scale-sync-ingress-8-lmdb-cache-churn (eight workers so the compare is not starved by a two-thread sync path). Recipe: 4096 unique names, max_entries 2048, stub TTL 60s. The thin-ingress pair (scale-sync-memory-cache-churn) remains as a companion cell, not the study primary.",
+      "intent": "High-churn memory-cache load on sync with eight ingress workers: query set larger than max_entries, stub TTL long enough that entry-cap turnover drives misses, no warm plateau.\n\nPrimary memory member of study memory-vs-lmdb-cache-churn. Matched with the three first-class LMDB sync-mode cells (full / no_meta / none) at eight ingress workers. Recipe: 4096 unique names, max_entries 2048, stub TTL 60s. The thin-ingress pair (scale-sync-memory-cache-churn) remains as a companion cell, not the study primary.",
       "status": "ok",
       "axes": {
         "runtime": "sync",
         "load_shape": "cache_churn",
         "ingress_workers": 8,
-        "cache_backend": "memory"
+        "cache_backend": "memory",
+        "lmdb_sync": "memory"
       },
       "metrics": {
-        "achieved_qps": 268457.855358,
-        "queries_sent": 2687643,
-        "queries_completed": 2687643,
+        "achieved_qps": 268340.711383,
+        "queries_sent": 2686723,
+        "queries_completed": 2686723,
         "queries_lost": 0,
         "response_codes": {
-          "NOERROR": 2687643
+          "NOERROR": 2686723
         },
         "latency_ms": {
-          "avg": 7.432
+          "avg": 7.435
         },
         "answer_ok_percent": 100.0
       },
@@ -1379,39 +1380,40 @@
         "dnsperf_max_outstanding": 2000,
         "upstream_workers": 8,
         "upstream_ttl_secs": 60,
-        "notes": "median of 3 rounds; achieved_qps range 228453.4-271080.2"
+        "notes": "median of 3 rounds; achieved_qps range 160017.0-270681.6"
       },
       "secondary": {
-        "cache_lookups_hit": 1335770,
-        "cache_lookups_miss": 1351874,
-        "cache_hit_rate": 49.7004,
+        "cache_lookups_hit": 1336029,
+        "cache_lookups_miss": 1350695,
+        "cache_hit_rate": 49.7271,
         "cache_fill_duration_mean_ms": 0.0005,
-        "cache_fill_samples": 1351874,
+        "cache_fill_samples": 1350695,
         "cache_eviction_duration_mean_ms": 0.0003,
-        "cache_eviction_samples": 1343747
+        "cache_eviction_samples": 1342166
       }
     },
     {
-      "id": "scale-sync-ingress-8-lmdb-cache-churn",
+      "id": "scale-sync-ingress-8-lmdb-full-cache-churn",
       "suite": "scale",
-      "intent": "High-churn LMDB-cache load on sync with eight ingress workers and explicit multi-env sharding on a real-disk path. Matched entry cap, query diversity, and stub TTL keep continuous fill/evict pressure.\n\nPrimary LMDB member of study memory-vs-lmdb-cache-churn. Fixed safe sync durability; when_full=evict_one; shard_count=16 (2\u00d7 ingress). Path /var/tmp/conduit-perf/lmdb-cache-churn-i8. Recipe matches the ingress-8 memory cell. Average latency under the elevated outstanding window still tracks roughly outstanding/QPS (Little's Law) \u2014 lead takeaways with relative QPS and hit/miss. Thin-ingress scale-sync-lmdb-cache-churn is a companion, not the study primary.",
+      "intent": "High-churn LMDB-cache load on sync with eight ingress workers and explicit multi-env sharding on a real-disk path. Matched entry cap, query diversity, and stub TTL keep continuous fill/evict pressure.\n\nFirst-class LMDB sync-mode member of study memory-vs-lmdb-cache-churn. lmdb.sync=full; when_full=evict_one; shard_count=16 (2\u00d7 ingress). Path /var/tmp/conduit-perf/lmdb-cache-churn-i8-full. Recipe matches the ingress-8 memory cell. Average latency under the elevated outstanding window still tracks roughly outstanding/QPS (Little's Law) \u2014 lead takeaways with relative QPS and hit/miss. Thin-ingress scale-sync-lmdb-cache-churn is a companion, not the study primary.",
       "status": "ok",
       "axes": {
         "runtime": "sync",
         "load_shape": "cache_churn",
         "ingress_workers": 8,
-        "cache_backend": "lmdb"
+        "cache_backend": "lmdb",
+        "lmdb_sync": "full"
       },
       "metrics": {
-        "achieved_qps": 2875.072381,
-        "queries_sent": 32244,
-        "queries_completed": 32244,
+        "achieved_qps": 2956.959202,
+        "queries_sent": 31589,
+        "queries_completed": 31589,
         "queries_lost": 0,
         "response_codes": {
-          "NOERROR": 32244
+          "NOERROR": 31589
         },
         "latency_ms": {
-          "avg": 652.784
+          "avg": 653.107
         },
         "answer_ok_percent": 100.0
       },
@@ -1423,16 +1425,106 @@
         "dnsperf_max_outstanding": 2000,
         "upstream_workers": 8,
         "upstream_ttl_secs": 60,
-        "notes": "median of 3 rounds; achieved_qps range 2692.4-3135.1"
+        "notes": "median of 3 rounds; achieved_qps range 2507.4-3096.6"
       },
       "secondary": {
-        "cache_lookups_hit": 14368,
-        "cache_lookups_miss": 16999,
-        "cache_hit_rate": 46.7995,
-        "cache_fill_duration_mean_ms": 2.9683,
-        "cache_fill_samples": 16999,
-        "cache_eviction_duration_mean_ms": 1.6256,
-        "cache_eviction_samples": 16360
+        "cache_lookups_hit": 13528,
+        "cache_lookups_miss": 16630,
+        "cache_hit_rate": 42.8237,
+        "cache_fill_duration_mean_ms": 2.6745,
+        "cache_fill_samples": 16630,
+        "cache_eviction_duration_mean_ms": 1.4613,
+        "cache_eviction_samples": 15995
+      }
+    },
+    {
+      "id": "scale-sync-ingress-8-lmdb-no_meta-cache-churn",
+      "suite": "scale",
+      "intent": "High-churn LMDB-cache load on sync with eight ingress workers and explicit multi-env sharding on a real-disk path. Matched entry cap, query diversity, and stub TTL keep continuous fill/evict pressure.\n\nFirst-class LMDB sync-mode member of study memory-vs-lmdb-cache-churn. lmdb.sync=no_meta; when_full=evict_one; shard_count=16 (2\u00d7 ingress). Path /var/tmp/conduit-perf/lmdb-cache-churn-i8-no_meta. Recipe matches the ingress-8 memory cell. Average latency under the elevated outstanding window still tracks roughly outstanding/QPS (Little's Law) \u2014 lead takeaways with relative QPS and hit/miss. Thin-ingress scale-sync-lmdb-cache-churn is a companion, not the study primary.",
+      "status": "ok",
+      "axes": {
+        "runtime": "sync",
+        "load_shape": "cache_churn",
+        "ingress_workers": 8,
+        "cache_backend": "lmdb",
+        "lmdb_sync": "no_meta"
+      },
+      "metrics": {
+        "achieved_qps": 4576.208095,
+        "queries_sent": 49347,
+        "queries_completed": 49347,
+        "queries_lost": 0,
+        "response_codes": {
+          "NOERROR": 49347
+        },
+        "latency_ms": {
+          "avg": 420.899
+        },
+        "answer_ok_percent": 100.0
+      },
+      "quality": {
+        "warmup_seconds": 2.0,
+        "duration_seconds": 10.0,
+        "dnsperf_clients": 16,
+        "dnsperf_threads": 8,
+        "dnsperf_max_outstanding": 2000,
+        "upstream_workers": 8,
+        "upstream_ttl_secs": 60,
+        "notes": "median of 3 rounds; achieved_qps range 4358.4-4790.6"
+      },
+      "secondary": {
+        "cache_lookups_hit": 23183,
+        "cache_lookups_miss": 25600,
+        "cache_hit_rate": 46.526,
+        "cache_fill_duration_mean_ms": 1.9003,
+        "cache_fill_samples": 25600,
+        "cache_eviction_duration_mean_ms": 1.0559,
+        "cache_eviction_samples": 24576
+      }
+    },
+    {
+      "id": "scale-sync-ingress-8-lmdb-none-cache-churn",
+      "suite": "scale",
+      "intent": "High-churn LMDB-cache load on sync with eight ingress workers and explicit multi-env sharding on a real-disk path. Matched entry cap, query diversity, and stub TTL keep continuous fill/evict pressure.\n\nFirst-class LMDB sync-mode member of study memory-vs-lmdb-cache-churn. lmdb.sync=none; when_full=evict_one; shard_count=16 (2\u00d7 ingress). Path /var/tmp/conduit-perf/lmdb-cache-churn-i8-none. Recipe matches the ingress-8 memory cell. Average latency under the elevated outstanding window still tracks roughly outstanding/QPS (Little's Law) \u2014 lead takeaways with relative QPS and hit/miss. Thin-ingress scale-sync-lmdb-cache-churn is a companion, not the study primary.",
+      "status": "ok",
+      "axes": {
+        "runtime": "sync",
+        "load_shape": "cache_churn",
+        "ingress_workers": 8,
+        "cache_backend": "lmdb",
+        "lmdb_sync": "none"
+      },
+      "metrics": {
+        "achieved_qps": 160198.118881,
+        "queries_sent": 1605354,
+        "queries_completed": 1605354,
+        "queries_lost": 0,
+        "response_codes": {
+          "NOERROR": 1605354
+        },
+        "latency_ms": {
+          "avg": 12.459
+        },
+        "answer_ok_percent": 100.0
+      },
+      "quality": {
+        "warmup_seconds": 2.0,
+        "duration_seconds": 10.0,
+        "dnsperf_clients": 16,
+        "dnsperf_threads": 8,
+        "dnsperf_max_outstanding": 2000,
+        "upstream_workers": 8,
+        "upstream_ttl_secs": 60,
+        "notes": "median of 3 rounds; achieved_qps range 157566.5-170949.2"
+      },
+      "secondary": {
+        "cache_lookups_hit": 803375,
+        "cache_lookups_miss": 801980,
+        "cache_hit_rate": 50.0664,
+        "cache_fill_duration_mean_ms": 0.0112,
+        "cache_fill_samples": 801980,
+        "cache_eviction_duration_mean_ms": 0.0059,
+        "cache_eviction_samples": 799902
       }
     }
   ],

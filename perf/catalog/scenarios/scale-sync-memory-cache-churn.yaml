@@ -5,7 +5,7 @@ curated: true
 summary: |
   High-churn memory-cache load on the sync runtime: a query set larger than max_entries, a long enough stub TTL that entry-cap turnover (not TTL expiry alone) drives misses, and no warm plateau before dnsperf.
 notes: |
-  Thin-ingress companion (two sync workers). Primary study pair is scale-sync-ingress-8-memory-cache-churn / scale-sync-ingress-8-lmdb-cache-churn. Not the warm cache_hit pole. Recipe: 4096 unique names, max_entries 2048, stub TTL 60s.
+  Thin-ingress companion (two sync workers). Primary study members are scale-sync-ingress-8-memory-cache-churn plus scale-sync-ingress-8-lmdb-{full,no_meta,none}-cache-churn. Not the warm cache_hit pole. Recipe: 4096 unique names, max_entries 2048, stub TTL 60s.
 axes:
   runtime: sync
   load_shape: cache_churn

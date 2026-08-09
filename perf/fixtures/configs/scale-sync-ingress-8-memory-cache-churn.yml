@@ -1,5 +1,6 @@
 # High-churn — sync with eight ingress workers + memory cache.
-# Matched with scale-sync-ingress-8-lmdb-cache-churn (same max_entries, query mix, TTL, workers).
+# Matched with scale-sync-ingress-8-lmdb-{full,no_meta,none}-cache-churn
+# (same max_entries, query mix, TTL, workers).
 # Primary study pair for memory-vs-lmdb-cache-churn (enough concurrency for a fair backend compare).
 schema_version: 1
 listeners:

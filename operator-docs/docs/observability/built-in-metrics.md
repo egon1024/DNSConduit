@@ -61,7 +61,7 @@ Use **`standard`** for day-two operations, SLO dashboards, and debugging upstrea
 | [`conduit_lookup_provider_outcomes_total`](#conduit_lookup_provider_outcomes_total), [`conduit_cache_lookups_total`](#conduit_cache_lookups_total) | yes | yes | — |
 | [`conduit_cache_fills_total`](#conduit_cache_fills_total), [`conduit_cache_singleflight_coalesced_total`](#conduit_cache_singleflight_coalesced_total), lookup/cache/fill/eviction duration histograms | no | yes | — |
 | [`conduit_cache_evictions_total`](#conduit_cache_evictions_total), [`conduit_cache_lmdb_errors_total`](#conduit_cache_lmdb_errors_total) | no | yes | — |
-| [`conduit_cache_entries`](#conduit_cache_entries), [`conduit_cache_entries_limit`](#conduit_cache_entries_limit), [`conduit_cache_bytes_used`](#conduit_cache_bytes_used), [`conduit_cache_bytes_limit`](#conduit_cache_bytes_limit), [`conduit_cache_lmdb_shards`](#conduit_cache_lmdb_shards) | — | — | yes (`full`) |
+| [`conduit_cache_entries`](#conduit_cache_entries), [`conduit_cache_entries_limit`](#conduit_cache_entries_limit), [`conduit_cache_bytes_used`](#conduit_cache_bytes_used), [`conduit_cache_bytes_limit`](#conduit_cache_bytes_limit), [`conduit_cache_lmdb_shards`](#conduit_cache_lmdb_shards), [`conduit_cache_lmdb_sync`](#conduit_cache_lmdb_sync) | — | — | yes (`full`) |
 | [`conduit_probe_results_total`](#conduit_probe_results_total) | yes (health enabled) | yes | — |
 | [`conduit_forward_outstanding`](#conduit_forward_outstanding) | — | — | yes (`standard`) |
 | [`conduit_pool_backends_configured`](#conduit_pool_backends_configured) | — | — | yes |
@@ -418,6 +418,17 @@ Does **not** include the subsequent store/commit of the new entry — see [`cond
 | **When** | Export refreshes the effective LMDB shard environment count for the instance |
 
 **`0`** for memory backends. For LMDB, this is the on-disk / open shard count (explicit **`lmdb.shard_count`**, reused layout, or fresh-path default) — see [Reference: caches — lmdb](/reference/config-schema/caches.md#lmdb).
+
+### conduit_cache_lmdb_sync { #conduit_cache_lmdb_sync }
+
+| | |
+|--|--|
+| **Type** | Gauge (info) |
+| **Labels** | `cache`, `sync` |
+| **Profile** | `full` only (scrape-time) |
+| **When** | Export refreshes the effective **`lmdb.sync`** mode for each LMDB instance |
+
+Value is **`1`** on the series for the active mode. **`sync`** is **`full`**, **`no_meta`**, or **`none`**. Memory backends omit this series. See [Reference: caches — Sync durability](/reference/config-schema/caches.md#lmdb-sync).
 
 ### conduit_cache_lookup_duration_seconds { #conduit_cache_lookup_duration_seconds }
 
