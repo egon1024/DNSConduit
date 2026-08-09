@@ -9,7 +9,7 @@ mod memory;
 mod registry;
 mod serve;
 
-pub use backend::CacheBackend;
+pub use backend::{CacheBackend, InsertOutcome};
 pub use entry::{CacheEntry, EntryKind};
 pub use inflight::{InFlightRole, InFlightTable};
 pub use key::{build_query_key, build_truncated_udp_key, CacheKey, TransportKey};

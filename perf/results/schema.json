@@ -256,7 +256,11 @@
         "client_failures_during_stop": { "type": "integer", "minimum": 0 },
         "cache_lookups_hit": { "type": "number", "minimum": 0 },
         "cache_lookups_miss": { "type": "number", "minimum": 0 },
-        "cache_hit_rate": { "type": "number", "minimum": 0, "maximum": 100 }
+        "cache_hit_rate": { "type": "number", "minimum": 0, "maximum": 100 },
+        "cache_fill_duration_mean_ms": { "type": "number", "minimum": 0 },
+        "cache_fill_samples": { "type": "number", "minimum": 0 },
+        "cache_eviction_duration_mean_ms": { "type": "number", "minimum": 0 },
+        "cache_eviction_samples": { "type": "number", "minimum": 0 }
       }
     }
   }

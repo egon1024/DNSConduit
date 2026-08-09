@@ -495,10 +495,21 @@ impl LmdbCacheBackend {
         Some(stored_to_entry(stored, now, now_unix))
     }
 
-    /// Insert an entry. Returns `false` when refused under `when_full: refuse`.
-    pub fn insert(&self, key: CacheKey, entry: CacheEntry, now: Instant) -> bool {
-        match self.insert_inner(key, entry, now, true) {
-            Ok(stored) => stored,
+    /// Insert an entry. `stored` is false when refused under `when_full: refuse`.
+    pub fn insert(
+        &self,
+        key: CacheKey,
+        entry: CacheEntry,
+        now: Instant,
+    ) -> super::backend::InsertOutcome {
+        let mut eviction_secs = 0.0_f64;
+        let mut evictions = 0_u64;
+        match self.insert_inner(key, entry, now, true, &mut eviction_secs, &mut evictions) {
+            Ok(stored) => super::backend::InsertOutcome {
+                stored,
+                eviction_secs,
+                evictions,
+            },
             Err(e) => {
                 tracing::error!(
                     cache = %self.cache_name,
@@ -506,7 +517,11 @@ impl LmdbCacheBackend {
                     error = %e,
                     "LMDB insert failed"
                 );
-                false
+                super::backend::InsertOutcome {
+                    stored: false,
+                    eviction_secs,
+                    evictions,
+                }
             }
         }
     }
@@ -517,6 +532,8 @@ impl LmdbCacheBackend {
         entry: CacheEntry,
         now: Instant,
         allow_retry: bool,
+        eviction_secs: &mut f64,
+        evictions: &mut u64,
     ) -> Result<bool, LmdbBackendError> {
         let shard = self.shard_for_key(&key);
         let max = shard.max_entries.load(Ordering::Relaxed);
@@ -537,7 +554,13 @@ impl LmdbCacheBackend {
                         return Ok(false);
                     }
                     LmdbWhenFull::EvictOne | LmdbWhenFull::Sample => {
-                        if !evict_victim(shard, &self.cache_name, policy)? {
+                        if !timed_evict_victim(
+                            shard,
+                            &self.cache_name,
+                            policy,
+                            eviction_secs,
+                            evictions,
+                        )? {
                             tracing::warn!(
                                 cache = %self.cache_name,
                                 "LMDB entry cap full; eviction found no victim"
@@ -587,14 +610,20 @@ impl LmdbCacheBackend {
                         Ok(false)
                     }
                     LmdbWhenFull::EvictOne | LmdbWhenFull::Sample if allow_retry => {
-                        if !evict_victim(shard, &self.cache_name, policy)? {
+                        if !timed_evict_victim(
+                            shard,
+                            &self.cache_name,
+                            policy,
+                            eviction_secs,
+                            evictions,
+                        )? {
                             tracing::error!(
                                 cache = %self.cache_name,
                                 "LMDB map full; eviction found no victim"
                             );
                             return Ok(false);
                         }
-                        self.insert_inner(key, entry, now, false)
+                        self.insert_inner(key, entry, now, false, eviction_secs, evictions)
                     }
                     _ => {
                         tracing::error!(
@@ -1213,6 +1242,22 @@ fn clear_shard_entries(shard: &LmdbShard, cache_name: &str) -> Result<(), LmdbBa
     Ok(())
 }
 
+fn timed_evict_victim(
+    shard: &LmdbShard,
+    cache_name: &str,
+    policy: LmdbPolicy,
+    eviction_secs: &mut f64,
+    evictions: &mut u64,
+) -> Result<bool, LmdbBackendError> {
+    let t0 = Instant::now();
+    let ok = evict_victim(shard, cache_name, policy)?;
+    if ok {
+        *eviction_secs += t0.elapsed().as_secs_f64();
+        *evictions += 1;
+    }
+    Ok(ok)
+}
+
 fn evict_victim(
     shard: &LmdbShard,
     cache_name: &str,
@@ -1564,7 +1609,11 @@ mod tests {
         let backend = LmdbCacheBackend::open(&cfg).unwrap();
         assert!(path.is_dir());
         let now = Instant::now();
-        assert!(backend.insert(CacheKey(b"k".to_vec()), entry(now, 60), now));
+        assert!(
+            backend
+                .insert(CacheKey(b"k".to_vec()), entry(now, 60), now)
+                .stored
+        );
         assert_eq!(backend.shard_count(), 1);
         assert!(sidecar_path(&path).exists());
         assert!(shard_file_path(&path, 0).exists());
@@ -1621,7 +1670,7 @@ mod tests {
         let now = Instant::now();
         let key = CacheKey(b"stable-key".to_vec());
         let idx = shard_index_for_key(&key, 4);
-        assert!(backend.insert(key.clone(), entry(now, 120), now));
+        assert!(backend.insert(key.clone(), entry(now, 120), now).stored);
         assert_eq!(backend.get_result(&key, now), CacheGetResult::Hit);
         assert_eq!(shard_entry_count(&backend.shards[idx], "durable"), 1);
         for (i, shard) in backend.shards.iter().enumerate() {
@@ -1639,7 +1688,7 @@ mod tests {
         let backend = LmdbCacheBackend::open(&cfg).unwrap();
         let now = Instant::now();
         let key = CacheKey(b"k1".to_vec());
-        assert!(backend.insert(key.clone(), entry(now, 120), now));
+        assert!(backend.insert(key.clone(), entry(now, 120), now).stored);
         assert_eq!(backend.get_result(&key, now), CacheGetResult::Hit);
         assert_eq!(backend.entry_count(), 1);
         drop(backend);
@@ -1697,8 +1746,16 @@ mod tests {
         let cfg = test_cfg(dir.path().join("env"), 1, LmdbWhenFull::Refuse, Some(1), 1);
         let backend = LmdbCacheBackend::open(&cfg).unwrap();
         let now = Instant::now();
-        assert!(backend.insert(CacheKey(b"a".to_vec()), entry(now, 60), now));
-        assert!(!backend.insert(CacheKey(b"b".to_vec()), entry(now, 60), now));
+        assert!(
+            backend
+                .insert(CacheKey(b"a".to_vec()), entry(now, 60), now)
+                .stored
+        );
+        assert!(
+            !backend
+                .insert(CacheKey(b"b".to_vec()), entry(now, 60), now)
+                .stored
+        );
         assert_eq!(backend.entry_count(), 1);
     }
 
@@ -1713,7 +1770,7 @@ mod tests {
         let mut refused = 0u32;
         for i in 0..64u32 {
             let key = CacheKey(format!("k{i}").into_bytes());
-            if backend.insert(key, entry(now, 60), now) {
+            if backend.insert(key, entry(now, 60), now).stored {
                 inserted += 1;
             } else {
                 refused += 1;
@@ -1737,8 +1794,16 @@ mod tests {
         );
         let backend = LmdbCacheBackend::open(&cfg).unwrap();
         let now = Instant::now();
-        assert!(backend.insert(CacheKey(b"a".to_vec()), entry(now, 60), now));
-        assert!(backend.insert(CacheKey(b"b".to_vec()), entry(now, 60), now));
+        assert!(
+            backend
+                .insert(CacheKey(b"a".to_vec()), entry(now, 60), now)
+                .stored
+        );
+        assert!(
+            backend
+                .insert(CacheKey(b"b".to_vec()), entry(now, 60), now)
+                .stored
+        );
         assert_eq!(backend.entry_count(), 1);
         assert_eq!(
             backend.get_result(&CacheKey(b"b".to_vec()), now),
@@ -1759,7 +1824,7 @@ mod tests {
         let backend = LmdbCacheBackend::open(&cfg).unwrap();
         let now = Instant::now();
         let key = CacheKey(b"short-ttl".to_vec());
-        assert!(backend.insert(key.clone(), entry(now, 1), now));
+        assert!(backend.insert(key.clone(), entry(now, 1), now).stored);
         assert_eq!(
             backend.get_result(&key, Instant::now()),
             CacheGetResult::Hit
@@ -1885,7 +1950,7 @@ mod tests {
         let backend = LmdbCacheBackend::open(&cfg2).unwrap();
         let now = Instant::now();
         let key = CacheKey(b"keep-me".to_vec());
-        assert!(backend.insert(key.clone(), entry(now, 120), now));
+        assert!(backend.insert(key.clone(), entry(now, 120), now).stored);
         assert_eq!(
             backend.get_result(&key, Instant::now()),
             CacheGetResult::Hit
@@ -1915,7 +1980,7 @@ mod tests {
         let backend = LmdbCacheBackend::open(&cfg).unwrap();
         let now = Instant::now();
         let key = CacheKey(b"sticky".to_vec());
-        assert!(backend.insert(key.clone(), entry(now, 120), now));
+        assert!(backend.insert(key.clone(), entry(now, 120), now).stored);
         drop(backend);
 
         // Omit shard_count with a lookup_thread_count that would prefer N=16 on empty path.
@@ -1936,7 +2001,7 @@ mod tests {
         let backend = LmdbCacheBackend::open(&cfg2).unwrap();
         let now = Instant::now();
         let key = CacheKey(b"old".to_vec());
-        assert!(backend.insert(key.clone(), entry(now, 120), now));
+        assert!(backend.insert(key.clone(), entry(now, 120), now).stored);
         drop(backend);
 
         let cfg4 = test_cfg(path.clone(), 0, LmdbWhenFull::EvictOne, Some(4), 1);

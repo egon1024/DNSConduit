@@ -232,12 +232,15 @@ class StudyCatalogTests(unittest.TestCase):
         self.assertEqual(
             list(churn.members),
             [
-                "scale-sync-memory-cache-churn",
-                "scale-sync-lmdb-cache-churn",
+                "scale-sync-ingress-8-memory-cache-churn",
+                "scale-sync-ingress-8-lmdb-cache-churn",
             ],
         )
-        self.assertEqual(len(churn.figures), 2)
+        self.assertEqual(len(churn.figures), 3)
         self.assertEqual(churn.figures[1].metric, "cache_hit_rate")
+        self.assertEqual(
+            churn.figures[2].metric, "cache_fill_duration_mean_ms"
+        )
         sync = next(s for s in studies if s.id == "sync-vs-split-io")
         self.assertTrue(sync.published)
         self.assertEqual(len(sync.figures), 2)

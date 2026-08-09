@@ -117,6 +117,31 @@ class IntegrityUnitTests(unittest.TestCase):
         self.assertNotIn("Machine-checkable", md)
         self.assertNotIn("promoted reference JSON", md)
 
+    def test_delta_fragment_path_duration_uses_ms(self):
+        charts = [
+            ChartSpec(
+                id="churn-fill",
+                title="Cache fill mean duration — sync ingress-8",
+                y_label="Fill mean (ms)",
+                categories=["memory", "lmdb"],
+                series=[
+                    ("cache_fill_duration_mean_ms", [0.0005, 2.9683]),
+                ],
+            )
+        ]
+        claims = claims_from_charts(charts, primary_metric="achieved_qps")
+        md = format_delta_fragment(
+            study_id="memory-vs-lmdb-cache-churn",
+            charts=charts,
+            claims=claims,
+            primary_metric="achieved_qps",
+        )
+        self.assertIn("ms", md)
+        self.assertNotIn("QPS", md)
+        self.assertIn("~3.0 ms", md)
+        self.assertIn("~0.0005 ms", md)
+        self.assertIn(0.0005, claims.durations_ms)
+
     def test_takeaway_section_stops_at_next_heading(self):
         page = "## Takeaway\n\nHello **1.5×**\n\n## Related\n\n**9.9×** junk\n"
         section = takeaway_section(page)

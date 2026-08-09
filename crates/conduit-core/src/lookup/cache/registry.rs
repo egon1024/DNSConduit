@@ -669,8 +669,14 @@ impl LookupCacheRegistry {
 
         // Insert the complete answer first so lookups (which prefer the complete
         // key) never see a gap. Then drop any truncated-UDP sibling.
-        let stored = backend.insert(insert_key, entry, now);
-        if stored && !storing_truncated {
+        let fill_started = Instant::now();
+        let outcome = backend.insert(insert_key, entry, now);
+        let fill_secs = fill_started.elapsed().as_secs_f64();
+        if outcome.evictions > 0 {
+            self.record_cache_evictions(cache_name, "when_full", outcome.evictions);
+            self.observe_cache_eviction_duration(cache_name, "when_full", outcome.eviction_secs);
+        }
+        if outcome.stored && !storing_truncated {
             if let Ok(tc_key) = build_truncated_udp_key(txn) {
                 if backend.remove(&tc_key) {
                     tracing::debug!(
@@ -680,8 +686,9 @@ impl LookupCacheRegistry {
                 }
             }
         }
-        if stored {
+        if outcome.stored {
             self.record_cache_fill(cache_name, txn);
+            self.observe_cache_fill_duration(cache_name, txn, fill_secs);
         } else if backend.as_lmdb().is_some() {
             self.record_cache_lmdb_error(cache_name, "capacity_pressure");
         }
@@ -856,6 +863,42 @@ impl LookupCacheRegistry {
             .as_deref()
             .unwrap_or(conduit_config::lookup::DEFAULT_LOOKUP_PROFILE);
         hub.builtin().record_cache_fill(cache_name, profile);
+    }
+
+    fn observe_cache_fill_duration(
+        &self,
+        cache_name: &str,
+        txn: &crate::transaction::Transaction,
+        duration_secs: f64,
+    ) {
+        let hub = self.metrics.read();
+        let Some(hub) = hub.as_ref() else {
+            return;
+        };
+        if !hub.metrics_enabled() {
+            return;
+        }
+        let profile = txn
+            .lookup_profile
+            .as_deref()
+            .unwrap_or(conduit_config::lookup::DEFAULT_LOOKUP_PROFILE);
+        hub.builtin()
+            .observe_cache_fill_duration(cache_name, profile, duration_secs);
+    }
+
+    fn observe_cache_eviction_duration(&self, cache_name: &str, reason: &str, duration_secs: f64) {
+        if duration_secs <= 0.0 {
+            return;
+        }
+        let hub = self.metrics.read();
+        let Some(hub) = hub.as_ref() else {
+            return;
+        };
+        if !hub.metrics_enabled() {
+            return;
+        }
+        hub.builtin()
+            .observe_cache_eviction_duration(cache_name, reason, duration_secs);
     }
 
     fn record_singleflight_coalesced(

@@ -997,9 +997,28 @@ def _study_metric(sc: dict[str, Any] | None, key: str) -> float | None:
         "cache_hit_rate",
         "cache_lookups_hit",
         "cache_lookups_miss",
+        "cache_fill_duration_mean_ms",
+        "cache_fill_samples",
+        "cache_eviction_duration_mean_ms",
+        "cache_eviction_samples",
     ):
         return secondary(sc, key)
     return metric(sc, key)
+
+
+_CACHE_HIT_METRICS = frozenset(
+    {
+        "cache_hit_rate",
+        "cache_lookups_hit",
+        "cache_lookups_miss",
+    }
+)
+_CACHE_PATH_DURATION_METRICS = frozenset(
+    {
+        "cache_fill_duration_mean_ms",
+        "cache_eviction_duration_mean_ms",
+    }
+)
 
 
 def _category_label(sc: dict[str, Any] | None, axis: str, fallback: str) -> str:
@@ -1059,11 +1078,7 @@ def build_study_figure_chart(
                     fmt(lat_avg(sc)),
                 ]
             )
-        elif primary_metric in (
-            "cache_hit_rate",
-            "cache_lookups_hit",
-            "cache_lookups_miss",
-        ):
+        elif primary_metric in _CACHE_HIT_METRICS:
             name = scenario_md_link(mid, cat) if link_scenarios and sc else cat
             md_rows.append(
                 [
@@ -1081,6 +1096,29 @@ def build_study_figure_chart(
                     fmt(secondary(sc, "cache_hit_rate")),
                     fmt(secondary(sc, "cache_lookups_hit"), 0),
                     fmt(secondary(sc, "cache_lookups_miss"), 0),
+                    fmt(qps(sc)),
+                ]
+            )
+        elif primary_metric in _CACHE_PATH_DURATION_METRICS:
+            name = scenario_md_link(mid, cat) if link_scenarios and sc else cat
+            md_rows.append(
+                [
+                    name,
+                    fmt(secondary(sc, "cache_fill_duration_mean_ms"), 4),
+                    fmt(secondary(sc, "cache_fill_samples"), 0),
+                    fmt(secondary(sc, "cache_eviction_duration_mean_ms"), 4),
+                    fmt(secondary(sc, "cache_eviction_samples"), 0),
+                    fmt(qps(sc)),
+                ]
+            )
+            csv_rows.append(
+                [
+                    mid,
+                    cat,
+                    fmt(secondary(sc, "cache_fill_duration_mean_ms"), 4),
+                    fmt(secondary(sc, "cache_fill_samples"), 0),
+                    fmt(secondary(sc, "cache_eviction_duration_mean_ms"), 4),
+                    fmt(secondary(sc, "cache_eviction_samples"), 0),
                     fmt(qps(sc)),
                 ]
             )
@@ -1111,11 +1149,18 @@ def build_study_figure_chart(
 
     enrich_cache = primary_metric not in (
         "drain_duration_ms",
-        "cache_hit_rate",
-        "cache_lookups_hit",
-        "cache_lookups_miss",
+        *_CACHE_HIT_METRICS,
+        *_CACHE_PATH_DURATION_METRICS,
     ) and any(
         secondary(smap.get(mid), "cache_hit_rate") is not None for mid in member_ids
+    )
+    enrich_path = primary_metric not in (
+        "drain_duration_ms",
+        *_CACHE_HIT_METRICS,
+        *_CACHE_PATH_DURATION_METRICS,
+    ) and any(
+        secondary(smap.get(mid), "cache_fill_duration_mean_ms") is not None
+        for mid in member_ids
     )
     if enrich_cache:
         for i, mid in enumerate(member_ids):
@@ -1129,6 +1174,17 @@ def build_study_figure_chart(
                 fmt(secondary(sc, "cache_hit_rate")),
                 fmt(secondary(sc, "cache_lookups_hit"), 0),
                 fmt(secondary(sc, "cache_lookups_miss"), 0),
+            ]
+    if enrich_path:
+        for i, mid in enumerate(member_ids):
+            sc = smap.get(mid)
+            md_rows[i] = md_rows[i] + [
+                fmt(secondary(sc, "cache_fill_duration_mean_ms"), 4),
+                fmt(secondary(sc, "cache_eviction_duration_mean_ms"), 4),
+            ]
+            csv_rows[i] = csv_rows[i] + [
+                fmt(secondary(sc, "cache_fill_duration_mean_ms"), 4),
+                fmt(secondary(sc, "cache_eviction_duration_mean_ms"), 4),
             ]
 
     chart_id = figure_id
@@ -1161,11 +1217,7 @@ def build_study_figure_chart(
             "achieved_qps",
             "latency_avg_ms",
         ]
-    elif primary_metric in (
-        "cache_hit_rate",
-        "cache_lookups_hit",
-        "cache_lookups_miss",
-    ):
+    elif primary_metric in _CACHE_HIT_METRICS:
         headers = [
             _axis_table_header(axis),
             "Hit rate (%)",
@@ -1181,6 +1233,24 @@ def build_study_figure_chart(
             "cache_lookups_miss",
             "achieved_qps",
         ]
+    elif primary_metric in _CACHE_PATH_DURATION_METRICS:
+        headers = [
+            _axis_table_header(axis),
+            "Fill mean (ms)",
+            "Fill samples",
+            "Eviction mean (ms)",
+            "Eviction samples",
+            "Achieved QPS",
+        ]
+        csv_headers = [
+            "scenario_id",
+            "category",
+            "cache_fill_duration_mean_ms",
+            "cache_fill_samples",
+            "cache_eviction_duration_mean_ms",
+            "cache_eviction_samples",
+            "achieved_qps",
+        ]
     else:
         headers = list(SCALE_TABLE_HEADERS)
         headers[0] = _axis_table_header(axis)
@@ -1193,6 +1263,12 @@ def build_study_figure_chart(
                 "cache_hit_rate",
                 "cache_lookups_hit",
                 "cache_lookups_miss",
+            ]
+        if enrich_path:
+            headers = headers + ["Fill mean (ms)", "Eviction mean (ms)"]
+            csv_headers = csv_headers + [
+                "cache_fill_duration_mean_ms",
+                "cache_eviction_duration_mean_ms",
             ]
 
     return ChartSpec(

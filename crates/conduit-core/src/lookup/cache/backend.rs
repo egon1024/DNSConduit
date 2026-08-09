@@ -7,6 +7,30 @@ use super::memory::{CacheGetResult, MemoryCacheBackend, ReapBudget, ReapCursor, 
 use conduit_config::lookup::{CacheBackendType, CompiledCacheInstance};
 use std::time::Instant;
 
+/// Result of a cache insert, including capacity-eviction cost when the store ejected victims.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct InsertOutcome {
+    /// `true` when the entry was stored (LMDB may refuse under pressure).
+    pub stored: bool,
+    /// Wall seconds spent in capacity eviction during this insert (sum if multiple).
+    pub eviction_secs: f64,
+    /// Number of capacity victims removed during this insert.
+    pub evictions: u64,
+}
+
+impl InsertOutcome {
+    pub fn stored_ok() -> Self {
+        Self {
+            stored: true,
+            ..Self::default()
+        }
+    }
+
+    pub fn refused() -> Self {
+        Self::default()
+    }
+}
+
 /// Process-local answer-cache store behind [`super::registry::CacheInstanceRuntime`].
 pub enum CacheBackend {
     Memory(MemoryCacheBackend),
@@ -41,13 +65,10 @@ impl CacheBackend {
         }
     }
 
-    /// Returns `true` when the entry was stored (LMDB may refuse under pressure).
-    pub fn insert(&self, key: CacheKey, entry: CacheEntry, now: Instant) -> bool {
+    /// Store an entry. LMDB may refuse under capacity pressure (`stored == false`).
+    pub fn insert(&self, key: CacheKey, entry: CacheEntry, now: Instant) -> InsertOutcome {
         match self {
-            Self::Memory(m) => {
-                m.insert(key, entry, now);
-                true
-            }
+            Self::Memory(m) => m.insert(key, entry, now),
             Self::Lmdb(l) => l.insert(key, entry, now),
         }
     }

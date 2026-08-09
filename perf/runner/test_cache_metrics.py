@@ -42,6 +42,32 @@ class ScrapeCacheLookupCountsTests(unittest.TestCase):
         self.assertEqual(stats["cache_lookups_hit"], 0)
         self.assertEqual(stats["cache_lookups_miss"], 0)
         self.assertEqual(stats["cache_hit_rate"], 0.0)
+        self.assertEqual(stats["cache_fill_samples"], 0)
+        self.assertEqual(stats["cache_eviction_samples"], 0)
+
+    def test_fill_and_eviction_duration_means(self):
+        body = (
+            "# HELP conduit_cache_lookups_total\n"
+            'conduit_cache_lookups_total{cache="global",profile="default",result="hit"} 1\n'
+            'conduit_cache_lookups_total{cache="global",profile="default",result="miss"} 1\n'
+            'conduit_cache_fill_duration_seconds_sum{cache="global",profile="default"} 0.02\n'
+            'conduit_cache_fill_duration_seconds_count{cache="global",profile="default"} 10\n'
+            'conduit_cache_eviction_duration_seconds_sum{cache="global",reason="when_full"} 0.05\n'
+            'conduit_cache_eviction_duration_seconds_count{cache="global",reason="when_full"} 5\n'
+        )
+        with mock.patch(
+            "perf.runner.companions.urllib.request.urlopen"
+        ) as urlopen:
+            resp = mock.MagicMock()
+            resp.read.return_value = body.encode("utf-8")
+            resp.__enter__.return_value = resp
+            resp.__exit__.return_value = False
+            urlopen.return_value = resp
+            stats = scrape_cache_lookup_counts("http://127.0.2.1:19090/metrics")
+        self.assertEqual(stats["cache_fill_samples"], 10)
+        self.assertEqual(stats["cache_fill_duration_mean_ms"], 2.0)
+        self.assertEqual(stats["cache_eviction_samples"], 5)
+        self.assertEqual(stats["cache_eviction_duration_mean_ms"], 10.0)
 
 
 if __name__ == "__main__":

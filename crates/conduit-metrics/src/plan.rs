@@ -483,6 +483,8 @@ pub fn builtin_metric_category(family_name: &str) -> Option<MetricCategory> {
         | "conduit_forward_duration_seconds"
         | "conduit_lookup_duration_seconds"
         | "conduit_cache_lookup_duration_seconds"
+        | "conduit_cache_fill_duration_seconds"
+        | "conduit_cache_eviction_duration_seconds"
         | "conduit_response_duration_seconds" => Some(MetricCategory::Timing),
 
         "conduit_cache_fills_total"

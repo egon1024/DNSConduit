@@ -1,0 +1,3 @@
+scenario_id,category,cache_fill_duration_mean_ms,cache_fill_samples,cache_eviction_duration_mean_ms,cache_eviction_samples,achieved_qps
+scale-sync-ingress-8-memory-cache-churn,memory,0.0005,1351874,0.0003,1343747,268457.9
+scale-sync-ingress-8-lmdb-cache-churn,lmdb,2.9683,16999,1.6256,16360,2875.1

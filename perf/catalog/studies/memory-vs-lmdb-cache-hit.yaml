@@ -12,8 +12,9 @@ compare_axis: cache_backend
 primary_metric: achieved_qps
 takeaway: >
   Warm LMDB costs about 6% QPS versus warm memory on this lab under sync
-  cache_hit (read-mostly after warm — not high-churn fill/evict). Absolute LMDB
-  QPS is disk/page-cache sensitive; prefer the relative claim.
+  cache_hit (~311k vs ~329k; read-mostly after warm — not high-churn
+  fill/evict). Absolute LMDB QPS is disk/page-cache sensitive; prefer the
+  relative claim. For turnover under pressure, see memory-vs-lmdb-cache-churn.
 related_guides:
   - /guides/dns-answer-cache.md
   - /reference/config-schema/caches.md

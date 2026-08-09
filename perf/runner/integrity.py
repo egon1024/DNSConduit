@@ -73,10 +73,31 @@ def takeaway_section(page_text: str) -> str:
     return match.group(1)
 
 
+_CACHE_HIT_METRICS = frozenset(
+    {
+        "cache_hit_rate",
+        "cache_lookups_hit",
+        "cache_lookups_miss",
+    }
+)
+_CACHE_PATH_DURATION_METRICS = frozenset(
+    {
+        "cache_fill_duration_mean_ms",
+        "cache_eviction_duration_mean_ms",
+    }
+)
+
+
 def _series_values(chart: ChartSpec) -> list[float | None]:
     if not chart.series:
         return [None] * len(chart.categories)
     return list(chart.series[0][1])
+
+
+def _chart_metric(chart: ChartSpec, fallback: str) -> str:
+    if chart.series:
+        return chart.series[0][0]
+    return fallback
 
 
 def _round_qps_k(qps: float) -> int:
@@ -88,6 +109,18 @@ def _fmt_qps_plain(qps: float) -> str:
     if qps < 500:
         return f"~{int(round(qps))} QPS"
     return f"~{_round_qps_k(qps)}k"
+
+
+def _fmt_hit_rate(rate: float) -> str:
+    return f"~{rate:.1f}%"
+
+
+def _fmt_ms_plain(ms: float) -> str:
+    if ms < 0.01:
+        return f"~{ms:.4f} ms"
+    if ms < 1.0:
+        return f"~{ms:.3f} ms"
+    return f"~{ms:.1f} ms"
 
 
 def _round_mult(ratio: float) -> float:
@@ -114,14 +147,42 @@ def claims_from_charts(
 ) -> AllowedClaims:
     """Derive allowed Takeaway numbers from figure series (Evidence poles)."""
     claims = AllowedClaims()
-    is_drain = primary_metric == "drain_duration_ms"
 
     for chart in charts:
+        metric = _chart_metric(chart, primary_metric)
         values = _series_values(chart)
         ok = [v for v in values if v is not None]
-        if is_drain:
+        if metric == "drain_duration_ms" or metric in _CACHE_PATH_DURATION_METRICS:
             for v in ok:
-                claims.durations_ms.add(float(round(v)))
+                # Sub-ms path timings keep finer precision for integrity.
+                if metric in _CACHE_PATH_DURATION_METRICS and v < 1.0:
+                    claims.durations_ms.add(round(v, 4))
+                else:
+                    claims.durations_ms.add(float(round(v)))
+            if metric in _CACHE_PATH_DURATION_METRICS and len(ok) >= 2:
+                baseline = ok[0]
+                if baseline > 0:
+                    for v in ok[1:]:
+                        if v > 0:
+                            _add_multiplier(claims, v / baseline)
+                            _add_multiplier(claims, baseline / v)
+                            _add_multiplier(
+                                claims, max(v, baseline) / min(v, baseline)
+                            )
+            continue
+
+        if metric in _CACHE_HIT_METRICS:
+            if len(ok) >= 2:
+                baseline = ok[0]
+                if baseline > 0:
+                    for v in ok[1:]:
+                        if v <= 0:
+                            continue
+                        _add_multiplier(claims, v / baseline)
+                        _add_multiplier(claims, baseline / v)
+                        claims.percents.add(
+                            _round_pct(abs(baseline - v) / baseline * 100.0)
+                        )
             continue
 
         for v in ok:
@@ -210,9 +271,9 @@ def format_delta_fragment(
         "",
     ]
     any_bullet = False
-    is_drain = primary_metric == "drain_duration_ms"
 
     for chart in charts:
+        metric = _chart_metric(chart, primary_metric)
         values = _series_values(chart)
         cats = chart.categories
         ok_pairs = [
@@ -229,12 +290,93 @@ def format_delta_fragment(
             any_bullet = True
             continue
 
-        if is_drain:
+        if metric == "drain_duration_ms":
             bits = ", ".join(
                 f"{_md_pole(label)} ≈ **{int(round(val))} ms**"
                 for label, val in ok_pairs
             )
             lines.append(f"- **{heading}:** {bits}")
+            any_bullet = True
+            continue
+
+        if metric in _CACHE_PATH_DURATION_METRICS:
+            if len(ok_pairs) == 1:
+                label, val = ok_pairs[0]
+                lines.append(
+                    f"- **{heading}:** only {_md_pole(label)} is published "
+                    f"({_fmt_ms_plain(val)}); no paired comparison on this reference."
+                )
+            else:
+                base_label, baseline = ok_pairs[0]
+                parts: list[str] = []
+                for label, val in ok_pairs[1:]:
+                    if baseline <= 0 or val <= 0:
+                        continue
+                    ratio = val / baseline
+                    if ratio >= 100.0 or ratio <= 0.01:
+                        parts.append(
+                            f"{_md_pole(label)} ≈ {_fmt_ms_plain(val)} vs "
+                            f"{_md_pole(base_label)} {_fmt_ms_plain(baseline)}"
+                        )
+                    elif val >= baseline:
+                        parts.append(
+                            f"{_md_pole(label)} is about "
+                            f"**{_round_mult(ratio)}×** "
+                            f"{_md_pole(base_label)} "
+                            f"({_fmt_ms_plain(val)} vs {_fmt_ms_plain(baseline)})"
+                        )
+                    else:
+                        parts.append(
+                            f"{_md_pole(label)} is about "
+                            f"**{_round_pct(abs(baseline - val) / baseline * 100.0):.0f}%** "
+                            f"faster than {_md_pole(base_label)} "
+                            f"({_fmt_ms_plain(val)} vs {_fmt_ms_plain(baseline)})"
+                        )
+                if not parts:
+                    lines.append(
+                        f"- **{heading}:** {_md_pole(base_label)} "
+                        f"≈ {_fmt_ms_plain(baseline)}."
+                    )
+                else:
+                    lines.append(f"- **{heading}:** " + "; ".join(parts) + ".")
+            any_bullet = True
+            continue
+
+        if metric in _CACHE_HIT_METRICS:
+            if len(ok_pairs) == 1:
+                label, val = ok_pairs[0]
+                lines.append(
+                    f"- **{heading}:** only {_md_pole(label)} is published "
+                    f"({_fmt_hit_rate(val)}); no paired comparison on this reference."
+                )
+            else:
+                base_label, baseline = ok_pairs[0]
+                parts: list[str] = []
+                for label, val in ok_pairs[1:]:
+                    if baseline <= 0:
+                        continue
+                    delta_pct = abs(baseline - val) / baseline * 100.0
+                    if val >= baseline:
+                        parts.append(
+                            f"{_md_pole(label)} is about "
+                            f"**{_round_pct(delta_pct):.0f}%** higher hit rate "
+                            f"than {_md_pole(base_label)} "
+                            f"({_fmt_hit_rate(val)} vs {_fmt_hit_rate(baseline)})"
+                        )
+                    else:
+                        parts.append(
+                            f"{_md_pole(label)} is about "
+                            f"**{_round_pct(delta_pct):.0f}%** lower hit rate "
+                            f"than {_md_pole(base_label)} "
+                            f"({_fmt_hit_rate(val)} vs {_fmt_hit_rate(baseline)})"
+                        )
+                if not parts:
+                    lines.append(
+                        f"- **{heading}:** {_md_pole(base_label)} "
+                        f"≈ {_fmt_hit_rate(baseline)}."
+                    )
+                else:
+                    lines.append(f"- **{heading}:** " + "; ".join(parts) + ".")
             any_bullet = True
             continue
 
@@ -248,7 +390,7 @@ def format_delta_fragment(
             continue
 
         base_label, baseline = ok_pairs[0]
-        parts: list[str] = []
+        parts = []
         for label, val in ok_pairs[1:]:
             if baseline <= 0 or val <= 0:
                 continue

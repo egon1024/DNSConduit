@@ -242,6 +242,8 @@ pub struct BuiltinRegistry {
     cache_singleflight_coalesced: Option<IntCounterVec>,
     lookup_duration: Option<HistogramVec>,
     cache_lookup_duration: Option<HistogramVec>,
+    cache_fill_duration: Option<HistogramVec>,
+    cache_eviction_duration: Option<HistogramVec>,
     cache_evictions: Option<IntCounterVec>,
     cache_entries: Option<GaugeVec>,
     cache_entries_limit: Option<GaugeVec>,
@@ -570,6 +572,8 @@ impl BuiltinRegistry {
             cache_singleflight_coalesced,
             lookup_duration,
             cache_lookup_duration,
+            cache_fill_duration,
+            cache_eviction_duration,
             cache_evictions,
             cache_entries,
             cache_entries_limit,
@@ -598,6 +602,18 @@ impl BuiltinRegistry {
                 "conduit_cache_lookup_duration_seconds",
                 "Cache read path latency",
                 &["cache", "profile"],
+                phase_duration_buckets(),
+            );
+            let fill_dur = get_histogram(
+                "conduit_cache_fill_duration_seconds",
+                "Wall time to store a cache entry (includes capacity eviction when needed)",
+                &["cache", "profile"],
+                phase_duration_buckets(),
+            );
+            let eviction_dur = get_histogram(
+                "conduit_cache_eviction_duration_seconds",
+                "Wall time spent ejecting cache victims under capacity pressure",
+                &["cache", "reason"],
                 phase_duration_buckets(),
             );
             let evictions = get_counter(
@@ -640,6 +656,8 @@ impl BuiltinRegistry {
                 Some(coalesced),
                 Some(lookup_dur),
                 Some(cache_dur),
+                Some(fill_dur),
+                Some(eviction_dur),
                 Some(evictions),
                 Some(entries),
                 Some(entries_limit),
@@ -650,7 +668,7 @@ impl BuiltinRegistry {
             )
         } else {
             (
-                None, None, None, None, None, None, None, None, None, None, None,
+                None, None, None, None, None, None, None, None, None, None, None, None, None,
             )
         };
 
@@ -963,6 +981,8 @@ impl BuiltinRegistry {
             cache_singleflight_coalesced,
             lookup_duration,
             cache_lookup_duration,
+            cache_fill_duration,
+            cache_eviction_duration,
             cache_evictions,
             cache_entries,
             cache_entries_limit,
@@ -1260,6 +1280,25 @@ impl BuiltinRegistry {
         if let Some(h) = self.cache_lookup_duration.as_ref() {
             h.with_label_values(&[cache, profile])
                 .observe(duration_secs);
+        }
+    }
+
+    pub fn observe_cache_fill_duration(&self, cache: &str, profile: &str, duration_secs: f64) {
+        if !self.enabled || self.profile != BuiltinProfile::Full {
+            return;
+        }
+        if let Some(h) = self.cache_fill_duration.as_ref() {
+            h.with_label_values(&[cache, profile])
+                .observe(duration_secs);
+        }
+    }
+
+    pub fn observe_cache_eviction_duration(&self, cache: &str, reason: &str, duration_secs: f64) {
+        if !self.enabled || self.profile != BuiltinProfile::Full {
+            return;
+        }
+        if let Some(h) = self.cache_eviction_duration.as_ref() {
+            h.with_label_values(&[cache, reason]).observe(duration_secs);
         }
     }
 
@@ -2267,6 +2306,8 @@ Max locked memory         8388608              8388608              bytes     \n
             reg.record_cache_evictions("global", "active_reaper", 3);
             reg.observe_lookup_duration("default", "cache", 0.001);
             reg.observe_cache_lookup_duration("global", "default", 0.0005);
+            reg.observe_cache_fill_duration("global", "default", 0.002);
+            reg.observe_cache_eviction_duration("global", "when_full", 0.0015);
             reg.record_response("ln", "udp", Some(0), &addr, Some("cache"));
             let body = encode_builtin(reg.gather());
             assert!(
@@ -2300,6 +2341,15 @@ Max locked memory         8388608              8388608              bytes     \n
                     body.contains("conduit_lookup_duration_seconds"),
                     "body:\n{body}"
                 );
+                assert!(
+                    body.contains("conduit_cache_fill_duration_seconds"),
+                    "body:\n{body}"
+                );
+                assert!(
+                    body.contains("conduit_cache_eviction_duration_seconds")
+                        && body.contains(r#"reason="when_full""#),
+                    "body:\n{body}"
+                );
             } else {
                 assert!(
                     !body.contains("conduit_cache_fills_total"),
@@ -2308,6 +2358,10 @@ Max locked memory         8388608              8388608              bytes     \n
                 assert!(
                     !body.contains("conduit_cache_evictions_total"),
                     "minimal must omit eviction series, body:\n{body}"
+                );
+                assert!(
+                    !body.contains("conduit_cache_fill_duration_seconds"),
+                    "minimal must omit fill duration, body:\n{body}"
                 );
             }
         }
