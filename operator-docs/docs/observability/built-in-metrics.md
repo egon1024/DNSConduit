@@ -59,7 +59,7 @@ Use **`standard`** for day-two operations, SLO dashboards, and debugging upstrea
 | [`conduit_script_errors_total`](#conduit_script_errors_total) | yes (`reason`, `script`, `table`) | yes | — |
 | Phase / forward-attempt / forward-duration / lookup-cache histograms below | no | yes | — |
 | [`conduit_lookup_provider_outcomes_total`](#conduit_lookup_provider_outcomes_total), [`conduit_cache_lookups_total`](#conduit_cache_lookups_total) | yes | yes | — |
-| [`conduit_cache_fills_total`](#conduit_cache_fills_total), [`conduit_cache_singleflight_coalesced_total`](#conduit_cache_singleflight_coalesced_total), lookup/cache duration histograms | no | yes | — |
+| [`conduit_cache_fills_total`](#conduit_cache_fills_total), [`conduit_cache_singleflight_coalesced_total`](#conduit_cache_singleflight_coalesced_total), lookup/cache/fill/eviction duration histograms | no | yes | — |
 | [`conduit_cache_evictions_total`](#conduit_cache_evictions_total), [`conduit_cache_lmdb_errors_total`](#conduit_cache_lmdb_errors_total) | no | yes | — |
 | [`conduit_cache_entries`](#conduit_cache_entries), [`conduit_cache_entries_limit`](#conduit_cache_entries_limit), [`conduit_cache_bytes_used`](#conduit_cache_bytes_used), [`conduit_cache_bytes_limit`](#conduit_cache_bytes_limit), [`conduit_cache_lmdb_shards`](#conduit_cache_lmdb_shards) | — | — | yes (`full`) |
 | [`conduit_probe_results_total`](#conduit_probe_results_total) | yes (health enabled) | yes | — |
@@ -366,7 +366,27 @@ Series for the [Lookup](/concepts/architecture-and-packet-path.md#lookup) phase 
 | **Profile** | `full` only |
 | **When** | An entry is removed to free capacity |
 
-`reason` values in use today: `active_reaper` (memory backend with **`memory.eviction: active`**).
+`reason` values in use today: `active_reaper` (memory backend with **`memory.eviction: active`**), `when_full` (capacity victim removed during insert under entry or map pressure).
+
+### conduit_cache_eviction_duration_seconds { #conduit_cache_eviction_duration_seconds }
+
+| | |
+|--|--|
+| **Type** | Histogram |
+| **Labels** | `cache`, `reason` |
+| **Profile** | `full` only |
+| **When** | Wall time spent ejecting victims under capacity pressure (today: `reason=when_full`) |
+
+Does **not** include the subsequent store/commit of the new entry — see [`conduit_cache_fill_duration_seconds`](#conduit_cache_fill_duration_seconds) for the full insert path (which may include this eviction).
+
+### conduit_cache_fill_duration_seconds { #conduit_cache_fill_duration_seconds }
+
+| | |
+|--|--|
+| **Type** | Histogram |
+| **Labels** | `cache`, `profile` |
+| **Profile** | `full` only |
+| **When** | Wall time to store a cache entry after an upstream answer (includes any capacity eviction needed for that insert)
 
 ### conduit_cache_fills_total { #conduit_cache_fills_total }
 

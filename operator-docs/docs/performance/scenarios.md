@@ -560,29 +560,29 @@ Warm LMDB cache hits on the sync runtime using a real-disk environment path. Aft
 
 <div class="perf-scenario" markdown="1">
 
-### scale-sync-memory-cache-churn
+### scale-sync-ingress-8-memory-cache-churn
 
-High-churn memory-cache load on the sync runtime: a query set larger than max_entries, a long enough stub TTL that entry-cap turnover (not TTL expiry alone) drives misses, and no warm plateau before dnsperf.
+High-churn memory-cache load on sync with eight ingress workers: query set larger than max_entries, stub TTL long enough that entry-cap turnover drives misses, no warm plateau.
 
-**Notes:** Matched with scale-sync-lmdb-cache-churn for study memory-vs-lmdb-cache-churn. Not the warm cache_hit pole. Recipe: 4096 unique names, max_entries 2048, stub TTL 60s — steady sequential cycling yields roughly half hits from the entry cap when TTL does not expire first. Lazy TTL expiry is deterministic; hit-rate noise under pressure is from capacity turnover / when_full victims, not a random clock.
+**Notes:** Primary memory member of study memory-vs-lmdb-cache-churn. Matched with scale-sync-ingress-8-lmdb-cache-churn (eight workers so the compare is not starved by a two-thread sync path). Recipe: 4096 unique names, max_entries 2048, stub TTL 60s. The thin-ingress pair (scale-sync-memory-cache-churn) remains as a companion cell, not the study primary.
 
-**What varies:** `runtime`=[`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default), `load_shape`=[`cache_churn`](/performance/methodology.md#load-shapes), `ingress_workers`=`2`, `cache_backend`=`memory`
+**What varies:** `runtime`=[`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default), `load_shape`=[`cache_churn`](/performance/methodology.md#load-shapes), `ingress_workers`=`8`, `cache_backend`=`memory`
 
-**How it was run:** config `scale-sync-memory-cache-churn.yml`; upstream `fast` (fast stub upstream); loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
+**How it was run:** config `scale-sync-ingress-8-memory-cache-churn.yml`; upstream `fast` (fast stub upstream); loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
 
 </div>
 
 <div class="perf-scenario" markdown="1">
 
-### scale-sync-lmdb-cache-churn
+### scale-sync-ingress-8-lmdb-cache-churn
 
-High-churn LMDB-cache load on the sync runtime using a real-disk environment path. Matched entry cap, query diversity, and stub TTL keep the store under continuous fill/evict pressure (no warm plateau).
+High-churn LMDB-cache load on sync with eight ingress workers and explicit multi-env sharding on a real-disk path. Matched entry cap, query diversity, and stub TTL keep continuous fill/evict pressure.
 
-**Notes:** Fixed safe LMDB sync durability default. when_full=evict_one (arbitrary victims under pressure). Recipe matches memory cell: 4096 unique names, max_entries 2048, stub TTL 60s. Compare via memory-vs-lmdb-cache-churn. Lazy TTL expiry is wall-clock deterministic; do not attribute hit-rate noise to “random expiry.”
+**Notes:** Primary LMDB member of study memory-vs-lmdb-cache-churn. Fixed safe sync durability; when_full=evict_one; shard_count=16 (2× ingress). Path /var/tmp/conduit-perf/lmdb-cache-churn-i8. Recipe matches the ingress-8 memory cell. Average latency under the elevated outstanding window still tracks roughly outstanding/QPS (Little's Law) — lead takeaways with relative QPS and hit/miss. Thin-ingress scale-sync-lmdb-cache-churn is a companion, not the study primary.
 
-**What varies:** `runtime`=[`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default), `load_shape`=[`cache_churn`](/performance/methodology.md#load-shapes), `ingress_workers`=`2`, `cache_backend`=`lmdb`
+**What varies:** `runtime`=[`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default), `load_shape`=[`cache_churn`](/performance/methodology.md#load-shapes), `ingress_workers`=`8`, `cache_backend`=`lmdb`
 
-**How it was run:** config `scale-sync-lmdb-cache-churn.yml`; upstream `fast` (fast stub upstream); loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
+**How it was run:** config `scale-sync-ingress-8-lmdb-cache-churn.yml`; upstream `fast` (fast stub upstream); loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
 
 </div>
 

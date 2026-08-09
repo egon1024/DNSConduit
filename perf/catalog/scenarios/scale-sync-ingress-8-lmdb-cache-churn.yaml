@@ -1,0 +1,24 @@
+schema_version: 1
+id: scale-sync-ingress-8-lmdb-cache-churn
+suite: scale
+curated: true
+summary: |
+  High-churn LMDB-cache load on sync with eight ingress workers and explicit multi-env sharding on a real-disk path. Matched entry cap, query diversity, and stub TTL keep continuous fill/evict pressure.
+notes: |
+  Primary LMDB member of study memory-vs-lmdb-cache-churn. Fixed safe sync durability; when_full=evict_one; shard_count=16 (2× ingress). Path /var/tmp/conduit-perf/lmdb-cache-churn-i8. Recipe matches the ingress-8 memory cell. Average latency under the elevated outstanding window still tracks roughly outstanding/QPS (Little's Law) — lead takeaways with relative QPS and hit/miss. Thin-ingress scale-sync-lmdb-cache-churn is a companion, not the study primary.
+axes:
+  runtime: sync
+  load_shape: cache_churn
+  ingress_workers: 8
+  cache_backend: lmdb
+recipe:
+  config: scale-sync-ingress-8-lmdb-cache-churn.yml
+  upstream: fast
+  loadgen: dnsperf
+  query_file: perf-churn-a.txt
+  cache_warm: false
+  upstream_ttl_secs: 60
+  record_cache_metrics: true
+  clients: 16
+  dnsperf_threads: 8
+  max_outstanding: 2000

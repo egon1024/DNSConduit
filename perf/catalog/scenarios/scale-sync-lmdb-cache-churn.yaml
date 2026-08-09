@@ -5,7 +5,7 @@ curated: true
 summary: |
   High-churn LMDB-cache load on the sync runtime using a real-disk environment path. Matched entry cap, query diversity, and stub TTL keep the store under continuous fill/evict pressure (no warm plateau).
 notes: |
-  Fixed safe LMDB sync durability default. when_full=evict_one (arbitrary victims under pressure). Recipe matches memory cell: 4096 unique names, max_entries 2048, stub TTL 60s. Compare via memory-vs-lmdb-cache-churn. Lazy TTL expiry is wall-clock deterministic; do not attribute hit-rate noise to “random expiry.”
+  Thin-ingress companion (two sync workers). Primary study pair is scale-sync-ingress-8-*-cache-churn with explicit LMDB shard_count. Fixed safe sync; when_full=evict_one. Recipe matches thin memory cell: 4096 names, max_entries 2048, stub TTL 60s.
 axes:
   runtime: sync
   load_shape: cache_churn

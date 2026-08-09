@@ -143,8 +143,15 @@ impl MemoryCacheBackend {
         }
     }
 
-    pub fn insert(&self, key: CacheKey, entry: CacheEntry, now: Instant) {
+    pub fn insert(
+        &self,
+        key: CacheKey,
+        entry: CacheEntry,
+        now: Instant,
+    ) -> super::backend::InsertOutcome {
         let idx = self.shard_index(&key);
+        let mut eviction_secs = 0.0_f64;
+        let mut evictions = 0_u64;
         // May release the shard write lock to evict on another shard (never nest
         // shard locks — that ABBA-deadlocks under concurrent inserts at cap).
         loop {
@@ -153,7 +160,11 @@ impl MemoryCacheBackend {
             match prior {
                 Some(true) => {
                     guard.entries.insert(key, entry);
-                    return;
+                    return super::backend::InsertOutcome {
+                        stored: true,
+                        eviction_secs,
+                        evictions,
+                    };
                 }
                 Some(false) => {
                     guard.entries.remove(&key);
@@ -172,14 +183,20 @@ impl MemoryCacheBackend {
                 }
 
                 if self.live_entries.load(Ordering::Relaxed) >= max {
+                    let t0 = Instant::now();
                     if Self::evict_one_in_shard(&mut guard, now) {
+                        eviction_secs += t0.elapsed().as_secs_f64();
+                        evictions += 1;
                         self.live_entries.fetch_sub(1, Ordering::Relaxed);
                     } else {
                         drop(guard);
+                        let t1 = Instant::now();
                         if !self.evict_one_excluding(idx, now) {
                             // Nothing left to evict (race with concurrent removers).
                             continue;
                         }
+                        eviction_secs += t1.elapsed().as_secs_f64();
+                        evictions += 1;
                         continue;
                     }
                 }
@@ -193,12 +210,19 @@ impl MemoryCacheBackend {
             let max = self.max_entries.load(Ordering::Relaxed);
             if max > 0 {
                 while self.live_entries.load(Ordering::Relaxed) > max {
+                    let t0 = Instant::now();
                     if !self.evict_one(now) {
                         break;
                     }
+                    eviction_secs += t0.elapsed().as_secs_f64();
+                    evictions += 1;
                 }
             }
-            return;
+            return super::backend::InsertOutcome {
+                stored: true,
+                eviction_secs,
+                evictions,
+            };
         }
     }
 

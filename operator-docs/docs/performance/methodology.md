@@ -45,11 +45,24 @@ inserts. That shape measures lookup/serve cost, **not** fill/evict churn, capaci
 pressure, or hit-rate under turnover.
 
 High-churn `cache_churn` cells intentionally keep the cache under continuous
-fill/evict pressure (large query file, short stub TTLs, entry cap below query
-cardinality). Published takeaways for that pole lead with **relative QPS and
-hit/miss** (or hit-rate), not QPS alone. Lazy TTL expiry is **wall-clock
-deterministic** on read; what is arbitrary under LMDB capacity pressure is
-`when_full` victim selection (`evict_one` / `sample`), not the expiry clock.
+fill/evict pressure (large query file, stub TTLs long enough that **entry-cap**
+turnover dominates, cap below query cardinality). Published takeaways for that
+pole lead with **relative QPS and hit/miss** (or hit-rate), not QPS alone.
+Average latency under the elevated outstanding window still tracks roughly
+outstanding ÷ QPS ([Little's Law](#how-load-is-applied-not-a-fixed-offered-qps))
+and must not be read as raw disk service time. The published memory-vs-LMDB
+churn study uses **eight sync ingress workers** (and an explicit LMDB
+`shard_count` of 16) so the compare is not starved by a two-thread sync path.
+A thin-ingress (two-worker) companion pair remains in the catalog for
+continuity. When `record_cache_metrics` is set, the harness also scrapes mean
+fill and capacity-eviction path durations (`conduit_cache_fill_duration_seconds`,
+`conduit_cache_eviction_duration_seconds`) into run `secondary` so eject/populate
+cost can be compared without reading dnsperf queue latency. The published
+memory-vs-LMDB churn study surfaces those means on the QPS evidence table and a
+dedicated fill-duration figure. Lazy TTL expiry is
+**wall-clock deterministic** on read; what is arbitrary under LMDB capacity
+pressure is `when_full` victim selection (`evict_one` / `sample`), not the
+expiry clock.
 
 ### LMDB cache cells
 

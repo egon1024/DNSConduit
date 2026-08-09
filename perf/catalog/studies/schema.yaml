@@ -67,4 +67,6 @@ fields:
           type: string
           description: >
             Optional per-figure metric key (defaults to study primary_metric).
-            Use cache_hit_rate for secondary hit-rate poles.
+            Secondary poles include cache_hit_rate and cache_fill_duration_mean_ms
+            / cache_eviction_duration_mean_ms (path-timing tables include both
+            fill and eviction columns).

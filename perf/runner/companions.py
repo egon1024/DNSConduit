@@ -198,6 +198,14 @@ _CACHE_LOOKUPS_LINE = re.compile(
     r"^conduit_cache_lookups_total\{([^}]*)\}\s+([0-9]+(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?)\s*$"
 )
 _RESULT_LABEL = re.compile(r'result="([^"]+)"')
+_HIST_SUM_LINE = re.compile(
+    r"^(conduit_cache_(?:fill|eviction)_duration_seconds)_sum(?:\{([^}]*)\})?\s+"
+    r"([0-9]+(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?)\s*$"
+)
+_HIST_COUNT_LINE = re.compile(
+    r"^(conduit_cache_(?:fill|eviction)_duration_seconds)_count(?:\{([^}]*)\})?\s+"
+    r"([0-9]+(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?)\s*$"
+)
 
 
 def scrape_cache_lookup_counts(
@@ -208,35 +216,65 @@ def scrape_cache_lookup_counts(
     """Fetch Prometheus text and sum cache lookup hit/miss counters.
 
     Returns keys suitable for run ``secondary``:
-    ``cache_lookups_hit``, ``cache_lookups_miss``, ``cache_hit_rate`` (0–100).
+    ``cache_lookups_hit``, ``cache_lookups_miss``, ``cache_hit_rate`` (0–100),
+    plus fill/eviction path duration means when histogram samples are present
+    (``cache_fill_duration_mean_ms``, ``cache_fill_samples``,
+    ``cache_eviction_duration_mean_ms``, ``cache_eviction_samples``).
     """
     with urllib.request.urlopen(url, timeout=timeout_s) as resp:
         body = resp.read().decode("utf-8", errors="replace")
     hits = 0.0
     misses = 0.0
+    hist_sum: dict[str, float] = {}
+    hist_count: dict[str, float] = {}
     for line in body.splitlines():
         if line.startswith("#"):
             continue
-        match = _CACHE_LOOKUPS_LINE.match(line.strip())
-        if not match:
+        stripped = line.strip()
+        match = _CACHE_LOOKUPS_LINE.match(stripped)
+        if match:
+            labels, raw_value = match.group(1), match.group(2)
+            result = _RESULT_LABEL.search(labels)
+            if result is None:
+                continue
+            value = float(raw_value)
+            kind = result.group(1)
+            if kind == "hit":
+                hits += value
+            elif kind == "miss":
+                misses += value
             continue
-        labels, raw_value = match.group(1), match.group(2)
-        result = _RESULT_LABEL.search(labels)
-        if result is None:
+        sum_m = _HIST_SUM_LINE.match(stripped)
+        if sum_m:
+            metric = sum_m.group(1)
+            hist_sum[metric] = hist_sum.get(metric, 0.0) + float(sum_m.group(3))
             continue
-        value = float(raw_value)
-        kind = result.group(1)
-        if kind == "hit":
-            hits += value
-        elif kind == "miss":
-            misses += value
+        count_m = _HIST_COUNT_LINE.match(stripped)
+        if count_m:
+            metric = count_m.group(1)
+            hist_count[metric] = hist_count.get(metric, 0.0) + float(count_m.group(3))
     total = hits + misses
     hit_rate = round((hits / total) * 100.0, 4) if total > 0 else 0.0
-    return {
+    out: dict[str, float | int] = {
         "cache_lookups_hit": int(hits) if hits == int(hits) else hits,
         "cache_lookups_miss": int(misses) if misses == int(misses) else misses,
         "cache_hit_rate": hit_rate,
     }
+
+    def _mean_ms(metric: str) -> tuple[float, int]:
+        count = hist_count.get(metric, 0.0)
+        if count <= 0:
+            return 0.0, 0
+        mean_s = hist_sum.get(metric, 0.0) / count
+        return round(mean_s * 1000.0, 4), int(count) if count == int(count) else int(count)
+
+    fill_ms, fill_n = _mean_ms("conduit_cache_fill_duration_seconds")
+    evict_ms, evict_n = _mean_ms("conduit_cache_eviction_duration_seconds")
+    out["cache_fill_duration_mean_ms"] = fill_ms
+    out["cache_fill_samples"] = fill_n
+    out["cache_eviction_duration_mean_ms"] = evict_ms
+    out["cache_eviction_samples"] = evict_n
+    return out
 
 
 @dataclass

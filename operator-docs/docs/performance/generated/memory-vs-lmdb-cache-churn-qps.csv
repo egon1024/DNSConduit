@@ -1,3 +1,3 @@
-scenario_id,runtime,achieved_qps,latency_avg_ms,queries_sent,queries_completed,queries_lost,workers,cache_hit_rate,cache_lookups_hit,cache_lookups_miss
-scale-sync-memory-cache-churn,sync,91928.1,21.7,921564,921564,0,ingress_workers=2,49.3,454670,466895
-scale-sync-lmdb-cache-churn,sync,959.3,1937.8,11135,11135,0,ingress_workers=2,26.4,2941,8195
+scenario_id,runtime,achieved_qps,latency_avg_ms,queries_sent,queries_completed,queries_lost,workers,cache_hit_rate,cache_lookups_hit,cache_lookups_miss,cache_fill_duration_mean_ms,cache_eviction_duration_mean_ms
+scale-sync-ingress-8-memory-cache-churn,sync,268457.9,7.4,2687643,2687643,0,ingress_workers=8,49.7,1335770,1351874,0.0005,0.0003
+scale-sync-ingress-8-lmdb-cache-churn,sync,2875.1,652.8,32244,32244,0,ingress_workers=8,46.8,14368,16999,2.9683,1.6256
