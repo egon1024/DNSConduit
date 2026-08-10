@@ -62,6 +62,8 @@ Use **`standard`** for day-two operations, SLO dashboards, and debugging upstrea
 | [`conduit_cache_fills_total`](#conduit_cache_fills_total), [`conduit_cache_singleflight_coalesced_total`](#conduit_cache_singleflight_coalesced_total), lookup/cache/fill/eviction duration histograms | no | yes | — |
 | [`conduit_cache_evictions_total`](#conduit_cache_evictions_total), [`conduit_cache_lmdb_errors_total`](#conduit_cache_lmdb_errors_total) | no | yes | — |
 | [`conduit_cache_entries`](#conduit_cache_entries), [`conduit_cache_entries_limit`](#conduit_cache_entries_limit), [`conduit_cache_bytes_used`](#conduit_cache_bytes_used), [`conduit_cache_bytes_limit`](#conduit_cache_bytes_limit), [`conduit_cache_lmdb_shards`](#conduit_cache_lmdb_shards), [`conduit_cache_lmdb_sync`](#conduit_cache_lmdb_sync) | — | — | yes (`full`) |
+| [`conduit_cache_lmdb_periodic_sync_duration_seconds`](#conduit_cache_lmdb_periodic_sync_duration_seconds) | no | yes (`sync: periodic` instances) | — |
+| [`conduit_cache_lmdb_periodic_sync_age_seconds`](#conduit_cache_lmdb_periodic_sync_age_seconds), [`conduit_cache_lmdb_periodic_sync_failures_total`](#conduit_cache_lmdb_periodic_sync_failures_total) | — | — | yes (`full`, `sync: periodic` instances) |
 | [`conduit_probe_results_total`](#conduit_probe_results_total) | yes (health enabled) | yes | — |
 | [`conduit_forward_outstanding`](#conduit_forward_outstanding) | — | — | yes (`standard`) |
 | [`conduit_pool_backends_configured`](#conduit_pool_backends_configured) | — | — | yes |
@@ -408,6 +410,39 @@ Does **not** include the subsequent store/commit of the new entry — see [`cond
 
 `reason` values in use today: `capacity_pressure` (fill refused under `max_entries` or map-full when **`when_full: refuse`**, or after eviction retry is exhausted). Error and warning paths also emit `tracing` logs with the cache name and cause.
 
+### conduit_cache_lmdb_periodic_sync_age_seconds { #conduit_cache_lmdb_periodic_sync_age_seconds }
+
+| | |
+|--|--|
+| **Type** | Gauge |
+| **Labels** | `cache` |
+| **Profile** | `full` only (scrape-time) |
+| **When** | Export refreshes seconds elapsed since the last successful periodic LMDB sync tick |
+
+Only present for instances with **`lmdb.sync: periodic`**, and only once the first tick has succeeded.
+
+### conduit_cache_lmdb_periodic_sync_duration_seconds { #conduit_cache_lmdb_periodic_sync_duration_seconds }
+
+| | |
+|--|--|
+| **Type** | Histogram |
+| **Labels** | `cache` |
+| **Profile** | `full` only |
+| **When** | The periodic LMDB flusher observes this directly on every completed sync tick — one observation per tick, recording its wall-clock duration |
+
+Only present for instances with **`lmdb.sync: periodic`**, and only once the first tick has completed. Unlike the age gauge and failures counter below (both refreshed from a scrape-time snapshot), this histogram is observed the moment each tick finishes, so it never misses a tick between scrapes or during an idle period.
+
+### conduit_cache_lmdb_periodic_sync_failures_total { #conduit_cache_lmdb_periodic_sync_failures_total }
+
+| | |
+|--|--|
+| **Type** | Counter |
+| **Labels** | `cache` |
+| **Profile** | `full` only (scrape-time) |
+| **When** | A periodic LMDB sync tick fails to flush a shard |
+
+Only present for instances with **`lmdb.sync: periodic`**. Failures also emit a `tracing::warn!` log with the cache name and cause.
+
 ### conduit_cache_lmdb_shards { #conduit_cache_lmdb_shards }
 
 | | |
@@ -428,7 +463,9 @@ Does **not** include the subsequent store/commit of the new entry — see [`cond
 | **Profile** | `full` only (scrape-time) |
 | **When** | Export refreshes the effective **`lmdb.sync`** mode for each LMDB instance |
 
-Value is **`1`** on the series for the active mode. **`sync`** is **`full`**, **`no_meta`**, or **`none`**. Memory backends omit this series. See [Reference: caches — Sync durability](/reference/config-schema/caches.md#lmdb-sync).
+Value is **`1`** on the series for the active mode. **`sync`** is **`full`**, **`no_meta`**, **`periodic`**, or **`none`**. Memory backends omit this series. See [Reference: caches — Sync durability](/reference/config-schema/caches.md#lmdb-sync).
+
+When **`sync`** is **`periodic`**, [`conduit_cache_lmdb_periodic_sync_age_seconds`](#conduit_cache_lmdb_periodic_sync_age_seconds), [`conduit_cache_lmdb_periodic_sync_duration_seconds`](#conduit_cache_lmdb_periodic_sync_duration_seconds), and [`conduit_cache_lmdb_periodic_sync_failures_total`](#conduit_cache_lmdb_periodic_sync_failures_total) report the background flush tick.
 
 ### conduit_cache_lookup_duration_seconds { #conduit_cache_lookup_duration_seconds }
 

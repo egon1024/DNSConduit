@@ -174,7 +174,19 @@ impl LookupCacheRegistry {
     }
 
     pub fn set_metrics(&self, metrics: Arc<MetricsHub>) {
+        for inst in self.instances.read().values() {
+            inst.backend.load().set_metrics(Arc::clone(&metrics));
+        }
         *self.metrics.write() = Some(metrics);
+    }
+
+    /// Attaches the currently-known metrics hub (if any) to a freshly-opened
+    /// backend before it is installed, so an LMDB periodic flusher started
+    /// during `reconcile` observes its ticks from the first one.
+    fn attach_metrics(&self, backend: &CacheBackend) {
+        if let Some(hub) = self.metrics.read().as_ref() {
+            backend.set_metrics(Arc::clone(hub));
+        }
     }
 
     /// Reconcile named cache instances after a snapshot swap.
@@ -216,6 +228,7 @@ impl LookupCacheRegistry {
                                 );
                                 format!("cache '{name}': failed to open replacement backend: {e}")
                             })?;
+                            self.attach_metrics(&backend);
                             pending_opens.insert(
                                 name.clone(),
                                 PendingBackendOpen::Replace {
@@ -237,6 +250,9 @@ impl LookupCacheRegistry {
                                         )
                                     },
                                 )?;
+                            if let Some(hub) = self.metrics.read().as_ref() {
+                                backend.set_metrics(Arc::clone(hub));
+                            }
                             pending_opens.insert(
                                 name.clone(),
                                 PendingBackendOpen::ShardReopen {
@@ -257,6 +273,7 @@ impl LookupCacheRegistry {
                             );
                             format!("cache '{name}': failed to open new backend: {e}")
                         })?;
+                        self.attach_metrics(&backend);
                         pending_opens.insert(
                             name.clone(),
                             PendingBackendOpen::Replace {
@@ -288,14 +305,16 @@ impl LookupCacheRegistry {
             let be = inst.backend.load();
             if let (Some(lmdb_backend), Some(new_lmdb)) = (be.as_lmdb(), cfg.lmdb.as_ref()) {
                 lmdb_backend.apply_policy(new_lmdb.when_full, new_lmdb.sample_size);
-                lmdb_backend.apply_sync(new_lmdb.sync).map_err(|e| {
-                    tracing::error!(
-                        cache = %name,
-                        error = %e,
-                        "LMDB sync mode Hot apply failed; rejecting apply"
-                    );
-                    format!("cache '{name}': LMDB sync mode Hot apply failed: {e}")
-                })?;
+                lmdb_backend
+                    .apply_sync_config(new_lmdb.sync, new_lmdb.sync_interval)
+                    .map_err(|e| {
+                        tracing::error!(
+                            cache = %name,
+                            error = %e,
+                            "LMDB sync mode Hot apply failed; rejecting apply"
+                        );
+                        format!("cache '{name}': LMDB sync mode Hot apply failed: {e}")
+                    })?;
                 let cur = lmdb_backend.map_size_bytes();
                 if new_lmdb.map_size_bytes > cur {
                     lmdb_backend
@@ -787,14 +806,34 @@ impl LookupCacheRegistry {
                 let be = inst.backend.load();
                 let entries = be.entry_count();
                 let entries_limit = be.max_entries();
-                let (bytes_used, bytes_limit, lmdb_shards, lmdb_sync) = match be.as_lmdb() {
-                    Some(lmdb) => (
-                        lmdb.used_bytes(),
-                        lmdb.map_size_bytes(),
-                        lmdb.shard_count() as u64,
-                        Some(lmdb.sync_mode().as_str().to_string()),
-                    ),
-                    None => (0, 0, 0, None),
+                let (
+                    bytes_used,
+                    bytes_limit,
+                    lmdb_shards,
+                    lmdb_sync,
+                    lmdb_sync_age_secs,
+                    lmdb_sync_failures,
+                ) = match be.as_lmdb() {
+                    Some(lmdb) => {
+                        let sync_mode = lmdb.sync_mode();
+                        let is_periodic = sync_mode == conduit_config::lookup::LmdbSync::Periodic;
+                        (
+                            lmdb.used_bytes(),
+                            lmdb.map_size_bytes(),
+                            lmdb.shard_count() as u64,
+                            Some(sync_mode.as_str().to_string()),
+                            is_periodic
+                                .then(|| lmdb.last_sync_success())
+                                .flatten()
+                                .map(|instant| instant.elapsed().as_secs_f64()),
+                            if is_periodic {
+                                lmdb.sync_failure_count()
+                            } else {
+                                0
+                            },
+                        )
+                    }
+                    None => (0, 0, 0, None, None, 0),
                 };
                 conduit_metrics::CacheCapacitySample {
                     cache: name.clone(),
@@ -804,6 +843,8 @@ impl LookupCacheRegistry {
                     bytes_limit,
                     lmdb_shards,
                     lmdb_sync,
+                    lmdb_sync_age_secs,
+                    lmdb_sync_failures,
                 }
             })
             .collect()
@@ -1719,11 +1760,101 @@ mod tests {
                 when_full: conduit_config::lookup::LmdbWhenFull::EvictOne,
                 sample_size: 16,
                 sync: conduit_config::lookup::LmdbSync::Full,
+                sync_interval: None,
                 shard_count,
                 lookup_thread_count: 1,
             }),
             max_entries: 1000,
         }
+    }
+
+    #[test]
+    fn capacity_sample_exposes_periodic_lmdb_sync_telemetry() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut cfg = lmdb_cache_instance(dir.path().join("env"), 2 * 1024 * 1024);
+        let lmdb = cfg.lmdb.as_mut().unwrap();
+        lmdb.sync = conduit_config::lookup::LmdbSync::Periodic;
+        lmdb.sync_interval = Some(Duration::from_millis(250));
+
+        let mut instances = HashMap::new();
+        instances.insert("durable".into(), cfg);
+        let registry = LookupCacheRegistry::from_snapshot(&instances);
+
+        let txn = txn_for("periodic-sync-telemetry.example.", 1);
+        let key = build_query_key(&txn).unwrap();
+        let gate = registry.instance_gate("durable", &key).unwrap();
+        registry.fill_from_forward(
+            "durable",
+            &key,
+            &gate,
+            nxdomain_wire("periodic-sync-telemetry.example."),
+            &txn,
+        );
+        std::thread::sleep(Duration::from_millis(500));
+
+        let samples = registry.all_capacity_samples();
+        assert_eq!(samples.len(), 1);
+        let sample = &samples[0];
+        assert_eq!(sample.cache, "durable");
+        assert_eq!(sample.lmdb_sync.as_deref(), Some("periodic"));
+        assert!(sample.lmdb_sync_age_secs.is_some());
+        assert_eq!(sample.lmdb_sync_failures, 0);
+    }
+
+    /// Defect regression: the periodic sync duration histogram must be observed
+    /// once per completed flusher tick directly from the LMDB flusher thread in
+    /// this crate, not inferred from a scrape-time capacity sample (which can
+    /// only see the single most recent tick and misses ticks between scrapes /
+    /// idle ticks). Attaches a real [`MetricsHub`] via `set_metrics` — the same
+    /// hookup path used at runtime — and waits for multiple ~50ms flusher ticks,
+    /// then asserts the histogram's observation count grew past one, proving
+    /// each tick added its own observation rather than a single scrape-sampled
+    /// value.
+    #[test]
+    fn periodic_flusher_observes_duration_histogram_directly_per_tick() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut cfg = lmdb_cache_instance(dir.path().join("env"), 2 * 1024 * 1024);
+        let lmdb = cfg.lmdb.as_mut().unwrap();
+        lmdb.sync = conduit_config::lookup::LmdbSync::Periodic;
+        lmdb.sync_interval = Some(Duration::from_millis(50));
+
+        let mut instances = HashMap::new();
+        instances.insert("durable".into(), cfg);
+        let registry = LookupCacheRegistry::from_snapshot(&instances);
+
+        let metrics_yaml_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/config/with-metrics-prometheus.yaml");
+        let metrics_yaml = std::fs::read_to_string(metrics_yaml_path).unwrap();
+        let metrics_cfg = conduit_config::load_yaml(&metrics_yaml).unwrap();
+        let hub = Arc::new(conduit_metrics::MetricsHub::from_config(&metrics_cfg));
+        registry.set_metrics(hub.clone());
+
+        // Dirty a shard so every tick actually calls `force_sync` (and so has a
+        // duration worth observing).
+        let txn = txn_for("periodic-sync-histogram.example.", 1);
+        let key = build_query_key(&txn).unwrap();
+        let gate = registry.instance_gate("durable", &key).unwrap();
+        registry.fill_from_forward(
+            "durable",
+            &key,
+            &gate,
+            nxdomain_wire("periodic-sync-histogram.example."),
+            &txn,
+        );
+
+        std::thread::sleep(Duration::from_millis(400));
+
+        let families = hub.builtin().gather();
+        let hist = families
+            .iter()
+            .find(|f| f.get_name() == "conduit_cache_lmdb_periodic_sync_duration_seconds")
+            .expect("periodic sync duration histogram must be registered on full profile");
+        let sample_count = hist.get_metric()[0].get_histogram().get_sample_count();
+        assert!(
+            sample_count > 1,
+            "expected multiple flusher ticks to each add a histogram observation \
+             (~400ms / 50ms interval), got sample_count={sample_count}"
+        );
     }
 
     #[test]

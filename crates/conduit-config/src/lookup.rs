@@ -7,6 +7,7 @@ use conduit_proto::config::{
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 pub const DEFAULT_LOOKUP_PROFILE: &str = "default";
 pub const DEFAULT_SERVFAIL_TTL_SECS: u32 = 10;
@@ -17,6 +18,9 @@ pub const DEFAULT_MEMORY_SHARD_COUNT: u32 = 16;
 pub const DEFAULT_LMDB_SAMPLE_SIZE: u32 = 16;
 pub const DEFAULT_LMDB_WHEN_FULL: &str = "evict_one";
 pub const DEFAULT_LMDB_SYNC: &str = "full";
+pub const LMDB_SYNC_INTERVAL_MIN: Duration = Duration::from_millis(250);
+pub const LMDB_SYNC_INTERVAL_MAX: Duration = Duration::from_secs(60);
+pub const LMDB_SYNC_INTERVAL_DEFAULT: Duration = Duration::from_secs(1);
 /// Maximum LMDB env shard count (fds/mmap safety).
 pub const MAX_LMDB_SHARD_COUNT: u32 = 64;
 
@@ -134,6 +138,9 @@ pub enum LmdbSync {
     Full,
     /// `NO_META_SYNC` — data flushed; meta deferred.
     NoMeta,
+    /// `NO_SYNC` commit durability; periodic background flush is configured via
+    /// `sync_interval` and handled at runtime (not in this crate).
+    Periodic,
     /// `NO_SYNC` — no flush on commit.
     None,
 }
@@ -143,9 +150,10 @@ impl LmdbSync {
         match raw.trim() {
             "" | "full" => Ok(Self::Full),
             "no_meta" => Ok(Self::NoMeta),
+            "periodic" => Ok(Self::Periodic),
             "none" => Ok(Self::None),
             other => Err(format!(
-                "lmdb.sync '{other}' must be full, no_meta, or none"
+                "lmdb.sync '{other}' must be full, no_meta, periodic, or none"
             )),
         }
     }
@@ -154,6 +162,7 @@ impl LmdbSync {
         match self {
             Self::Full => "full",
             Self::NoMeta => "no_meta",
+            Self::Periodic => "periodic",
             Self::None => "none",
         }
     }
@@ -185,6 +194,7 @@ pub struct CompiledLmdbCache {
     pub when_full: LmdbWhenFull,
     pub sample_size: u32,
     pub sync: LmdbSync,
+    pub sync_interval: Option<Duration>,
     /// Explicit `lmdb.shard_count` after clamp to [`MAX_LMDB_SHARD_COUNT`]; `None` when omitted.
     pub shard_count: Option<u32>,
     /// Lookup concurrency for empty-path default (`2 ×` this value, then clamp).
@@ -546,6 +556,25 @@ fn compile_lmdb(
     }
     let sync = LmdbSync::parse(l.sync.as_deref().unwrap_or(DEFAULT_LMDB_SYNC))
         .map_err(|e| format!("{ctx}.lmdb: {e}"))?;
+    let sync_interval = match l.sync_interval.as_deref() {
+        Some(raw) => {
+            let interval =
+                crate::parse_duration(raw).map_err(|e| format!("{ctx}.lmdb.sync_interval: {e}"))?;
+            if sync != LmdbSync::Periodic {
+                return Err(format!(
+                    "{ctx}.lmdb.sync_interval must only be set when lmdb.sync is periodic"
+                ));
+            }
+            if !(LMDB_SYNC_INTERVAL_MIN..=LMDB_SYNC_INTERVAL_MAX).contains(&interval) {
+                return Err(format!(
+                    "{ctx}.lmdb.sync_interval must be between 250ms and 60s"
+                ));
+            }
+            Some(interval)
+        }
+        None if sync == LmdbSync::Periodic => Some(LMDB_SYNC_INTERVAL_DEFAULT),
+        None => None,
+    };
 
     let shard_count = match l.shard_count {
         None => None,
@@ -564,6 +593,7 @@ fn compile_lmdb(
         when_full,
         sample_size,
         sync,
+        sync_interval,
         shard_count,
         lookup_thread_count: lookup_thread_count.max(1),
     })
@@ -699,7 +729,7 @@ mod tests {
         CacheInstance, CacheLmdbConfig, CacheOnHitConfig, CacheTruncatedUdpConfig, LookupConfig,
         LookupProfile, LookupProvider,
     };
-    use std::time::{SystemTime, UNIX_EPOCH};
+    use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
     fn minimal_with_lookup(lookup: LookupConfig, caches: Vec<CacheInstance>) -> Config {
         let yaml = include_str!("../../../tests/fixtures/config/minimal.yaml");
@@ -855,6 +885,7 @@ mod tests {
                 sample_size: None,
                 shard_count: None,
                 sync: None,
+                sync_interval: None,
             }),
             key: None,
             max_entries: Some(1000),
@@ -1085,6 +1116,7 @@ lookup:
                 sample_size: None,
                 shard_count: None,
                 sync: None,
+                sync_interval: None,
             }),
             key: None,
             max_entries: None,
@@ -1120,6 +1152,7 @@ lookup:
                 sample_size: None,
                 shard_count: None,
                 sync: None,
+                sync_interval: None,
             }),
             key: None,
             max_entries: None,
@@ -1202,6 +1235,104 @@ lookup:
                 expected
             );
         }
+    }
+
+    #[test]
+    fn parse_duration_accepts_ms_and_s() {
+        assert_eq!(
+            crate::parse_duration("250ms").unwrap(),
+            Duration::from_millis(250)
+        );
+        assert_eq!(crate::parse_duration("1s").unwrap(), Duration::from_secs(1));
+        assert_eq!(
+            crate::parse_duration("60s").unwrap(),
+            Duration::from_secs(60)
+        );
+    }
+
+    #[test]
+    fn periodic_defaults_interval_to_1s() {
+        let path = unique_lmdb_path();
+        let yaml = sparse_lmdb_yaml(&format!(
+            r#"  - name: durable
+    type: lmdb
+    lmdb:
+      path: {path}
+      map_size: 1GB
+      sync: periodic"#,
+            path = path.display()
+        ));
+        let cfg = load_yaml(&yaml).expect("parse");
+        let compiled = CompiledLookup::compile_from_config(&cfg).expect("compile");
+        let lmdb = compiled.cache_instances["durable"]
+            .lmdb
+            .as_ref()
+            .expect("lmdb");
+        assert_eq!(lmdb.sync, LmdbSync::Periodic);
+        assert_eq!(lmdb.sync_interval, Some(Duration::from_secs(1)));
+    }
+
+    #[test]
+    fn sync_interval_with_none_rejected() {
+        let path = unique_lmdb_path();
+        let yaml = sparse_lmdb_yaml(&format!(
+            r#"  - name: durable
+    type: lmdb
+    lmdb:
+      path: {path}
+      map_size: 1GB
+      sync: none
+      sync_interval: 1s"#,
+            path = path.display()
+        ));
+        let cfg = load_yaml(&yaml).expect("parse");
+        let err = CompiledLookup::compile_from_config(&cfg).unwrap_err();
+        assert!(
+            err.contains("sync_interval must only be set when lmdb.sync is periodic"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn periodic_interval_below_250ms_rejected() {
+        let path = unique_lmdb_path();
+        let yaml = sparse_lmdb_yaml(&format!(
+            r#"  - name: durable
+    type: lmdb
+    lmdb:
+      path: {path}
+      map_size: 1GB
+      sync: periodic
+      sync_interval: 249ms"#,
+            path = path.display()
+        ));
+        let cfg = load_yaml(&yaml).expect("parse");
+        let err = CompiledLookup::compile_from_config(&cfg).unwrap_err();
+        assert!(
+            err.contains("sync_interval must be between 250ms and 60s"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn periodic_interval_above_60s_rejected() {
+        let path = unique_lmdb_path();
+        let yaml = sparse_lmdb_yaml(&format!(
+            r#"  - name: durable
+    type: lmdb
+    lmdb:
+      path: {path}
+      map_size: 1GB
+      sync: periodic
+      sync_interval: 61s"#,
+            path = path.display()
+        ));
+        let cfg = load_yaml(&yaml).expect("parse");
+        let err = CompiledLookup::compile_from_config(&cfg).unwrap_err();
+        assert!(
+            err.contains("sync_interval must be between 250ms and 60s"),
+            "{err}"
+        );
     }
 
     #[test]

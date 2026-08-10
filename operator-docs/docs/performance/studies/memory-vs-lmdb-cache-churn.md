@@ -4,8 +4,9 @@
 
 Under a matched high-churn recipe with enough sync ingress concurrency for both
 backends to do useful parallel work, how do memory and LMDB answer caches differ
-in achieved QPS and cache hit/miss ratios — and how do the three LMDB sync
-durability modes (`full`, `no_meta`, `none`) compare under that same recipe?
+in achieved QPS and cache hit/miss ratios — and how do the four LMDB sync
+durability modes (`full`, `no_meta`, `periodic`, `none`) compare under that same
+recipe?
 
 </div>
 
@@ -22,8 +23,8 @@ hit-dominated path. Members use **eight sync ingress workers**, the same
 elevated dnsperf window, the same 4096-name query file, a 60 s stub TTL, and
 `max_entries: 2048`. LMDB cells use `when_full: evict_one`, explicit
 `shard_count: 16` (2× ingress), distinct real-disk paths, and first-class
-`lmdb.sync` values (`full`, `no_meta`, `none`) with a map size sized so the
-**entry cap** binds first.
+`lmdb.sync` values (`full`, `no_meta`, `periodic`, `none`) with a map size sized
+so the **entry cap** binds first. The `periodic` cell uses `sync_interval: 1s`.
 
 This shape is intentional: a two-worker sync path under the same elevated
 outstanding window mainly shows Little's Law queueing (avg latency ≈
@@ -66,10 +67,11 @@ Configure backends under [`caches:`](/reference/config-schema/caches.md) and
 
 | Lmdb Sync | Runtime | Achieved QPS | Avg latency (ms) | Sent | Completed | Lost | Workers | Hit rate (%) | Cache hits | Cache misses | Fill mean (ms) | Eviction mean (ms) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| [memory](/performance/scenarios.md#scale-sync-ingress-8-memory-cache-churn) | sync | 268340.7 | 7.4 | 2686723 | 2686723 | 0 | ingress=8 | 49.7 | 1336029 | 1350695 | 0.0005 | 0.0003 |
-| [full](/performance/scenarios.md#scale-sync-ingress-8-lmdb-full-cache-churn) | sync | 2957.0 | 653.1 | 31589 | 31589 | 0 | ingress=8 | 42.8 | 13528 | 16630 | 2.6745 | 1.4613 |
-| [no_meta](/performance/scenarios.md#scale-sync-ingress-8-lmdb-no_meta-cache-churn) | sync | 4576.2 | 420.9 | 49347 | 49347 | 0 | ingress=8 | 46.5 | 23183 | 25600 | 1.9003 | 1.0559 |
-| [none](/performance/scenarios.md#scale-sync-ingress-8-lmdb-none-cache-churn) | sync | 160198.1 | 12.5 | 1605354 | 1605354 | 0 | ingress=8 | 50.1 | 803375 | 801980 | 0.0112 | 0.0059 |
+| [memory](/performance/scenarios.md#scale-sync-ingress-8-memory-cache-churn) | sync | 232253.7 | 8.6 | 2325790 | 2325790 | 0 | ingress=8 | 49.7 | 1154131 | 1171660 | 0.0005 | 0.0003 |
+| [full](/performance/scenarios.md#scale-sync-ingress-8-lmdb-full-cache-churn) | sync | 2767.2 | 698.4 | 29235 | 29235 | 0 | ingress=8 | 42.1 | 12317 | 16919 | 2.8751 | 1.6619 |
+| [no_meta](/performance/scenarios.md#scale-sync-ingress-8-lmdb-no_meta-cache-churn) | sync | 4379.2 | 442.1 | 46180 | 46180 | 0 | ingress=8 | 45.0 | 20520 | 25094 | 1.9188 | 1.0409 |
+| [periodic](/performance/scenarios.md#scale-sync-ingress-8-lmdb-periodic-cache-churn) | sync | 191677.2 | 10.4 | 1920116 | 1920116 | 0 | ingress=8 | 50.2 | 964032 | 956085 | 0.0129 | 0.0068 |
+| [none](/performance/scenarios.md#scale-sync-ingress-8-lmdb-none-cache-churn) | sync | 176805.2 | 11.3 | 1771208 | 1771208 | 0 | ingress=8 | 50.0 | 886097 | 885112 | 0.0124 | 0.0065 |
 
 </div>
 
@@ -83,10 +85,11 @@ Configure backends under [`caches:`](/reference/config-schema/caches.md) and
 
 | Lmdb Sync | Hit rate (%) | Cache hits | Cache misses | Achieved QPS |
 | --- | --- | --- | --- | --- |
-| [memory](/performance/scenarios.md#scale-sync-ingress-8-memory-cache-churn) | 49.7 | 1336029 | 1350695 | 268340.7 |
-| [full](/performance/scenarios.md#scale-sync-ingress-8-lmdb-full-cache-churn) | 42.8 | 13528 | 16630 | 2957.0 |
-| [no_meta](/performance/scenarios.md#scale-sync-ingress-8-lmdb-no_meta-cache-churn) | 46.5 | 23183 | 25600 | 4576.2 |
-| [none](/performance/scenarios.md#scale-sync-ingress-8-lmdb-none-cache-churn) | 50.1 | 803375 | 801980 | 160198.1 |
+| [memory](/performance/scenarios.md#scale-sync-ingress-8-memory-cache-churn) | 49.7 | 1154131 | 1171660 | 232253.7 |
+| [full](/performance/scenarios.md#scale-sync-ingress-8-lmdb-full-cache-churn) | 42.1 | 12317 | 16919 | 2767.2 |
+| [no_meta](/performance/scenarios.md#scale-sync-ingress-8-lmdb-no_meta-cache-churn) | 45.0 | 20520 | 25094 | 4379.2 |
+| [periodic](/performance/scenarios.md#scale-sync-ingress-8-lmdb-periodic-cache-churn) | 50.2 | 964032 | 956085 | 191677.2 |
+| [none](/performance/scenarios.md#scale-sync-ingress-8-lmdb-none-cache-churn) | 50.0 | 886097 | 885112 | 176805.2 |
 
 </div>
 
@@ -100,10 +103,11 @@ Configure backends under [`caches:`](/reference/config-schema/caches.md) and
 
 | Lmdb Sync | Fill mean (ms) | Fill samples | Eviction mean (ms) | Eviction samples | Achieved QPS |
 | --- | --- | --- | --- | --- | --- |
-| [memory](/performance/scenarios.md#scale-sync-ingress-8-memory-cache-churn) | 0.0005 | 1350695 | 0.0003 | 1342166 | 268340.7 |
-| [full](/performance/scenarios.md#scale-sync-ingress-8-lmdb-full-cache-churn) | 2.6745 | 16630 | 1.4613 | 15995 | 2957.0 |
-| [no_meta](/performance/scenarios.md#scale-sync-ingress-8-lmdb-no_meta-cache-churn) | 1.9003 | 25600 | 1.0559 | 24576 | 4576.2 |
-| [none](/performance/scenarios.md#scale-sync-ingress-8-lmdb-none-cache-churn) | 0.0112 | 801980 | 0.0059 | 799902 | 160198.1 |
+| [memory](/performance/scenarios.md#scale-sync-ingress-8-memory-cache-churn) | 0.0005 | 1171660 | 0.0003 | 1164824 | 232253.7 |
+| [full](/performance/scenarios.md#scale-sync-ingress-8-lmdb-full-cache-churn) | 2.8751 | 16919 | 1.6619 | 14884 | 2767.2 |
+| [no_meta](/performance/scenarios.md#scale-sync-ingress-8-lmdb-no_meta-cache-churn) | 1.9188 | 25094 | 1.0409 | 23629 | 4379.2 |
+| [periodic](/performance/scenarios.md#scale-sync-ingress-8-lmdb-periodic-cache-churn) | 0.0129 | 956085 | 0.0068 | 954046 | 191677.2 |
+| [none](/performance/scenarios.md#scale-sync-ingress-8-lmdb-none-cache-churn) | 0.0124 | 885112 | 0.0065 | 883086 | 176805.2 |
 
 </div>
 <!-- perf-study-evidence:end -->
@@ -111,25 +115,28 @@ Configure backends under [`caches:`](/reference/config-schema/caches.md) and
 <!-- perf-study-deltas:start -->
 ## At a glance
 
-- **sync ingress-8 high-churn (memory vs LMDB sync modes):** `full` costs about **99%** QPS versus `memory` (~3k vs ~268k); `no_meta` costs about **98%** QPS versus `memory` (~5k vs ~268k); `none` costs about **40%** QPS versus `memory` (~160k vs ~268k).
-- **Cache hit rate — sync ingress-8 high-churn (memory vs LMDB sync modes):** `full` is about **14%** lower hit rate than `memory` (~42.8% vs ~49.7%); `no_meta` is about **6%** lower hit rate than `memory` (~46.5% vs ~49.7%); `none` is about **1%** higher hit rate than `memory` (~50.1% vs ~49.7%).
-- **Cache fill mean duration — sync ingress-8 high-churn (memory vs LMDB sync modes):** `full` ≈ ~2.7 ms vs `memory` ~0.0005 ms; `no_meta` ≈ ~1.9 ms vs `memory` ~0.0005 ms; `none` is about **22.4×** `memory` (~0.011 ms vs ~0.0005 ms).
+- **sync ingress-8 high-churn (memory vs LMDB sync modes):** `full` costs about **99%** QPS versus `memory` (~3k vs ~232k); `no_meta` costs about **98%** QPS versus `memory` (~4k vs ~232k); `periodic` costs about **17%** QPS versus `memory` (~192k vs ~232k); `none` costs about **24%** QPS versus `memory` (~177k vs ~232k).
+- **Cache hit rate — sync ingress-8 high-churn (memory vs LMDB sync modes):** `full` is about **15%** lower hit rate than `memory` (~42.1% vs ~49.7%); `no_meta` is about **9%** lower hit rate than `memory` (~45.0% vs ~49.7%); `periodic` is about **1%** higher hit rate than `memory` (~50.2% vs ~49.7%); `none` is about **1%** higher hit rate than `memory` (~50.0% vs ~49.7%).
+- **Cache fill mean duration — sync ingress-8 high-churn (memory vs LMDB sync modes):** `full` ≈ ~2.9 ms vs `memory` ~0.0005 ms; `no_meta` ≈ ~1.9 ms vs `memory` ~0.0005 ms; `periodic` is about **25.8×** `memory` (~0.013 ms vs ~0.0005 ms); `none` is about **24.8×** `memory` (~0.012 ms vs ~0.0005 ms).
 <!-- perf-study-deltas:end -->
 
 ## Takeaway
 
 **Under high churn, LMDB write durability dominates QPS on this lab.** With eight
 sync ingress workers and LMDB `shard_count` 16, **`sync: full`** costs about
-**99%** QPS versus memory (~3k vs ~268k; roughly **90.7×** slower). Moving to
-**`no_meta`** is only about **1.5×** `full` (~5k) — a modest write-path gain.
-Skipping durability with **`none`** is about **35×** `no_meta` (~160k) and costs
-about **40%** QPS versus memory. Hit rates stay in the same band (`full` about
-**14%** relative lower than memory). Mean fill is about **3.0 ms** for `full`,
-about **2.0 ms** for `no_meta`, and about **0.0112 ms** for `none`, versus about
-**0.0005 ms** for memory. Average latency under the elevated outstanding window
-tracks roughly outstanding/QPS and is **not** raw disk service time. Lazy TTL
-expiry is deterministic; LMDB `when_full` victim selection is arbitrary under
-entry pressure. Absolute LMDB churn QPS is disk- and sync-mode-sensitive; prefer
+**99%** QPS versus memory (~3k vs ~232k; roughly **83.9×** slower). Moving to
+**`no_meta`** is only about **1.6×** `full` (~4k) — a modest write-path gain.
+**`periodic`** (this cell uses `sync_interval: 1s`) is about **43.8×** `no_meta`
+(~192k) and costs about **17%** QPS versus memory. **`none`** lands in the same
+high-QPS band (~177k; about **24%** versus memory) but skips forced syncs
+entirely — on this lab `periodic` was about **1.1×** `none`. Hit rates stay in
+the same band (`full` about **15%** relative lower than memory). Mean fill is
+about **2.9 ms** for `full`, about **1.9 ms** for `no_meta`, and about
+**0.013 ms** for `periodic` and `none`, versus about **0.0005 ms** for memory.
+Average latency under the elevated outstanding window tracks roughly
+outstanding/QPS and is **not** raw disk service time. Lazy TTL expiry is
+deterministic; LMDB `when_full` victim selection is arbitrary under entry
+pressure. Absolute LMDB churn QPS is disk- and sync-mode-sensitive; prefer
 relative claims. That contrasts with warm
 [`cache_hit`](/performance/methodology.md#load-shapes), where LMDB costs only
 about **6%** versus memory — see
@@ -153,6 +160,7 @@ the QPS chart alone. See also
 - [scale-sync-ingress-8-memory-cache-churn](/performance/scenarios.md#scale-sync-ingress-8-memory-cache-churn)
 - [scale-sync-ingress-8-lmdb-full-cache-churn](/performance/scenarios.md#scale-sync-ingress-8-lmdb-full-cache-churn)
 - [scale-sync-ingress-8-lmdb-no_meta-cache-churn](/performance/scenarios.md#scale-sync-ingress-8-lmdb-no_meta-cache-churn)
+- [scale-sync-ingress-8-lmdb-periodic-cache-churn](/performance/scenarios.md#scale-sync-ingress-8-lmdb-periodic-cache-churn)
 - [scale-sync-ingress-8-lmdb-none-cache-churn](/performance/scenarios.md#scale-sync-ingress-8-lmdb-none-cache-churn)
 
 ## Related

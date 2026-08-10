@@ -5,31 +5,34 @@ question: >
   Under a matched high-churn recipe with enough sync ingress concurrency for
   both backends to do useful parallel work, how do memory and LMDB answer
   caches differ in achieved QPS and cache hit/miss ratios — and how do the
-  three LMDB sync durability modes (full, no_meta, none) compare under that
+  four LMDB sync durability modes (full, no_meta, periodic, none) compare under that
   same recipe?
 published: true
 members:
   - scale-sync-ingress-8-memory-cache-churn
   - scale-sync-ingress-8-lmdb-full-cache-churn
   - scale-sync-ingress-8-lmdb-no_meta-cache-churn
+  - scale-sync-ingress-8-lmdb-periodic-cache-churn
   - scale-sync-ingress-8-lmdb-none-cache-churn
 compare_axis: lmdb_sync
 primary_metric: achieved_qps
 takeaway: >
   Under matched ingress-8 high churn (LMDB shard_count 16), LMDB sync: full
-  costs about 99% QPS versus memory (~3k vs ~268k; roughly 90.7× slower).
-  Moving to no_meta is only about 1.5× full (~5k) — a modest write-path gain.
-  Skipping durability with none is about 35× no_meta (~160k) and costs about
-  40% QPS versus memory. Hit rates stay in the same band (full about 14%
-  relative lower than memory). Mean fill is about 3.0 ms for full, about
-  2.0 ms for no_meta, and about 0.0112 ms for none, versus about 0.0005 ms
-  for memory. Average latency under the elevated outstanding window tracks
-  roughly outstanding/QPS and is not raw disk service time. Lazy TTL expiry
-  is deterministic; LMDB when_full victim selection is arbitrary under entry
-  pressure. Absolute LMDB churn QPS is disk- and sync-mode-sensitive; prefer
-  relative claims. Before choosing a faster LMDB sync mode for production,
-  you must understand durability and integrity tradeoffs — see the caches
-  reference decision tree for lmdb.sync
+  costs about 99% QPS versus memory (~3k vs ~232k; roughly 83.9× slower).
+  Moving to no_meta is only about 1.6× full (~4k) — a modest write-path gain.
+  periodic (this cell uses sync_interval 1s) is about 43.8× no_meta (~192k) and
+  costs about 17% QPS versus memory. none lands in the same high-QPS band
+  (~177k; about 24% versus memory) but skips forced syncs entirely — on this
+  lab periodic was about 1.1× none. Hit rates stay in the same band (full
+  about 15% relative lower than memory). Mean fill is about 2.9 ms for full,
+  about 1.9 ms for no_meta, and about 0.013 ms for periodic and none, versus
+  about 0.0005 ms for memory. Average latency under the elevated outstanding
+  window tracks roughly outstanding/QPS and is not raw disk service time.
+  Lazy TTL expiry is deterministic; LMDB when_full victim selection is
+  arbitrary under entry pressure. Absolute LMDB churn QPS is disk- and
+  sync-mode-sensitive; prefer relative claims. Before choosing a faster LMDB
+  sync mode for production, you must understand durability and integrity
+  tradeoffs — see the caches reference decision tree for lmdb.sync
   (/reference/config-schema/caches.md#lmdb-sync) and the DNS answer cache
   guide. Contrasts with warm cache_hit, where LMDB costs only about 6% versus
   memory. Thin-ingress companion cells are not this study’s primary compare.
@@ -44,6 +47,7 @@ figures:
       - scale-sync-ingress-8-memory-cache-churn
       - scale-sync-ingress-8-lmdb-full-cache-churn
       - scale-sync-ingress-8-lmdb-no_meta-cache-churn
+      - scale-sync-ingress-8-lmdb-periodic-cache-churn
       - scale-sync-ingress-8-lmdb-none-cache-churn
   - id: memory-vs-lmdb-cache-churn-hit-rate
     title: Cache hit rate — sync ingress-8 high-churn (memory vs LMDB sync modes)
@@ -53,6 +57,7 @@ figures:
       - scale-sync-ingress-8-memory-cache-churn
       - scale-sync-ingress-8-lmdb-full-cache-churn
       - scale-sync-ingress-8-lmdb-no_meta-cache-churn
+      - scale-sync-ingress-8-lmdb-periodic-cache-churn
       - scale-sync-ingress-8-lmdb-none-cache-churn
   - id: memory-vs-lmdb-cache-churn-fill-duration
     title: Cache fill mean duration — sync ingress-8 high-churn (memory vs LMDB sync modes)
@@ -62,4 +67,5 @@ figures:
       - scale-sync-ingress-8-memory-cache-churn
       - scale-sync-ingress-8-lmdb-full-cache-churn
       - scale-sync-ingress-8-lmdb-no_meta-cache-churn
+      - scale-sync-ingress-8-lmdb-periodic-cache-churn
       - scale-sync-ingress-8-lmdb-none-cache-churn

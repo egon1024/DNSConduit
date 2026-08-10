@@ -564,7 +564,7 @@ Warm LMDB cache hits on the sync runtime using a real-disk environment path. Aft
 
 High-churn memory-cache load on sync with eight ingress workers: query set larger than max_entries, stub TTL long enough that entry-cap turnover drives misses, no warm plateau.
 
-**Notes:** Primary memory member of study memory-vs-lmdb-cache-churn. Matched with the three first-class LMDB sync-mode cells (full / no_meta / none) at eight ingress workers. Recipe: 4096 unique names, max_entries 2048, stub TTL 60s. The thin-ingress pair (scale-sync-memory-cache-churn) remains as a companion cell, not the study primary.
+**Notes:** Primary memory member of study memory-vs-lmdb-cache-churn. Matched with the four first-class LMDB sync-mode cells (full / no_meta / periodic / none) at eight ingress workers. Recipe: 4096 unique names, max_entries 2048, stub TTL 60s. The thin-ingress pair (scale-sync-memory-cache-churn) remains as a companion cell, not the study primary.
 
 **What varies:** `runtime`=[`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default), `load_shape`=[`cache_churn`](/performance/methodology.md#load-shapes), `ingress_workers`=`8`, `cache_backend`=`memory`, `lmdb_sync`=`memory`
 
@@ -611,6 +611,20 @@ High-churn LMDB-cache load on sync with eight ingress workers and explicit multi
 **What varies:** `runtime`=[`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default), `load_shape`=[`cache_churn`](/performance/methodology.md#load-shapes), `ingress_workers`=`8`, `cache_backend`=`lmdb`, `lmdb_sync`=`none`
 
 **How it was run:** config `scale-sync-ingress-8-lmdb-none-cache-churn.yml`; upstream `fast` (fast stub upstream); loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
+
+</div>
+
+<div class="perf-scenario" markdown="1">
+
+### scale-sync-ingress-8-lmdb-periodic-cache-churn
+
+High-churn LMDB-cache load on sync with eight ingress workers and explicit multi-env sharding on a real-disk path. Matched entry cap, query diversity, and stub TTL keep continuous fill/evict pressure.
+
+**Notes:** First-class LMDB sync-mode member of study memory-vs-lmdb-cache-churn. lmdb.sync=periodic with sync_interval=1s; when_full=evict_one; shard_count=16 (2× ingress). Path /var/tmp/conduit-perf/lmdb-cache-churn-i8-periodic. Recipe matches the ingress-8 memory cell. Average latency under the elevated outstanding window still tracks roughly outstanding/QPS (Little's Law) — lead takeaways with relative QPS and hit/miss. Thin-ingress scale-sync-lmdb-cache-churn is a companion, not the study primary.
+
+**What varies:** `runtime`=[`sync`](/concepts/runtime-and-concurrency.md#sync-runtime-default), `load_shape`=[`cache_churn`](/performance/methodology.md#load-shapes), `ingress_workers`=`8`, `cache_backend`=`lmdb`, `lmdb_sync`=`periodic`
+
+**How it was run:** config `scale-sync-ingress-8-lmdb-periodic-cache-churn.yml`; upstream `fast` (fast stub upstream); loadgen `dnsperf`; clients=16, threads=8, max_outstanding=2000.
 
 </div>
 

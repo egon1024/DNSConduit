@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-08-09T22:24:04Z",
+  "generated_at": "2026-08-10T17:39:26Z",
   "lab_profile": {
     "id": "maintainer-ws-1",
     "display_name": "Maintainer workstation (maintainer-ws-1)",
@@ -22,7 +22,7 @@
       "threads": 2,
       "image": "dnsconduit-dnsperf:2.14.0"
     },
-    "git_sha": "2802b2c641bb704a37f7270f6a9d2fabf8796654"
+    "git_sha": "14475cf267e29b6a46cd5200f3d5c76894c3dbd0"
   },
   "quality": {
     "warmup_seconds": 2.0,
@@ -1350,7 +1350,7 @@
     {
       "id": "scale-sync-ingress-8-memory-cache-churn",
       "suite": "scale",
-      "intent": "High-churn memory-cache load on sync with eight ingress workers: query set larger than max_entries, stub TTL long enough that entry-cap turnover drives misses, no warm plateau.\n\nPrimary memory member of study memory-vs-lmdb-cache-churn. Matched with the three first-class LMDB sync-mode cells (full / no_meta / none) at eight ingress workers. Recipe: 4096 unique names, max_entries 2048, stub TTL 60s. The thin-ingress pair (scale-sync-memory-cache-churn) remains as a companion cell, not the study primary.",
+      "intent": "High-churn memory-cache load on sync with eight ingress workers: query set larger than max_entries, stub TTL long enough that entry-cap turnover drives misses, no warm plateau.\n\nPrimary memory member of study memory-vs-lmdb-cache-churn. Matched with the four first-class LMDB sync-mode cells (full / no_meta / periodic / none) at eight ingress workers. Recipe: 4096 unique names, max_entries 2048, stub TTL 60s. The thin-ingress pair (scale-sync-memory-cache-churn) remains as a companion cell, not the study primary.",
       "status": "ok",
       "axes": {
         "runtime": "sync",
@@ -1360,15 +1360,15 @@
         "lmdb_sync": "memory"
       },
       "metrics": {
-        "achieved_qps": 268340.711383,
-        "queries_sent": 2686723,
-        "queries_completed": 2686723,
+        "achieved_qps": 232253.682267,
+        "queries_sent": 2325790,
+        "queries_completed": 2325790,
         "queries_lost": 0,
         "response_codes": {
-          "NOERROR": 2686723
+          "NOERROR": 2325790
         },
         "latency_ms": {
-          "avg": 7.435
+          "avg": 8.592
         },
         "answer_ok_percent": 100.0
       },
@@ -1380,16 +1380,16 @@
         "dnsperf_max_outstanding": 2000,
         "upstream_workers": 8,
         "upstream_ttl_secs": 60,
-        "notes": "median of 3 rounds; achieved_qps range 160017.0-270681.6"
+        "notes": "median of 3 rounds; achieved_qps range 231266.3-271284.8"
       },
       "secondary": {
-        "cache_lookups_hit": 1336029,
-        "cache_lookups_miss": 1350695,
-        "cache_hit_rate": 49.7271,
+        "cache_lookups_hit": 1154131,
+        "cache_lookups_miss": 1171660,
+        "cache_hit_rate": 49.6705,
         "cache_fill_duration_mean_ms": 0.0005,
-        "cache_fill_samples": 1350695,
+        "cache_fill_samples": 1171660,
         "cache_eviction_duration_mean_ms": 0.0003,
-        "cache_eviction_samples": 1342166
+        "cache_eviction_samples": 1164824
       }
     },
     {
@@ -1405,15 +1405,15 @@
         "lmdb_sync": "full"
       },
       "metrics": {
-        "achieved_qps": 2956.959202,
-        "queries_sent": 31589,
-        "queries_completed": 31589,
+        "achieved_qps": 2767.221109,
+        "queries_sent": 29235,
+        "queries_completed": 29235,
         "queries_lost": 0,
         "response_codes": {
-          "NOERROR": 31589
+          "NOERROR": 29235
         },
         "latency_ms": {
-          "avg": 653.107
+          "avg": 698.38
         },
         "answer_ok_percent": 100.0
       },
@@ -1425,16 +1425,16 @@
         "dnsperf_max_outstanding": 2000,
         "upstream_workers": 8,
         "upstream_ttl_secs": 60,
-        "notes": "median of 3 rounds; achieved_qps range 2507.4-3096.6"
+        "notes": "median of 3 rounds; achieved_qps range 2691.1-2769.1"
       },
       "secondary": {
-        "cache_lookups_hit": 13528,
-        "cache_lookups_miss": 16630,
-        "cache_hit_rate": 42.8237,
-        "cache_fill_duration_mean_ms": 2.6745,
-        "cache_fill_samples": 16630,
-        "cache_eviction_duration_mean_ms": 1.4613,
-        "cache_eviction_samples": 15995
+        "cache_lookups_hit": 12317,
+        "cache_lookups_miss": 16919,
+        "cache_hit_rate": 42.1296,
+        "cache_fill_duration_mean_ms": 2.8751,
+        "cache_fill_samples": 16919,
+        "cache_eviction_duration_mean_ms": 1.6619,
+        "cache_eviction_samples": 14884
       }
     },
     {
@@ -1450,15 +1450,15 @@
         "lmdb_sync": "no_meta"
       },
       "metrics": {
-        "achieved_qps": 4576.208095,
-        "queries_sent": 49347,
-        "queries_completed": 49347,
+        "achieved_qps": 4379.15726,
+        "queries_sent": 46180,
+        "queries_completed": 46180,
         "queries_lost": 0,
         "response_codes": {
-          "NOERROR": 49347
+          "NOERROR": 46180
         },
         "latency_ms": {
-          "avg": 420.899
+          "avg": 442.07800000000003
         },
         "answer_ok_percent": 100.0
       },
@@ -1470,16 +1470,16 @@
         "dnsperf_max_outstanding": 2000,
         "upstream_workers": 8,
         "upstream_ttl_secs": 60,
-        "notes": "median of 3 rounds; achieved_qps range 4358.4-4790.6"
+        "notes": "median of 3 rounds; achieved_qps range 4053.9-4762.6"
       },
       "secondary": {
-        "cache_lookups_hit": 23183,
-        "cache_lookups_miss": 25600,
-        "cache_hit_rate": 46.526,
-        "cache_fill_duration_mean_ms": 1.9003,
-        "cache_fill_samples": 25600,
-        "cache_eviction_duration_mean_ms": 1.0559,
-        "cache_eviction_samples": 24576
+        "cache_lookups_hit": 20520,
+        "cache_lookups_miss": 25094,
+        "cache_hit_rate": 44.9611,
+        "cache_fill_duration_mean_ms": 1.9188,
+        "cache_fill_samples": 25094,
+        "cache_eviction_duration_mean_ms": 1.0409,
+        "cache_eviction_samples": 23629
       }
     },
     {
@@ -1495,15 +1495,15 @@
         "lmdb_sync": "none"
       },
       "metrics": {
-        "achieved_qps": 160198.118881,
-        "queries_sent": 1605354,
-        "queries_completed": 1605354,
+        "achieved_qps": 176805.167415,
+        "queries_sent": 1771208,
+        "queries_completed": 1771208,
         "queries_lost": 0,
         "response_codes": {
-          "NOERROR": 1605354
+          "NOERROR": 1771208
         },
         "latency_ms": {
-          "avg": 12.459
+          "avg": 11.286
         },
         "answer_ok_percent": 100.0
       },
@@ -1515,16 +1515,61 @@
         "dnsperf_max_outstanding": 2000,
         "upstream_workers": 8,
         "upstream_ttl_secs": 60,
-        "notes": "median of 3 rounds; achieved_qps range 157566.5-170949.2"
+        "notes": "median of 3 rounds; achieved_qps range 156702.6-190857.7"
       },
       "secondary": {
-        "cache_lookups_hit": 803375,
-        "cache_lookups_miss": 801980,
-        "cache_hit_rate": 50.0664,
-        "cache_fill_duration_mean_ms": 0.0112,
-        "cache_fill_samples": 801980,
-        "cache_eviction_duration_mean_ms": 0.0059,
-        "cache_eviction_samples": 799902
+        "cache_lookups_hit": 886097,
+        "cache_lookups_miss": 885112,
+        "cache_hit_rate": 50.0278,
+        "cache_fill_duration_mean_ms": 0.0124,
+        "cache_fill_samples": 885112,
+        "cache_eviction_duration_mean_ms": 0.0065,
+        "cache_eviction_samples": 883086
+      }
+    },
+    {
+      "id": "scale-sync-ingress-8-lmdb-periodic-cache-churn",
+      "suite": "scale",
+      "intent": "High-churn LMDB-cache load on sync with eight ingress workers and explicit multi-env sharding on a real-disk path. Matched entry cap, query diversity, and stub TTL keep continuous fill/evict pressure.\n\nFirst-class LMDB sync-mode member of study memory-vs-lmdb-cache-churn. lmdb.sync=periodic with sync_interval=1s; when_full=evict_one; shard_count=16 (2\u00d7 ingress). Path /var/tmp/conduit-perf/lmdb-cache-churn-i8-periodic. Recipe matches the ingress-8 memory cell. Average latency under the elevated outstanding window still tracks roughly outstanding/QPS (Little's Law) \u2014 lead takeaways with relative QPS and hit/miss. Thin-ingress scale-sync-lmdb-cache-churn is a companion, not the study primary.",
+      "status": "ok",
+      "axes": {
+        "runtime": "sync",
+        "load_shape": "cache_churn",
+        "ingress_workers": 8,
+        "cache_backend": "lmdb",
+        "lmdb_sync": "periodic"
+      },
+      "metrics": {
+        "achieved_qps": 191677.161688,
+        "queries_sent": 1920116,
+        "queries_completed": 1920116,
+        "queries_lost": 0,
+        "response_codes": {
+          "NOERROR": 1920116
+        },
+        "latency_ms": {
+          "avg": 10.411999999999999
+        },
+        "answer_ok_percent": 100.0
+      },
+      "quality": {
+        "warmup_seconds": 2.0,
+        "duration_seconds": 10.0,
+        "dnsperf_clients": 16,
+        "dnsperf_threads": 8,
+        "dnsperf_max_outstanding": 2000,
+        "upstream_workers": 8,
+        "upstream_ttl_secs": 60,
+        "notes": "median of 3 rounds; achieved_qps range 179224.5-194201.9"
+      },
+      "secondary": {
+        "cache_lookups_hit": 964032,
+        "cache_lookups_miss": 956085,
+        "cache_hit_rate": 50.2069,
+        "cache_fill_duration_mean_ms": 0.0129,
+        "cache_fill_samples": 956085,
+        "cache_eviction_duration_mean_ms": 0.0068,
+        "cache_eviction_samples": 954046
       }
     }
   ],

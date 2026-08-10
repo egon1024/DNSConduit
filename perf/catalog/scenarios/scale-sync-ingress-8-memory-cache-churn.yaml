@@ -5,7 +5,7 @@ curated: true
 summary: |
   High-churn memory-cache load on sync with eight ingress workers: query set larger than max_entries, stub TTL long enough that entry-cap turnover drives misses, no warm plateau.
 notes: |
-  Primary memory member of study memory-vs-lmdb-cache-churn. Matched with the three first-class LMDB sync-mode cells (full / no_meta / none) at eight ingress workers. Recipe: 4096 unique names, max_entries 2048, stub TTL 60s. The thin-ingress pair (scale-sync-memory-cache-churn) remains as a companion cell, not the study primary.
+  Primary memory member of study memory-vs-lmdb-cache-churn. Matched with the four first-class LMDB sync-mode cells (full / no_meta / periodic / none) at eight ingress workers. Recipe: 4096 unique names, max_entries 2048, stub TTL 60s. The thin-ingress pair (scale-sync-memory-cache-churn) remains as a companion cell, not the study primary.
 axes:
   runtime: sync
   load_shape: cache_churn

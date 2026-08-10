@@ -5,6 +5,8 @@ use super::key::CacheKey;
 use super::lmdb::{LmdbBackendError, LmdbCacheBackend};
 use super::memory::{CacheGetResult, MemoryCacheBackend, ReapBudget, ReapCursor, ReapOutcome};
 use conduit_config::lookup::{CacheBackendType, CompiledCacheInstance};
+use conduit_metrics::MetricsHub;
+use std::sync::Arc;
 use std::time::Instant;
 
 /// Result of a cache insert, including capacity-eviction cost when the store ejected victims.
@@ -121,6 +123,15 @@ impl CacheBackend {
         match self {
             Self::Lmdb(l) => Some(l),
             Self::Memory(_) => None,
+        }
+    }
+
+    /// Attaches the metrics hub so an LMDB backend's periodic sync flusher can
+    /// observe each completed tick's duration directly. No-op for memory
+    /// backends (no flusher).
+    pub fn set_metrics(&self, metrics: Arc<MetricsHub>) {
+        if let Self::Lmdb(l) = self {
+            l.set_metrics(metrics);
         }
     }
 }
