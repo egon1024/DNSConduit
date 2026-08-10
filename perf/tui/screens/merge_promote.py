@@ -12,7 +12,11 @@ from textual.widgets import Button, Checkbox, Input, Log, Static
 from perf.runner.api import FacadeError, merge_median, promote
 from perf.tui.help import FlagWithHelp, LabeledField
 from perf.tui.pipeline_state import PipelineState
-from perf.tui.scope import default_merge_output
+from perf.tui.scope import (
+    default_merge_output,
+    default_merge_sources,
+    default_promote_source,
+)
 
 
 class MergePromoteScreen(Vertical):
@@ -23,14 +27,16 @@ class MergePromoteScreen(Vertical):
     def compose(self) -> ComposeResult:
         yield Static("Merge & Promote", classes="stage-title")
         yield Static(
-            "Median-merge round JSONs, then promote into the reference warehouse.",
+            "Combine per-cycle run JSON files with a median merge, then promote "
+            "into the reference warehouse.",
             classes="stage-lead",
         )
         with VerticalScroll(classes="stage-body"):
             with Vertical(classes="card"):
                 yield Static("1 · Merge (median)", classes="card-title")
-                yield LabeledField("Round JSON paths", help_id="merge-sources")
+                yield LabeledField("Per-cycle run JSON paths", help_id="merge-sources")
                 yield Input(
+                    value=default_merge_sources(),
                     id="merge-sources",
                     placeholder="perf/results/runs/…/r1.json r2.json r3.json",
                 )
@@ -41,7 +47,7 @@ class MergePromoteScreen(Vertical):
             with Vertical(classes="card"):
                 yield Static("2 · Promote", classes="card-title")
                 yield LabeledField("Source run JSON", help_id="promote-source")
-                yield Input(id="promote-source")
+                yield Input(value=default_promote_source(), id="promote-source")
                 with Horizontal(classes="field-row"):
                     with Vertical(classes="field"):
                         yield LabeledField("Reference name", help_id="promote-name")
@@ -73,14 +79,22 @@ class MergePromoteScreen(Vertical):
         self._refresh_defaults()
 
     def _refresh_defaults(self) -> None:
+        """Keep paths aligned with the default Run → merge → promote click-path.
+
+        Prefer live session outputs when present; otherwise keep the conventional
+        publish-set-median layout so the fields are never blank.
+        """
+        merge_in = self.query_one("#merge-sources", Input)
         if self.pipeline.last_run_paths:
-            src = self.query_one("#merge-sources", Input)
-            if not src.value.strip():
-                src.value = " ".join(str(p) for p in self.pipeline.last_run_paths)
+            merge_in.value = " ".join(str(p) for p in self.pipeline.last_run_paths)
+        elif not merge_in.value.strip():
+            merge_in.value = default_merge_sources()
+
+        promo = self.query_one("#promote-source", Input)
         if self.pipeline.last_merge_path:
-            promo = self.query_one("#promote-source", Input)
-            if not promo.value.strip():
-                promo.value = str(self.pipeline.last_merge_path)
+            promo.value = str(self.pipeline.last_merge_path)
+        elif not promo.value.strip():
+            promo.value = default_promote_source()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "merge-go":

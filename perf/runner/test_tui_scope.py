@@ -4,7 +4,13 @@ from __future__ import annotations
 
 import unittest
 
-from perf.tui.scope import ScopeSelection, catalog_suites, default_scope
+from perf.tui.scope import (
+    ScopeSelection,
+    catalog_suites,
+    default_merge_sources,
+    default_promote_source,
+    default_scope,
+)
 
 
 class ScopeSelectionTests(unittest.TestCase):
@@ -28,6 +34,13 @@ class ScopeSelectionTests(unittest.TestCase):
     def test_catalog_suites_nonempty(self):
         suites = catalog_suites()
         self.assertIn("scale", suites)
+
+    def test_default_merge_sources_match_three_cycles(self):
+        paths = default_merge_sources().split()
+        self.assertEqual(len(paths), 3)
+        self.assertTrue(paths[0].endswith("r1.json"))
+        self.assertTrue(paths[2].endswith("r3.json"))
+        self.assertEqual(default_promote_source().endswith("median.json"), True)
 
 
 if __name__ == "__main__":
