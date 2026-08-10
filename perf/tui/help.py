@@ -24,9 +24,16 @@ FIELD_BLURBS: dict[str, str] = {
     "run-kill-strays": "SIGKILL orphans left by a crashed prior runner (ledger-tracked only).",
     "run-allow-cpu": "Skip the CPU governor=performance preflight (results may be noisy).",
     "run-allow-udp": "Skip the UDP rmem_max preflight (may see Queries lost).",
-    "merge-sources": "Two or more same-shape round JSON files to median-merge.",
+    "merge-sources": (
+        "Two or more run JSON files from separate cycles of the same scope "
+        "(e.g. r1.json r2.json r3.json under the Run output directory). "
+        "Defaults match the Run stage's publish-set layout."
+    ),
     "merge-output": "Destination for the merged median document.",
-    "promote-source": "Run JSON to bless into results/references/ (often the median output).",
+    "promote-source": (
+        "Run JSON to bless into results/references/. Defaults to the median "
+        "merge output path."
+    ),
     "promote-name": "Basename under perf/results/references/ (default thin-spine).",
     "promote-profile": (
         "Lab profile id written onto the promoted reference (usually maintainer-ws-1)."
@@ -41,6 +48,15 @@ FIELD_BLURBS: dict[str, str] = {
 
 # Longer body for the "?" modal (falls back to the blurb).
 FIELD_DETAILS: dict[str, str] = {
+    "merge-sources": (
+        "When Cycles > 1 on the Run stage, each cycle writes its own run JSON "
+        "(r1.json, r2.json, …) for the same scenario set.\n\n"
+        "Median-merge takes those per-cycle files and builds one document using "
+        "the per-scenario field median. That dampens one-off host noise before "
+        "you promote into results/references/ for operator-docs.\n\n"
+        "All inputs must be the same shape (same scenario ids). Use at least two "
+        "files; publish-quality defaults use three."
+    ),
     "run-profile": (
         "Each run document records lab_profile.id so later readers know which "
         "machine shape produced the QPS numbers.\n\n"
@@ -53,8 +69,8 @@ FIELD_DETAILS: dict[str, str] = {
     ),
     "run-cycles": (
         "One cycle = one full pass over the selected scenarios, writing one run "
-        "JSON. For publish-set refresh, run N cycles then median-merge the round "
-        "files (methodology default N=3) before promote."
+        "JSON (e.g. r1.json). For publish-set refresh, run N cycles then "
+        "median-merge those per-cycle files (methodology default N=3) before promote."
     ),
     "run-time": (
         "Overrides each scenario's configured duration_s for this invocation. "

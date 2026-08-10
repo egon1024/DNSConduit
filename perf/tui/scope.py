@@ -122,14 +122,26 @@ def catalog_scenarios() -> list[tuple[str, str, bool]]:
 
 
 def default_run_output() -> str:
-    """Directory for multi-cycle publish-set rounds (writes r1.json, r2.json, …)."""
+    """Directory for multi-cycle publish-set outputs (writes r1.json, r2.json, …)."""
     return str(ROOT / "perf" / "results" / "runs" / "publish-set-median")
+
+
+def default_merge_sources(*, cycles: int | None = None) -> str:
+    """Space-separated per-cycle JSON paths matching the default Run output layout."""
+    n = cycles if cycles is not None else int(default_run_cycles())
+    base = Path(default_run_output())
+    return " ".join(str(base / f"r{i}.json") for i in range(1, n + 1))
 
 
 def default_merge_output() -> str:
     return str(
         ROOT / "perf" / "results" / "runs" / "publish-set-median" / "median.json"
     )
+
+
+def default_promote_source() -> str:
+    """Promote input defaults to the median merge output."""
+    return default_merge_output()
 
 
 def default_render_output() -> str:
