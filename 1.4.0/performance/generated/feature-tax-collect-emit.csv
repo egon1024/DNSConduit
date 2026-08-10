@@ -1,0 +1,4 @@
+posture,scenario_id,achieved_qps,latency_avg_ms,queries_sent,queries_completed,queries_lost
+no_collect,feature-tax-metrics-no-collect-forward-fast,73615.4,27.1,738135,738135,0
+collect_only,feature-tax-metrics-collect-only-forward-fast,70398.5,28.3,706795,706795,0
+collect_emit,feature-tax-metrics-collect-emit-forward-fast,70635.6,28.2,708920,708920,0

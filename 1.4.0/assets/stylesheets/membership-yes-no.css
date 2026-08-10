@@ -1,0 +1,19 @@
+/* Category membership yes/no in metrics configurability tables. */
+
+.md-typeset {
+  --membership-yes: #2f6b45; /* muted green */
+  --membership-no: #a14a4a; /* muted red */
+}
+
+[data-md-color-scheme="slate"] .md-typeset {
+  --membership-yes: #7dba8f;
+  --membership-no: #e08a8a;
+}
+
+.md-typeset .membership-yes {
+  color: var(--membership-yes);
+}
+
+.md-typeset .membership-no {
+  color: var(--membership-no);
+}

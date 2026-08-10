@@ -1,0 +1,4 @@
+scenario_id,runtime,achieved_qps,latency_avg_ms,queries_sent,queries_completed,queries_lost,workers
+feature-tax-metrics-no-collect-forward-fast,sync,73615.4,27.1,738135,738135,0,ingress_workers=2
+feature-tax-metrics-collect-only-forward-fast,sync,70398.5,28.3,706795,706795,0,ingress_workers=2
+feature-tax-metrics-collect-emit-forward-fast,sync,70635.6,28.2,708920,708920,0,ingress_workers=2
