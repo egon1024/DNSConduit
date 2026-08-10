@@ -496,6 +496,9 @@ pub fn builtin_metric_category(family_name: &str) -> Option<MetricCategory> {
         | "conduit_cache_bytes_limit"
         | "conduit_cache_lmdb_shards"
         | "conduit_cache_lmdb_sync"
+        | "conduit_cache_lmdb_periodic_sync_age_seconds"
+        | "conduit_cache_lmdb_periodic_sync_duration_seconds"
+        | "conduit_cache_lmdb_periodic_sync_failures_total"
         | "conduit_cache_lmdb_errors_total" => Some(MetricCategory::CacheDetail),
 
         "conduit_forward_outstanding" => Some(MetricCategory::ForwardDetail),
@@ -1561,6 +1564,21 @@ mod tests {
             assert_eq!(
                 builtin_metric_category(name),
                 Some(MetricCategory::Meta),
+                "{name}"
+            );
+        }
+    }
+
+    #[test]
+    fn periodic_sync_families_map_to_cache_detail_category() {
+        for name in [
+            "conduit_cache_lmdb_periodic_sync_age_seconds",
+            "conduit_cache_lmdb_periodic_sync_duration_seconds",
+            "conduit_cache_lmdb_periodic_sync_failures_total",
+        ] {
+            assert_eq!(
+                builtin_metric_category(name),
+                Some(MetricCategory::CacheDetail),
                 "{name}"
             );
         }

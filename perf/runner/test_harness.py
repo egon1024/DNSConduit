@@ -235,8 +235,24 @@ class StudyCatalogTests(unittest.TestCase):
                 "scale-sync-ingress-8-memory-cache-churn",
                 "scale-sync-ingress-8-lmdb-full-cache-churn",
                 "scale-sync-ingress-8-lmdb-no_meta-cache-churn",
+                "scale-sync-ingress-8-lmdb-periodic-cache-churn",
                 "scale-sync-ingress-8-lmdb-none-cache-churn",
             ],
+        )
+        periodic = next(
+            s
+            for s in scenarios
+            if s.id == "scale-sync-ingress-8-lmdb-periodic-cache-churn"
+        )
+        self.assertEqual(
+            periodic.axes,
+            {
+                "runtime": "sync",
+                "load_shape": "cache_churn",
+                "ingress_workers": 8,
+                "cache_backend": "lmdb",
+                "lmdb_sync": "periodic",
+            },
         )
         self.assertEqual(len(churn.figures), 3)
         self.assertEqual(churn.figures[1].metric, "cache_hit_rate")

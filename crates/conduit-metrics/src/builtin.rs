@@ -55,7 +55,7 @@ pub struct ScrapeGaugeSnapshot {
 }
 
 /// Capacity gauges for one named cache instance.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct CacheCapacitySample {
     pub cache: String,
     pub entries: u64,
@@ -66,8 +66,12 @@ pub struct CacheCapacitySample {
     pub bytes_limit: u64,
     /// Effective LMDB shard environments for this instance; `0` for memory.
     pub lmdb_shards: u64,
-    /// Effective `lmdb.sync` mode (`full` / `no_meta` / `none`); `None` for memory.
+    /// Effective `lmdb.sync` mode (`full` / `no_meta` / `none` / `periodic`); `None` for memory.
     pub lmdb_sync: Option<String>,
+    /// Seconds since the last successful periodic LMDB sync; `None` before the first success.
+    pub lmdb_sync_age_secs: Option<f64>,
+    /// Total failed periodic LMDB sync attempts.
+    pub lmdb_sync_failures: u64,
 }
 
 /// One backend row for health Prometheus series (phase 1c §10).
@@ -253,6 +257,12 @@ pub struct BuiltinRegistry {
     cache_bytes_limit: Option<GaugeVec>,
     cache_lmdb_shards: Option<GaugeVec>,
     cache_lmdb_sync: Option<GaugeVec>,
+    cache_lmdb_periodic_sync_age: Option<GaugeVec>,
+    cache_lmdb_periodic_sync_duration: Option<HistogramVec>,
+    cache_lmdb_periodic_sync_failures: Option<IntCounterVec>,
+    /// Per-cache cumulative periodic sync failure count already synced into
+    /// the counter (delta-tracked, same pattern as [`Self::last_exhaustion_synced`]).
+    last_periodic_sync_failures_synced: RwLock<std::collections::HashMap<String, u64>>,
     cache_lmdb_errors: Option<IntCounterVec>,
     parse_rejected_total: Option<IntCounterVec>,
     queries_by_pool_total: IntCounterVec,
@@ -584,6 +594,9 @@ impl BuiltinRegistry {
             cache_bytes_limit,
             cache_lmdb_shards,
             cache_lmdb_sync,
+            cache_lmdb_periodic_sync_age,
+            cache_lmdb_periodic_sync_duration,
+            cache_lmdb_periodic_sync_failures,
             cache_lmdb_errors,
         ) = if effective && is_full {
             let fills = get_counter(
@@ -655,6 +668,22 @@ impl BuiltinRegistry {
                 "Configured LMDB sync durability mode (info gauge; join on cache)",
                 &["cache", "sync"],
             );
+            let lmdb_periodic_sync_age = get_gauge(
+                "conduit_cache_lmdb_periodic_sync_age_seconds",
+                "Seconds since the last successful periodic LMDB sync",
+                &["cache"],
+            );
+            let lmdb_periodic_sync_duration = get_histogram(
+                "conduit_cache_lmdb_periodic_sync_duration_seconds",
+                "Duration of periodic LMDB sync ticks",
+                &["cache"],
+                phase_duration_buckets(),
+            );
+            let lmdb_periodic_sync_failures = get_counter(
+                "conduit_cache_lmdb_periodic_sync_failures_total",
+                "Failed periodic LMDB sync attempts",
+                &["cache"],
+            );
             let lmdb_errors = get_counter(
                 "conduit_cache_lmdb_errors_total",
                 "LMDB cache backend error and capacity-pressure events",
@@ -674,11 +703,15 @@ impl BuiltinRegistry {
                 Some(bytes_limit),
                 Some(lmdb_shards),
                 Some(lmdb_sync),
+                Some(lmdb_periodic_sync_age),
+                Some(lmdb_periodic_sync_duration),
+                Some(lmdb_periodic_sync_failures),
                 Some(lmdb_errors),
             )
         } else {
             (
                 None, None, None, None, None, None, None, None, None, None, None, None, None, None,
+                None, None, None,
             )
         };
 
@@ -1000,6 +1033,10 @@ impl BuiltinRegistry {
             cache_bytes_limit,
             cache_lmdb_shards,
             cache_lmdb_sync,
+            cache_lmdb_periodic_sync_age,
+            cache_lmdb_periodic_sync_duration,
+            cache_lmdb_periodic_sync_failures,
+            last_periodic_sync_failures_synced: RwLock::new(std::collections::HashMap::new()),
             cache_lmdb_errors,
             parse_rejected_total,
             queries_by_pool_total,
@@ -1455,6 +1492,45 @@ impl BuiltinRegistry {
         last.retain(|k, _| seen.contains(k));
     }
 
+    /// Observes one completed periodic LMDB flusher tick's wall-clock duration.
+    ///
+    /// Called directly from the LMDB flusher thread in `conduit-core`
+    /// (`LmdbCacheBackend`/`SyncState`) once per completed tick — the same
+    /// core → metrics observe-on-completion pattern used for cache fill/eviction
+    /// durations (see [`Self::observe_cache_fill_duration`],
+    /// [`Self::observe_cache_eviction_duration`]) — so every tick is recorded
+    /// exactly once, including ticks between scrapes and idle ticks that a
+    /// scrape-sample heuristic would otherwise miss.
+    pub fn observe_periodic_sync_duration(&self, cache: &str, duration_secs: f64) {
+        if let Some(hist) = self.cache_lmdb_periodic_sync_duration.as_ref() {
+            hist.with_label_values(&[cache]).observe(duration_secs);
+        }
+    }
+
+    /// Delta-syncs the cumulative periodic sync failure count per cache into
+    /// the counter (same pattern as [`Self::sync_health_transition_counters`]).
+    fn sync_periodic_sync_failure_counters(&self, samples: &[CacheCapacitySample]) {
+        let Some(counter) = self.cache_lmdb_periodic_sync_failures.as_ref() else {
+            return;
+        };
+        let mut last = self.last_periodic_sync_failures_synced.write();
+        let mut seen = std::collections::HashSet::new();
+        for sample in samples {
+            if sample.lmdb_sync.as_deref() != Some("periodic") {
+                continue;
+            }
+            seen.insert(sample.cache.clone());
+            let prev = last.get(sample.cache.as_str()).copied().unwrap_or(0);
+            if sample.lmdb_sync_failures > prev {
+                counter
+                    .with_label_values(&[sample.cache.as_str()])
+                    .inc_by(sample.lmdb_sync_failures - prev);
+                last.insert(sample.cache.clone(), sample.lmdb_sync_failures);
+            }
+        }
+        last.retain(|k, _| seen.contains(k));
+    }
+
     fn refresh_health_scrape_gauges(&self, snapshot: &ScrapeGaugeSnapshot) {
         let Some(observed) = self.backend_health_observed.as_ref() else {
             return;
@@ -1640,6 +1716,15 @@ impl BuiltinRegistry {
                 }
             }
         }
+        if let Some(gauge) = self.cache_lmdb_periodic_sync_age.as_ref() {
+            gauge.reset();
+            for sample in &snapshot.cache_capacity {
+                if let Some(age) = sample.lmdb_sync_age_secs {
+                    gauge.with_label_values(&[sample.cache.as_str()]).set(age);
+                }
+            }
+        }
+        self.sync_periodic_sync_failure_counters(&snapshot.cache_capacity);
 
         if let Some(ref rss) = self.process_resident_bytes {
             rss.set(read_resident_bytes().unwrap_or(0) as f64);
@@ -2494,6 +2579,8 @@ Max locked memory         8388608              8388608              bytes     \n
             bytes_limit: 64 * 1024 * 1024,
             lmdb_shards: 4,
             lmdb_sync: Some("no_meta".into()),
+            lmdb_sync_age_secs: None,
+            lmdb_sync_failures: 0,
         };
         let minimal = BuiltinRegistry::new(true, BuiltinProfile::Minimal);
         minimal.set_scrape_snapshot_fn(Arc::new(move || ScrapeGaugeSnapshot {
@@ -2521,6 +2608,8 @@ Max locked memory         8388608              8388608              bytes     \n
                 bytes_limit: 64 * 1024 * 1024,
                 lmdb_shards: 4,
                 lmdb_sync: Some("no_meta".into()),
+                lmdb_sync_age_secs: None,
+                lmdb_sync_failures: 0,
             }],
             cache_entry_counts: vec![("durable".into(), 10)],
             ..Default::default()
@@ -2537,6 +2626,110 @@ Max locked memory         8388608              8388608              bytes     \n
         assert!(
             body.contains(r#"conduit_cache_entries{cache="durable"} 10"#),
             "body:\n{body}"
+        );
+    }
+
+    #[test]
+    fn periodic_sync_age_and_failures_present_on_full_absent_on_minimal() {
+        let sample = CacheCapacitySample {
+            cache: "durable".into(),
+            entries: 10,
+            entries_limit: 100,
+            bytes_used: 4096,
+            bytes_limit: 64 * 1024 * 1024,
+            lmdb_shards: 4,
+            lmdb_sync: Some("periodic".into()),
+            lmdb_sync_age_secs: Some(1.5),
+            lmdb_sync_failures: 2,
+        };
+        let minimal = BuiltinRegistry::new(true, BuiltinProfile::Minimal);
+        minimal.set_scrape_snapshot_fn(Arc::new({
+            let sample = sample.clone();
+            move || ScrapeGaugeSnapshot {
+                cache_capacity: vec![sample.clone()],
+                ..Default::default()
+            }
+        }));
+        let body_min = encode_builtin(minimal.gather());
+        assert!(
+            !body_min.contains("conduit_cache_lmdb_periodic_sync_age_seconds"),
+            "minimal must omit periodic sync age, body:\n{body_min}"
+        );
+        assert!(
+            !body_min.contains("conduit_cache_lmdb_periodic_sync_duration_seconds"),
+            "minimal must omit periodic sync duration, body:\n{body_min}"
+        );
+        assert!(
+            !body_min.contains("conduit_cache_lmdb_periodic_sync_failures_total"),
+            "minimal must omit periodic sync failures, body:\n{body_min}"
+        );
+
+        let full = BuiltinRegistry::new(true, BuiltinProfile::Full);
+        full.set_scrape_snapshot_fn(Arc::new(move || ScrapeGaugeSnapshot {
+            cache_capacity: vec![sample.clone()],
+            ..Default::default()
+        }));
+        let body = encode_builtin(full.gather());
+        assert!(
+            body.contains(r#"conduit_cache_lmdb_periodic_sync_age_seconds{cache="durable"} 1.5"#),
+            "body:\n{body}"
+        );
+        assert!(
+            body.contains(r#"conduit_cache_lmdb_periodic_sync_failures_total{cache="durable"} 2"#),
+            "body:\n{body}"
+        );
+        assert!(
+            body.contains(r#"conduit_cache_lmdb_sync{cache="durable",sync="periodic"} 1"#),
+            "body:\n{body}"
+        );
+
+        // A second scrape with an unchanged sample must not double-count
+        // failures already synced into the counter.
+        let body2 = encode_builtin(full.gather());
+        assert!(
+            body2.contains(r#"conduit_cache_lmdb_periodic_sync_failures_total{cache="durable"} 2"#),
+            "failures counter must not double-count on repeat scrape, body:\n{body2}"
+        );
+    }
+
+    /// Proves the periodic sync duration histogram is observed once per
+    /// completed flusher tick (direct core → metrics call), not inferred from
+    /// scrape samples: three ticks in a row (no scrape in between, as would
+    /// happen with idle ticks between scrape intervals) must yield three
+    /// histogram observations, and each call is independent of any capacity
+    /// scrape sample or `lmdb_sync_age_secs` value.
+    #[test]
+    fn periodic_sync_duration_histogram_observes_once_per_completed_tick() {
+        let full = BuiltinRegistry::new(true, BuiltinProfile::Full);
+        full.observe_periodic_sync_duration("durable", 0.01);
+        full.observe_periodic_sync_duration("durable", 0.02);
+        full.observe_periodic_sync_duration("durable", 0.03);
+        let body = encode_builtin(full.gather());
+        assert!(
+            body.contains(
+                "conduit_cache_lmdb_periodic_sync_duration_seconds_count{cache=\"durable\"} 3"
+            ),
+            "three completed flusher ticks must yield three histogram observations, body:\n{body}"
+        );
+
+        // A fourth tick after a scrape (`gather()` above) must still add a
+        // fresh observation — proving the histogram is driven by tick
+        // completion, not by any scrape-time snapshot state.
+        full.observe_periodic_sync_duration("durable", 0.04);
+        let body2 = encode_builtin(full.gather());
+        assert!(
+            body2.contains(
+                "conduit_cache_lmdb_periodic_sync_duration_seconds_count{cache=\"durable\"} 4"
+            ),
+            "a tick completed between scrapes must still be observed, body:\n{body2}"
+        );
+
+        let minimal = BuiltinRegistry::new(true, BuiltinProfile::Minimal);
+        minimal.observe_periodic_sync_duration("durable", 0.02);
+        let body_min = encode_builtin(minimal.gather());
+        assert!(
+            !body_min.contains("conduit_cache_lmdb_periodic_sync_duration_seconds"),
+            "minimal must omit periodic sync duration, body:\n{body_min}"
         );
     }
 

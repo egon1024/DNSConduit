@@ -12,11 +12,12 @@ use super::memory::CacheGetResult;
 use conduit_config::lookup::{
     CompiledCacheInstance, CompiledLmdbCache, LmdbSync, LmdbWhenFull, MAX_LMDB_SHARD_COUNT,
 };
+use conduit_metrics::MetricsHub;
 use heed::types::Bytes;
 use heed::{Database, Env, EnvFlags, EnvOpenOptions, FlagSetMode, MdbError};
-use parking_lot::RwLock;
+use parking_lot::{Mutex, RwLock};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -73,6 +74,13 @@ pub enum LmdbBackendError {
         path: PathBuf,
         source: heed::Error,
     },
+    #[error("invalid LMDB sync configuration for cache '{cache}': {message}")]
+    InvalidSyncConfig { cache: String, message: String },
+    #[error("failed to spawn LMDB periodic sync flusher thread for cache '{cache}': {source}")]
+    SpawnFlusher {
+        cache: String,
+        source: std::io::Error,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -91,6 +99,12 @@ struct LmdbShard {
     entries: Database<Bytes, Bytes>,
     max_entries: AtomicU64,
     map_size_bytes: AtomicU64,
+    /// Set on any successful mutating commit; swapped to `false` before a
+    /// `force_sync` attempt and restored to `true` if that attempt fails (see
+    /// `force_sync_iter`), so a concurrent writer racing with an in-flight sync is
+    /// never lost. Shared with the periodic flusher thread (if running) so both
+    /// sides observe and clear the same flag.
+    dirty: Arc<AtomicBool>,
 }
 
 pub struct LmdbCacheBackend {
@@ -102,6 +116,12 @@ pub struct LmdbCacheBackend {
     total_map_size_bytes: AtomicU64,
     total_max_entries: AtomicU64,
     policy: RwLock<LmdbPolicy>,
+    /// Last-success / failure-count accessors for scrape-time metrics, plus the
+    /// metrics hub used to observe each completed flusher tick's duration
+    /// directly (not inferred from a scrape sample).
+    sync_state: Arc<SyncState>,
+    /// Background periodic-sync thread; `Some` iff `policy.sync == Periodic`.
+    flusher: Mutex<Option<Flusher>>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -109,13 +129,267 @@ struct LmdbPolicy {
     when_full: LmdbWhenFull,
     sample_size: u32,
     sync: LmdbSync,
+    sync_interval: Option<Duration>,
+}
+
+/// Sync observability, shared between the backend and its flusher thread.
+/// `last_success`/`failures` feed scrape-time gauges/counters; `metrics` (set
+/// via [`LmdbCacheBackend::set_metrics`]) lets the flusher thread observe each
+/// completed tick's duration directly into the periodic sync duration
+/// histogram, once per tick — not inferred from a scrape sample.
+#[derive(Default)]
+struct SyncState {
+    last_success: RwLock<Option<Instant>>,
+    failures: AtomicU64,
+    metrics: RwLock<Option<Arc<MetricsHub>>>,
+}
+
+impl SyncState {
+    fn record_success(&self) {
+        *self.last_success.write() = Some(Instant::now());
+    }
+
+    fn record_failure(&self) {
+        self.failures.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Records a completed flusher tick's duration and, when a metrics hub is
+    /// attached and metrics are enabled, observes it into
+    /// `conduit_cache_lmdb_periodic_sync_duration_seconds` — the same
+    /// core → metrics observe-on-completion pattern used for cache fill/eviction
+    /// durations. Called exactly once per completed tick, so ticks between
+    /// scrapes and idle ticks are never missed.
+    fn record_tick(&self, cache_name: &str, d: Duration) {
+        let hub = self.metrics.read();
+        let Some(hub) = hub.as_ref() else {
+            return;
+        };
+        if !hub.metrics_enabled() {
+            return;
+        }
+        hub.builtin()
+            .observe_periodic_sync_duration(cache_name, d.as_secs_f64());
+    }
+}
+
+/// Per-shard handle held by the flusher thread: a cheap `Env` clone (heed environments
+/// are `Arc`-backed internally) plus the same shared dirty flag as the owning [`LmdbShard`].
+struct FlushShard {
+    env: Env,
+    dirty: Arc<AtomicBool>,
+    path: PathBuf,
+}
+
+/// Background thread that periodically calls `force_sync` on dirty shards while
+/// `lmdb.sync == periodic` (design D3/D4/D6/D7).
+struct Flusher {
+    stop: Arc<AtomicBool>,
+    interval_ms: Arc<AtomicU64>,
+    handle: Option<std::thread::JoinHandle<()>>,
+}
+
+impl Flusher {
+    /// Spawns the background flusher thread. Fallible: thread spawn can fail under OS
+    /// resource pressure (e.g. thread/process limits), and this must never panic the
+    /// dataplane — callers propagate the error so `open` fails closed and a Hot-apply
+    /// mode change rejects and keeps the prior sync mode.
+    fn start(
+        cache_name: String,
+        shards: Vec<FlushShard>,
+        interval: Duration,
+        sync_state: Arc<SyncState>,
+    ) -> std::io::Result<Self> {
+        let stop = Arc::new(AtomicBool::new(false));
+        let interval_ms = Arc::new(AtomicU64::new(interval_millis(interval)));
+        let tick_in_progress = Arc::new(AtomicBool::new(false));
+        let thread_stop = Arc::clone(&stop);
+        let thread_interval_ms = Arc::clone(&interval_ms);
+        let handle = std::thread::Builder::new()
+            .name(format!("conduit-lmdb-sync-{cache_name}"))
+            .spawn(move || {
+                flusher_loop(
+                    &cache_name,
+                    &shards,
+                    &thread_stop,
+                    &thread_interval_ms,
+                    &tick_in_progress,
+                    &sync_state,
+                );
+            })?;
+        Ok(Self {
+            stop,
+            interval_ms,
+            handle: Some(handle),
+        })
+    }
+
+    fn set_interval(&self, interval: Duration) {
+        self.interval_ms
+            .store(interval_millis(interval), Ordering::Relaxed);
+    }
+
+    /// Stop the thread and join it, bounding the wait so `Drop`/Hot-apply cannot hang
+    /// forever on a stuck `force_sync` syscall (e.g. slow disk).
+    ///
+    /// Returns `true` if the flusher thread was confirmed to have exited within the
+    /// timeout, `false` if the wait timed out first. Callers MUST check this return
+    /// value before running a direct best-effort `force_sync_dirty_shards`: if the
+    /// thread is still inside `force_sync` when we give up waiting, a direct call
+    /// from `Drop`/mode-change would run concurrently with (or stack behind) that
+    /// still-running sync, defeating the whole point of joining first. On a `false`
+    /// return the caller should skip the direct sync and log a warning instead.
+    ///
+    /// On timeout the underlying `std::thread::JoinHandle` is intentionally dropped
+    /// (not joined further) by the watcher thread once the real join eventually
+    /// completes — the flusher thread itself was already asked to stop via `self.stop`
+    /// and will exit on its own as soon as its in-flight `force_sync` returns; we just
+    /// stop waiting for it here so shutdown stays bounded. This can leave the OS thread
+    /// running detached for the duration of one stuck syscall, which is an accepted
+    /// trade-off for a bounded `Drop`.
+    #[must_use]
+    fn stop_and_join(mut self) -> bool {
+        self.stop.store(true, Ordering::Relaxed);
+        let Some(handle) = self.handle.take() else {
+            return true;
+        };
+        let (tx, rx) = std::sync::mpsc::channel::<()>();
+        std::thread::spawn(move || {
+            let _ = handle.join();
+            let _ = tx.send(());
+        });
+        if rx.recv_timeout(Duration::from_secs(5)).is_err() {
+            tracing::warn!(
+                "LMDB periodic sync flusher thread did not stop within timeout; abandoning join"
+            );
+            false
+        } else {
+            true
+        }
+    }
+}
+
+fn interval_millis(interval: Duration) -> u64 {
+    (interval.as_millis() as u64).max(1)
+}
+
+fn flusher_loop(
+    cache_name: &str,
+    shards: &[FlushShard],
+    stop: &AtomicBool,
+    interval_ms: &AtomicU64,
+    tick_in_progress: &AtomicBool,
+    sync_state: &SyncState,
+) {
+    const POLL_CHUNK: Duration = Duration::from_millis(50);
+    loop {
+        let mut waited = Duration::ZERO;
+        loop {
+            if stop.load(Ordering::Relaxed) {
+                return;
+            }
+            let target = Duration::from_millis(interval_ms.load(Ordering::Relaxed).max(1));
+            if waited >= target {
+                break;
+            }
+            let chunk = (target - waited).min(POLL_CHUNK);
+            std::thread::sleep(chunk);
+            waited += chunk;
+        }
+        if stop.load(Ordering::Relaxed) {
+            return;
+        }
+        // This flag is local to (and only ever touched by) this single loop thread,
+        // so `compare_exchange` never actually observes `true` here today — each
+        // iteration clears it before waiting again, and `run_flush_tick` below runs
+        // to completion synchronously on this thread. It is not shared with a direct
+        // `force_sync_dirty_shards` call: overlap between a tick and a direct call is
+        // instead prevented by construction, because `reconcile_flusher` and `Drop`
+        // only invoke `force_sync_dirty_shards` directly after `Flusher::stop_and_join`
+        // reports a *confirmed* join of this thread — if the join times out instead
+        // (thread still possibly mid-`force_sync`), those callers skip the direct call
+        // and log a warning rather than risk an overlapping/stacked sync. Kept as a
+        // defensive guard against a future refactor of this loop reintroducing real
+        // concurrency.
+        if tick_in_progress
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Relaxed)
+            .is_err()
+        {
+            continue;
+        }
+        let t0 = Instant::now();
+        run_flush_tick(cache_name, shards, sync_state);
+        sync_state.record_tick(cache_name, t0.elapsed());
+        tick_in_progress.store(false, Ordering::Release);
+    }
+}
+
+fn run_flush_tick(cache_name: &str, shards: &[FlushShard], sync_state: &SyncState) {
+    let _ = force_sync_iter(
+        cache_name,
+        sync_state,
+        shards
+            .iter()
+            .map(|s| (&s.env, s.dirty.as_ref(), s.path.clone())),
+    );
+}
+
+/// Shared force-sync loop used by both the flusher thread (via [`FlushShard`] clones)
+/// and [`LmdbCacheBackend::force_sync_dirty_shards`] (via live shard fields). Visits
+/// every dirty shard even after a failure; returns the first error, if any.
+fn force_sync_iter<'a>(
+    cache_name: &str,
+    sync_state: &SyncState,
+    shards: impl Iterator<Item = (&'a Env, &'a AtomicBool, PathBuf)>,
+) -> Result<(), LmdbBackendError> {
+    let mut first_err = None;
+    for (env, dirty, path) in shards {
+        // Swap the flag to false *before* calling `force_sync`, not after a successful
+        // sync. A writer that commits and marks the shard dirty while `force_sync` is
+        // in flight races with a store-based clear: syncing then unconditionally
+        // storing `false` afterwards would clobber that concurrent write's flag back
+        // to clean even though `force_sync` may not have covered it. Swapping first
+        // means a concurrent writer's `store(true)` (which happens after our swap)
+        // always wins and leaves the shard correctly marked dirty for the next tick.
+        if !dirty.swap(false, Ordering::AcqRel) {
+            continue;
+        }
+        match env.force_sync() {
+            Ok(()) => {
+                sync_state.record_success();
+            }
+            Err(source) => {
+                // Not durably flushed: restore the obligation so the shard stays
+                // dirty and gets retried, even if a concurrent writer already
+                // re-dirtied it in the meantime (a redundant future sync is fine).
+                dirty.store(true, Ordering::Release);
+                tracing::error!(
+                    cache = %cache_name,
+                    path = %path.display(),
+                    error = %source,
+                    "LMDB periodic force_sync failed for shard"
+                );
+                sync_state.record_failure();
+                if first_err.is_none() {
+                    first_err = Some(LmdbBackendError::Io {
+                        cache: cache_name.to_string(),
+                        path,
+                        source,
+                    });
+                }
+            }
+        }
+    }
+    match first_err {
+        Some(e) => Err(e),
+        None => Ok(()),
+    }
 }
 
 fn sync_env_flags(sync: LmdbSync) -> EnvFlags {
     match sync {
         LmdbSync::Full => EnvFlags::empty(),
         LmdbSync::NoMeta => EnvFlags::NO_META_SYNC,
-        LmdbSync::None => EnvFlags::NO_SYNC,
+        LmdbSync::Periodic | LmdbSync::None => EnvFlags::NO_SYNC,
     }
 }
 
@@ -132,7 +406,9 @@ unsafe fn apply_sync_flags_to_env(env: &Env, sync: LmdbSync) -> Result<(), heed:
     match sync {
         LmdbSync::Full => Ok(()),
         LmdbSync::NoMeta => env.set_flags(EnvFlags::NO_META_SYNC, FlagSetMode::Enable),
-        LmdbSync::None => env.set_flags(EnvFlags::NO_SYNC, FlagSetMode::Enable),
+        LmdbSync::Periodic | LmdbSync::None => {
+            env.set_flags(EnvFlags::NO_SYNC, FlagSetMode::Enable)
+        }
     }
 }
 
@@ -221,7 +497,7 @@ impl LmdbCacheBackend {
             .map(|s| s.map_size_bytes.load(Ordering::Relaxed))
             .sum();
 
-        Ok(Self {
+        let backend = Self {
             cache_name: cache_name.to_string(),
             path: RwLock::new(path),
             layout,
@@ -232,8 +508,17 @@ impl LmdbCacheBackend {
                 when_full: lmdb.when_full,
                 sample_size: lmdb.sample_size,
                 sync: lmdb.sync,
+                sync_interval: lmdb.sync_interval,
             }),
-        })
+            sync_state: Arc::new(SyncState::default()),
+            flusher: Mutex::new(None),
+        };
+        if lmdb.sync == LmdbSync::Periodic {
+            if let Some(interval) = lmdb.sync_interval {
+                *backend.flusher.lock() = Some(backend.start_flusher(interval)?);
+            }
+        }
+        Ok(backend)
     }
 
     /// Open a replacement shard layout in a sibling staging directory for Warm reopen.
@@ -354,31 +639,214 @@ impl LmdbCacheBackend {
         self.policy.read().sync
     }
 
-    /// Hot-apply `lmdb.sync` on every open shard environment.
-    pub fn apply_sync(&self, sync: LmdbSync) -> Result<(), LmdbBackendError> {
-        let prev = self.policy.read().sync;
-        if prev == sync {
+    /// Hot-apply `lmdb.sync` (and, for `periodic`, `sync_interval`) on every open shard
+    /// environment, starting/stopping/reconfiguring the background flusher as needed.
+    pub fn apply_sync_config(
+        &self,
+        sync: LmdbSync,
+        interval: Option<Duration>,
+    ) -> Result<(), LmdbBackendError> {
+        if sync == LmdbSync::Periodic && interval.is_none() {
+            return Err(LmdbBackendError::InvalidSyncConfig {
+                cache: self.cache_name.clone(),
+                message: "sync=periodic requires sync_interval".into(),
+            });
+        }
+        if sync != LmdbSync::Periodic && interval.is_some() {
+            return Err(LmdbBackendError::InvalidSyncConfig {
+                cache: self.cache_name.clone(),
+                message: format!(
+                    "sync_interval must only be set when sync=periodic (got sync={})",
+                    sync.as_str()
+                ),
+            });
+        }
+
+        let (prev_sync, prev_interval) = {
+            let policy = self.policy.read();
+            (policy.sync, policy.sync_interval)
+        };
+        if prev_sync == sync && prev_interval == interval {
             return Ok(());
         }
-        for shard in &self.shards {
-            // SAFETY: registry reconcile is single-threaded for this instance; no concurrent
-            // set_flags on these envs.
-            unsafe { apply_sync_flags_to_env(&shard.env, sync) }.map_err(|source| {
-                LmdbBackendError::SetSyncFlags {
-                    cache: self.cache_name.clone(),
-                    path: shard.env_path.read().clone(),
-                    source,
-                }
-            })?;
+
+        if prev_sync != sync {
+            for shard in &self.shards {
+                // SAFETY: registry reconcile is single-threaded for this instance; no
+                // concurrent set_flags on these envs.
+                unsafe { apply_sync_flags_to_env(&shard.env, sync) }.map_err(|source| {
+                    LmdbBackendError::SetSyncFlags {
+                        cache: self.cache_name.clone(),
+                        path: shard.env_path.read().clone(),
+                        source,
+                    }
+                })?;
+            }
         }
-        self.policy.write().sync = sync;
+
+        {
+            let mut policy = self.policy.write();
+            policy.sync = sync;
+            policy.sync_interval = interval;
+        }
+
+        if let Err(e) = self.reconcile_flusher(sync, interval) {
+            // Reject the Hot apply and keep the prior mode: restore the policy fields and,
+            // if we already flipped env sync flags above, flip them back so the backend
+            // does not end up in a mixed state (new durability flags, old flusher/mode).
+            {
+                let mut policy = self.policy.write();
+                policy.sync = prev_sync;
+                policy.sync_interval = prev_interval;
+            }
+            if prev_sync != sync {
+                for shard in &self.shards {
+                    // SAFETY: same single-threaded-reconcile guarantee as the forward
+                    // apply above.
+                    if let Err(revert_err) =
+                        unsafe { apply_sync_flags_to_env(&shard.env, prev_sync) }
+                    {
+                        tracing::error!(
+                            cache = %self.cache_name,
+                            error = %revert_err,
+                            "LMDB failed to revert sync flags after flusher start failure; \
+                             env durability flags may not match the reported prior sync mode"
+                        );
+                    }
+                }
+            }
+            tracing::error!(
+                cache = %self.cache_name,
+                error = %e,
+                "LMDB periodic sync flusher failed to start; Hot apply rejected, keeping prior sync mode"
+            );
+            return Err(e);
+        }
+
         tracing::info!(
             cache = %self.cache_name,
-            from = prev.as_str(),
-            to = sync.as_str(),
+            from_sync = prev_sync.as_str(),
+            to_sync = sync.as_str(),
+            from_interval_ms = prev_interval.map(interval_millis),
+            to_interval_ms = interval.map(interval_millis),
             "LMDB sync mode updated"
         );
         Ok(())
+    }
+
+    fn start_flusher(&self, interval: Duration) -> Result<Flusher, LmdbBackendError> {
+        let shards: Vec<FlushShard> = self
+            .shards
+            .iter()
+            .map(|s| FlushShard {
+                env: s.env.clone(),
+                dirty: Arc::clone(&s.dirty),
+                path: shard_env_path(s),
+            })
+            .collect();
+        Flusher::start(
+            self.cache_name.clone(),
+            shards,
+            interval,
+            Arc::clone(&self.sync_state),
+        )
+        .map_err(|source| LmdbBackendError::SpawnFlusher {
+            cache: self.cache_name.clone(),
+            source,
+        })
+    }
+
+    /// Start, stop, or reconfigure the background flusher to match `sync`/`interval`.
+    /// Stopping while dirty shards remain performs one best-effort final sync so a
+    /// mode change (e.g. `periodic` → `none`) does not silently drop already-buffered
+    /// writes.
+    ///
+    /// Fallible: starting a new flusher thread can fail (see [`Flusher::start`]). Callers
+    /// (`apply_sync_config`, `open_at`) must treat an `Err` as a rejected Hot apply / failed
+    /// open rather than proceeding with a half-applied sync mode.
+    fn reconcile_flusher(
+        &self,
+        sync: LmdbSync,
+        interval: Option<Duration>,
+    ) -> Result<(), LmdbBackendError> {
+        let mut guard = self.flusher.lock();
+        match (sync, interval) {
+            (LmdbSync::Periodic, Some(iv)) => match guard.as_ref() {
+                Some(existing) => {
+                    existing.set_interval(iv);
+                    Ok(())
+                }
+                None => {
+                    let flusher = self.start_flusher(iv)?;
+                    *guard = Some(flusher);
+                    Ok(())
+                }
+            },
+            _ => {
+                if let Some(flusher) = guard.take() {
+                    drop(guard);
+                    if flusher.stop_and_join() {
+                        if let Err(e) = self.force_sync_dirty_shards() {
+                            tracing::warn!(
+                                cache = %self.cache_name,
+                                error = %e,
+                                "LMDB best-effort sync after leaving periodic mode failed"
+                            );
+                        }
+                    } else {
+                        // Thread did not confirm exit within the join timeout: it may
+                        // still be inside `force_sync`. Do not start a second, overlapping
+                        // `force_sync_dirty_shards` on top of it.
+                        tracing::warn!(
+                            cache = %self.cache_name,
+                            "LMDB periodic sync flusher did not stop in time after leaving \
+                             periodic mode; skipping best-effort final sync to avoid an \
+                             overlapping force_sync"
+                        );
+                    }
+                }
+                Ok(())
+            }
+        }
+    }
+
+    /// Force-sync every shard currently marked dirty, clearing the flag on success.
+    /// Used by the periodic flusher tick and by `Drop`/mode-change best-effort syncs.
+    pub fn force_sync_dirty_shards(&self) -> Result<(), LmdbBackendError> {
+        force_sync_iter(
+            &self.cache_name,
+            &self.sync_state,
+            self.shards
+                .iter()
+                .map(|s| (&s.env, s.dirty.as_ref(), shard_env_path(s))),
+        )
+    }
+
+    /// Timestamp of the most recent successful `force_sync` (any shard), for scrape-time
+    /// metrics. `None` until the first periodic sync succeeds.
+    pub fn last_sync_success(&self) -> Option<Instant> {
+        *self.sync_state.last_success.read()
+    }
+
+    /// Total count of failed `force_sync` calls across all shards, for scrape-time metrics.
+    pub fn sync_failure_count(&self) -> u64 {
+        self.sync_state.failures.load(Ordering::Relaxed)
+    }
+
+    /// Attaches the metrics hub used to observe each completed periodic flusher
+    /// tick's duration directly (see [`SyncState::record_tick`]). Safe to call
+    /// before, during, or after the flusher thread is running: the flusher reads
+    /// the current value on every tick.
+    pub fn set_metrics(&self, metrics: Arc<MetricsHub>) {
+        *self.sync_state.metrics.write() = Some(metrics);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn test_dirty_flags(&self) -> Vec<bool> {
+        self.shards
+            .iter()
+            .map(|s| s.dirty.load(Ordering::Acquire))
+            .collect()
     }
 
     pub fn set_max_entries(&self, max_entries: u64) {
@@ -658,6 +1126,7 @@ impl LmdbCacheBackend {
                     path: shard_env_path(shard),
                     source,
                 })?;
+                shard.dirty.store(true, Ordering::Release);
                 Ok(true)
             }
             Err(heed::Error::Mdb(MdbError::MapFull)) => {
@@ -739,6 +1208,7 @@ impl LmdbCacheBackend {
             tracing::error!(cache = %self.cache_name, error = %e, "LMDB commit failed on remove");
             return false;
         }
+        shard.dirty.store(true, Ordering::Release);
         true
     }
 
@@ -753,6 +1223,37 @@ impl LmdbCacheBackend {
             }
         }
         Ok(false)
+    }
+}
+
+impl Drop for LmdbCacheBackend {
+    fn drop(&mut self) {
+        let flusher = self.flusher.lock().take();
+        // Only run the direct best-effort final sync after a *confirmed* join: if the
+        // flusher thread timed out (still possibly inside `force_sync`), calling
+        // `force_sync_dirty_shards` here would run concurrently with — or stack behind
+        // — that still-running sync. `joined` is `true` when there was no flusher to
+        // begin with, so the final sync below still runs in the (much more common)
+        // non-periodic-or-already-stopped case.
+        let joined = flusher.map(Flusher::stop_and_join).unwrap_or(true);
+        let was_periodic = self.policy.read().sync == LmdbSync::Periodic;
+        if was_periodic {
+            if joined {
+                if let Err(e) = self.force_sync_dirty_shards() {
+                    tracing::warn!(
+                        cache = %self.cache_name,
+                        error = %e,
+                        "LMDB best-effort final sync on close failed"
+                    );
+                }
+            } else {
+                tracing::warn!(
+                    cache = %self.cache_name,
+                    "LMDB periodic sync flusher did not stop in time on close; skipping \
+                     final sync because the thread may still be mid-sync"
+                );
+            }
+        }
     }
 }
 
@@ -1169,6 +1670,7 @@ fn finish_open_env(
         entries,
         max_entries: AtomicU64::new(max_entries),
         map_size_bytes: AtomicU64::new(map_size as u64),
+        dirty: Arc::new(AtomicBool::new(false)),
     })
 }
 
@@ -1312,6 +1814,7 @@ fn clear_shard_entries(shard: &LmdbShard, cache_name: &str) -> Result<(), LmdbBa
         path: shard_env_path(shard),
         source,
     })?;
+    shard.dirty.store(true, Ordering::Release);
     Ok(())
 }
 
@@ -1386,6 +1889,7 @@ fn evict_one_arbitrary(shard: &LmdbShard, cache_name: &str) -> Result<bool, Lmdb
         path: shard_env_path(shard),
         source,
     })?;
+    shard.dirty.store(true, Ordering::Release);
     Ok(true)
 }
 
@@ -1465,6 +1969,7 @@ fn evict_from_sample(
         path: shard_env_path(shard),
         source,
     })?;
+    shard.dirty.store(true, Ordering::Release);
     Ok(true)
 }
 
@@ -1619,6 +2124,7 @@ mod tests {
                 when_full,
                 sample_size: 16,
                 sync: LmdbSync::Full,
+                sync_interval: None,
                 shard_count,
                 lookup_thread_count,
             }),
@@ -1726,17 +2232,178 @@ mod tests {
         cfg.lmdb.as_mut().unwrap().sync = LmdbSync::Full;
         let backend = LmdbCacheBackend::open(&cfg).unwrap();
         assert_eq!(backend.sync_mode(), LmdbSync::Full);
-        backend.apply_sync(LmdbSync::NoMeta).unwrap();
+        backend.apply_sync_config(LmdbSync::NoMeta, None).unwrap();
         assert_eq!(backend.sync_mode(), LmdbSync::NoMeta);
-        backend.apply_sync(LmdbSync::None).unwrap();
+        backend.apply_sync_config(LmdbSync::None, None).unwrap();
         assert_eq!(backend.sync_mode(), LmdbSync::None);
-        backend.apply_sync(LmdbSync::Full).unwrap();
+        backend.apply_sync_config(LmdbSync::Full, None).unwrap();
         assert_eq!(backend.sync_mode(), LmdbSync::Full);
         let now = Instant::now();
         assert!(
             backend
                 .insert(CacheKey(b"k".to_vec()), entry(now, 60), now)
                 .stored
+        );
+    }
+
+    #[test]
+    fn periodic_flusher_clears_dirty_after_interval() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("env");
+        let mut cfg = test_cfg(path, 0, LmdbWhenFull::EvictOne, Some(2), 1);
+        cfg.lmdb.as_mut().unwrap().sync = LmdbSync::Periodic;
+        cfg.lmdb.as_mut().unwrap().sync_interval = Some(Duration::from_millis(250));
+        let backend = LmdbCacheBackend::open(&cfg).unwrap();
+
+        let now = Instant::now();
+        assert!(
+            backend
+                .insert(CacheKey(b"a".to_vec()), entry(now, 60), now)
+                .stored
+        );
+        assert!(
+            backend
+                .insert(CacheKey(b"b".to_vec()), entry(now, 60), now)
+                .stored
+        );
+        assert!(
+            backend.test_dirty_flags().iter().any(|d| *d),
+            "at least one shard should be dirty immediately after insert"
+        );
+
+        std::thread::sleep(Duration::from_millis(500));
+
+        assert!(
+            backend.test_dirty_flags().iter().all(|d| !*d),
+            "flusher tick should have cleared dirty flags after the interval elapsed"
+        );
+        assert!(backend.last_sync_success().is_some());
+        assert_eq!(backend.sync_failure_count(), 0);
+    }
+
+    #[test]
+    fn apply_sync_config_rejects_invalid_coupling() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("env");
+        let cfg = test_cfg(path, 0, LmdbWhenFull::EvictOne, Some(1), 1);
+        let backend = LmdbCacheBackend::open(&cfg).unwrap();
+
+        // Periodic without an interval is rejected.
+        let err = backend
+            .apply_sync_config(LmdbSync::Periodic, None)
+            .unwrap_err();
+        assert!(err.to_string().contains("requires sync_interval"));
+
+        // Non-periodic with an interval set is rejected.
+        let err = backend
+            .apply_sync_config(LmdbSync::Full, Some(Duration::from_secs(1)))
+            .unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("must only be set when sync=periodic"));
+    }
+
+    #[test]
+    fn hot_apply_full_to_periodic_to_none_starts_and_stops_flusher() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("env");
+        let mut cfg = test_cfg(path, 0, LmdbWhenFull::EvictOne, Some(1), 1);
+        cfg.lmdb.as_mut().unwrap().sync = LmdbSync::Full;
+        let backend = LmdbCacheBackend::open(&cfg).unwrap();
+        assert!(backend.flusher.lock().is_none());
+
+        // Full -> Periodic starts the flusher.
+        backend
+            .apply_sync_config(LmdbSync::Periodic, Some(Duration::from_millis(250)))
+            .unwrap();
+        assert!(backend.flusher.lock().is_some());
+        assert_eq!(backend.sync_mode(), LmdbSync::Periodic);
+
+        let now = Instant::now();
+        assert!(
+            backend
+                .insert(CacheKey(b"a".to_vec()), entry(now, 60), now)
+                .stored
+        );
+        std::thread::sleep(Duration::from_millis(500));
+        assert!(
+            backend.test_dirty_flags().iter().all(|d| !*d),
+            "flusher must have synced the dirty shard while periodic"
+        );
+
+        // Periodic -> None stops the flusher and performs a best-effort final sync.
+        assert!(
+            backend
+                .insert(CacheKey(b"b".to_vec()), entry(now, 60), now)
+                .stored
+        );
+        backend.apply_sync_config(LmdbSync::None, None).unwrap();
+        assert!(backend.flusher.lock().is_none());
+        assert_eq!(backend.sync_mode(), LmdbSync::None);
+        assert!(
+            backend.test_dirty_flags().iter().all(|d| !*d),
+            "stopping periodic mode should best-effort sync remaining dirty shards"
+        );
+    }
+
+    #[test]
+    fn stop_and_join_reports_timeout_when_thread_does_not_exit_in_time() {
+        // Directly exercises `Flusher::stop_and_join`'s timeout branch: spawn a
+        // "flusher" thread that ignores `stop` (simulating a stuck `force_sync`
+        // syscall) well past the internal 5s join bound, and confirm the call
+        // returns `false` (timed out) rather than blocking forever or reporting a
+        // confirmed join. Callers (`Drop`/`reconcile_flusher`) rely on this `false`
+        // to skip the direct best-effort `force_sync_dirty_shards` call.
+        let stop = Arc::new(AtomicBool::new(false));
+        let interval_ms = Arc::new(AtomicU64::new(50));
+        let handle = std::thread::Builder::new()
+            .name("test-stuck-flusher".into())
+            .spawn(|| {
+                std::thread::sleep(Duration::from_secs(7));
+            })
+            .unwrap();
+        let flusher = Flusher {
+            stop,
+            interval_ms,
+            handle: Some(handle),
+        };
+        let started = Instant::now();
+        let joined = flusher.stop_and_join();
+        assert!(
+            !joined,
+            "stop_and_join must report a timeout (false), not a confirmed join"
+        );
+        assert!(
+            started.elapsed() < Duration::from_secs(7),
+            "stop_and_join must bound its wait rather than blocking for the full stuck duration"
+        );
+    }
+
+    #[test]
+    fn hot_apply_interval_change_updates_without_reopen() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("env");
+        let mut cfg = test_cfg(path, 0, LmdbWhenFull::EvictOne, Some(1), 1);
+        cfg.lmdb.as_mut().unwrap().sync = LmdbSync::Periodic;
+        cfg.lmdb.as_mut().unwrap().sync_interval = Some(Duration::from_secs(60));
+        let backend = LmdbCacheBackend::open(&cfg).unwrap();
+
+        let now = Instant::now();
+        assert!(
+            backend
+                .insert(CacheKey(b"a".to_vec()), entry(now, 60), now)
+                .stored
+        );
+        // A 60s interval would not fire within this test's sleep window; shrinking the
+        // interval via Hot apply (no reopen) must make the flusher pick it up promptly.
+        backend
+            .apply_sync_config(LmdbSync::Periodic, Some(Duration::from_millis(250)))
+            .unwrap();
+
+        std::thread::sleep(Duration::from_millis(500));
+        assert!(
+            backend.test_dirty_flags().iter().all(|d| !*d),
+            "shrinking sync_interval via Hot apply must take effect without reopening the env"
         );
     }
 

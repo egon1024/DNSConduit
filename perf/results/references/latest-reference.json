@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-08-09T22:24:04Z",
+  "updated_at": "2026-08-10T17:39:26Z",
   "reference": "thin-spine.json",
   "path": "perf/results/references/thin-spine.json",
   "lab_profile_id": "maintainer-ws-1",
-  "scenario_count": 42
+  "scenario_count": 43
 }

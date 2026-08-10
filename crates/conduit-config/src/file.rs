@@ -1024,6 +1024,8 @@ pub(crate) struct YamlCacheLmdbConfig {
     shard_count: Option<u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     sync: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    sync_interval: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Default)]
@@ -1137,6 +1139,7 @@ fn cache_lmdb_from_yaml(y: YamlCacheLmdbConfig) -> Result<CacheLmdbConfig, Confi
         sample_size: y.sample_size,
         shard_count: y.shard_count,
         sync: y.sync,
+        sync_interval: y.sync_interval,
     })
 }
 
@@ -1697,6 +1700,7 @@ impl From<&CacheLmdbConfig> for YamlCacheLmdbConfig {
             sample_size: c.sample_size,
             shard_count: c.shard_count,
             sync: c.sync.clone(),
+            sync_interval: c.sync_interval.clone(),
         }
     }
 }

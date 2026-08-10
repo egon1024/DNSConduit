@@ -71,8 +71,10 @@ example under `/var/tmp/…` on a disk-backed mount). Do **not** promote LMDB
 numbers from a **tmpfs** path — that understates durable-backend I/O cost.
 Published **warm** LMDB cells use **`lmdb.sync: full`** (default); sync mode is
 not a warm-pole matrix. High-churn comparative cells annotate each LMDB member’s
-explicit **`lmdb.sync`** value (`full`, `no_meta`, or `none`) as first-class
-peers. Absolute LMDB QPS is lab-, disk-, and sync-mode-dependent; prefer
+explicit **`lmdb.sync`** value (`full`, `no_meta`, `periodic`, or `none`) as
+first-class peers. A **`periodic`** cell also records its **`lmdb.sync_interval`**
+because its durability window and write cost depend on that setting. Absolute LMDB
+QPS is lab-, disk-, and sync-mode-dependent; prefer
 **relative** claims on the same host. Revisit absolute LMDB churn QPS after
 changing sync mode or storage before treating older numbers as current.
 
