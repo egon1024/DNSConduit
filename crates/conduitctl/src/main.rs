@@ -13,6 +13,9 @@ use conduit_proto::control::{
     GetBackendHealthRequest, GetTraceRequest, HealthControlAction, HealthScope, HealthScopeLevel,
     OverlayApplyMode, ReloadFromFileRequest, SetHealthControlRequest,
 };
+use conduitctl::{
+    connect_channel, resolve_connect, with_auth, ConnectCliOverrides, ResolvedConnect,
+};
 use prost::Message;
 use serde::Serialize;
 use std::net::IpAddr;
@@ -21,13 +24,37 @@ use std::path::PathBuf;
 #[derive(Parser)]
 #[command(name = "conduitctl", about = "DNS Conduit control plane client")]
 struct Cli {
-    /// gRPC control address (default from CONDUIT_CONTROL or 127.0.0.1:5199)
-    #[arg(long, env = "CONDUIT_CONTROL", default_value = "http://127.0.0.1:5199")]
-    endpoint: String,
+    /// Path to YAML client config (default: platform path or CONDUITCTL_CONFIG)
+    #[arg(long)]
+    config: Option<PathBuf>,
 
-    /// API key (Authorization: Bearer); overrides CONDUIT_API_KEY
-    #[arg(long, env = "CONDUIT_API_KEY")]
+    /// gRPC control address (overrides env / client config; default http://127.0.0.1:5199)
+    #[arg(long)]
+    endpoint: Option<String>,
+
+    /// API key (Authorization: Bearer); overrides CONDUIT_API_KEY / client config
+    #[arg(long)]
     api_key: Option<String>,
+
+    /// Read API key from a file (used when --api-key / CONDUIT_API_KEY unset)
+    #[arg(long)]
+    api_key_file: Option<PathBuf>,
+
+    /// PEM CA / trust bundle for verifying the control server
+    #[arg(long)]
+    tls_ca: Option<PathBuf>,
+
+    /// Client certificate PEM (mTLS)
+    #[arg(long)]
+    tls_cert: Option<PathBuf>,
+
+    /// Client private key PEM (mTLS)
+    #[arg(long)]
+    tls_key: Option<PathBuf>,
+
+    /// Skip TLS chain and hostname verification (explicit opt-out)
+    #[arg(long = "tls-insecure", action = clap::ArgAction::SetTrue)]
+    tls_insecure: bool,
 
     #[command(subcommand)]
     command: Commands,
@@ -156,21 +183,33 @@ fn runtime_to_control(cfg: RuntimeConfig) -> ControlConfig {
     ControlConfig::decode(bytes.as_slice()).expect("config and control Config are compatible")
 }
 
-async fn connect(cli: &Cli) -> anyhow::Result<tonic::transport::Channel> {
-    tonic::transport::Endpoint::new(cli.endpoint.clone())?
-        .connect()
-        .await
-        .context("connect to control plane")
+fn connect_overrides(cli: &Cli) -> ConnectCliOverrides {
+    ConnectCliOverrides {
+        config_path: cli.config.clone(),
+        endpoint: cli.endpoint.clone(),
+        api_key: cli.api_key.clone(),
+        api_key_file: cli.api_key_file.clone(),
+        tls_ca: cli.tls_ca.clone(),
+        tls_cert: cli.tls_cert.clone(),
+        tls_key: cli.tls_key.clone(),
+        tls_insecure_flag: cli.tls_insecure,
+    }
 }
 
-async fn client(cli: &Cli) -> anyhow::Result<ConduitControlClient<tonic::transport::Channel>> {
-    Ok(ConduitControlClient::new(connect(cli).await?))
+fn resolve(cli: &Cli) -> anyhow::Result<ResolvedConnect> {
+    resolve_connect(&connect_overrides(cli))
+}
+
+async fn client(
+    resolved: &ResolvedConnect,
+) -> anyhow::Result<ConduitControlClient<tonic::transport::Channel>> {
+    Ok(ConduitControlClient::new(connect_channel(resolved).await?))
 }
 
 async fn health_client(
-    cli: &Cli,
+    resolved: &ResolvedConnect,
 ) -> anyhow::Result<BackendHealthClient<tonic::transport::Channel>> {
-    Ok(BackendHealthClient::new(connect(cli).await?))
+    Ok(BackendHealthClient::new(connect_channel(resolved).await?))
 }
 
 fn health_scope(
@@ -222,25 +261,6 @@ fn scope_name(v: i32) -> &'static str {
     }
 }
 
-fn auth_metadata(
-    cli: &Cli,
-) -> anyhow::Result<Option<tonic::metadata::MetadataValue<tonic::metadata::Ascii>>> {
-    let Some(ref key) = cli.api_key else {
-        return Ok(None);
-    };
-    let value = format!("Bearer {key}");
-    let meta = tonic::metadata::MetadataValue::try_from(value.as_str())
-        .context("invalid API key for metadata")?;
-    Ok(Some(meta))
-}
-
-fn with_auth<T>(cli: &Cli, mut request: tonic::Request<T>) -> anyhow::Result<tonic::Request<T>> {
-    if let Some(meta) = auth_metadata(cli)? {
-        request.metadata_mut().insert("authorization", meta);
-    }
-    Ok(request)
-}
-
 fn print_acl_check(out: &AclCheckOutput) -> anyhow::Result<()> {
     println!("{}", serde_json::to_string_pretty(out)?);
     Ok(())
@@ -283,14 +303,14 @@ fn acl_check_offline(
 }
 
 async fn acl_check_live(
-    cli: &Cli,
+    resolved: &ResolvedConnect,
     ip: IpAddr,
     listener: Option<String>,
 ) -> anyhow::Result<AclCheckOutput> {
-    let mut client = client(cli).await?;
+    let mut client = client(resolved).await?;
     let resp = client
         .check_acl(with_auth(
-            cli,
+            resolved,
             tonic::Request::new(CheckAclRequest {
                 ip: ip.to_string(),
                 listener,
@@ -318,6 +338,46 @@ async fn acl_check_live(
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
+    // Offline commands skip connect resolution except where they still parse CLI
+    // (validate / acl check --file do not need a live channel).
+    match &cli.command {
+        Commands::Validate { file } => {
+            let yaml =
+                std::fs::read_to_string(file).with_context(|| format!("reading {:?}", file))?;
+            let cfg = load_yaml(&yaml)?;
+            let v = validate(&cfg);
+            if !v.ok {
+                for e in &v.errors {
+                    eprintln!("{e}");
+                }
+                anyhow::bail!("validation failed");
+            }
+            let base_dir = file.parent();
+            let snap = RuntimeSnapshot::try_from_config_with_base(cfg, base_dir).map_err(|e| {
+                eprintln!("{e}");
+                anyhow::anyhow!("compile failed")
+            })?;
+            for w in &snap.scripting.compile_warnings {
+                eprintln!("warning: {w}");
+            }
+            println!("ok");
+            return Ok(());
+        }
+        Commands::Acl {
+            command: AclCommands::Check { ip, listener, file },
+        } if file.is_some() => {
+            let addr: IpAddr = ip
+                .parse()
+                .with_context(|| format!("invalid ip address '{ip}'"))?;
+            let out = acl_check_offline(file.as_ref().unwrap(), addr, listener.as_deref())?;
+            print_acl_check(&out)?;
+            return Ok(());
+        }
+        _ => {}
+    }
+
+    let resolved = resolve(&cli)?;
+
     match cli.command {
         Commands::Apply {
             ref file,
@@ -342,10 +402,10 @@ async fn main() -> anyhow::Result<()> {
                 (mode, Some(runtime_to_control(overlay)))
             };
 
-            let mut client = client(&cli).await?;
+            let mut client = client(&resolved).await?;
             let resp = client
                 .apply_config(with_auth(
-                    &cli,
+                    &resolved,
                     tonic::Request::new(ApplyConfigRequest {
                         overlay,
                         mode: mode.into(),
@@ -359,10 +419,10 @@ async fn main() -> anyhow::Result<()> {
             println!("ok");
         }
         Commands::Export { ref output } => {
-            let mut client = client(&cli).await?;
+            let mut client = client(&resolved).await?;
             let resp = client
                 .export_config(with_auth(
-                    &cli,
+                    &resolved,
                     tonic::Request::new(ExportConfigRequest {
                         format: "yaml".into(),
                     }),
@@ -376,32 +436,12 @@ async fn main() -> anyhow::Result<()> {
                     .with_context(|| format!("writing {:?}", output))?;
             }
         }
-        Commands::Validate { ref file } => {
-            let yaml =
-                std::fs::read_to_string(file).with_context(|| format!("reading {:?}", file))?;
-            let cfg = load_yaml(&yaml)?;
-            let v = validate(&cfg);
-            if !v.ok {
-                for e in &v.errors {
-                    eprintln!("{e}");
-                }
-                anyhow::bail!("validation failed");
-            }
-            let base_dir = file.parent();
-            let snap = RuntimeSnapshot::try_from_config_with_base(cfg, base_dir).map_err(|e| {
-                eprintln!("{e}");
-                anyhow::anyhow!("compile failed")
-            })?;
-            for w in &snap.scripting.compile_warnings {
-                eprintln!("warning: {w}");
-            }
-            println!("ok");
-        }
+        Commands::Validate { .. } => unreachable!("handled above"),
         Commands::Reload => {
-            let mut client = client(&cli).await?;
+            let mut client = client(&resolved).await?;
             let resp = client
                 .reload_from_file(with_auth(
-                    &cli,
+                    &resolved,
                     tonic::Request::new(ReloadFromFileRequest {}),
                 )?)
                 .await?
@@ -412,10 +452,10 @@ async fn main() -> anyhow::Result<()> {
             println!("ok");
         }
         Commands::Trace { ref txn_id } => {
-            let mut client = client(&cli).await?;
+            let mut client = client(&resolved).await?;
             let resp = client
                 .get_trace(with_auth(
-                    &cli,
+                    &resolved,
                     tonic::Request::new(GetTraceRequest {
                         txn_id: txn_id.clone(),
                     }),
@@ -439,20 +479,17 @@ async fn main() -> anyhow::Result<()> {
         }
         Commands::Acl { ref command } => match command {
             AclCommands::Check { ip, listener, file } => {
+                debug_assert!(file.is_none());
                 let addr: IpAddr = ip
                     .parse()
                     .with_context(|| format!("invalid ip address '{ip}'"))?;
-                let out = if let Some(path) = file {
-                    acl_check_offline(path, addr, listener.as_deref())?
-                } else {
-                    acl_check_live(&cli, addr, listener.clone()).await?
-                };
+                let out = acl_check_live(&resolved, addr, listener.clone()).await?;
                 print_acl_check(&out)?;
             }
         },
         Commands::Health { ref command } => match command {
             HealthCommands::Show { pool, backend } => {
-                let mut client = health_client(&cli).await?;
+                let mut client = health_client(&resolved).await?;
                 let filter = if pool.is_some() || backend.is_some() {
                     Some(BackendHealthFilter {
                         pool: pool.clone(),
@@ -463,7 +500,7 @@ async fn main() -> anyhow::Result<()> {
                 };
                 let resp = client
                     .get_backend_health(with_auth(
-                        &cli,
+                        &resolved,
                         tonic::Request::new(GetBackendHealthRequest { filter }),
                     )?)
                     .await?
@@ -495,11 +532,11 @@ async fn main() -> anyhow::Result<()> {
                 pool,
                 backend,
             } => {
-                let mut client = health_client(&cli).await?;
+                let mut client = health_client(&resolved).await?;
                 let scope = health_scope(*global, pool.clone(), backend.clone())?;
                 let resp = client
                     .set_health_control(with_auth(
-                        &cli,
+                        &resolved,
                         tonic::Request::new(SetHealthControlRequest {
                             scope: Some(scope),
                             action: HealthControlAction::Freeze.into(),
@@ -528,11 +565,11 @@ async fn main() -> anyhow::Result<()> {
                     "down" => HealthControlAction::SetDown,
                     other => anyhow::bail!("state must be up or down, got {other:?}"),
                 };
-                let mut client = health_client(&cli).await?;
+                let mut client = health_client(&resolved).await?;
                 let scope = health_scope(*global, pool.clone(), backend.clone())?;
                 let resp = client
                     .set_health_control(with_auth(
-                        &cli,
+                        &resolved,
                         tonic::Request::new(SetHealthControlRequest {
                             scope: Some(scope),
                             action: action.into(),
@@ -555,11 +592,11 @@ async fn main() -> anyhow::Result<()> {
                 pool,
                 backend,
             } => {
-                let mut client = health_client(&cli).await?;
+                let mut client = health_client(&resolved).await?;
                 let scope = health_scope(*global, pool.clone(), backend.clone())?;
                 let resp = client
                     .set_health_control(with_auth(
-                        &cli,
+                        &resolved,
                         tonic::Request::new(SetHealthControlRequest {
                             scope: Some(scope),
                             action: HealthControlAction::ResumeAutomatic.into(),

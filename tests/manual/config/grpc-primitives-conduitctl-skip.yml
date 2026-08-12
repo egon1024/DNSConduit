@@ -1,0 +1,4 @@
+# conduitctl client defaults — skip-verify for self-signed lab server
+endpoint: https://127.0.2.1:5199
+tls:
+  insecure_skip_verify: true

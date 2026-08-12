@@ -5,7 +5,11 @@ use conduit_config::resolve_config_path;
 use conduit_proto::config::ControlTlsConfig;
 use std::fs;
 use std::path::PathBuf;
+use std::sync::Mutex;
 use tempfile::TempDir;
+
+/// These tests mutate process cwd; serialize them against each other.
+static CWD_LOCK: Mutex<()> = Mutex::new(());
 
 fn workspace_fixture(rel: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -15,6 +19,7 @@ fn workspace_fixture(rel: &str) -> PathBuf {
 
 #[test]
 fn relative_tls_paths_resolve_against_config_directory() {
+    let _guard = CWD_LOCK.lock().unwrap();
     let root = TempDir::new().unwrap();
     let config_dir = root.path().join("conduit");
     let tls_dir = config_dir.join("tls");
@@ -46,6 +51,7 @@ fn relative_tls_paths_resolve_against_config_directory() {
 
 #[test]
 fn relative_tls_paths_fail_when_resolved_from_wrong_cwd_without_base_dir() {
+    let _guard = CWD_LOCK.lock().unwrap();
     let root = TempDir::new().unwrap();
     let config_dir = root.path().join("conduit");
     let tls_dir = config_dir.join("tls");
@@ -66,7 +72,10 @@ fn relative_tls_paths_fail_when_resolved_from_wrong_cwd_without_base_dir() {
         key_path: "tls/key.pem".into(),
         client_ca_path: String::new(),
     };
-    let err = server_tls_config(&tls, None).expect_err("cwd must not find tls under config dir");
+    let err = match server_tls_config(&tls, None) {
+        Ok(_) => panic!("cwd must not find tls under config dir"),
+        Err(e) => e,
+    };
     assert!(err.to_string().contains("reading TLS cert"), "{err}");
 
     std::env::set_current_dir(original).unwrap();

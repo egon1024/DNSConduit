@@ -1,0 +1,6 @@
+# conduitctl client defaults — mTLS to lab control
+endpoint: https://127.0.2.1:5199
+tls:
+  ca: tests/fixtures/tls/grpc-primitives/ca.pem
+  cert: tests/fixtures/tls/grpc-primitives/client.pem
+  key: tests/fixtures/tls/grpc-primitives/client-key.pem

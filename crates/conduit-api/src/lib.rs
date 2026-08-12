@@ -3,6 +3,7 @@
 pub mod access_log;
 pub mod auth;
 pub mod health;
+pub mod incoming;
 pub mod server;
 pub mod tls;
 

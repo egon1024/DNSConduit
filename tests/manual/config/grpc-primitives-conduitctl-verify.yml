@@ -1,0 +1,4 @@
+# conduitctl client defaults — verified HTTPS to lab control
+endpoint: https://127.0.2.1:5199
+tls:
+  ca: tests/fixtures/tls/grpc-primitives/ca.pem

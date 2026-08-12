@@ -3,7 +3,8 @@
 use crate::access_log::{log_control_outcome, AccessLogLayer, AccessLogService};
 use crate::auth::ControlInterceptor;
 use crate::health::BackendHealthService;
-use crate::tls::server_tls_config;
+use crate::incoming::{plain_control_incoming, tls_control_incoming};
+use crate::tls::prepare_control_tls;
 use conduit_config::{export_yaml, validate, EffectiveConfig};
 use conduit_core::check_client_acl;
 use conduit_core::configurator::{ConfiguratorHandle, OverlayApplyMode, ProposalSource};
@@ -282,22 +283,18 @@ fn build_servers(
     }
 }
 
-fn apply_tls(
-    builder: tonic::transport::server::Server,
+fn prepare_optional_control_tls(
     snapshots: &SnapshotStore,
     base_dir: Option<&Path>,
-) -> anyhow::Result<tonic::transport::server::Server> {
+) -> anyhow::Result<Option<crate::tls::PreparedControlTls>> {
     let snap = snapshots.load();
-    let tls = snap.config.control.as_ref().and_then(|c| c.tls.as_ref());
-    if let Some(tls) = tls {
-        if tls.cert_path.is_empty() || tls.key_path.is_empty() {
-            anyhow::bail!("control.tls requires cert_path and key_path");
-        }
-        let tls_config = server_tls_config(tls, base_dir)?;
-        Ok(builder.tls_config(tls_config)?)
-    } else {
-        Ok(builder)
+    let Some(tls) = snap.config.control.as_ref().and_then(|c| c.tls.as_ref()) else {
+        return Ok(None);
+    };
+    if tls.cert_path.is_empty() || tls.key_path.is_empty() {
+        anyhow::bail!("control.tls requires cert_path and key_path");
     }
+    Ok(Some(prepare_control_tls(tls, base_dir)?))
 }
 
 /// Handle for a background control-plane server task.
@@ -344,25 +341,50 @@ where
         config_base_dir.clone(),
     );
     let listener = tokio::net::TcpListener::bind(addr).await?;
-    let incoming = tokio_stream::wrappers::TcpListenerStream::new(listener);
     let base_dir = config_base_dir.as_deref();
-    let mut builder = apply_tls(Server::builder(), &snapshots, base_dir)?;
-    if reflection_enabled {
-        let reflection = tonic_reflection::server::Builder::configure()
-            .register_encoded_file_descriptor_set(conduit_proto::FILE_DESCRIPTOR_SET)
-            .build_v1alpha()?;
-        builder
-            .add_service(reflection)
-            .add_service(services.control)
-            .add_service(services.health)
-            .serve_with_incoming_shutdown(incoming, shutdown)
-            .await?;
-    } else {
-        builder
-            .add_service(services.control)
-            .add_service(services.health)
-            .serve_with_incoming_shutdown(incoming, shutdown)
-            .await?;
+    let tls = prepare_optional_control_tls(&snapshots, base_dir)?;
+
+    match (tls, reflection_enabled) {
+        (Some(tls), true) => {
+            let reflection = tonic_reflection::server::Builder::configure()
+                .register_encoded_file_descriptor_set(conduit_proto::FILE_DESCRIPTOR_SET)
+                .build_v1alpha()?;
+            let incoming = tls_control_incoming(listener, tls.acceptor);
+            Server::builder()
+                .add_service(reflection)
+                .add_service(services.control)
+                .add_service(services.health)
+                .serve_with_incoming_shutdown(incoming, shutdown)
+                .await?;
+        }
+        (Some(tls), false) => {
+            let incoming = tls_control_incoming(listener, tls.acceptor);
+            Server::builder()
+                .add_service(services.control)
+                .add_service(services.health)
+                .serve_with_incoming_shutdown(incoming, shutdown)
+                .await?;
+        }
+        (None, true) => {
+            let reflection = tonic_reflection::server::Builder::configure()
+                .register_encoded_file_descriptor_set(conduit_proto::FILE_DESCRIPTOR_SET)
+                .build_v1alpha()?;
+            let incoming = plain_control_incoming(listener);
+            Server::builder()
+                .add_service(reflection)
+                .add_service(services.control)
+                .add_service(services.health)
+                .serve_with_incoming_shutdown(incoming, shutdown)
+                .await?;
+        }
+        (None, false) => {
+            let incoming = plain_control_incoming(listener);
+            Server::builder()
+                .add_service(services.control)
+                .add_service(services.health)
+                .serve_with_incoming_shutdown(incoming, shutdown)
+                .await?;
+        }
     }
     Ok(())
 }
@@ -377,17 +399,26 @@ pub fn spawn_control_plane(
     config_base_dir: Option<PathBuf>,
 ) -> anyhow::Result<ControlHandle> {
     let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
-    let join = tokio::spawn(run_control_plane(
-        addr,
-        snapshots,
-        effective,
-        configurator,
-        tracing,
-        config_base_dir,
-        async move {
-            let _ = shutdown_rx.await;
-        },
-    ));
+    let join = tokio::spawn(async move {
+        let result = run_control_plane(
+            addr,
+            snapshots,
+            effective,
+            configurator,
+            tracing,
+            config_base_dir,
+            async move {
+                let _ = shutdown_rx.await;
+            },
+        )
+        .await;
+        // Log here so TLS/bind failures are visible while the process stays up
+        // for DNS; otherwise operators only see connection refused from clients.
+        if let Err(ref e) = result {
+            tracing::error!(error = %e, "control plane failed");
+        }
+        result
+    });
     Ok(ControlHandle { shutdown_tx, join })
 }
 
@@ -437,17 +468,25 @@ pub async fn serve_on_listener(
         tracing,
         config_base_dir.clone(),
     );
-    let incoming = tokio_stream::wrappers::TcpListenerStream::new(listener);
     tokio::spawn(async move {
         let base_dir = config_base_dir.as_deref();
-        let result = if reflection_enabled {
-            match tonic_reflection::server::Builder::configure()
-                .register_encoded_file_descriptor_set(conduit_proto::FILE_DESCRIPTOR_SET)
-                .build_v1alpha()
-            {
-                Ok(reflection) => match apply_tls(Server::builder(), &snapshots, base_dir) {
-                    Ok(mut builder) => {
-                        builder
+        let tls = match prepare_optional_control_tls(&snapshots, base_dir) {
+            Ok(tls) => tls,
+            Err(e) => {
+                tracing::error!(error = %e, "control TLS config failed");
+                return;
+            }
+        };
+
+        let result = match (tls, reflection_enabled) {
+            (Some(tls), true) => {
+                match tonic_reflection::server::Builder::configure()
+                    .register_encoded_file_descriptor_set(conduit_proto::FILE_DESCRIPTOR_SET)
+                    .build_v1alpha()
+                {
+                    Ok(reflection) => {
+                        let incoming = tls_control_incoming(listener, tls.acceptor);
+                        Server::builder()
                             .add_service(reflection)
                             .add_service(services.control)
                             .add_service(services.health)
@@ -455,28 +494,46 @@ pub async fn serve_on_listener(
                             .await
                     }
                     Err(e) => {
-                        tracing::error!("control TLS config: {e}");
+                        tracing::error!("failed to build reflection service: {e}");
                         return;
                     }
-                },
-                Err(e) => {
-                    tracing::error!("failed to build reflection service: {e}");
-                    return;
                 }
             }
-        } else {
-            match apply_tls(Server::builder(), &snapshots, base_dir) {
-                Ok(mut builder) => {
-                    builder
-                        .add_service(services.control)
-                        .add_service(services.health)
-                        .serve_with_incoming(incoming)
-                        .await
+            (Some(tls), false) => {
+                let incoming = tls_control_incoming(listener, tls.acceptor);
+                Server::builder()
+                    .add_service(services.control)
+                    .add_service(services.health)
+                    .serve_with_incoming(incoming)
+                    .await
+            }
+            (None, true) => {
+                match tonic_reflection::server::Builder::configure()
+                    .register_encoded_file_descriptor_set(conduit_proto::FILE_DESCRIPTOR_SET)
+                    .build_v1alpha()
+                {
+                    Ok(reflection) => {
+                        let incoming = plain_control_incoming(listener);
+                        Server::builder()
+                            .add_service(reflection)
+                            .add_service(services.control)
+                            .add_service(services.health)
+                            .serve_with_incoming(incoming)
+                            .await
+                    }
+                    Err(e) => {
+                        tracing::error!("failed to build reflection service: {e}");
+                        return;
+                    }
                 }
-                Err(e) => {
-                    tracing::error!("control TLS config: {e}");
-                    return;
-                }
+            }
+            (None, false) => {
+                let incoming = plain_control_incoming(listener);
+                Server::builder()
+                    .add_service(services.control)
+                    .add_service(services.health)
+                    .serve_with_incoming(incoming)
+                    .await
             }
         };
         if let Err(e) = result {

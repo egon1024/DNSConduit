@@ -341,7 +341,7 @@ After a successful reload or apply, look for:
 | `pool: backends changed` (and similar) | Subsystem diff hints |
 | [`conduit_config_generation`](/observability/built-in-metrics.md#conduit_config_generation) | Monotonic generation on Prometheus scrape (when enabled) |
 
-Control RPCs are logged at `info` as `control rpc` (method, peer, requestor, latency) without request bodies. Details: [gRPC and conduitctl — access logs](/control-plane/grpc-and-conduitctl.md#access-logs).
+Control RPCs are logged at `info` as `control rpc` (method, peer, tls, requestor, latency) without request bodies. Details: [gRPC and conduitctl — access logs](/control-plane/grpc-and-conduitctl.md#access-logs).
 
 To confirm effective pool weights or other fields, use **`conduitctl export`** or gRPC **`GetConfig`** — see [Reference: gRPC and CLI](/reference/grpc-and-cli.md).
 
