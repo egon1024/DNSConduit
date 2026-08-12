@@ -2,18 +2,35 @@
 
 use anyhow::Context;
 use clap::{Parser, Subcommand};
-use conduit_config::{load_overlay_patch, load_yaml, validate};
+use conduit_config::{
+    export_metrics_yaml, load_metrics_yaml, load_overlay_patch, load_yaml, validate,
+};
 use conduit_core::{check_client_acl, RuntimeSnapshot};
 use conduit_proto::config::Config as RuntimeConfig;
+use conduit_proto::config::MetricsConfig as RuntimeMetricsConfig;
 use conduit_proto::control::backend_health_client::BackendHealthClient;
+use conduit_proto::control::conduit_caches_client::ConduitCachesClient;
 use conduit_proto::control::conduit_control_client::ConduitControlClient;
+use conduit_proto::control::conduit_data_sources_client::ConduitDataSourcesClient;
+use conduit_proto::control::conduit_events_client::ConduitEventsClient;
+use conduit_proto::control::conduit_metrics_client::ConduitMetricsClient;
+use conduit_proto::control::conduit_orchestrator_client::ConduitOrchestratorClient;
 use conduit_proto::control::conduit_pools_client::ConduitPoolsClient;
+use conduit_proto::control::conduit_rhai_client::ConduitRhaiClient;
 use conduit_proto::control::Config as ControlConfig;
 use conduit_proto::control::{
-    ApplyConfigRequest, BackendHealthFilter, CheckAclRequest, ExportConfigRequest,
-    GetBackendHealthRequest, GetPoolRequest, GetTraceRequest, HealthControlAction, HealthScope,
-    HealthScopeLevel, ListPoolsRequest, OverlayApplyMode, ReloadFromFileRequest,
-    RemoveBackendRequest, SetBackendWeightRequest, SetHealthControlRequest,
+    ApplyConfigRequest, BackendHealthFilter, CheckAclRequest, DataSource as ControlDataSource,
+    DataSourceLimits as ControlLimits, EventSinkFilters as ControlFilters, ExportConfigRequest,
+    GetBackendHealthRequest, GetCacheRequest, GetDataSourceLimitsRequest, GetDataSourceRequest,
+    GetEventSinkRequest, GetEventsRequest, GetMetricsRequest, GetOrchestratorRequest,
+    GetPoolRequest, GetRhaiRequest, GetTraceRequest, HealthControlAction, HealthScope,
+    HealthScopeLevel, ListCachesRequest, ListDataSourcesRequest, ListPoolsRequest,
+    MetricsConfig as ControlMetricsConfig, OverlayApplyMode, PatchMetricsRequest,
+    ReloadFromFileRequest, RemoveBackendRequest, RemoveDataSourceRequest, SetBackendWeightRequest,
+    SetCacheLmdbHotRequest, SetCacheMaxEntriesRequest, SetCachePolicyHotRequest,
+    SetDataSourceLimitsRequest, SetEventSinkEmitRequest, SetEventSinkFiltersRequest,
+    SetHealthControlRequest, SetOrchestratorLimitsRequest, SetRhaiLimitsRequest,
+    UpsertDataSourceRequest,
 };
 use conduitctl::{
     connect_channel, resolve_connect, with_auth, ConnectCliOverrides, ResolvedConnect,
@@ -116,6 +133,43 @@ enum Commands {
         #[command(subcommand)]
         command: AclCommands,
     },
+    /// Orchestrator config primitives
+    Orchestrator {
+        #[command(subcommand)]
+        command: OrchestratorCommands,
+    },
+    /// Data source config primitives
+    #[command(name = "data-source")]
+    DataSource {
+        #[command(subcommand)]
+        command: DataSourceCommands,
+    },
+    /// Data source limits config primitives
+    #[command(name = "data-source-limits")]
+    DataSourceLimits {
+        #[command(subcommand)]
+        command: DataSourceLimitsCommands,
+    },
+    /// Events config primitives
+    Events {
+        #[command(subcommand)]
+        command: EventsCommands,
+    },
+    /// Rhai scripting config primitives
+    Rhai {
+        #[command(subcommand)]
+        command: RhaiCommands,
+    },
+    /// Metrics config primitives
+    Metrics {
+        #[command(subcommand)]
+        command: MetricsCommands,
+    },
+    /// Cache config primitives
+    Cache {
+        #[command(subcommand)]
+        command: CacheCommands,
+    },
 }
 
 #[derive(Subcommand)]
@@ -164,6 +218,181 @@ enum BackendCommands {
         /// Backend name or address (host:port)
         #[arg(long, value_name = "NAME|HOST:PORT")]
         backend: String,
+    },
+}
+
+#[derive(Subcommand)]
+enum OrchestratorCommands {
+    /// Get orchestrator config
+    Get,
+    /// Set orchestrator limits (at least one flag required)
+    #[command(name = "set-limits")]
+    SetLimits {
+        #[arg(long)]
+        max_attempts: Option<u32>,
+        #[arg(long)]
+        max_txn_duration_ms: Option<u32>,
+    },
+}
+
+#[derive(Subcommand)]
+enum DataSourceCommands {
+    /// List data sources
+    List,
+    /// Get a data source
+    Get {
+        /// Data source name
+        name: String,
+    },
+    /// Upsert a data source
+    Upsert {
+        #[arg(long)]
+        name: String,
+        /// Data source type (csv, cidr)
+        #[arg(long, value_name = "TYPE")]
+        r#type: String,
+        #[arg(long)]
+        path: String,
+        #[arg(long)]
+        key_column: Option<String>,
+        #[arg(long)]
+        value_column: Option<String>,
+    },
+    /// Remove a data source
+    Remove {
+        /// Data source name
+        name: String,
+    },
+}
+
+#[derive(Subcommand)]
+enum DataSourceLimitsCommands {
+    /// Get data source limits
+    Get,
+    /// Set data source limits
+    Set {
+        #[arg(long)]
+        max_file_bytes: Option<u64>,
+        #[arg(long)]
+        max_entries: Option<u64>,
+        #[arg(long)]
+        max_key_bytes: Option<u32>,
+        #[arg(long)]
+        max_value_bytes: Option<u32>,
+        #[arg(long)]
+        max_tables: Option<u32>,
+    },
+}
+
+#[derive(Subcommand)]
+enum EventsCommands {
+    /// Get events config
+    Get,
+    /// Get an event sink
+    #[command(name = "get-sink")]
+    GetSink {
+        #[arg(long)]
+        name: String,
+    },
+    /// Set event sink filters
+    #[command(name = "set-filters")]
+    SetFilters {
+        #[arg(long)]
+        name: String,
+        #[arg(long)]
+        sample_percent: Option<f64>,
+        #[arg(long)]
+        tag_required: Option<String>,
+        #[arg(long)]
+        pool: Option<String>,
+        #[arg(long)]
+        backend: Option<String>,
+    },
+    /// Set event sink emit list
+    #[command(name = "set-emit")]
+    SetEmit {
+        #[arg(long)]
+        name: String,
+        /// Comma-separated emit types
+        #[arg(long, value_delimiter = ',')]
+        emit: Vec<String>,
+    },
+}
+
+#[derive(Subcommand)]
+enum RhaiCommands {
+    /// Get Rhai config
+    Get,
+    /// Set Rhai limits (at least one flag required)
+    #[command(name = "set-limits")]
+    SetLimits {
+        #[arg(long)]
+        max_operations: Option<u64>,
+        #[arg(long)]
+        max_call_depth: Option<u32>,
+        #[arg(long)]
+        hook_timeout_ms: Option<u32>,
+    },
+}
+
+#[derive(Subcommand)]
+enum MetricsCommands {
+    /// Get effective metrics config (YAML)
+    Get,
+    /// Patch metrics config (sparse deep-merge)
+    Patch {
+        /// Sparse metrics YAML file (bare object or top-level `metrics:` key)
+        #[arg(long)]
+        file: Option<PathBuf>,
+        /// Enable or disable metrics
+        #[arg(long)]
+        enabled: Option<bool>,
+        /// Set base (`none`, `minimal`, `standard`)
+        #[arg(long)]
+        base: Option<String>,
+    },
+}
+
+#[derive(Subcommand)]
+enum CacheCommands {
+    /// List caches
+    List,
+    /// Get a cache
+    Get {
+        /// Cache name
+        name: String,
+    },
+    /// Set cache max_entries
+    #[command(name = "set-max-entries")]
+    SetMaxEntries {
+        #[arg(long)]
+        name: String,
+        #[arg(long)]
+        max_entries: u64,
+    },
+    /// Set cache LMDB hot fields
+    #[command(name = "set-lmdb-hot")]
+    SetLmdbHot {
+        #[arg(long)]
+        name: String,
+        #[arg(long)]
+        when_full: Option<String>,
+        #[arg(long)]
+        sample_size: Option<u32>,
+        #[arg(long)]
+        sync: Option<String>,
+        #[arg(long)]
+        sync_interval: Option<String>,
+        #[arg(long)]
+        map_size_bytes: Option<u64>,
+    },
+    /// Set cache policy hot fields
+    #[command(name = "set-policy-hot")]
+    SetPolicyHot {
+        #[arg(long)]
+        name: String,
+        #[arg(long)]
+        rotate_rrset_on_serve: Option<bool>,
     },
 }
 
@@ -229,6 +458,32 @@ fn runtime_to_control(cfg: RuntimeConfig) -> ControlConfig {
     ControlConfig::decode(bytes.as_slice()).expect("config and control Config are compatible")
 }
 
+fn runtime_metrics_to_control(metrics: RuntimeMetricsConfig) -> ControlMetricsConfig {
+    let bytes = metrics.encode_to_vec();
+    ControlMetricsConfig::decode(bytes.as_slice())
+        .expect("config and control MetricsConfig are compatible")
+}
+
+fn control_metrics_to_runtime(metrics: ControlMetricsConfig) -> RuntimeMetricsConfig {
+    let bytes = metrics.encode_to_vec();
+    RuntimeMetricsConfig::decode(bytes.as_slice())
+        .expect("config and control MetricsConfig are compatible")
+}
+
+/// True when a metrics patch carries no sparse fields (flags/file produced nothing).
+fn metrics_patch_is_empty(m: &RuntimeMetricsConfig) -> bool {
+    m.enabled.is_none()
+        && m.profile.is_empty()
+        && m.base.is_empty()
+        && m.prometheus.is_none()
+        && m.otel.is_none()
+        && m.user_metrics.is_empty()
+        && m.categories.is_none()
+        && m.granularity.is_none()
+        && m.collection.is_empty()
+        && m.event_export.is_none()
+}
+
 fn connect_overrides(cli: &Cli) -> ConnectCliOverrides {
     ConnectCliOverrides {
         config_path: cli.config.clone(),
@@ -262,6 +517,46 @@ async fn pools_client(
     resolved: &ResolvedConnect,
 ) -> anyhow::Result<ConduitPoolsClient<tonic::transport::Channel>> {
     Ok(ConduitPoolsClient::new(connect_channel(resolved).await?))
+}
+
+async fn orchestrator_client(
+    resolved: &ResolvedConnect,
+) -> anyhow::Result<ConduitOrchestratorClient<tonic::transport::Channel>> {
+    Ok(ConduitOrchestratorClient::new(
+        connect_channel(resolved).await?,
+    ))
+}
+
+async fn data_sources_client(
+    resolved: &ResolvedConnect,
+) -> anyhow::Result<ConduitDataSourcesClient<tonic::transport::Channel>> {
+    Ok(ConduitDataSourcesClient::new(
+        connect_channel(resolved).await?,
+    ))
+}
+
+async fn events_client(
+    resolved: &ResolvedConnect,
+) -> anyhow::Result<ConduitEventsClient<tonic::transport::Channel>> {
+    Ok(ConduitEventsClient::new(connect_channel(resolved).await?))
+}
+
+async fn rhai_client(
+    resolved: &ResolvedConnect,
+) -> anyhow::Result<ConduitRhaiClient<tonic::transport::Channel>> {
+    Ok(ConduitRhaiClient::new(connect_channel(resolved).await?))
+}
+
+async fn metrics_client(
+    resolved: &ResolvedConnect,
+) -> anyhow::Result<ConduitMetricsClient<tonic::transport::Channel>> {
+    Ok(ConduitMetricsClient::new(connect_channel(resolved).await?))
+}
+
+async fn caches_client(
+    resolved: &ResolvedConnect,
+) -> anyhow::Result<ConduitCachesClient<tonic::transport::Channel>> {
+    Ok(ConduitCachesClient::new(connect_channel(resolved).await?))
 }
 
 fn health_scope(
@@ -744,6 +1039,484 @@ async fn main() -> anyhow::Result<()> {
                     .into_inner();
                 if !resp.ok {
                     anyhow::bail!("remove failed: {}", resp.errors.join("; "));
+                }
+                println!("ok generation={}", resp.generation);
+            }
+        },
+        Commands::Orchestrator { ref command } => match command {
+            OrchestratorCommands::Get => {
+                let mut client = orchestrator_client(&resolved).await?;
+                let resp = client
+                    .get_orchestrator(with_auth(
+                        &resolved,
+                        tonic::Request::new(GetOrchestratorRequest {}),
+                    )?)
+                    .await?
+                    .into_inner();
+                if let Some(orch) = resp.orchestrator {
+                    println!(
+                        "max_attempts={} max_txn_duration_ms={} txn_table_capacity={}",
+                        orch.max_attempts, orch.max_txn_duration_ms, orch.txn_table_capacity
+                    );
+                } else {
+                    println!("(no orchestrator config)");
+                }
+            }
+            OrchestratorCommands::SetLimits {
+                max_attempts,
+                max_txn_duration_ms,
+            } => {
+                if max_attempts.is_none() && max_txn_duration_ms.is_none() {
+                    anyhow::bail!(
+                        "at least one of --max-attempts or --max-txn-duration-ms required"
+                    );
+                }
+                let mut client = orchestrator_client(&resolved).await?;
+                let resp = client
+                    .set_orchestrator_limits(with_auth(
+                        &resolved,
+                        tonic::Request::new(SetOrchestratorLimitsRequest {
+                            max_attempts: *max_attempts,
+                            max_txn_duration_ms: *max_txn_duration_ms,
+                        }),
+                    )?)
+                    .await?
+                    .into_inner();
+                if !resp.ok {
+                    anyhow::bail!("set-limits failed: {}", resp.errors.join("; "));
+                }
+                println!("ok generation={}", resp.generation);
+            }
+        },
+        Commands::DataSource { ref command } => match command {
+            DataSourceCommands::List => {
+                let mut client = data_sources_client(&resolved).await?;
+                let resp = client
+                    .list_data_sources(with_auth(
+                        &resolved,
+                        tonic::Request::new(ListDataSourcesRequest {}),
+                    )?)
+                    .await?
+                    .into_inner();
+                for s in resp.sources {
+                    println!("{} type={} path={}", s.name, s.r#type, s.path);
+                }
+            }
+            DataSourceCommands::Get { name } => {
+                let mut client = data_sources_client(&resolved).await?;
+                let resp = client
+                    .get_data_source(with_auth(
+                        &resolved,
+                        tonic::Request::new(GetDataSourceRequest { name: name.clone() }),
+                    )?)
+                    .await?
+                    .into_inner();
+                if let Some(src) = resp.source {
+                    println!("name={}", src.name);
+                    println!("type={}", src.r#type);
+                    println!("path={}", src.path);
+                    println!("key_column={}", src.key_column);
+                    println!("value_column={}", src.value_column);
+                }
+            }
+            DataSourceCommands::Upsert {
+                name,
+                r#type,
+                path,
+                key_column,
+                value_column,
+            } => {
+                let mut client = data_sources_client(&resolved).await?;
+                let resp = client
+                    .upsert_data_source(with_auth(
+                        &resolved,
+                        tonic::Request::new(UpsertDataSourceRequest {
+                            source: Some(ControlDataSource {
+                                name: name.clone(),
+                                r#type: r#type.clone(),
+                                path: path.clone(),
+                                key_column: key_column.clone().unwrap_or_default(),
+                                value_column: value_column.clone().unwrap_or_default(),
+                                ..Default::default()
+                            }),
+                        }),
+                    )?)
+                    .await?
+                    .into_inner();
+                if !resp.ok {
+                    anyhow::bail!("upsert failed: {}", resp.errors.join("; "));
+                }
+                println!("ok generation={}", resp.generation);
+            }
+            DataSourceCommands::Remove { name } => {
+                let mut client = data_sources_client(&resolved).await?;
+                let resp = client
+                    .remove_data_source(with_auth(
+                        &resolved,
+                        tonic::Request::new(RemoveDataSourceRequest { name: name.clone() }),
+                    )?)
+                    .await?
+                    .into_inner();
+                if !resp.ok {
+                    anyhow::bail!("remove failed: {}", resp.errors.join("; "));
+                }
+                println!("ok generation={}", resp.generation);
+            }
+        },
+        Commands::DataSourceLimits { ref command } => match command {
+            DataSourceLimitsCommands::Get => {
+                let mut client = data_sources_client(&resolved).await?;
+                let resp = client
+                    .get_data_source_limits(with_auth(
+                        &resolved,
+                        tonic::Request::new(GetDataSourceLimitsRequest {}),
+                    )?)
+                    .await?
+                    .into_inner();
+                if let Some(limits) = resp.limits {
+                    println!(
+                        "max_file_bytes={} max_entries={} max_key_bytes={} max_value_bytes={} max_tables={} max_total_bytes={}",
+                        limits.max_file_bytes, limits.max_entries, limits.max_key_bytes,
+                        limits.max_value_bytes, limits.max_tables, limits.max_total_bytes
+                    );
+                }
+            }
+            DataSourceLimitsCommands::Set {
+                max_file_bytes,
+                max_entries,
+                max_key_bytes,
+                max_value_bytes,
+                max_tables,
+            } => {
+                let mut client = data_sources_client(&resolved).await?;
+                let resp = client
+                    .set_data_source_limits(with_auth(
+                        &resolved,
+                        tonic::Request::new(SetDataSourceLimitsRequest {
+                            limits: Some(ControlLimits {
+                                max_file_bytes: max_file_bytes.unwrap_or(0),
+                                max_entries: max_entries.unwrap_or(0),
+                                max_key_bytes: max_key_bytes.unwrap_or(0),
+                                max_value_bytes: max_value_bytes.unwrap_or(0),
+                                max_tables: max_tables.unwrap_or(0),
+                                max_total_bytes: 0,
+                            }),
+                        }),
+                    )?)
+                    .await?
+                    .into_inner();
+                if !resp.ok {
+                    anyhow::bail!("set-limits failed: {}", resp.errors.join("; "));
+                }
+                println!("ok generation={}", resp.generation);
+            }
+        },
+        Commands::Events { ref command } => match command {
+            EventsCommands::Get => {
+                let mut client = events_client(&resolved).await?;
+                let resp = client
+                    .get_events(with_auth(
+                        &resolved,
+                        tonic::Request::new(GetEventsRequest {}),
+                    )?)
+                    .await?
+                    .into_inner();
+                if let Some(events) = resp.events {
+                    println!(
+                        "queue_depth={} drop_policy={} sinks={}",
+                        events.queue_depth,
+                        events.drop_policy,
+                        events.sinks.len()
+                    );
+                    for s in events.sinks {
+                        let name = s
+                            .name
+                            .as_deref()
+                            .filter(|n| !n.is_empty())
+                            .unwrap_or(&s.export_id);
+                        println!("  sink {} type={}", name, s.r#type);
+                    }
+                }
+            }
+            EventsCommands::GetSink { name } => {
+                let mut client = events_client(&resolved).await?;
+                let resp = client
+                    .get_event_sink(with_auth(
+                        &resolved,
+                        tonic::Request::new(GetEventSinkRequest { name: name.clone() }),
+                    )?)
+                    .await?
+                    .into_inner();
+                if let Some(sink) = resp.sink {
+                    println!("type={}", sink.r#type);
+                    println!("export_id={}", sink.export_id);
+                    println!("emit={:?}", sink.emit);
+                    if let Some(f) = sink.filters {
+                        println!("filters.sample_percent={:?}", f.sample_percent);
+                    }
+                }
+            }
+            EventsCommands::SetFilters {
+                name,
+                sample_percent,
+                tag_required,
+                pool,
+                backend,
+            } => {
+                let mut client = events_client(&resolved).await?;
+                let resp = client
+                    .set_event_sink_filters(with_auth(
+                        &resolved,
+                        tonic::Request::new(SetEventSinkFiltersRequest {
+                            name: name.clone(),
+                            filters: Some(ControlFilters {
+                                sample_percent: *sample_percent,
+                                tag_required: tag_required.clone(),
+                                pool: pool.clone(),
+                                backend: backend.clone(),
+                                selectors: vec![],
+                                sample_key: None,
+                                sample_key_from: None,
+                            }),
+                        }),
+                    )?)
+                    .await?
+                    .into_inner();
+                if !resp.ok {
+                    anyhow::bail!("set-filters failed: {}", resp.errors.join("; "));
+                }
+                println!("ok generation={}", resp.generation);
+            }
+            EventsCommands::SetEmit { name, emit } => {
+                let mut client = events_client(&resolved).await?;
+                let resp = client
+                    .set_event_sink_emit(with_auth(
+                        &resolved,
+                        tonic::Request::new(SetEventSinkEmitRequest {
+                            name: name.clone(),
+                            emit: emit.clone(),
+                            extra_fields: vec![],
+                            extra_tags: vec![],
+                            extra_fields_set: false,
+                            extra_tags_set: false,
+                        }),
+                    )?)
+                    .await?
+                    .into_inner();
+                if !resp.ok {
+                    anyhow::bail!("set-emit failed: {}", resp.errors.join("; "));
+                }
+                println!("ok generation={}", resp.generation);
+            }
+        },
+        Commands::Rhai { ref command } => match command {
+            RhaiCommands::Get => {
+                let mut client = rhai_client(&resolved).await?;
+                let resp = client
+                    .get_rhai(with_auth(
+                        &resolved,
+                        tonic::Request::new(GetRhaiRequest {}),
+                    )?)
+                    .await?
+                    .into_inner();
+                if let Some(rhai) = resp.rhai {
+                    println!(
+                        "max_operations={} max_call_depth={} hook_timeout_ms={}",
+                        rhai.max_operations, rhai.max_call_depth, rhai.hook_timeout_ms
+                    );
+                }
+            }
+            RhaiCommands::SetLimits {
+                max_operations,
+                max_call_depth,
+                hook_timeout_ms,
+            } => {
+                if max_operations.is_none() && max_call_depth.is_none() && hook_timeout_ms.is_none()
+                {
+                    anyhow::bail!("at least one of --max-operations, --max-call-depth, or --hook-timeout-ms required");
+                }
+                let mut client = rhai_client(&resolved).await?;
+                let resp = client
+                    .set_rhai_limits(with_auth(
+                        &resolved,
+                        tonic::Request::new(SetRhaiLimitsRequest {
+                            max_operations: *max_operations,
+                            max_call_depth: *max_call_depth,
+                            hook_timeout_ms: *hook_timeout_ms,
+                        }),
+                    )?)
+                    .await?
+                    .into_inner();
+                if !resp.ok {
+                    anyhow::bail!("set-limits failed: {}", resp.errors.join("; "));
+                }
+                println!("ok generation={}", resp.generation);
+            }
+        },
+        Commands::Metrics { ref command } => match command {
+            MetricsCommands::Get => {
+                let mut client = metrics_client(&resolved).await?;
+                let resp = client
+                    .get_metrics(with_auth(
+                        &resolved,
+                        tonic::Request::new(GetMetricsRequest {}),
+                    )?)
+                    .await?
+                    .into_inner();
+                let metrics = resp
+                    .metrics
+                    .map(control_metrics_to_runtime)
+                    .unwrap_or_default();
+                print!("{}", export_metrics_yaml(&metrics)?);
+            }
+            MetricsCommands::Patch {
+                file,
+                enabled,
+                base,
+            } => {
+                let mut patch = if let Some(path) = file {
+                    let yaml = std::fs::read_to_string(path)
+                        .with_context(|| format!("reading metrics patch {:?}", path))?;
+                    load_metrics_yaml(&yaml)?
+                } else {
+                    RuntimeMetricsConfig::default()
+                };
+                if let Some(v) = enabled {
+                    patch.enabled = Some(*v);
+                }
+                if let Some(v) = base {
+                    patch.base = v.clone();
+                }
+                if metrics_patch_is_empty(&patch) {
+                    anyhow::bail!(
+                        "metrics patch requires --file and/or at least one of --enabled / --base"
+                    );
+                }
+                let mut client = metrics_client(&resolved).await?;
+                let resp = client
+                    .patch_metrics(with_auth(
+                        &resolved,
+                        tonic::Request::new(PatchMetricsRequest {
+                            metrics: Some(runtime_metrics_to_control(patch)),
+                        }),
+                    )?)
+                    .await?
+                    .into_inner();
+                if !resp.ok {
+                    anyhow::bail!("patch failed: {}", resp.errors.join("; "));
+                }
+                println!("ok generation={}", resp.generation);
+            }
+        },
+        Commands::Cache { ref command } => match command {
+            CacheCommands::List => {
+                let mut client = caches_client(&resolved).await?;
+                let resp = client
+                    .list_caches(with_auth(
+                        &resolved,
+                        tonic::Request::new(ListCachesRequest {}),
+                    )?)
+                    .await?
+                    .into_inner();
+                for c in resp.caches {
+                    let max = c
+                        .max_entries
+                        .map(|v| v.to_string())
+                        .unwrap_or_else(|| "-".into());
+                    println!("{} type={} max_entries={}", c.name, c.r#type, max);
+                }
+            }
+            CacheCommands::Get { name } => {
+                let mut client = caches_client(&resolved).await?;
+                let resp = client
+                    .get_cache(with_auth(
+                        &resolved,
+                        tonic::Request::new(GetCacheRequest { name: name.clone() }),
+                    )?)
+                    .await?
+                    .into_inner();
+                if let Some(cache) = resp.cache {
+                    println!("name={}", cache.name);
+                    println!("type={}", cache.r#type);
+                    println!("max_entries={:?}", cache.max_entries);
+                }
+            }
+            CacheCommands::SetMaxEntries { name, max_entries } => {
+                let mut client = caches_client(&resolved).await?;
+                let resp = client
+                    .set_cache_max_entries(with_auth(
+                        &resolved,
+                        tonic::Request::new(SetCacheMaxEntriesRequest {
+                            name: name.clone(),
+                            max_entries: *max_entries,
+                        }),
+                    )?)
+                    .await?
+                    .into_inner();
+                if !resp.ok {
+                    anyhow::bail!("set-max-entries failed: {}", resp.errors.join("; "));
+                }
+                println!("ok generation={}", resp.generation);
+            }
+            CacheCommands::SetLmdbHot {
+                name,
+                when_full,
+                sample_size,
+                sync,
+                sync_interval,
+                map_size_bytes,
+            } => {
+                if when_full.is_none()
+                    && sample_size.is_none()
+                    && sync.is_none()
+                    && sync_interval.is_none()
+                    && map_size_bytes.is_none()
+                {
+                    anyhow::bail!("at least one LMDB hot field required");
+                }
+                let mut client = caches_client(&resolved).await?;
+                let resp = client
+                    .set_cache_lmdb_hot(with_auth(
+                        &resolved,
+                        tonic::Request::new(SetCacheLmdbHotRequest {
+                            name: name.clone(),
+                            when_full: when_full.clone(),
+                            sample_size: *sample_size,
+                            sync: sync.clone(),
+                            sync_interval: sync_interval.clone(),
+                            map_size_bytes: *map_size_bytes,
+                        }),
+                    )?)
+                    .await?
+                    .into_inner();
+                if !resp.ok {
+                    anyhow::bail!("set-lmdb-hot failed: {}", resp.errors.join("; "));
+                }
+                println!("ok generation={}", resp.generation);
+            }
+            CacheCommands::SetPolicyHot {
+                name,
+                rotate_rrset_on_serve,
+            } => {
+                if rotate_rrset_on_serve.is_none() {
+                    anyhow::bail!("at least one policy field required");
+                }
+                let mut client = caches_client(&resolved).await?;
+                let resp = client
+                    .set_cache_policy_hot(with_auth(
+                        &resolved,
+                        tonic::Request::new(SetCachePolicyHotRequest {
+                            name: name.clone(),
+                            negative_cache: None,
+                            on_hit: None,
+                            truncated_udp: None,
+                            rotate_rrset_on_serve: *rotate_rrset_on_serve,
+                        }),
+                    )?)
+                    .await?
+                    .into_inner();
+                if !resp.ok {
+                    anyhow::bail!("set-policy-hot failed: {}", resp.errors.join("; "));
                 }
                 println!("ok generation={}", resp.generation);
             }

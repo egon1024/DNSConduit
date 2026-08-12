@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package conduit.v1;
+
+import "conduit/v1/config.proto";
+import "conduit/v1/control.proto";
+
+// Overlay-hot metrics plan primitives (deep-merge onto effective, then synthesize).
+service ConduitMetrics {
+  rpc GetMetrics(GetMetricsRequest) returns (GetMetricsResponse);
+  rpc PatchMetrics(PatchMetricsRequest) returns (ApplyConfigResponse);
+}
+
+message GetMetricsRequest {}
+
+message GetMetricsResponse {
+  MetricsConfig metrics = 1;
+}
+
+message PatchMetricsRequest {
+  // Sparse MetricsConfig patch (same deep-merge rules as document overlay).
+  MetricsConfig metrics = 1;
+}

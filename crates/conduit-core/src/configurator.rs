@@ -11,7 +11,10 @@ use conduit_config::{
 };
 use conduit_events::EventHub;
 use conduit_metrics::{MetricsExportController, MetricsHub};
-use conduit_proto::config::{Backend, Config};
+use conduit_proto::config::{
+    Backend, CacheInstance, CacheNegativeConfig, CacheOnHitConfig, CacheTruncatedUdpConfig, Config,
+    DataSource, DataSourceLimits, EventSinkFilters, MetricsConfig,
+};
 use std::fmt;
 use std::fs;
 use std::path::PathBuf;
@@ -46,7 +49,7 @@ pub enum OverlayApplyMode {
     Clear,
 }
 
-/// Typed overlay-hot config mutation (pools/backends in Phase C; more later).
+/// Typed overlay-hot config mutation.
 ///
 /// Applied inside the Configurator: `desired ← effective` → mutate →
 /// `synthesize_overlay(file, desired)` → Replace overlay → validate/compile/swap.
@@ -65,6 +68,58 @@ pub enum ConfigPrimitive {
     AddBackend {
         pool: String,
         backend: Backend,
+    },
+    SetOrchestratorLimits {
+        max_attempts: Option<u32>,
+        max_txn_duration_ms: Option<u32>,
+    },
+    UpsertDataSource {
+        source: Box<DataSource>,
+    },
+    RemoveDataSource {
+        name: String,
+    },
+    SetDataSourceLimits {
+        limits: DataSourceLimits,
+    },
+    SetEventSinkFilters {
+        name: String,
+        filters: EventSinkFilters,
+    },
+    SetEventSinkEmit {
+        name: String,
+        emit: Vec<String>,
+        extra_fields: Vec<String>,
+        extra_tags: Vec<String>,
+        extra_fields_set: bool,
+        extra_tags_set: bool,
+    },
+    SetRhaiLimits {
+        max_operations: Option<u64>,
+        max_call_depth: Option<u32>,
+        hook_timeout_ms: Option<u32>,
+    },
+    PatchMetrics {
+        metrics: Box<MetricsConfig>,
+    },
+    SetCacheMaxEntries {
+        name: String,
+        max_entries: u64,
+    },
+    SetCacheLmdbHot {
+        name: String,
+        when_full: Option<String>,
+        sample_size: Option<u32>,
+        sync: Option<String>,
+        sync_interval: Option<String>,
+        map_size_bytes: Option<u64>,
+    },
+    SetCachePolicyHot {
+        name: String,
+        negative_cache: Option<CacheNegativeConfig>,
+        on_hit: Option<CacheOnHitConfig>,
+        truncated_udp: Option<CacheTruncatedUdpConfig>,
+        rotate_rrset_on_serve: Option<bool>,
     },
 }
 
@@ -471,7 +526,233 @@ fn mutate_desired(desired: &mut Config, primitive: &ConfigPrimitive) -> Result<(
             p.backends.push(added);
             Ok(())
         }
+        ConfigPrimitive::SetOrchestratorLimits {
+            max_attempts,
+            max_txn_duration_ms,
+        } => {
+            if max_attempts.is_none() && max_txn_duration_ms.is_none() {
+                return Err(vec![
+                    "SetOrchestratorLimits requires max_attempts and/or max_txn_duration_ms".into(),
+                ]);
+            }
+            let mut orch = desired.orchestrator.unwrap_or_default();
+            if let Some(v) = max_attempts {
+                orch.max_attempts = *v;
+            }
+            if let Some(v) = max_txn_duration_ms {
+                orch.max_txn_duration_ms = *v;
+            }
+            desired.orchestrator = Some(orch);
+            Ok(())
+        }
+        ConfigPrimitive::UpsertDataSource { source } => {
+            if source.name.is_empty() {
+                return Err(vec!["data source name is required".into()]);
+            }
+            if let Some(existing) = desired
+                .data_sources
+                .iter_mut()
+                .find(|s| s.name == source.name)
+            {
+                *existing = (**source).clone();
+            } else {
+                desired.data_sources.push((**source).clone());
+            }
+            Ok(())
+        }
+        ConfigPrimitive::RemoveDataSource { name } => {
+            if name.is_empty() {
+                return Err(vec!["data source name is required".into()]);
+            }
+            let before = desired.data_sources.len();
+            desired.data_sources.retain(|s| s.name != *name);
+            if desired.data_sources.len() == before {
+                return Err(vec![format!("unknown data source '{name}'")]);
+            }
+            Ok(())
+        }
+        ConfigPrimitive::SetDataSourceLimits { limits } => {
+            desired.data_source_limits = Some(*limits);
+            Ok(())
+        }
+        ConfigPrimitive::SetEventSinkFilters { name, filters } => {
+            let sink = find_event_sink_mut(desired, name)?;
+            sink.filters = Some(filters.clone());
+            Ok(())
+        }
+        ConfigPrimitive::SetEventSinkEmit {
+            name,
+            emit,
+            extra_fields,
+            extra_tags,
+            extra_fields_set,
+            extra_tags_set,
+        } => {
+            let sink = find_event_sink_mut(desired, name)?;
+            sink.emit = emit.clone();
+            if *extra_fields_set {
+                sink.extra_fields = extra_fields.clone();
+            }
+            if *extra_tags_set {
+                sink.extra_tags = extra_tags.clone();
+            }
+            Ok(())
+        }
+        ConfigPrimitive::SetRhaiLimits {
+            max_operations,
+            max_call_depth,
+            hook_timeout_ms,
+        } => {
+            if max_operations.is_none() && max_call_depth.is_none() && hook_timeout_ms.is_none() {
+                return Err(vec![
+                    "SetRhaiLimits requires at least one of max_operations, max_call_depth, hook_timeout_ms"
+                        .into(),
+                ]);
+            }
+            let mut rhai = desired.rhai.unwrap_or_default();
+            if let Some(v) = max_operations {
+                rhai.max_operations = *v;
+            }
+            if let Some(v) = max_call_depth {
+                rhai.max_call_depth = *v;
+            }
+            if let Some(v) = hook_timeout_ms {
+                rhai.hook_timeout_ms = *v;
+            }
+            desired.rhai = Some(rhai);
+            Ok(())
+        }
+        ConfigPrimitive::PatchMetrics { metrics } => {
+            let patch = Config {
+                schema_version: desired.schema_version,
+                metrics: Some((**metrics).clone()),
+                ..Default::default()
+            };
+            *desired = merge_file_and_overlay(desired, &patch).map_err(|e| vec![e.to_string()])?;
+            Ok(())
+        }
+        ConfigPrimitive::SetCacheMaxEntries { name, max_entries } => {
+            let cache = find_cache_mut(desired, name)?;
+            cache.max_entries = Some(*max_entries);
+            Ok(())
+        }
+        ConfigPrimitive::SetCacheLmdbHot {
+            name,
+            when_full,
+            sample_size,
+            sync,
+            sync_interval,
+            map_size_bytes,
+        } => {
+            if when_full.is_none()
+                && sample_size.is_none()
+                && sync.is_none()
+                && sync_interval.is_none()
+                && map_size_bytes.is_none()
+            {
+                return Err(vec![
+                    "SetCacheLmdbHot requires at least one LMDB hot field".into()
+                ]);
+            }
+            let cache = find_cache_mut(desired, name)?;
+            if cache.r#type != "lmdb" {
+                return Err(vec![format!(
+                    "cache '{name}' type is '{}' (SetCacheLmdbHot requires lmdb)",
+                    cache.r#type
+                )]);
+            }
+            let mut lmdb = cache.lmdb.clone().unwrap_or_default();
+            if let Some(v) = when_full {
+                lmdb.when_full = Some(v.clone());
+            }
+            if let Some(v) = sample_size {
+                lmdb.sample_size = Some(*v);
+            }
+            if let Some(v) = sync {
+                lmdb.sync = Some(v.clone());
+            }
+            if let Some(v) = sync_interval {
+                lmdb.sync_interval = Some(v.clone());
+            }
+            if let Some(v) = map_size_bytes {
+                lmdb.map_size_bytes = *v;
+            }
+            cache.lmdb = Some(lmdb);
+            Ok(())
+        }
+        ConfigPrimitive::SetCachePolicyHot {
+            name,
+            negative_cache,
+            on_hit,
+            truncated_udp,
+            rotate_rrset_on_serve,
+        } => {
+            if negative_cache.is_none()
+                && on_hit.is_none()
+                && truncated_udp.is_none()
+                && rotate_rrset_on_serve.is_none()
+            {
+                return Err(vec![
+                    "SetCachePolicyHot requires at least one policy field".into()
+                ]);
+            }
+            let cache = find_cache_mut(desired, name)?;
+            if let Some(v) = negative_cache {
+                cache.negative_cache = Some(*v);
+            }
+            if let Some(v) = on_hit {
+                cache.on_hit = Some(v.clone());
+            }
+            if let Some(v) = truncated_udp {
+                cache.truncated_udp = Some(*v);
+            }
+            if let Some(v) = rotate_rrset_on_serve {
+                cache.rotate_rrset_on_serve = Some(*v);
+            }
+            Ok(())
+        }
     }
+}
+
+fn find_event_sink_mut<'a>(
+    cfg: &'a mut Config,
+    name: &str,
+) -> Result<&'a mut conduit_proto::config::EventSink, Vec<String>> {
+    if name.is_empty() {
+        return Err(vec!["event sink name is required".into()]);
+    }
+    let events = cfg
+        .events
+        .as_mut()
+        .ok_or_else(|| vec!["no events section in effective config".into()])?;
+    events
+        .sinks
+        .iter_mut()
+        .find(|s| event_sink_name(s) == name)
+        .ok_or_else(|| vec![format!("unknown event sink '{name}'")])
+}
+
+fn event_sink_name(sink: &conduit_proto::config::EventSink) -> &str {
+    if let Some(n) = sink.name.as_deref().filter(|n| !n.is_empty()) {
+        n
+    } else if !sink.export_id.is_empty() {
+        sink.export_id.as_str()
+    } else {
+        ""
+    }
+}
+
+fn find_cache_mut<'a>(
+    cfg: &'a mut Config,
+    name: &str,
+) -> Result<&'a mut CacheInstance, Vec<String>> {
+    if name.is_empty() {
+        return Err(vec!["cache name is required".into()]);
+    }
+    cfg.caches
+        .iter_mut()
+        .find(|c| c.name == name)
+        .ok_or_else(|| vec![format!("unknown cache '{name}'")])
 }
 
 fn find_pool_mut<'a>(

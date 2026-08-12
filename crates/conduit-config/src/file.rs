@@ -1049,6 +1049,36 @@ pub fn load_yaml(input: &str) -> Result<Config, ConfigError> {
     config_from_yaml(y)
 }
 
+/// Parse a sparse `metrics` config from YAML (same field shape as the config-file
+/// `metrics:` block).
+///
+/// Accepts either a bare metrics object (`enabled: true`, `base: …`, …) or a
+/// document with a top-level `metrics:` key. Used by `conduitctl metrics patch
+/// --file`.
+pub fn load_metrics_yaml(input: &str) -> Result<MetricsConfig, ConfigError> {
+    let value: serde_yaml::Value = serde_yaml::from_str(input)?;
+    let metrics_value = match &value {
+        serde_yaml::Value::Mapping(map) => {
+            let key = serde_yaml::Value::String("metrics".into());
+            if map.contains_key(&key) {
+                map.get(&key).cloned().unwrap_or(serde_yaml::Value::Null)
+            } else {
+                value
+            }
+        }
+        _ => value,
+    };
+    let y: YamlMetrics = serde_yaml::from_value(metrics_value)?;
+    Ok(y.into())
+}
+
+/// Serialize a metrics config to operator-facing YAML (bare object fields — the
+/// same shape accepted by [`load_metrics_yaml`]).
+pub fn export_metrics_yaml(metrics: &MetricsConfig) -> Result<String, ConfigError> {
+    let y = YamlMetrics::from(metrics);
+    serde_yaml::to_string(&y).map_err(ConfigError::from)
+}
+
 /// Load a sparse YAML overlay patch for `conduitctl apply`.
 ///
 /// Omitted top-level sections remain unset in the returned [`Config`], unlike [`load_yaml`]
@@ -2609,6 +2639,29 @@ metrics:
         assert!(exported.contains("base: standard"));
         let reparsed = load_yaml(&exported).expect("reparse");
         assert_eq!(reparsed.metrics, cfg.metrics);
+
+        let metrics_yaml = export_metrics_yaml(metrics).expect("export metrics");
+        assert!(metrics_yaml.contains("base: standard"));
+        assert!(metrics_yaml.contains("timing:"));
+        assert!(!metrics_yaml.contains("schema_version:"));
+        let from_bare = load_metrics_yaml(&metrics_yaml).expect("load bare metrics");
+        assert_eq!(&from_bare, metrics);
+        let wrapped = format!("metrics:\n{}", indent_yaml_block(&metrics_yaml));
+        let from_wrapped = load_metrics_yaml(&wrapped).expect("load wrapped metrics");
+        assert_eq!(&from_wrapped, metrics);
+    }
+
+    fn indent_yaml_block(yaml: &str) -> String {
+        yaml.lines()
+            .map(|line| {
+                if line.is_empty() {
+                    String::new()
+                } else {
+                    format!("  {line}")
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
     }
 
     #[test]

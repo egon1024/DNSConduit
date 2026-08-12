@@ -1,0 +1,59 @@
+# gRPC primitives hot surface — shared base (orchestrator, rhai, caches, events stub)
+schema_version: 1
+listeners:
+  threads: 2
+  reuse_port: true
+  listeners:
+    - address: "127.0.2.1:15353"
+      protocol: udp
+forward:
+  outstanding_per_backend: 100
+  timeout_ms: 2000
+orchestrator:
+  max_attempts: 3
+  max_txn_duration_ms: 5000
+  txn_table_capacity: 1024
+events:
+  queue_depth: 4096
+  drop_policy: drop_oldest
+  sinks:
+    - type: dnstap
+      name: lab-tap
+      destinations:
+        - "unix:/tmp/conduit-grpc-primitives-hot.sock"
+      emit:
+        - query
+        - response
+      filters:
+        sample_percent: 100
+rhai:
+  max_operations: 10000
+  max_call_depth: 32
+  hook_timeout_ms: 50
+metrics:
+  enabled: true
+  base: minimal
+  prometheus:
+    listen_address: "127.0.2.1:19090"
+    path: /metrics
+caches:
+  - name: answers
+    type: memory
+    max_entries: 1000
+    memory:
+      shard_count: 4
+      eviction: passive
+    rotate_rrset_on_serve: false
+data_sources:
+  - name: geo
+    type: csv
+    path: ../../fixtures/data/geo.csv
+pools:
+  - name: edge
+    backends:
+      - name: primary
+        address: "127.0.2.1:15300"
+        weight: 100
+control:
+  listen_address: "127.0.2.1:5199"
+  reflection_enabled: true

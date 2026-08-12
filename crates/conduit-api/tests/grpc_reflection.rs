@@ -65,6 +65,34 @@ async fn reflection_enabled_lists_conduit_service() {
         services.iter().any(|s| s == "conduit.v1.ConduitPools"),
         "services={services:?}"
     );
+    assert!(
+        services
+            .iter()
+            .any(|s| s == "conduit.v1.ConduitOrchestrator"),
+        "services={services:?}"
+    );
+    assert!(
+        services.iter().any(|s| s == "conduit.v1.ConduitCaches"),
+        "services={services:?}"
+    );
+    assert!(
+        services
+            .iter()
+            .any(|s| s == "conduit.v1.ConduitDataSources"),
+        "services={services:?}"
+    );
+    assert!(
+        services.iter().any(|s| s == "conduit.v1.ConduitEvents"),
+        "services={services:?}"
+    );
+    assert!(
+        services.iter().any(|s| s == "conduit.v1.ConduitRhai"),
+        "services={services:?}"
+    );
+    assert!(
+        services.iter().any(|s| s == "conduit.v1.ConduitMetrics"),
+        "services={services:?}"
+    );
 }
 
 #[tokio::test]

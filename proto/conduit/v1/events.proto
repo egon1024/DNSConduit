@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+package conduit.v1;
+
+import "conduit/v1/config.proto";
+import "conduit/v1/control.proto";
+
+// Overlay-hot event sink filter/emit tweaks for existing sinks.
+// Sink add/remove, destinations, queue_depth, and drop_policy are not exposed
+// (restart-pending hub/thread lifecycle).
+service ConduitEvents {
+  rpc GetEvents(GetEventsRequest) returns (GetEventsResponse);
+  rpc GetEventSink(GetEventSinkRequest) returns (GetEventSinkResponse);
+  rpc SetEventSinkFilters(SetEventSinkFiltersRequest) returns (ApplyConfigResponse);
+  rpc SetEventSinkEmit(SetEventSinkEmitRequest) returns (ApplyConfigResponse);
+}
+
+message GetEventsRequest {}
+
+message GetEventsResponse {
+  EventsConfig events = 1;
+}
+
+message GetEventSinkRequest {
+  // Canonical sink name (EventSink.name), falling back to export_id.
+  string name = 1;
+}
+
+message GetEventSinkResponse {
+  EventSink sink = 1;
+}
+
+message SetEventSinkFiltersRequest {
+  string name = 1;
+  EventSinkFilters filters = 2;
+}
+
+message SetEventSinkEmitRequest {
+  string name = 1;
+  repeated string emit = 2;
+  repeated string extra_fields = 3;
+  repeated string extra_tags = 4;
+  // When true, replace extra_fields/extra_tags even if the repeated lists are empty.
+  bool extra_fields_set = 5;
+  bool extra_tags_set = 6;
+}

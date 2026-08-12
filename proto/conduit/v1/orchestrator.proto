@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package conduit.v1;
+
+import "conduit/v1/config.proto";
+import "conduit/v1/control.proto";
+
+// Overlay-hot orchestrator limits (distinct from ConduitControl document RPCs).
+service ConduitOrchestrator {
+  rpc GetOrchestrator(GetOrchestratorRequest) returns (GetOrchestratorResponse);
+  // Sets max_attempts and/or max_txn_duration_ms. txn_table_capacity is not
+  // writable via this RPC (restart-pending).
+  rpc SetOrchestratorLimits(SetOrchestratorLimitsRequest) returns (ApplyConfigResponse);
+}
+
+message GetOrchestratorRequest {}
+
+message GetOrchestratorResponse {
+  OrchestratorConfig orchestrator = 1;
+}
+
+message SetOrchestratorLimitsRequest {
+  optional uint32 max_attempts = 1;
+  optional uint32 max_txn_duration_ms = 2;
+}

@@ -1,0 +1,54 @@
+syntax = "proto3";
+
+package conduit.v1;
+
+import "conduit/v1/config.proto";
+import "conduit/v1/control.proto";
+
+// Overlay-hot data_sources / data_source_limits primitives.
+service ConduitDataSources {
+  rpc ListDataSources(ListDataSourcesRequest) returns (ListDataSourcesResponse);
+  rpc GetDataSource(GetDataSourceRequest) returns (GetDataSourceResponse);
+  rpc UpsertDataSource(UpsertDataSourceRequest) returns (ApplyConfigResponse);
+  rpc RemoveDataSource(RemoveDataSourceRequest) returns (ApplyConfigResponse);
+  rpc GetDataSourceLimits(GetDataSourceLimitsRequest) returns (GetDataSourceLimitsResponse);
+  rpc SetDataSourceLimits(SetDataSourceLimitsRequest) returns (ApplyConfigResponse);
+}
+
+message ListDataSourcesRequest {}
+
+message ListDataSourcesResponse {
+  repeated DataSourceSummary sources = 1;
+}
+
+message DataSourceSummary {
+  string name = 1;
+  string type = 2;
+  string path = 3;
+}
+
+message GetDataSourceRequest {
+  string name = 1;
+}
+
+message GetDataSourceResponse {
+  DataSource source = 1;
+}
+
+message UpsertDataSourceRequest {
+  DataSource source = 1;
+}
+
+message RemoveDataSourceRequest {
+  string name = 1;
+}
+
+message GetDataSourceLimitsRequest {}
+
+message GetDataSourceLimitsResponse {
+  DataSourceLimits limits = 1;
+}
+
+message SetDataSourceLimitsRequest {
+  DataSourceLimits limits = 1;
+}

@@ -39,7 +39,7 @@ pub use defaults::{
 pub use duration::parse_duration;
 pub use error::ConfigError;
 pub use export::export_yaml;
-pub use file::{load_overlay_patch, load_yaml};
+pub use file::{export_metrics_yaml, load_metrics_yaml, load_overlay_patch, load_yaml};
 pub use forward::{
     compile_forward_from_config, parse_sources_v4, parse_sources_v6, parse_upstream_transport,
     validate_upstream_backend_addresses, CompiledForward, CompiledPoolForward, UpstreamTransport,
