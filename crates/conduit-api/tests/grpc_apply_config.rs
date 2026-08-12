@@ -59,7 +59,16 @@ async fn apply_config_changes_pool_weight_and_generation() {
         .expect("apply")
         .into_inner();
     assert!(apply.ok, "{:?}", apply.errors);
+    assert!(
+        apply.generation > gen0,
+        "response generation {} should exceed prior {}",
+        apply.generation,
+        gen0
+    );
     assert!(snapshots.generation() > gen0);
+    assert_eq!(apply.generation, snapshots.generation());
+    // Fully hot weight apply may leave notes empty (proto3 additive).
+    assert!(apply.notes.is_empty() || apply.notes.iter().all(|n| !n.kind.is_empty()));
 
     let got = client
         .get_config(GetConfigRequest {})
@@ -159,6 +168,8 @@ async fn reload_from_file_clears_api_overlay() {
         .expect("reload")
         .into_inner();
     assert!(reload.ok, "{:?}", reload.errors);
+    assert!(reload.generation > 0);
+    assert_eq!(reload.generation, snapshots.generation());
     assert_eq!(
         snapshots.load().config.pools[0].backends[0].weight,
         Some(100)

@@ -416,7 +416,7 @@ async fn main() -> anyhow::Result<()> {
             if !resp.ok {
                 anyhow::bail!("apply failed: {}", resp.errors.join("; "));
             }
-            println!("ok");
+            println!("ok generation={}", resp.generation);
         }
         Commands::Export { ref output } => {
             let mut client = client(&resolved).await?;
@@ -449,7 +449,7 @@ async fn main() -> anyhow::Result<()> {
             if !resp.ok {
                 anyhow::bail!("reload failed: {}", resp.errors.join("; "));
             }
-            println!("ok");
+            println!("ok generation={}", resp.generation);
         }
         Commands::Trace { ref txn_id } => {
             let mut client = client(&resolved).await?;

@@ -4,3 +4,4 @@
 
 - Control-plane **`control rpc`** access logs include **`tls=true|false`**, indicating whether the RPC arrived over TLS (transport encryption). This is separate from requestor **`mtls`** (client certificate identity).
 - Failed control-plane connections that never become an RPC (TCP accept errors, TLS handshake failures) log at **`warn`** as **`control plane connection failed`** with **`tls`**, **`error`**, and **`peer`** when known.
+- Rejected config control RPCs (`ApplyConfig`, `ValidateConfig`, `ReloadFromFile`) log **`control rpc outcome`** at **`warn`** (`outcome=rejected`); successful outcomes remain at **`info`**. The transport **`control rpc`** line is unchanged.

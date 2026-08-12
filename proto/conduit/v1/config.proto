@@ -326,6 +326,9 @@ message Pool {
   repeated string sources_v6 = 4;
   optional uint32 max_inflight = 5;
   optional HealthCheck health = 6;  // active backend health probing; absent = disabled (today's behavior)
+  // Overlay-only remove marker: when true, merge removes this named pool from
+  // effective config. Never present on effective/export output.
+  optional bool remove = 7;
 }
 
 // Pool-level active health-probe configuration (phase 1c). Absent or
@@ -357,6 +360,9 @@ message Backend {
   // diverges from forward.upstream_transport is NOT honored — probes always use
   // the forward upstream transport. Defined now so later divergence is additive.
   optional string transport = 7;
+  // Overlay-only remove marker: when true, merge removes the matched backend
+  // (by name when set, else by address). Never present on effective/export output.
+  optional bool remove = 8;
 }
 
 message ControlTlsConfig {

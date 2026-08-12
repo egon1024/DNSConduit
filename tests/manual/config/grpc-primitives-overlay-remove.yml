@@ -1,0 +1,7 @@
+# Explicit backend remove marker for secondary
+schema_version: 1
+pools:
+  - name: edge
+    backends:
+      - name: secondary
+        remove: true

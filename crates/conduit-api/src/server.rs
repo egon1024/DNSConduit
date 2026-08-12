@@ -18,10 +18,10 @@ use conduit_proto::control::Config as ControlConfig;
 use conduit_proto::control::OverlayApplyMode as ProtoOverlayApplyMode;
 use conduit_proto::control::{
     AclCheckResult as AclCheckResultProto, ApplyConfigRequest, ApplyConfigResponse,
-    CheckAclRequest, CheckAclResponse, ExportConfigRequest, ExportConfigResponse, GetConfigRequest,
-    GetConfigResponse, GetTraceRequest, GetTraceResponse, HealthRequest, HealthResponse,
-    ReloadFromFileRequest, ReloadFromFileResponse, TraceEvent as TraceEventProto,
-    ValidateConfigRequest, ValidateConfigResponse,
+    CheckAclRequest, CheckAclResponse, ConfigApplyStatusNote, ExportConfigRequest,
+    ExportConfigResponse, GetConfigRequest, GetConfigResponse, GetTraceRequest, GetTraceResponse,
+    HealthRequest, HealthResponse, ReloadFromFileRequest, ReloadFromFileResponse,
+    TraceEvent as TraceEventProto, ValidateConfigRequest, ValidateConfigResponse,
 };
 use prost::Message;
 use std::net::SocketAddr;
@@ -121,6 +121,15 @@ impl ConduitControl for ControlService {
         Ok(Response::new(ApplyConfigResponse {
             ok: result.ok,
             errors: result.errors,
+            generation: result.generation,
+            notes: result
+                .notes
+                .into_iter()
+                .map(|n| ConfigApplyStatusNote {
+                    kind: n.kind,
+                    message: n.message,
+                })
+                .collect(),
         }))
     }
 
@@ -156,6 +165,15 @@ impl ConduitControl for ControlService {
         Ok(Response::new(ReloadFromFileResponse {
             ok: result.ok,
             errors: result.errors,
+            generation: result.generation,
+            notes: result
+                .notes
+                .into_iter()
+                .map(|n| ConfigApplyStatusNote {
+                    kind: n.kind,
+                    message: n.message,
+                })
+                .collect(),
         }))
     }
 

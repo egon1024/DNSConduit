@@ -16,6 +16,7 @@ pub mod merge;
 pub mod overlay;
 pub mod shutdown;
 pub mod size;
+pub mod synthesize;
 pub mod validate;
 
 #[cfg(test)]
@@ -72,6 +73,7 @@ pub use shutdown::{
     DEFAULT_DRAIN_TIMEOUT_MS,
 };
 pub use size::parse_si_size;
+pub use synthesize::synthesize_overlay;
 pub use validate::{validate, ValidationResult};
 
 use conduit_proto::config::Config;
