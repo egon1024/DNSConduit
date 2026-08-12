@@ -61,6 +61,10 @@ async fn reflection_enabled_lists_conduit_service() {
         services.iter().any(|s| s == "conduit.v1.ConduitControl"),
         "services={services:?}"
     );
+    assert!(
+        services.iter().any(|s| s == "conduit.v1.ConduitPools"),
+        "services={services:?}"
+    );
 }
 
 #[tokio::test]

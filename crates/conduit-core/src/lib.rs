@@ -32,7 +32,7 @@ pub use conduit_config::forward::{
     CompiledForward, CompiledPoolForward, DEFAULT_SOURCE_SELECTION, MAX_SOURCES_V4,
 };
 pub use configurator::{
-    spawn as spawn_configurator, ApplyResult, ApplyStatusNote, ConfiguratorHandle,
+    spawn as spawn_configurator, ApplyResult, ApplyStatusNote, ConfigPrimitive, ConfiguratorHandle,
     ConfiguratorSpawn, ConfiguratorState, OverlayApplyMode, PolicyProposal, ProposalSource,
 };
 pub use health::{

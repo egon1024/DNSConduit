@@ -1,0 +1,53 @@
+syntax = "proto3";
+
+package conduit.v1;
+
+import "conduit/v1/config.proto";
+import "conduit/v1/control.proto";
+
+// Overlay-hot pool/backend config primitives (distinct from ConduitControl
+// document RPCs and from BackendHealth runtime controls).
+service ConduitPools {
+  rpc ListPools(ListPoolsRequest) returns (ListPoolsResponse);
+  rpc GetPool(GetPoolRequest) returns (GetPoolResponse);
+  rpc SetBackendWeight(SetBackendWeightRequest) returns (ApplyConfigResponse);
+  rpc AddBackend(AddBackendRequest) returns (ApplyConfigResponse);
+  rpc RemoveBackend(RemoveBackendRequest) returns (ApplyConfigResponse);
+}
+
+message ListPoolsRequest {}
+
+message ListPoolsResponse {
+  repeated PoolSummary pools = 1;
+}
+
+message PoolSummary {
+  string name = 1;
+  uint32 backend_count = 2;
+}
+
+message GetPoolRequest {
+  string name = 1;
+}
+
+message GetPoolResponse {
+  Pool pool = 1;
+}
+
+message SetBackendWeightRequest {
+  string pool = 1;
+  // Backend name when configured; otherwise address (host:port).
+  string backend = 2;
+  uint32 weight = 3;
+}
+
+message AddBackendRequest {
+  string pool = 1;
+  Backend backend = 2;
+}
+
+message RemoveBackendRequest {
+  string pool = 1;
+  // Backend name when configured; otherwise address (host:port).
+  string backend = 2;
+}

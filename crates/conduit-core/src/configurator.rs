@@ -6,11 +6,12 @@
 use crate::snapshot::{RuntimeSnapshot, SnapshotStore};
 use conduit_config::{
     clear_overlay, is_overlay_patch_empty, load_yaml, merge_file_and_overlay,
-    merge_overlay_patches, validate, validate_overlay_patch, EffectiveConfig, ValidationResult,
+    merge_overlay_patches, synthesize_overlay, validate, validate_overlay_patch, EffectiveConfig,
+    ValidationResult,
 };
 use conduit_events::EventHub;
 use conduit_metrics::{MetricsExportController, MetricsHub};
-use conduit_proto::config::Config;
+use conduit_proto::config::{Backend, Config};
 use std::fmt;
 use std::fs;
 use std::path::PathBuf;
@@ -45,16 +46,41 @@ pub enum OverlayApplyMode {
     Clear,
 }
 
+/// Typed overlay-hot config mutation (pools/backends in Phase C; more later).
+///
+/// Applied inside the Configurator: `desired ← effective` → mutate →
+/// `synthesize_overlay(file, desired)` → Replace overlay → validate/compile/swap.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ConfigPrimitive {
+    SetBackendWeight {
+        pool: String,
+        /// Backend name when configured; otherwise address (`host:port`).
+        backend: String,
+        weight: u32,
+    },
+    RemoveBackend {
+        pool: String,
+        backend: String,
+    },
+    AddBackend {
+        pool: String,
+        backend: Backend,
+    },
+}
+
 /// Configuration change submitted to the Configurator.
 #[derive(Debug, Clone)]
 pub struct PolicyProposal {
     pub source: ProposalSource,
     /// gRPC overlay patch (interpretation depends on [`Self::overlay_mode`]).
+    /// Ignored when [`Self::primitive`] is `Some`.
     pub overlay: Option<Config>,
     pub overlay_mode: OverlayApplyMode,
     /// When set, replaces the file baseline (reload from disk).
     pub file_reload: Option<Config>,
     pub correlation_id: Option<String>,
+    /// When set, document overlay fields are ignored; use synthesize+Replace path.
+    pub primitive: Option<ConfigPrimitive>,
 }
 
 /// One status/effect note attached to an apply outcome (mirrors proto `ConfigApplyStatusNote`).
@@ -136,6 +162,24 @@ impl ConfiguratorHandle {
             overlay_mode: mode,
             file_reload: None,
             correlation_id,
+            primitive: None,
+        })
+        .await
+    }
+
+    /// Enqueue a typed config primitive (synthesize overlay + Replace).
+    pub async fn apply_primitive(
+        &self,
+        primitive: ConfigPrimitive,
+        correlation_id: Option<String>,
+    ) -> ApplyResult {
+        self.propose(PolicyProposal {
+            source: ProposalSource::Grpc,
+            overlay: None,
+            overlay_mode: OverlayApplyMode::Replace,
+            file_reload: None,
+            correlation_id,
+            primitive: Some(primitive),
         })
         .await
     }
@@ -147,6 +191,7 @@ impl ConfiguratorHandle {
             overlay_mode: OverlayApplyMode::Merge,
             file_reload: None,
             correlation_id: None,
+            primitive: None,
         })
         .await
     }
@@ -332,31 +377,152 @@ fn prepare_effective(
         .lock()
         .map_err(|_| vec!["effective config lock poisoned".into()])?;
 
+    // Mutate a working copy so validate failures leave last-good file/overlay intact.
+    let mut working = EffectiveConfig {
+        file: eff.file.clone(),
+        overlay: eff.overlay.clone(),
+    };
+
     if let Some(file_cfg) = &proposal.file_reload {
-        eff.file = file_cfg.clone();
-        clear_overlay(&mut eff);
+        working.file = file_cfg.clone();
+        clear_overlay(&mut working);
     } else if matches!(
         proposal.source,
         ProposalSource::File | ProposalSource::Sighup
     ) && proposal.overlay.is_none()
+        && proposal.primitive.is_none()
     {
         let yaml = fs::read_to_string(&state.config_path)
             .map_err(|e| vec![format!("reading config {:?}: {e}", state.config_path)])?;
         let file_cfg = load_yaml(&yaml).map_err(|e| vec![e.to_string()])?;
-        eff.file = file_cfg;
-        clear_overlay(&mut eff);
+        working.file = file_cfg;
+        clear_overlay(&mut working);
     }
 
-    if proposal.source == ProposalSource::Grpc {
-        apply_overlay_mode(&mut eff, proposal)?;
+    if proposal.primitive.is_some() {
+        apply_primitive_proposal(&mut working, proposal)?;
+    } else if proposal.source == ProposalSource::Grpc {
+        apply_overlay_mode(&mut working, proposal)?;
     }
 
-    let merged = eff.effective();
+    let merged = working.effective();
     let ValidationResult { ok, errors } = validate(&merged);
     if !ok {
         return Err(errors);
     }
+    // Commit only after validate succeeds.
+    *eff = working;
     Ok(merged)
+}
+
+/// desired ← effective → mutate → synthesize → Replace overlay (no sparse Merge).
+fn apply_primitive_proposal(
+    eff: &mut EffectiveConfig,
+    proposal: &PolicyProposal,
+) -> Result<(), Vec<String>> {
+    let primitive = proposal
+        .primitive
+        .as_ref()
+        .expect("apply_primitive_proposal requires primitive");
+    let mut desired = eff.effective();
+    mutate_desired(&mut desired, primitive)?;
+    let overlay = synthesize_overlay(&eff.file, &desired).map_err(|e| vec![e.to_string()])?;
+    // Same install rules as OverlayApplyMode::Replace.
+    reject_forbidden_overlay_fields(&overlay)?;
+    if is_overlay_patch_empty(&overlay) {
+        clear_overlay(eff);
+    } else {
+        merge_file_and_overlay(&eff.file, &overlay).map_err(|e| vec![e.to_string()])?;
+        eff.overlay = Some(overlay);
+    }
+    Ok(())
+}
+
+fn mutate_desired(desired: &mut Config, primitive: &ConfigPrimitive) -> Result<(), Vec<String>> {
+    match primitive {
+        ConfigPrimitive::SetBackendWeight {
+            pool,
+            backend,
+            weight,
+        } => {
+            let p = find_pool_mut(desired, pool)?;
+            let b = find_backend_mut(p, backend)?;
+            b.weight = Some(*weight);
+            Ok(())
+        }
+        ConfigPrimitive::RemoveBackend { pool, backend } => {
+            let p = find_pool_mut(desired, pool)?;
+            let idx = find_backend_index(p, backend)?;
+            p.backends.remove(idx);
+            Ok(())
+        }
+        ConfigPrimitive::AddBackend { pool, backend } => {
+            let p = find_pool_mut(desired, pool)?;
+            if backend_identity_exists(p, backend) {
+                return Err(vec![format!(
+                    "pool '{pool}' already has a backend matching the add identity"
+                )]);
+            }
+            if backend.address.is_empty() {
+                return Err(vec!["add backend requires a non-empty address".into()]);
+            }
+            let mut added = backend.clone();
+            added.remove = None;
+            p.backends.push(added);
+            Ok(())
+        }
+    }
+}
+
+fn find_pool_mut<'a>(
+    cfg: &'a mut Config,
+    pool_name: &str,
+) -> Result<&'a mut conduit_proto::config::Pool, Vec<String>> {
+    cfg.pools
+        .iter_mut()
+        .find(|p| p.name == pool_name)
+        .ok_or_else(|| vec![format!("unknown pool '{pool_name}'")])
+}
+
+fn find_backend_mut<'a>(
+    pool: &'a mut conduit_proto::config::Pool,
+    backend_id: &str,
+) -> Result<&'a mut Backend, Vec<String>> {
+    let idx = find_backend_index(pool, backend_id)?;
+    Ok(&mut pool.backends[idx])
+}
+
+fn find_backend_index(
+    pool: &conduit_proto::config::Pool,
+    backend_id: &str,
+) -> Result<usize, Vec<String>> {
+    if let Some(idx) = pool
+        .backends
+        .iter()
+        .position(|b| b.name.as_deref() == Some(backend_id))
+    {
+        return Ok(idx);
+    }
+    if let Some(idx) = pool.backends.iter().position(|b| b.address == backend_id) {
+        return Ok(idx);
+    }
+    Err(vec![format!(
+        "pool '{}' has no backend named or addressed '{}'",
+        pool.name, backend_id
+    )])
+}
+
+fn backend_identity_exists(pool: &conduit_proto::config::Pool, backend: &Backend) -> bool {
+    if let Some(name) = backend.name.as_ref().filter(|n| !n.is_empty()) {
+        if pool
+            .backends
+            .iter()
+            .any(|b| b.name.as_deref() == Some(name.as_str()))
+        {
+            return true;
+        }
+    }
+    !backend.address.is_empty() && pool.backends.iter().any(|b| b.address == backend.address)
 }
 
 fn apply_overlay_mode(
@@ -578,6 +744,158 @@ mod tests {
         assert_eq!(store.load().config.pools[0].backends[0].weight, Some(100));
         let eff = effective.lock().unwrap();
         assert!(eff.overlay.is_none());
+    }
+
+    #[tokio::test]
+    async fn interleaved_merge_apply_and_primitive_preserves_unrelated_overlay() {
+        let file_cfg = two_named_backend_config();
+        let store = Arc::new(SnapshotStore::new(RuntimeSnapshot::from_config(
+            file_cfg.clone(),
+        )));
+        let effective = Arc::new(Mutex::new(EffectiveConfig::new(file_cfg.clone())));
+        let state = ConfiguratorState {
+            config_path: PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../tests/fixtures/config/minimal.yaml"),
+            base_dir: Some(
+                PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/config"),
+            ),
+            metrics_hub: None,
+            export_controller: None,
+            events: None,
+        };
+        let handle = spawn(store.clone(), effective.clone(), state).handle();
+
+        // Document merge: set primary weight only.
+        let mut overlay = Config {
+            schema_version: 1,
+            ..Default::default()
+        };
+        let mut pool = file_cfg.pools[0].clone();
+        pool.backends = vec![Backend {
+            name: Some("primary".into()),
+            weight: Some(11),
+            ..Default::default()
+        }];
+        overlay.pools = vec![pool];
+        let merge = handle
+            .apply_overlay(Some(overlay), OverlayApplyMode::Merge, None)
+            .await;
+        assert!(merge.ok, "{:?}", merge.errors);
+
+        // Primitive: set secondary weight; must not drop primary's overlay weight.
+        let prim = handle
+            .apply_primitive(
+                ConfigPrimitive::SetBackendWeight {
+                    pool: "edge".into(),
+                    backend: "secondary".into(),
+                    weight: 22,
+                },
+                None,
+            )
+            .await;
+        assert!(prim.ok, "{:?}", prim.errors);
+
+        let snap = store.load();
+        let backends = &snap.config.pools[0].backends;
+        let primary = backends
+            .iter()
+            .find(|b| b.name.as_deref() == Some("primary"))
+            .expect("primary");
+        let secondary = backends
+            .iter()
+            .find(|b| b.name.as_deref() == Some("secondary"))
+            .expect("secondary");
+        assert_eq!(primary.weight, Some(11));
+        assert_eq!(secondary.weight, Some(22));
+
+        // Overlay layer still carries both deltas (synthesize+Replace).
+        let eff = effective.lock().unwrap();
+        let ov = eff.overlay.as_ref().expect("overlay present");
+        assert!(
+            ov.pools.iter().any(|p| {
+                p.backends
+                    .iter()
+                    .any(|b| b.name.as_deref() == Some("primary") && b.weight == Some(11))
+            }),
+            "overlay should retain primary weight: {ov:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn primitive_validate_failure_keeps_last_good() {
+        let yaml = include_str!("../../../tests/fixtures/config/minimal.yaml");
+        let file_cfg = load_yaml(yaml).unwrap();
+        let store = Arc::new(SnapshotStore::new(RuntimeSnapshot::from_config(
+            file_cfg.clone(),
+        )));
+        let effective = Arc::new(Mutex::new(EffectiveConfig::new(file_cfg.clone())));
+        let state = ConfiguratorState {
+            config_path: PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../tests/fixtures/config/minimal.yaml"),
+            base_dir: Some(
+                PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/config"),
+            ),
+            metrics_hub: None,
+            export_controller: None,
+            events: None,
+        };
+        let handle = spawn(store.clone(), effective.clone(), state).handle();
+
+        // First: a successful weight change so last-good is not the file baseline.
+        let ok = handle
+            .apply_primitive(
+                ConfigPrimitive::SetBackendWeight {
+                    pool: "default".into(),
+                    backend: "127.0.0.1:5300".into(),
+                    weight: 55,
+                },
+                None,
+            )
+            .await;
+        assert!(ok.ok, "{:?}", ok.errors);
+        let gen_ok = store.generation();
+        assert_eq!(store.load().config.pools[0].backends[0].weight, Some(55));
+
+        // Removing the only backend leaves an empty pool → validate fails.
+        let bad = handle
+            .apply_primitive(
+                ConfigPrimitive::RemoveBackend {
+                    pool: "default".into(),
+                    backend: "127.0.0.1:5300".into(),
+                },
+                None,
+            )
+            .await;
+        assert!(!bad.ok);
+        assert!(
+            bad.errors.iter().any(|e| e.contains("no backends")),
+            "{:?}",
+            bad.errors
+        );
+        assert_eq!(store.generation(), gen_ok);
+        assert_eq!(store.load().config.pools[0].backends[0].weight, Some(55));
+        assert_eq!(store.load().config.pools[0].backends.len(), 1);
+    }
+
+    fn two_named_backend_config() -> Config {
+        let yaml = include_str!("../../../tests/fixtures/config/minimal.yaml");
+        let mut cfg = load_yaml(yaml).unwrap();
+        cfg.pools[0].name = "edge".into();
+        cfg.pools[0].backends = vec![
+            Backend {
+                name: Some("primary".into()),
+                address: "127.0.0.1:5300".into(),
+                weight: Some(100),
+                ..Default::default()
+            },
+            Backend {
+                name: Some("secondary".into()),
+                address: "127.0.0.1:5301".into(),
+                weight: Some(100),
+                ..Default::default()
+            },
+        ];
+        cfg
     }
 
     fn pool_weight_patch(file_cfg: &Config, weight: u32) -> Config {

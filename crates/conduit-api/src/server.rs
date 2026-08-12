@@ -4,6 +4,7 @@ use crate::access_log::{log_control_outcome, AccessLogLayer, AccessLogService};
 use crate::auth::ControlInterceptor;
 use crate::health::BackendHealthService;
 use crate::incoming::{plain_control_incoming, tls_control_incoming};
+use crate::pools::PoolsService;
 use crate::tls::prepare_control_tls;
 use conduit_config::{export_yaml, validate, EffectiveConfig};
 use conduit_core::check_client_acl;
@@ -14,6 +15,7 @@ use conduit_metrics::TracingHub;
 use conduit_proto::config::Config as RuntimeConfig;
 use conduit_proto::control::backend_health_server::BackendHealthServer;
 use conduit_proto::control::conduit_control_server::{ConduitControl, ConduitControlServer};
+use conduit_proto::control::conduit_pools_server::ConduitPoolsServer;
 use conduit_proto::control::Config as ControlConfig;
 use conduit_proto::control::OverlayApplyMode as ProtoOverlayApplyMode;
 use conduit_proto::control::{
@@ -265,9 +267,17 @@ type InterceptedBackendHealthService = AccessLogService<
     >,
 >;
 
+type InterceptedPoolsService = AccessLogService<
+    tonic::service::interceptor::InterceptedService<
+        ConduitPoolsServer<PoolsService>,
+        ControlInterceptor,
+    >,
+>;
+
 struct ControlPlaneServices {
     control: InterceptedControlService,
     health: InterceptedBackendHealthService,
+    pools: InterceptedPoolsService,
 }
 
 fn build_servers(
@@ -282,7 +292,7 @@ fn build_servers(
         ControlService {
             snapshots: snapshots.clone(),
             effective,
-            configurator,
+            configurator: configurator.clone(),
             tracing,
             config_base_dir,
         },
@@ -292,12 +302,20 @@ fn build_servers(
         BackendHealthService {
             snapshots: snapshots.clone(),
         },
+        interceptor.clone(),
+    );
+    let pools_inner = ConduitPoolsServer::with_interceptor(
+        PoolsService {
+            snapshots: snapshots.clone(),
+            configurator,
+        },
         interceptor,
     );
     let layer = AccessLogLayer::new(snapshots);
     ControlPlaneServices {
         control: layer.layer(control_inner),
         health: layer.layer(health_inner),
+        pools: layer.layer(pools_inner),
     }
 }
 
@@ -372,6 +390,7 @@ where
                 .add_service(reflection)
                 .add_service(services.control)
                 .add_service(services.health)
+                .add_service(services.pools)
                 .serve_with_incoming_shutdown(incoming, shutdown)
                 .await?;
         }
@@ -380,6 +399,7 @@ where
             Server::builder()
                 .add_service(services.control)
                 .add_service(services.health)
+                .add_service(services.pools)
                 .serve_with_incoming_shutdown(incoming, shutdown)
                 .await?;
         }
@@ -392,6 +412,7 @@ where
                 .add_service(reflection)
                 .add_service(services.control)
                 .add_service(services.health)
+                .add_service(services.pools)
                 .serve_with_incoming_shutdown(incoming, shutdown)
                 .await?;
         }
@@ -400,6 +421,7 @@ where
             Server::builder()
                 .add_service(services.control)
                 .add_service(services.health)
+                .add_service(services.pools)
                 .serve_with_incoming_shutdown(incoming, shutdown)
                 .await?;
         }
@@ -508,6 +530,7 @@ pub async fn serve_on_listener(
                             .add_service(reflection)
                             .add_service(services.control)
                             .add_service(services.health)
+                            .add_service(services.pools)
                             .serve_with_incoming(incoming)
                             .await
                     }
@@ -522,6 +545,7 @@ pub async fn serve_on_listener(
                 Server::builder()
                     .add_service(services.control)
                     .add_service(services.health)
+                    .add_service(services.pools)
                     .serve_with_incoming(incoming)
                     .await
             }
@@ -536,6 +560,7 @@ pub async fn serve_on_listener(
                             .add_service(reflection)
                             .add_service(services.control)
                             .add_service(services.health)
+                            .add_service(services.pools)
                             .serve_with_incoming(incoming)
                             .await
                     }
@@ -550,6 +575,7 @@ pub async fn serve_on_listener(
                 Server::builder()
                     .add_service(services.control)
                     .add_service(services.health)
+                    .add_service(services.pools)
                     .serve_with_incoming(incoming)
                     .await
             }
