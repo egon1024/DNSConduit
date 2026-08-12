@@ -178,7 +178,9 @@ conduitctl health resume --pool default --backend resolver-a
 
 ## Access logs
 
-Every control RPC logs at **`info`** as **`control rpc`** (the **transport** line): gRPC method (`rpc`), peer address (`peer`), requestor identity (`requestor`: anonymous, API key, mTLS, or rejected), gRPC status (`grpc_code`, e.g. `Ok`, `InvalidArgument`), and latency (`latency_ms`). Request and response bodies are **not** logged.
+Every control RPC logs at **`info`** as **`control rpc`** (the **transport** line): gRPC method (`rpc`), peer address (`peer`), whether the connection used TLS (`tls`: `true`/`false` — transport encryption, distinct from requestor **`mtls`**), requestor identity (`requestor`: anonymous, API key, mTLS, or rejected), gRPC status (`grpc_code`, e.g. `Ok`, `InvalidArgument`), and latency (`latency_ms`). Request and response bodies are **not** logged.
+
+Connections that never become an RPC — TCP accept errors, or TLS handshake failures (wrong protocol, bad/missing client certificate, etc.) — log at **`warn`** as **`control plane connection failed`** with **`tls`**, **`error`**, and **`peer`** when known.
 
 Config RPCs (`ApplyConfig`, `ValidateConfig`, `ReloadFromFile`) additionally emit a **separate** `control rpc outcome` line (the **application** line) with `rpc`, `outcome` (`ok` or `rejected`), `error_count`, and the joined `errors`.
 

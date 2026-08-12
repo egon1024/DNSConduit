@@ -1,7 +1,8 @@
 //! Control-plane gRPC access logging (phase 5).
 //!
-//! Logs RPC method, peer, requestor identity, status, and latency. Request/response
-//! payloads are intentionally omitted; see plan deferrals for rich audit with redaction.
+//! Logs RPC method, peer, whether the connection used TLS, requestor identity,
+//! status, and latency. Request/response payloads are intentionally omitted;
+//! see plan deferrals for rich audit with redaction.
 
 use crate::auth::requestor_label;
 use conduit_core::SnapshotStore;
@@ -73,6 +74,7 @@ pub struct AccessLogFuture<F> {
     inner: F,
     rpc: String,
     peer: String,
+    tls: bool,
     requestor: String,
     start: Instant,
 }
@@ -94,6 +96,7 @@ where
     fn call(&mut self, req: Request<ReqBody>) -> Self::Future {
         let rpc = rpc_path(&req);
         let peer = peer_addr(&req);
+        let tls = connection_is_tls(&req);
         let meta = MetadataMap::from_headers(req.headers().clone());
         let requestor = requestor_label(
             &self.snapshots,
@@ -106,6 +109,7 @@ where
             inner: self.inner.call(req),
             rpc,
             peer,
+            tls,
             requestor,
             start,
         }
@@ -124,7 +128,14 @@ where
             Poll::Ready(Ok(res)) => {
                 let code = grpc_code_from_response(&res);
                 let latency_ms = this.start.elapsed().as_millis() as u64;
-                log_control_rpc(this.rpc, this.peer, this.requestor, code, latency_ms);
+                log_control_rpc(
+                    this.rpc,
+                    this.peer,
+                    *this.tls,
+                    this.requestor,
+                    code,
+                    latency_ms,
+                );
                 Poll::Ready(Ok(res))
             }
             Poll::Ready(Err(e)) => {
@@ -132,6 +143,7 @@ where
                 log_control_rpc(
                     this.rpc,
                     this.peer,
+                    *this.tls,
                     this.requestor,
                     Code::Unknown,
                     latency_ms,
@@ -143,10 +155,11 @@ where
     }
 }
 
-fn log_control_rpc(rpc: &str, peer: &str, requestor: &str, code: Code, latency_ms: u64) {
+fn log_control_rpc(rpc: &str, peer: &str, tls: bool, requestor: &str, code: Code, latency_ms: u64) {
     tracing::info!(
         rpc,
         peer,
+        tls,
         requestor,
         grpc_code = ?code,
         latency_ms,
@@ -178,11 +191,17 @@ fn remote_socket_addr<B>(req: &Request<B>) -> Option<std::net::SocketAddr> {
         })
 }
 
+/// True when tonic attached TLS connect info (server is speaking TLS on this connection).
+fn connection_is_tls<B>(req: &Request<B>) -> bool {
+    connection_is_tls_extensions(req.extensions())
+}
+
+fn connection_is_tls_extensions(extensions: &http::Extensions) -> bool {
+    extensions.get::<TlsConnectInfo<TcpConnectInfo>>().is_some()
+}
+
 fn peer_certs_present<B>(req: &Request<B>) -> bool {
-    req.extensions()
-        .get::<TlsConnectInfo<TcpConnectInfo>>()
-        .and_then(|info| info.peer_certs())
-        .is_some()
+    peer_certs_present_extensions(req.extensions())
 }
 
 fn grpc_code_from_response(res: &Response<BoxBody>) -> Code {
@@ -208,8 +227,14 @@ pub fn log_interceptor_denial(
     let peer = extensions
         .get::<TcpConnectInfo>()
         .and_then(|i| i.remote_addr())
+        .or_else(|| {
+            extensions
+                .get::<TlsConnectInfo<TcpConnectInfo>>()
+                .and_then(|i| i.get_ref().remote_addr())
+        })
         .map(|a| a.to_string())
         .unwrap_or_else(|| "unknown".into());
+    let tls = connection_is_tls_extensions(extensions);
     let requestor = requestor_label(
         snapshots,
         meta,
@@ -219,6 +244,7 @@ pub fn log_interceptor_denial(
     tracing::info!(
         rpc,
         peer,
+        tls,
         requestor,
         grpc_code = ?status.code(),
         latency_ms = 0_u64,
@@ -259,5 +285,10 @@ mod tests {
     fn unary_ok_response_without_status_header_defaults_to_ok() {
         let res: Response<BoxBody> = Response::new(tonic::body::empty_body());
         assert_eq!(grpc_code_from_response(&res), Code::Ok);
+    }
+
+    #[test]
+    fn connection_is_tls_false_without_tls_extension() {
+        assert!(!connection_is_tls_extensions(&http::Extensions::new()));
     }
 }

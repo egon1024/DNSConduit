@@ -1,0 +1,6 @@
+# conduitctl client — mTLS with a client cert NOT issued by the server client CA
+endpoint: https://127.0.2.1:5199
+tls:
+  ca: tests/fixtures/tls/grpc-primitives/ca.pem
+  cert: tests/fixtures/tls/grpc-primitives/unauthorized-client.pem
+  key: tests/fixtures/tls/grpc-primitives/unauthorized-client-key.pem
