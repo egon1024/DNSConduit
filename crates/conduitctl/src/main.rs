@@ -7,11 +7,13 @@ use conduit_core::{check_client_acl, RuntimeSnapshot};
 use conduit_proto::config::Config as RuntimeConfig;
 use conduit_proto::control::backend_health_client::BackendHealthClient;
 use conduit_proto::control::conduit_control_client::ConduitControlClient;
+use conduit_proto::control::conduit_pools_client::ConduitPoolsClient;
 use conduit_proto::control::Config as ControlConfig;
 use conduit_proto::control::{
     ApplyConfigRequest, BackendHealthFilter, CheckAclRequest, ExportConfigRequest,
-    GetBackendHealthRequest, GetTraceRequest, HealthControlAction, HealthScope, HealthScopeLevel,
-    OverlayApplyMode, ReloadFromFileRequest, SetHealthControlRequest,
+    GetBackendHealthRequest, GetPoolRequest, GetTraceRequest, HealthControlAction, HealthScope,
+    HealthScopeLevel, ListPoolsRequest, OverlayApplyMode, ReloadFromFileRequest,
+    RemoveBackendRequest, SetBackendWeightRequest, SetHealthControlRequest,
 };
 use conduitctl::{
     connect_channel, resolve_connect, with_auth, ConnectCliOverrides, ResolvedConnect,
@@ -99,6 +101,16 @@ enum Commands {
         #[command(subcommand)]
         command: HealthCommands,
     },
+    /// Pool config primitives (list / get)
+    Pool {
+        #[command(subcommand)]
+        command: PoolCommands,
+    },
+    /// Backend config primitives (set-weight / remove)
+    Backend {
+        #[command(subcommand)]
+        command: BackendCommands,
+    },
     /// Client ACL inspection
     Acl {
         #[command(subcommand)]
@@ -118,6 +130,40 @@ enum AclCommands {
         /// Offline: compile this config file instead of querying the live process
         #[arg(long)]
         file: Option<PathBuf>,
+    },
+}
+
+#[derive(Subcommand)]
+enum PoolCommands {
+    /// List pools in effective config
+    List,
+    /// Show one pool (including backends)
+    Get {
+        /// Pool name
+        name: String,
+    },
+}
+
+#[derive(Subcommand)]
+enum BackendCommands {
+    /// Set a backend's load-balancing weight
+    #[command(name = "set-weight")]
+    SetWeight {
+        #[arg(long)]
+        pool: String,
+        /// Backend name or address (host:port)
+        #[arg(long, value_name = "NAME|HOST:PORT")]
+        backend: String,
+        #[arg(long)]
+        weight: u32,
+    },
+    /// Remove a backend from a pool
+    Remove {
+        #[arg(long)]
+        pool: String,
+        /// Backend name or address (host:port)
+        #[arg(long, value_name = "NAME|HOST:PORT")]
+        backend: String,
     },
 }
 
@@ -210,6 +256,12 @@ async fn health_client(
     resolved: &ResolvedConnect,
 ) -> anyhow::Result<BackendHealthClient<tonic::transport::Channel>> {
     Ok(BackendHealthClient::new(connect_channel(resolved).await?))
+}
+
+async fn pools_client(
+    resolved: &ResolvedConnect,
+) -> anyhow::Result<ConduitPoolsClient<tonic::transport::Channel>> {
+    Ok(ConduitPoolsClient::new(connect_channel(resolved).await?))
 }
 
 fn health_scope(
@@ -613,6 +665,87 @@ async fn main() -> anyhow::Result<()> {
                         scope_name(r.scope_state),
                     );
                 }
+            }
+        },
+        Commands::Pool { ref command } => match command {
+            PoolCommands::List => {
+                let mut client = pools_client(&resolved).await?;
+                let resp = client
+                    .list_pools(with_auth(
+                        &resolved,
+                        tonic::Request::new(ListPoolsRequest {}),
+                    )?)
+                    .await?
+                    .into_inner();
+                for p in resp.pools {
+                    println!("{} backends={}", p.name, p.backend_count);
+                }
+            }
+            PoolCommands::Get { name } => {
+                let mut client = pools_client(&resolved).await?;
+                let resp = client
+                    .get_pool(with_auth(
+                        &resolved,
+                        tonic::Request::new(GetPoolRequest { name: name.clone() }),
+                    )?)
+                    .await?
+                    .into_inner();
+                let pool = resp
+                    .pool
+                    .ok_or_else(|| anyhow::anyhow!("empty GetPool response"))?;
+                println!("pool {}", pool.name);
+                for b in pool.backends {
+                    let bname = b.name.as_deref().unwrap_or("-");
+                    let weight = b
+                        .weight
+                        .map(|w| w.to_string())
+                        .unwrap_or_else(|| "-".into());
+                    println!(
+                        "  backend name={bname} address={} weight={weight}",
+                        b.address
+                    );
+                }
+            }
+        },
+        Commands::Backend { ref command } => match command {
+            BackendCommands::SetWeight {
+                pool,
+                backend,
+                weight,
+            } => {
+                let mut client = pools_client(&resolved).await?;
+                let resp = client
+                    .set_backend_weight(with_auth(
+                        &resolved,
+                        tonic::Request::new(SetBackendWeightRequest {
+                            pool: pool.clone(),
+                            backend: backend.clone(),
+                            weight: *weight,
+                        }),
+                    )?)
+                    .await?
+                    .into_inner();
+                if !resp.ok {
+                    anyhow::bail!("set-weight failed: {}", resp.errors.join("; "));
+                }
+                println!("ok generation={}", resp.generation);
+            }
+            BackendCommands::Remove { pool, backend } => {
+                let mut client = pools_client(&resolved).await?;
+                let resp = client
+                    .remove_backend(with_auth(
+                        &resolved,
+                        tonic::Request::new(RemoveBackendRequest {
+                            pool: pool.clone(),
+                            backend: backend.clone(),
+                        }),
+                    )?)
+                    .await?
+                    .into_inner();
+                if !resp.ok {
+                    anyhow::bail!("remove failed: {}", resp.errors.join("; "));
+                }
+                println!("ok generation={}", resp.generation);
             }
         },
     }
