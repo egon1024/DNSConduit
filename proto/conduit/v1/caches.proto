@@ -1,0 +1,58 @@
+syntax = "proto3";
+
+package conduit.v1;
+
+import "conduit/v1/config.proto";
+import "conduit/v1/control.proto";
+
+// Overlay-hot cache instance knobs. memory.shard_count / memory.eviction and
+// warm type/path/LMDB shard flips are not exposed as typed writes.
+service ConduitCaches {
+  rpc ListCaches(ListCachesRequest) returns (ListCachesResponse);
+  rpc GetCache(GetCacheRequest) returns (GetCacheResponse);
+  rpc SetCacheMaxEntries(SetCacheMaxEntriesRequest) returns (ApplyConfigResponse);
+  rpc SetCacheLmdbHot(SetCacheLmdbHotRequest) returns (ApplyConfigResponse);
+  rpc SetCachePolicyHot(SetCachePolicyHotRequest) returns (ApplyConfigResponse);
+}
+
+message ListCachesRequest {}
+
+message ListCachesResponse {
+  repeated CacheSummary caches = 1;
+}
+
+message CacheSummary {
+  string name = 1;
+  string type = 2;
+  optional uint64 max_entries = 3;
+}
+
+message GetCacheRequest {
+  string name = 1;
+}
+
+message GetCacheResponse {
+  CacheInstance cache = 1;
+}
+
+message SetCacheMaxEntriesRequest {
+  string name = 1;
+  uint64 max_entries = 2;
+}
+
+message SetCacheLmdbHotRequest {
+  string name = 1;
+  optional string when_full = 2;
+  optional uint32 sample_size = 3;
+  optional string sync = 4;
+  optional string sync_interval = 5;
+  optional uint64 map_size_bytes = 6;
+}
+
+message SetCachePolicyHotRequest {
+  string name = 1;
+  optional CacheNegativeConfig negative_cache = 2;
+  optional CacheOnHitConfig on_hit = 3;
+  optional CacheTruncatedUdpConfig truncated_udp = 4;
+  optional bool rotate_rrset_on_serve = 5;
+}

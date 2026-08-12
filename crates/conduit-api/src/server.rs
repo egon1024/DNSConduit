@@ -2,9 +2,15 @@
 
 use crate::access_log::{log_control_outcome, AccessLogLayer, AccessLogService};
 use crate::auth::ControlInterceptor;
+use crate::caches::CachesService;
+use crate::data_sources::DataSourcesService;
+use crate::events::EventsService;
 use crate::health::BackendHealthService;
 use crate::incoming::{plain_control_incoming, tls_control_incoming};
+use crate::metrics_svc::MetricsSvcService;
+use crate::orchestrator::OrchestratorService;
 use crate::pools::PoolsService;
+use crate::rhai::RhaiService;
 use crate::tls::prepare_control_tls;
 use conduit_config::{export_yaml, validate, EffectiveConfig};
 use conduit_core::check_client_acl;
@@ -14,8 +20,14 @@ use conduit_core::AclCheckError;
 use conduit_metrics::TracingHub;
 use conduit_proto::config::Config as RuntimeConfig;
 use conduit_proto::control::backend_health_server::BackendHealthServer;
+use conduit_proto::control::conduit_caches_server::ConduitCachesServer;
 use conduit_proto::control::conduit_control_server::{ConduitControl, ConduitControlServer};
+use conduit_proto::control::conduit_data_sources_server::ConduitDataSourcesServer;
+use conduit_proto::control::conduit_events_server::ConduitEventsServer;
+use conduit_proto::control::conduit_metrics_server::ConduitMetricsServer;
+use conduit_proto::control::conduit_orchestrator_server::ConduitOrchestratorServer;
 use conduit_proto::control::conduit_pools_server::ConduitPoolsServer;
+use conduit_proto::control::conduit_rhai_server::ConduitRhaiServer;
 use conduit_proto::control::Config as ControlConfig;
 use conduit_proto::control::OverlayApplyMode as ProtoOverlayApplyMode;
 use conduit_proto::control::{
@@ -274,10 +286,58 @@ type InterceptedPoolsService = AccessLogService<
     >,
 >;
 
+type InterceptedOrchestratorService = AccessLogService<
+    tonic::service::interceptor::InterceptedService<
+        ConduitOrchestratorServer<OrchestratorService>,
+        ControlInterceptor,
+    >,
+>;
+
+type InterceptedDataSourcesService = AccessLogService<
+    tonic::service::interceptor::InterceptedService<
+        ConduitDataSourcesServer<DataSourcesService>,
+        ControlInterceptor,
+    >,
+>;
+
+type InterceptedEventsService = AccessLogService<
+    tonic::service::interceptor::InterceptedService<
+        ConduitEventsServer<EventsService>,
+        ControlInterceptor,
+    >,
+>;
+
+type InterceptedRhaiService = AccessLogService<
+    tonic::service::interceptor::InterceptedService<
+        ConduitRhaiServer<RhaiService>,
+        ControlInterceptor,
+    >,
+>;
+
+type InterceptedMetricsSvcService = AccessLogService<
+    tonic::service::interceptor::InterceptedService<
+        ConduitMetricsServer<MetricsSvcService>,
+        ControlInterceptor,
+    >,
+>;
+
+type InterceptedCachesService = AccessLogService<
+    tonic::service::interceptor::InterceptedService<
+        ConduitCachesServer<CachesService>,
+        ControlInterceptor,
+    >,
+>;
+
 struct ControlPlaneServices {
     control: InterceptedControlService,
     health: InterceptedBackendHealthService,
     pools: InterceptedPoolsService,
+    orchestrator: InterceptedOrchestratorService,
+    data_sources: InterceptedDataSourcesService,
+    events: InterceptedEventsService,
+    rhai: InterceptedRhaiService,
+    metrics_svc: InterceptedMetricsSvcService,
+    caches: InterceptedCachesService,
 }
 
 fn build_servers(
@@ -307,6 +367,48 @@ fn build_servers(
     let pools_inner = ConduitPoolsServer::with_interceptor(
         PoolsService {
             snapshots: snapshots.clone(),
+            configurator: configurator.clone(),
+        },
+        interceptor.clone(),
+    );
+    let orchestrator_inner = ConduitOrchestratorServer::with_interceptor(
+        OrchestratorService {
+            snapshots: snapshots.clone(),
+            configurator: configurator.clone(),
+        },
+        interceptor.clone(),
+    );
+    let data_sources_inner = ConduitDataSourcesServer::with_interceptor(
+        DataSourcesService {
+            snapshots: snapshots.clone(),
+            configurator: configurator.clone(),
+        },
+        interceptor.clone(),
+    );
+    let events_inner = ConduitEventsServer::with_interceptor(
+        EventsService {
+            snapshots: snapshots.clone(),
+            configurator: configurator.clone(),
+        },
+        interceptor.clone(),
+    );
+    let rhai_inner = ConduitRhaiServer::with_interceptor(
+        RhaiService {
+            snapshots: snapshots.clone(),
+            configurator: configurator.clone(),
+        },
+        interceptor.clone(),
+    );
+    let metrics_svc_inner = ConduitMetricsServer::with_interceptor(
+        MetricsSvcService {
+            snapshots: snapshots.clone(),
+            configurator: configurator.clone(),
+        },
+        interceptor.clone(),
+    );
+    let caches_inner = ConduitCachesServer::with_interceptor(
+        CachesService {
+            snapshots: snapshots.clone(),
             configurator,
         },
         interceptor,
@@ -316,6 +418,12 @@ fn build_servers(
         control: layer.layer(control_inner),
         health: layer.layer(health_inner),
         pools: layer.layer(pools_inner),
+        orchestrator: layer.layer(orchestrator_inner),
+        data_sources: layer.layer(data_sources_inner),
+        events: layer.layer(events_inner),
+        rhai: layer.layer(rhai_inner),
+        metrics_svc: layer.layer(metrics_svc_inner),
+        caches: layer.layer(caches_inner),
     }
 }
 
@@ -391,6 +499,12 @@ where
                 .add_service(services.control)
                 .add_service(services.health)
                 .add_service(services.pools)
+                .add_service(services.orchestrator)
+                .add_service(services.data_sources)
+                .add_service(services.events)
+                .add_service(services.rhai)
+                .add_service(services.metrics_svc)
+                .add_service(services.caches)
                 .serve_with_incoming_shutdown(incoming, shutdown)
                 .await?;
         }
@@ -400,6 +514,12 @@ where
                 .add_service(services.control)
                 .add_service(services.health)
                 .add_service(services.pools)
+                .add_service(services.orchestrator)
+                .add_service(services.data_sources)
+                .add_service(services.events)
+                .add_service(services.rhai)
+                .add_service(services.metrics_svc)
+                .add_service(services.caches)
                 .serve_with_incoming_shutdown(incoming, shutdown)
                 .await?;
         }
@@ -413,6 +533,12 @@ where
                 .add_service(services.control)
                 .add_service(services.health)
                 .add_service(services.pools)
+                .add_service(services.orchestrator)
+                .add_service(services.data_sources)
+                .add_service(services.events)
+                .add_service(services.rhai)
+                .add_service(services.metrics_svc)
+                .add_service(services.caches)
                 .serve_with_incoming_shutdown(incoming, shutdown)
                 .await?;
         }
@@ -422,6 +548,12 @@ where
                 .add_service(services.control)
                 .add_service(services.health)
                 .add_service(services.pools)
+                .add_service(services.orchestrator)
+                .add_service(services.data_sources)
+                .add_service(services.events)
+                .add_service(services.rhai)
+                .add_service(services.metrics_svc)
+                .add_service(services.caches)
                 .serve_with_incoming_shutdown(incoming, shutdown)
                 .await?;
         }
@@ -531,6 +663,12 @@ pub async fn serve_on_listener(
                             .add_service(services.control)
                             .add_service(services.health)
                             .add_service(services.pools)
+                            .add_service(services.orchestrator)
+                            .add_service(services.data_sources)
+                            .add_service(services.events)
+                            .add_service(services.rhai)
+                            .add_service(services.metrics_svc)
+                            .add_service(services.caches)
                             .serve_with_incoming(incoming)
                             .await
                     }
@@ -546,6 +684,12 @@ pub async fn serve_on_listener(
                     .add_service(services.control)
                     .add_service(services.health)
                     .add_service(services.pools)
+                    .add_service(services.orchestrator)
+                    .add_service(services.data_sources)
+                    .add_service(services.events)
+                    .add_service(services.rhai)
+                    .add_service(services.metrics_svc)
+                    .add_service(services.caches)
                     .serve_with_incoming(incoming)
                     .await
             }
@@ -561,6 +705,12 @@ pub async fn serve_on_listener(
                             .add_service(services.control)
                             .add_service(services.health)
                             .add_service(services.pools)
+                            .add_service(services.orchestrator)
+                            .add_service(services.data_sources)
+                            .add_service(services.events)
+                            .add_service(services.rhai)
+                            .add_service(services.metrics_svc)
+                            .add_service(services.caches)
                             .serve_with_incoming(incoming)
                             .await
                     }
@@ -576,6 +726,12 @@ pub async fn serve_on_listener(
                     .add_service(services.control)
                     .add_service(services.health)
                     .add_service(services.pools)
+                    .add_service(services.orchestrator)
+                    .add_service(services.data_sources)
+                    .add_service(services.events)
+                    .add_service(services.rhai)
+                    .add_service(services.metrics_svc)
+                    .add_service(services.caches)
                     .serve_with_incoming(incoming)
                     .await
             }

@@ -5,7 +5,9 @@
 //! additive pool/backend removes).
 
 use crate::error::ConfigError;
-use conduit_proto::config::{Backend, Config, Pool};
+use conduit_proto::config::{
+    Backend, CacheInstance, Config, DataSource, MetricsConfig, Pool, UserMetricExportConfig,
+};
 
 /// Build an overlay `overlay'` such that merging it onto `file` yields `desired`.
 pub fn synthesize_overlay(file: &Config, desired: &Config) -> Result<Config, ConfigError> {
@@ -16,13 +18,9 @@ pub fn synthesize_overlay(file: &Config, desired: &Config) -> Result<Config, Con
 
     synthesize_section_replace(file, desired, &mut overlay);
     overlay.pools = synthesize_pools(&file.pools, &desired.pools)?;
-
-    // Extension points for later overlay-hot primitives (Phase D+). Each helper
-    // currently no-ops when the section already matches via section-replace or
-    // when deep-merge semantics need a dedicated synthesizer.
-    synthesize_metrics_stub(file, desired, &mut overlay);
-    synthesize_data_sources_stub(file, desired, &mut overlay);
-    synthesize_caches_stub(file, desired, &mut overlay);
+    overlay.metrics = synthesize_metrics(file.metrics.as_ref(), desired.metrics.as_ref());
+    overlay.data_sources = synthesize_data_sources(&file.data_sources, &desired.data_sources)?;
+    overlay.caches = synthesize_caches(&file.caches, &desired.caches)?;
 
     Ok(overlay)
 }
@@ -68,24 +66,113 @@ fn synthesize_section_replace(file: &Config, desired: &Config, overlay: &mut Con
     }
 }
 
-/// Metrics use deep-merge; a dedicated synthesizer lands with metrics primitives.
-/// Best-effort: when unequal, place the full desired metrics on the overlay.
-fn synthesize_metrics_stub(file: &Config, desired: &Config, overlay: &mut Config) {
-    if desired.metrics != file.metrics {
-        overlay.metrics = desired.metrics.clone();
+/// Deep-merge metrics: emit a sparse patch of fields that differ.
+fn synthesize_metrics(
+    file: Option<&MetricsConfig>,
+    desired: Option<&MetricsConfig>,
+) -> Option<MetricsConfig> {
+    match (file, desired) {
+        (None, None) => None,
+        (Some(_), None) => {
+            // Deep-merge cannot clear the whole metrics section; callers that need
+            // that use document Clear/replace. Supported primitives only patch.
+            None
+        }
+        (None, Some(desired)) => Some(desired.clone()),
+        (Some(file), Some(desired)) => {
+            if file == desired {
+                return None;
+            }
+            Some(metrics_delta(file, desired))
+        }
     }
 }
 
-fn synthesize_data_sources_stub(file: &Config, desired: &Config, overlay: &mut Config) {
-    if desired.data_sources != file.data_sources {
-        overlay.data_sources = desired.data_sources.clone();
+fn metrics_delta(file: &MetricsConfig, desired: &MetricsConfig) -> MetricsConfig {
+    let mut delta = MetricsConfig::default();
+
+    if desired.enabled != file.enabled {
+        delta.enabled = desired.enabled;
     }
+    if desired.profile != file.profile {
+        delta.profile = desired.profile.clone();
+    }
+    if desired.base != file.base {
+        delta.base = desired.base.clone();
+    }
+    if desired.prometheus != file.prometheus {
+        delta.prometheus = desired.prometheus.clone();
+    }
+    if desired.otel != file.otel {
+        delta.otel = desired.otel.clone();
+    }
+    if desired.event_export != file.event_export {
+        delta.event_export = desired.event_export;
+    }
+    if desired.categories != file.categories {
+        delta.categories = desired.categories.clone();
+    }
+    if desired.granularity != file.granularity {
+        delta.granularity = desired.granularity.clone();
+    }
+    for (key, desired_ce) in &desired.collection {
+        match file.collection.get(key) {
+            Some(file_ce) if file_ce == desired_ce => {}
+            _ => {
+                delta.collection.insert(key.clone(), *desired_ce);
+            }
+        }
+    }
+    delta.user_metrics = synthesize_user_metrics(&file.user_metrics, &desired.user_metrics);
+    delta
 }
 
-fn synthesize_caches_stub(file: &Config, desired: &Config, overlay: &mut Config) {
-    if desired.caches != file.caches {
-        overlay.caches = desired.caches.clone();
+fn synthesize_user_metrics(
+    file: &[UserMetricExportConfig],
+    desired: &[UserMetricExportConfig],
+) -> Vec<UserMetricExportConfig> {
+    let mut out = Vec::new();
+    for d in desired {
+        match file.iter().find(|f| f.name == d.name) {
+            Some(f) if f == d => {}
+            _ => out.push(d.clone()),
+        }
     }
+    out
+}
+
+/// List-replace when non-empty: put the full desired list when it differs.
+/// Clearing all file sources via empty desired is not expressible (merge ignores
+/// empty overlay lists); supported remove primitives leave a synthesizable remainder
+/// or fail validate for other reasons.
+fn synthesize_data_sources(
+    file: &[DataSource],
+    desired: &[DataSource],
+) -> Result<Vec<DataSource>, ConfigError> {
+    if file == desired {
+        return Ok(Vec::new());
+    }
+    if desired.is_empty() && !file.is_empty() {
+        return Err(ConfigError::Invalid(
+            "synthesize_overlay cannot clear all data_sources via empty overlay list".into(),
+        ));
+    }
+    Ok(desired.to_vec())
+}
+
+fn synthesize_caches(
+    file: &[CacheInstance],
+    desired: &[CacheInstance],
+) -> Result<Vec<CacheInstance>, ConfigError> {
+    if file == desired {
+        return Ok(Vec::new());
+    }
+    if desired.is_empty() && !file.is_empty() {
+        return Err(ConfigError::Invalid(
+            "synthesize_overlay cannot clear all caches via empty overlay list".into(),
+        ));
+    }
+    Ok(desired.to_vec())
 }
 
 fn synthesize_pools(file: &[Pool], desired: &[Pool]) -> Result<Vec<Pool>, ConfigError> {
@@ -252,6 +339,9 @@ mod tests {
     use super::*;
     use crate::file::load_yaml;
     use crate::merge::merge_file_and_overlay;
+    use conduit_proto::config::{
+        CacheLmdbConfig, DataSourceLimits, OrchestratorConfig, RhaiConfig,
+    };
 
     fn two_backend_file() -> Config {
         load_yaml(
@@ -322,6 +412,111 @@ pools:
         desired.pools[0].backends[1].weight = Some(25);
         let overlay = synthesize_overlay(&file, &desired).unwrap();
         assert!(overlay.listeners.is_none());
+        assert_round_trip(&file, &desired);
+    }
+
+    #[test]
+    fn synthesize_orchestrator_limits_round_trip() {
+        let file = two_backend_file();
+        let mut desired = file.clone();
+        desired.orchestrator = Some(OrchestratorConfig {
+            max_attempts: 4,
+            max_txn_duration_ms: 2000,
+            txn_table_capacity: 0,
+        });
+        assert_round_trip(&file, &desired);
+    }
+
+    #[test]
+    fn synthesize_rhai_limits_round_trip() {
+        let file = two_backend_file();
+        let mut desired = file.clone();
+        desired.rhai = Some(RhaiConfig {
+            max_operations: 10_000,
+            max_call_depth: 32,
+            hook_timeout_ms: 100,
+        });
+        assert_round_trip(&file, &desired);
+    }
+
+    #[test]
+    fn synthesize_data_source_upsert_round_trip() {
+        let mut file = two_backend_file();
+        file.data_sources = vec![DataSource {
+            name: "geo".into(),
+            r#type: "csv".into(),
+            path: "geo.csv".into(),
+            ..Default::default()
+        }];
+        let mut desired = file.clone();
+        desired.data_sources.push(DataSource {
+            name: "asn".into(),
+            r#type: "csv".into(),
+            path: "asn.csv".into(),
+            ..Default::default()
+        });
+        assert_round_trip(&file, &desired);
+    }
+
+    #[test]
+    fn synthesize_data_source_limits_round_trip() {
+        let file = two_backend_file();
+        let mut desired = file.clone();
+        desired.data_source_limits = Some(DataSourceLimits {
+            max_tables: 8,
+            max_entries: 1000,
+            ..Default::default()
+        });
+        assert_round_trip(&file, &desired);
+    }
+
+    #[test]
+    fn synthesize_metrics_enabled_round_trip() {
+        let mut file = two_backend_file();
+        file.metrics = Some(MetricsConfig {
+            enabled: Some(true),
+            base: "minimal".into(),
+            ..Default::default()
+        });
+        let mut desired = file.clone();
+        desired.metrics.as_mut().unwrap().enabled = Some(false);
+        assert_round_trip(&file, &desired);
+    }
+
+    #[test]
+    fn synthesize_cache_max_entries_round_trip() {
+        let mut file = two_backend_file();
+        file.caches = vec![CacheInstance {
+            name: "answers".into(),
+            r#type: "memory".into(),
+            max_entries: Some(1000),
+            ..Default::default()
+        }];
+        let mut desired = file.clone();
+        desired.caches[0].max_entries = Some(2000);
+        assert_round_trip(&file, &desired);
+    }
+
+    #[test]
+    fn synthesize_cache_lmdb_hot_round_trip() {
+        let mut file = two_backend_file();
+        file.caches = vec![CacheInstance {
+            name: "durable".into(),
+            r#type: "lmdb".into(),
+            max_entries: Some(5000),
+            lmdb: Some(CacheLmdbConfig {
+                path: "/tmp/conduit-cache".into(),
+                map_size_bytes: 64 * 1024 * 1024,
+                when_full: Some("evict_one".into()),
+                sync: Some("full".into()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }];
+        let mut desired = file.clone();
+        let lmdb = desired.caches[0].lmdb.as_mut().unwrap();
+        lmdb.when_full = Some("refuse".into());
+        lmdb.map_size_bytes = 128 * 1024 * 1024;
         assert_round_trip(&file, &desired);
     }
 }

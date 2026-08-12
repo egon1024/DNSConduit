@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package conduit.v1;
+
+import "conduit/v1/config.proto";
+import "conduit/v1/control.proto";
+
+// Overlay-hot Rhai sandbox limits (rules/scripts remain reload-only).
+service ConduitRhai {
+  rpc GetRhai(GetRhaiRequest) returns (GetRhaiResponse);
+  rpc SetRhaiLimits(SetRhaiLimitsRequest) returns (ApplyConfigResponse);
+}
+
+message GetRhaiRequest {}
+
+message GetRhaiResponse {
+  RhaiConfig rhai = 1;
+}
+
+message SetRhaiLimitsRequest {
+  optional uint64 max_operations = 1;
+  optional uint32 max_call_depth = 2;
+  optional uint32 hook_timeout_ms = 3;
+}

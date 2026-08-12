@@ -12,6 +12,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 "conduit/v1/control.proto",
                 "conduit/v1/health.proto",
                 "conduit/v1/pools.proto",
+                "conduit/v1/orchestrator.proto",
+                "conduit/v1/data_sources.proto",
+                "conduit/v1/events.proto",
+                "conduit/v1/rhai.proto",
+                "conduit/v1/metrics_control.proto",
+                "conduit/v1/caches.proto",
             ],
             &[proto_root],
         )?;
