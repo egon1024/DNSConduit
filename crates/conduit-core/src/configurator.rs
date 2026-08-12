@@ -57,12 +57,21 @@ pub struct PolicyProposal {
     pub correlation_id: Option<String>,
 }
 
+/// One status/effect note attached to an apply outcome (mirrors proto `ConfigApplyStatusNote`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ApplyStatusNote {
+    pub kind: String,
+    pub message: String,
+}
+
 /// Outcome of a single apply attempt.
 #[derive(Debug, Clone)]
 pub struct ApplyResult {
     pub ok: bool,
     pub errors: Vec<String>,
     pub generation: u64,
+    /// Extensible effect / pending-reconcile notes; empty is OK for fully hot applies.
+    pub notes: Vec<ApplyStatusNote>,
 }
 
 struct ProposalEnvelope {
@@ -104,12 +113,14 @@ impl ConfiguratorHandle {
                 ok: false,
                 errors: vec!["configurator stopped".into()],
                 generation: 0,
+                notes: vec![],
             };
         }
         reply_rx.await.unwrap_or(ApplyResult {
             ok: false,
             errors: vec!["configurator dropped reply".into()],
             generation: 0,
+            notes: vec![],
         })
     }
 
@@ -249,6 +260,7 @@ async fn apply_proposal(
                 ok: false,
                 errors,
                 generation: store.generation(),
+                notes: vec![],
             };
         }
     };
@@ -267,6 +279,7 @@ async fn apply_proposal(
                     ok: false,
                     errors: vec![e],
                     generation: store.generation(),
+                    notes: vec![],
                 };
             }
         }
@@ -296,12 +309,16 @@ async fn apply_proposal(
                 ok: true,
                 errors: vec![],
                 generation: new.generation,
+                // Fully hot document applies leave notes empty; pending-restart
+                // honesty notes are added when warm/cold paths need them.
+                notes: vec![],
             }
         }
         Err(errors) => ApplyResult {
             ok: false,
             errors,
             generation: store.generation(),
+            notes: vec![],
         },
     }
 }

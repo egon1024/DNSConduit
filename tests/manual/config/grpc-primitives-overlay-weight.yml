@@ -1,0 +1,7 @@
+# Sparse weight patch — secondary remains untouched
+schema_version: 1
+pools:
+  - name: edge
+    backends:
+      - name: primary
+        weight: 50

@@ -651,6 +651,7 @@ impl PartialEq for YamlRhai {
 #[derive(Debug, Deserialize, Serialize)]
 pub(crate) struct YamlPool {
     name: String,
+    #[serde(default)]
     backends: Vec<YamlBackend>,
     #[serde(default)]
     sources_v4: Vec<String>,
@@ -660,6 +661,9 @@ pub(crate) struct YamlPool {
     max_inflight: Option<u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     health: Option<YamlHealthCheck>,
+    /// Overlay-only remove marker; never serialized from effective export.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    remove: Option<bool>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Default)]
@@ -710,6 +714,9 @@ pub(crate) struct YamlBackend {
     probe_source: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     transport: Option<String>,
+    /// Overlay-only remove marker; never serialized from effective export.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    remove: Option<bool>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -1540,6 +1547,7 @@ impl From<YamlPool> for Pool {
             sources_v6: y.sources_v6,
             max_inflight: y.max_inflight,
             health: y.health.map(Into::into),
+            remove: y.remove.filter(|r| *r),
         }
     }
 }
@@ -1594,6 +1602,7 @@ impl From<YamlBackend> for Backend {
             probe_qtype: y.probe_qtype,
             probe_source: y.probe_source,
             transport: y.transport,
+            remove: y.remove.filter(|r| *r),
         }
     }
 }
@@ -2195,6 +2204,8 @@ impl TryFrom<&Pool> for YamlPool {
             sources_v6: p.sources_v6.clone(),
             max_inflight: p.max_inflight,
             health: p.health.as_ref().map(YamlHealthCheck::from),
+            // Effective/export must never emit remove markers.
+            remove: None,
         })
     }
 }
@@ -2212,6 +2223,8 @@ impl From<&Backend> for YamlBackend {
             probe_qtype: b.probe_qtype.clone(),
             probe_source: b.probe_source.clone(),
             transport: b.transport.clone(),
+            // Effective/export must never emit remove markers.
+            remove: None,
         }
     }
 }

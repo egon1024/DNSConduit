@@ -182,9 +182,9 @@ Every control RPC logs at **`info`** as **`control rpc`** (the **transport** lin
 
 Connections that never become an RPC — TCP accept errors, or TLS handshake failures (wrong protocol, bad/missing client certificate, etc.) — log at **`warn`** as **`control plane connection failed`** with **`tls`**, **`error`**, and **`peer`** when known.
 
-Config RPCs (`ApplyConfig`, `ValidateConfig`, `ReloadFromFile`) additionally emit a **separate** `control rpc outcome` line (the **application** line) with `rpc`, `outcome` (`ok` or `rejected`), `error_count`, and the joined `errors`.
+Config RPCs (`ApplyConfig`, `ValidateConfig`, `ReloadFromFile`) additionally emit a **separate** `control rpc outcome` line (the **application** line) with `rpc`, `outcome` (`ok` or `rejected`), `error_count`, and the joined `errors`. Successful outcomes (`outcome=ok`) log at **`info`**; rejections (`outcome=rejected`) log at **`warn`** so failed apply/validate/reload attempts stand out while the last-good snapshot stays active.
 
-The two lines report different layers. A config that fails validation is rejected **in-band** — the RPC still succeeds at the transport layer — so it logs `control rpc` with `grpc_code=Ok` **and** a `control rpc outcome` with `outcome=rejected` and `error_count>0`. `conduitctl` surfaces the same rejection as a non-zero exit with the validation messages.
+The two lines report different layers. A config that fails validation is rejected **in-band** — the RPC still succeeds at the transport layer — so it logs `control rpc` with `grpc_code=Ok` **and** a `control rpc outcome` at **`warn`** with `outcome=rejected` and `error_count>0`. `conduitctl` surfaces the same rejection as a non-zero exit with the validation messages.
 
 ## gRPC reflection
 

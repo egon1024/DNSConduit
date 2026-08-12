@@ -23,14 +23,27 @@ use tower::{Layer, Service};
 /// middleware. Handlers whose verdict lives in the message body (`ok`/`errors`)
 /// rather than the gRPC status call this so a rejected apply/validate/reload is
 /// visible even though the transport status is `Ok`.
+///
+/// Successful outcomes log at `info`; rejections log at `warn` so failed operator
+/// actions stand out while last-good remains active.
 pub fn log_control_outcome(rpc: &str, ok: bool, errors: &[String]) {
-    tracing::info!(
-        rpc,
-        outcome = if ok { "ok" } else { "rejected" },
-        error_count = errors.len(),
-        errors = ?errors.join("; "),
-        "control rpc outcome"
-    );
+    if ok {
+        tracing::info!(
+            rpc,
+            outcome = "ok",
+            error_count = errors.len(),
+            errors = ?errors.join("; "),
+            "control rpc outcome"
+        );
+    } else {
+        tracing::warn!(
+            rpc,
+            outcome = "rejected",
+            error_count = errors.len(),
+            errors = ?errors.join("; "),
+            "control rpc outcome"
+        );
+    }
 }
 
 #[derive(Clone)]

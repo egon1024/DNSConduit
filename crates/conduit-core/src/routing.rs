@@ -287,6 +287,7 @@ mod tests {
             sources_v6: vec![],
             max_inflight: None,
             health: None,
+            remove: None,
         }
     }
 
@@ -385,6 +386,7 @@ mod tests {
                 sources_v6: vec![],
                 max_inflight: None,
                 health: None,
+                remove: None,
             },
         ];
         let primary_tried = vec!["10.0.0.1:53".parse().unwrap()];
@@ -607,6 +609,7 @@ mod tests {
             sources_v6: vec![],
             max_inflight: None,
             health: None,
+            remove: None,
         };
         let pools = vec![pool];
         let table = table_all_up(&pools[0]);

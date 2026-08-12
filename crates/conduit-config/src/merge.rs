@@ -8,8 +8,15 @@
 //! - **`schema_version`**: overlay value wins.
 //! - **`pools`**: match pools by `name`; for each overlay pool, match backends by
 //!   `name` when the overlay entry has a non-empty `name`, else by `address`.
-//!   Unknown overlay backend `name` is rejected. Overlay backends matched only by
-//!   `address` that are not present in a pool are appended.
+//!   Unknown overlay backend `name` without an `address` is rejected (typo on
+//!   update). Unknown `name` with an `address` appends a new named backend.
+//!   Overlay backends matched only by `address` that are not present in a pool
+//!   are appended. Explicit `remove: true` on a pool or backend (overlay-only
+//!   marker) deletes the matched entry when merging onto the file baseline;
+//!   unknown remove targets fail that apply. When accumulating overlay patches
+//!   (`merge_overlay_patches`), remove markers are retained so a later file
+//!   merge can delete file-layer members absent from the sparse overlay.
+//!   Sparse update/append without the marker is unchanged.
 //! - **`metrics`**: deep merge (intentional exception to section replace). Nested
 //!   maps merge by key; scalars win when set; `categories.include`/`exclude`
 //!   replace only when `include_set`/`exclude_set`; `user_metrics` match-by-name.
@@ -44,8 +51,25 @@ impl EffectiveConfig {
     }
 }
 
-pub fn merge_file_and_overlay(file: &Config, overlay: &Config) -> Result<Config, ConfigError> {
-    let mut merged = file.clone();
+/// Merge one overlay patch into another (same rules as [`merge_file_and_overlay`],
+/// except remove markers are **accumulated** rather than applied: prior overlay
+/// entries for the same pool/backend identity are dropped and the `remove: true`
+/// marker is retained so a later [`merge_file_and_overlay`] against the file
+/// baseline can delete file-layer members).
+pub fn merge_overlay_patches(base: &Config, patch: &Config) -> Result<Config, ConfigError> {
+    merge_configs(base, patch, MergeMode::AccumulateOverlay)
+}
+
+#[derive(Clone, Copy)]
+enum MergeMode {
+    /// Overlay onto file (or any full baseline): apply removes; unknown targets fail.
+    ApplyToBaseline,
+    /// Overlay onto overlay: keep remove markers for a later baseline apply.
+    AccumulateOverlay,
+}
+
+fn merge_configs(base: &Config, overlay: &Config, mode: MergeMode) -> Result<Config, ConfigError> {
+    let mut merged = base.clone();
 
     merged.schema_version = overlay.schema_version;
 
@@ -97,10 +121,14 @@ pub fn merge_file_and_overlay(file: &Config, overlay: &Config) -> Result<Config,
     }
 
     if !overlay.pools.is_empty() {
-        merge_pools(&mut merged.pools, &overlay.pools)?;
+        merge_pools(&mut merged.pools, &overlay.pools, mode)?;
     }
 
     Ok(merged)
+}
+
+pub fn merge_file_and_overlay(file: &Config, overlay: &Config) -> Result<Config, ConfigError> {
+    merge_configs(file, overlay, MergeMode::ApplyToBaseline)
 }
 
 pub fn clear_overlay(effective: &mut EffectiveConfig) {
@@ -127,21 +155,68 @@ pub fn is_overlay_patch_empty(cfg: &Config) -> bool {
         && cfg.metrics.is_none()
 }
 
-/// Merge one overlay patch into another (same rules as [`merge_file_and_overlay`]).
-pub fn merge_overlay_patches(base: &Config, patch: &Config) -> Result<Config, ConfigError> {
-    merge_file_and_overlay(base, patch)
-}
-
-fn merge_pools(base: &mut Vec<Pool>, overlay: &[Pool]) -> Result<(), ConfigError> {
+fn merge_pools(base: &mut Vec<Pool>, overlay: &[Pool], mode: MergeMode) -> Result<(), ConfigError> {
     for overlay_pool in overlay {
+        if overlay_pool.remove.unwrap_or(false) {
+            match mode {
+                MergeMode::ApplyToBaseline => {
+                    let name = &overlay_pool.name;
+                    if name.is_empty() {
+                        return Err(ConfigError::Invalid(
+                            "overlay pool remove requires a non-empty name".into(),
+                        ));
+                    }
+                    let before = base.len();
+                    base.retain(|p| p.name != *name);
+                    if base.len() == before {
+                        return Err(ConfigError::Invalid(format!(
+                            "overlay requests remove of unknown pool '{name}'"
+                        )));
+                    }
+                }
+                MergeMode::AccumulateOverlay => {
+                    let name = &overlay_pool.name;
+                    if name.is_empty() {
+                        return Err(ConfigError::Invalid(
+                            "overlay pool remove requires a non-empty name".into(),
+                        ));
+                    }
+                    // Drop prior overlay state for this pool; keep the remove marker.
+                    base.retain(|p| p.name != *name);
+                    base.push(Pool {
+                        name: name.clone(),
+                        remove: Some(true),
+                        ..Default::default()
+                    });
+                }
+            }
+            continue;
+        }
         if let Some(base_pool) = base.iter_mut().find(|p| p.name == overlay_pool.name) {
+            // A later non-remove patch for a pool cancels a prior pool-level remove marker.
+            base_pool.remove = None;
             merge_backends(
                 &base_pool.name,
                 &mut base_pool.backends,
                 &overlay_pool.backends,
+                mode,
             )?;
         } else {
-            base.push(overlay_pool.clone());
+            let mut added = overlay_pool.clone();
+            match mode {
+                MergeMode::ApplyToBaseline => {
+                    // Never leave remove markers on effective config.
+                    added.remove = None;
+                    for b in &mut added.backends {
+                        b.remove = None;
+                    }
+                }
+                MergeMode::AccumulateOverlay => {
+                    // Keep backend remove markers inside the accumulated overlay.
+                    added.remove = None;
+                }
+            }
+            base.push(added);
         }
     }
     Ok(())
@@ -151,14 +226,34 @@ fn merge_backends(
     pool_name: &str,
     base: &mut Vec<Backend>,
     overlay: &[Backend],
+    mode: MergeMode,
 ) -> Result<(), ConfigError> {
     for overlay_backend in overlay {
+        if overlay_backend.remove.unwrap_or(false) {
+            match mode {
+                MergeMode::ApplyToBaseline => {
+                    remove_backend(pool_name, base, overlay_backend)?;
+                }
+                MergeMode::AccumulateOverlay => {
+                    accumulate_backend_remove(pool_name, base, overlay_backend)?;
+                }
+            }
+            continue;
+        }
         if let Some(name) = overlay_backend.name.as_ref().filter(|n| !n.is_empty()) {
             if let Some(base_backend) = base
                 .iter_mut()
                 .find(|b| b.name.as_deref() == Some(name.as_str()))
             {
                 apply_backend_overlay(base_backend, overlay_backend);
+                // A later update cancels a prior remove marker for this identity.
+                base_backend.remove = None;
+            } else if !overlay_backend.address.is_empty() {
+                // Named add: unknown name with an address appends a new backend.
+                // Unknown name without address remains a hard error (typo on update).
+                let mut added = overlay_backend.clone();
+                added.remove = None;
+                base.push(added);
             } else {
                 return Err(ConfigError::Invalid(format!(
                     "overlay pool '{pool_name}' references unknown backend name '{name}'"
@@ -170,8 +265,11 @@ fn merge_backends(
                 .find(|b| b.address == overlay_backend.address)
             {
                 apply_backend_overlay(base_backend, overlay_backend);
+                base_backend.remove = None;
             } else {
-                base.push(overlay_backend.clone());
+                let mut added = overlay_backend.clone();
+                added.remove = None;
+                base.push(added);
             }
         } else {
             return Err(ConfigError::Invalid(format!(
@@ -180,6 +278,67 @@ fn merge_backends(
         }
     }
     Ok(())
+}
+
+/// Retain a remove marker in an accumulated overlay; drop prior entries for the same identity.
+fn accumulate_backend_remove(
+    pool_name: &str,
+    base: &mut Vec<Backend>,
+    overlay_backend: &Backend,
+) -> Result<(), ConfigError> {
+    if let Some(name) = overlay_backend.name.as_ref().filter(|n| !n.is_empty()) {
+        base.retain(|b| b.name.as_deref() != Some(name.as_str()));
+        base.push(Backend {
+            name: Some(name.clone()),
+            remove: Some(true),
+            ..Default::default()
+        });
+        return Ok(());
+    }
+    if !overlay_backend.address.is_empty() {
+        let addr = overlay_backend.address.clone();
+        base.retain(|b| b.address != addr);
+        base.push(Backend {
+            address: addr,
+            remove: Some(true),
+            ..Default::default()
+        });
+        return Ok(());
+    }
+    Err(ConfigError::Invalid(format!(
+        "overlay pool '{pool_name}' backend remove requires name or address"
+    )))
+}
+
+fn remove_backend(
+    pool_name: &str,
+    base: &mut Vec<Backend>,
+    overlay_backend: &Backend,
+) -> Result<(), ConfigError> {
+    if let Some(name) = overlay_backend.name.as_ref().filter(|n| !n.is_empty()) {
+        let before = base.len();
+        base.retain(|b| b.name.as_deref() != Some(name.as_str()));
+        if base.len() == before {
+            return Err(ConfigError::Invalid(format!(
+                "overlay pool '{pool_name}' requests remove of unknown backend name '{name}'"
+            )));
+        }
+        return Ok(());
+    }
+    if !overlay_backend.address.is_empty() {
+        let addr = &overlay_backend.address;
+        let before = base.len();
+        base.retain(|b| b.address != *addr);
+        if base.len() == before {
+            return Err(ConfigError::Invalid(format!(
+                "overlay pool '{pool_name}' requests remove of unknown backend address '{addr}'"
+            )));
+        }
+        return Ok(());
+    }
+    Err(ConfigError::Invalid(format!(
+        "overlay pool '{pool_name}' backend remove requires name or address"
+    )))
 }
 
 fn apply_backend_overlay(base: &mut Backend, overlay: &Backend) {
@@ -192,6 +351,7 @@ fn apply_backend_overlay(base: &mut Backend, overlay: &Backend) {
     if overlay.weight.is_some() {
         base.weight = overlay.weight;
     }
+    // remove is overlay-only; never copy onto effective backends.
 }
 
 /// Deep-merge overlay metrics into a file baseline (or overlay-alone when base is None).
@@ -483,6 +643,43 @@ pools:
     }
 
     #[test]
+    fn overlay_named_backend_with_address_appends() {
+        let file_yaml = r#"
+schema_version: 1
+listeners:
+  threads: 1
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+pools:
+  - name: default
+    backends:
+      - name: primary
+        address: "127.0.0.1:5300"
+"#;
+        let file_cfg = load_yaml(file_yaml).unwrap();
+        let overlay = load_yaml(
+            r#"
+schema_version: 1
+pools:
+  - name: default
+    backends:
+      - name: secondary
+        address: "127.0.0.1:5301"
+        weight: 50
+"#,
+        )
+        .unwrap();
+        let merged = merge_file_and_overlay(&file_cfg, &overlay).unwrap();
+        assert_eq!(merged.pools[0].backends.len(), 2);
+        assert_eq!(
+            merged.pools[0].backends[1].name.as_deref(),
+            Some("secondary")
+        );
+        assert_eq!(merged.pools[0].backends[1].weight, Some(50));
+    }
+
+    #[test]
     fn overlay_address_fallback_still_appends_unknown() {
         let file_cfg =
             load_yaml(include_str!("../../../tests/fixtures/config/minimal.yaml")).unwrap();
@@ -497,6 +694,193 @@ pools:
         let overlay = load_yaml(overlay_yaml).unwrap();
         let merged = merge_file_and_overlay(&file_cfg, &overlay).unwrap();
         assert_eq!(merged.pools[0].backends.len(), 2);
+    }
+
+    #[test]
+    fn sparse_weight_patch_unchanged_with_named_peer() {
+        let file_yaml = r#"
+schema_version: 1
+listeners:
+  threads: 1
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+pools:
+  - name: edge
+    backends:
+      - name: a
+        address: "127.0.0.1:5300"
+        weight: 100
+      - name: b
+        address: "127.0.0.1:5301"
+        weight: 100
+"#;
+        let file_cfg = load_yaml(file_yaml).unwrap();
+        let overlay = load_yaml(
+            r#"
+schema_version: 1
+pools:
+  - name: edge
+    backends:
+      - name: a
+        weight: 10
+"#,
+        )
+        .unwrap();
+        let merged = merge_file_and_overlay(&file_cfg, &overlay).unwrap();
+        assert_eq!(merged.pools[0].backends.len(), 2);
+        assert_eq!(merged.pools[0].backends[0].weight, Some(10));
+        assert_eq!(merged.pools[0].backends[1].weight, Some(100));
+    }
+
+    #[test]
+    fn explicit_backend_remove_by_name() {
+        let file_yaml = r#"
+schema_version: 1
+listeners:
+  threads: 1
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+pools:
+  - name: edge
+    backends:
+      - name: a
+        address: "127.0.0.1:5300"
+      - name: b
+        address: "127.0.0.1:5301"
+"#;
+        let file_cfg = load_yaml(file_yaml).unwrap();
+        let overlay = load_yaml(
+            r#"
+schema_version: 1
+pools:
+  - name: edge
+    backends:
+      - name: b
+        remove: true
+"#,
+        )
+        .unwrap();
+        let merged = merge_file_and_overlay(&file_cfg, &overlay).unwrap();
+        assert_eq!(merged.pools[0].backends.len(), 1);
+        assert_eq!(merged.pools[0].backends[0].name.as_deref(), Some("a"));
+        assert!(merged.pools[0].backends.iter().all(|b| b.remove.is_none()));
+    }
+
+    #[test]
+    fn accumulate_remove_after_sparse_weight_keeps_marker() {
+        // Reproduces: weight apply then remove of a file-layer peer that was never
+        // in the sparse overlay — must not fail during overlay accumulation.
+        let file_yaml = r#"
+schema_version: 1
+listeners:
+  threads: 1
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+pools:
+  - name: edge
+    backends:
+      - name: primary
+        address: "127.0.0.1:5300"
+        weight: 100
+      - name: secondary
+        address: "127.0.0.1:5301"
+        weight: 100
+"#;
+        let file_cfg = load_yaml(file_yaml).unwrap();
+        let weight = load_yaml(
+            r#"
+schema_version: 1
+pools:
+  - name: edge
+    backends:
+      - name: primary
+        weight: 50
+"#,
+        )
+        .unwrap();
+        let remove = load_yaml(
+            r#"
+schema_version: 1
+pools:
+  - name: edge
+    backends:
+      - name: secondary
+        remove: true
+"#,
+        )
+        .unwrap();
+        let accumulated = merge_overlay_patches(&weight, &remove).unwrap();
+        assert!(
+            accumulated.pools[0]
+                .backends
+                .iter()
+                .any(|b| b.name.as_deref() == Some("secondary") && b.remove == Some(true)),
+            "remove marker must be retained in accumulated overlay: {accumulated:?}"
+        );
+        let merged = merge_file_and_overlay(&file_cfg, &accumulated).unwrap();
+        assert_eq!(merged.pools[0].backends.len(), 1);
+        assert_eq!(merged.pools[0].backends[0].name.as_deref(), Some("primary"));
+        assert_eq!(merged.pools[0].backends[0].weight, Some(50));
+    }
+
+    #[test]
+    fn remove_unknown_backend_fails() {
+        let file_cfg =
+            load_yaml(include_str!("../../../tests/fixtures/config/minimal.yaml")).unwrap();
+        let overlay = load_yaml(
+            r#"
+schema_version: 1
+pools:
+  - name: default
+    backends:
+      - name: missing
+        remove: true
+"#,
+        )
+        .unwrap();
+        let err = merge_file_and_overlay(&file_cfg, &overlay).unwrap_err();
+        assert!(err.to_string().contains("unknown backend name"));
+    }
+
+    #[test]
+    fn export_after_remove_has_no_tombstones() {
+        use crate::export::export_yaml;
+
+        let file_yaml = r#"
+schema_version: 1
+listeners:
+  threads: 1
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+pools:
+  - name: edge
+    backends:
+      - name: a
+        address: "127.0.0.1:5300"
+      - name: b
+        address: "127.0.0.1:5301"
+"#;
+        let file_cfg = load_yaml(file_yaml).unwrap();
+        let overlay = load_yaml(
+            r#"
+schema_version: 1
+pools:
+  - name: edge
+    backends:
+      - name: b
+        remove: true
+"#,
+        )
+        .unwrap();
+        let merged = merge_file_and_overlay(&file_cfg, &overlay).unwrap();
+        let yaml_out = export_yaml(&merged).unwrap();
+        assert!(!yaml_out.contains("remove:"));
+        assert!(yaml_out.contains("name: a"));
+        assert!(!yaml_out.contains("name: b"));
     }
 
     #[test]

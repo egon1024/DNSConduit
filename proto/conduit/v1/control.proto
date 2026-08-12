@@ -40,9 +40,20 @@ message ApplyConfigRequest {
   Config overlay = 1;           // patch fields (required for MERGE/REPLACE unless REPLACE with empty patch)
   OverlayApplyMode mode = 2;
 }
+
+// Extensible status note on mutating config-control responses (document apply/reload
+// and future primitive writes). Empty notes are OK for fully hot applies; clients
+// MUST tolerate unknown kind values and ignore unknown fields.
+message ConfigApplyStatusNote {
+  string kind = 1;              // e.g. "hot", "pending_restart", "info"
+  string message = 2;
+}
+
 message ApplyConfigResponse {
   bool ok = 1;
   repeated string errors = 2;
+  uint64 generation = 3;        // resulting config generation on success (0 when rejected)
+  repeated ConfigApplyStatusNote notes = 4;
 }
 
 message ExportConfigRequest {
@@ -56,6 +67,8 @@ message ReloadFromFileRequest {}
 message ReloadFromFileResponse {
   bool ok = 1;
   repeated string errors = 2;
+  uint64 generation = 3;
+  repeated ConfigApplyStatusNote notes = 4;
 }
 
 message HealthRequest {}
