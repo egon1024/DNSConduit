@@ -133,7 +133,7 @@ Export may omit fields that equal built-in defaults — that is normal normaliza
 - Prefer **sparse overlays** that only set the **top-level** keys you intend to change.
 - For **section-replace** topics, include the **full section** you want effective — use [export, mutate, apply](#augment-a-section-safely-export-mutate-apply) when augmenting an existing section. Missing nested keys are not “keep file.”
 - For **`metrics`**, nested maps keep file-layer siblings; lists under `categories` replace only when you send that list key.
-- For **`pools`**, match-by-name patches can stay sparse at the backend field level; see [Configuration model — pools](/control-plane/configuration-model.md#how-file-and-overlay-merge).
+- For **`pools`**, match-by-name patches can stay sparse at the backend field level; see [Configuration model — pools](/control-plane/configuration-model.md#how-file-and-overlay-merge). Use **`remove: true`** to delete a matched pool or backend ([Remove marker](/control-plane/configuration-model.md#remove-marker)).
 
 ## Related topics
 

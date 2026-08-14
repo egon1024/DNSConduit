@@ -125,7 +125,7 @@ pools:
         weight: 100
 ```
 
-Overlay patches are **sparse** — include only `schema_version` and the fields you mean to change. Do not include **`rules:`**, **`metrics:`**, or **`tracing:`**.
+Overlay patches are **sparse** — include only `schema_version` and the fields you mean to change. Do not include **`rules:`** or **`tracing:`**. **`metrics:`** is allowed (deep merge).
 
 **Step 1 — merge (maintenance on primary):**
 
@@ -230,15 +230,16 @@ If you edited the config file on disk but have **not** reloaded yet, **`--clear`
 conduitctl apply --file overlay.yaml
 ```
 
-The file is a **sparse YAML patch**; only fields you include are sent. Overlays **must not** include **`rules:`**, **`metrics:`**, or **`tracing:`** (apply is rejected). Merge rules: [Configuration model — overlay](/control-plane/configuration-model.md#overlay). Use **`--replace`** or **`--clear`** when you need to reset overlay state — see [Apply modes](#apply-modes) above.
+The file is a **sparse YAML patch**; only fields you include are sent. Overlays **must not** include **`rules:`** or **`tracing:`** (apply is rejected). **`metrics:`** may be applied (deep merge). Merge rules: [Configuration model — overlay](/control-plane/configuration-model.md#overlay). Use **`--replace`** or **`--clear`** when you need to reset overlay state — see [Apply modes](#apply-modes) above.
 
 **Examples of overlay-friendly changes today:**
 
-- [Pool](/policy-routing/pools-and-backends.md) and backend weights
+- [Pool](/policy-routing/pools-and-backends.md) and backend weights (including **`remove: true`**)
 - Top-level sections such as `forward`, `orchestrator`, `events`, `rhai`, `control`, `logging` (whole-section replace when the section is present)
 - `data_sources` list (non-empty overlay list replaces the file list)
+- **`metrics:`** plan and export settings (deep merge; Prometheus/OTLP hot-rebind when the apply succeeds)
 
-**File layer only** (edit + reload; **`conduitctl apply` rejects** patches that include these keys): **`rules:`**, **`metrics:`**, **`tracing:`**.
+**File layer only** (edit + reload; **`conduitctl apply` rejects** patches that include these keys): **`rules:`**, **`tracing:`**.
 
 On success the CLI prints `ok`. Logs include `config applied` with `source=grpc` and a **generation** counter. Failed apply leaves the prior snapshot unchanged (including any earlier overlay).
 
@@ -290,10 +291,10 @@ Most snapshot updates apply to **new queries** immediately. Exceptions:
 
 | Change | After successful reload/apply | May need process restart |
 |--------|------------------------------|---------------------------|
-| Pool weights, rules, Rhai, `data_sources`, events sinks | Yes | No |
+| Pool weights, rules, Rhai, `data_sources`, events filters on existing sinks, metrics plan / scrape rebind | Yes | No |
 | **`listeners`** or **`forward`** (bind / egress sockets) | Snapshot updates; log **pending (restart required)** | Yes — restart `conduit` to rebind |
 | Add or change **`control:`** | Snapshot may update | Yes — gRPC listener starts at process start only |
-| Enable or rebind **`metrics:`** / **`tracing:`** export listeners | Snapshot stores intent | Yes — scrape/push listeners start at process start today |
+| Enable or rebind **`tracing:`** | Snapshot stores intent | Yes — tracing hub starts at process start today |
 
 When `listeners` or `forward` changes between old and new effective config, Conduit logs:
 
@@ -326,9 +327,9 @@ Overlay is cleared; effective config matches the new file layer.
 3. Either **`conduitctl apply --clear`** to revert to the in-memory file layer, or edit the deployed file and **`conduitctl reload`** to pick up disk changes.
 4. To persist overlay state: save export output as the new file, deploy, reload, and verify generation / metrics.
 
-### Rule or metrics change
+### Rule or tracing change
 
-Edit **`rules:`**, **`metrics:`**, or **`tracing:`** on disk — not supported via overlay — then reload or restart as needed for listener/export behavior.
+Edit **`rules:`** or **`tracing:`** on disk — not supported via overlay — then reload (and restart when tracing/logging subscribers must rebind). Change **`metrics:`** via overlay, **`conduitctl metrics patch`**, or file reload; plan and export rebind without process restart when the apply succeeds.
 
 ## Logs and verification
 

@@ -26,7 +26,12 @@ conduitctl reload
 
 # or per invocation
 conduitctl --api-key 'replace-with-a-long-random-secret' export
+
+# or via client YAML (prefer api_key_file over inline api_key)
+# ~/.config/conduit/conduitctl.yaml → api_key_file: ~/secrets/conduit-api-key
 ```
+
+See [gRPC and conduitctl — Connecting](/control-plane/grpc-and-conduitctl.md#connecting) for precedence and the client config file.
 
 Invalid or missing keys return **Unauthenticated**; the server logs **`control rpc`** with requestor **`api_key_rejected`** or **`unauthenticated`** without logging the key value.
 

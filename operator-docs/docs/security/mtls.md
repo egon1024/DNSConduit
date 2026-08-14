@@ -17,9 +17,12 @@ Paths are [config-relative](/control-plane/config-file.md#path-resolution-base-d
 
 ## Clients
 
-- Use **`https://`** in **`CONDUIT_CONTROL`** / **`conduitctl --endpoint`** when the server uses TLS.
-- Configure your gRPC client with the server CA and, when required, a client certificate and key matching **`client_ca_path`**.
-- **`conduitctl`** today connects with tonic’s default TLS roots for HTTPS endpoints; mTLS from the CLI may require additional client certificate configuration not yet built into `conduitctl` — use a gRPC client library or proxy where mTLS is required.
+- Use **`https://`** in **`CONDUIT_CONTROL`** / **`conduitctl --endpoint`** (or the client config `endpoint`) when the server uses TLS.
+- Trust the server with **`--tls-ca`** / `CONDUIT_TLS_CA` / client file **`tls.ca`**, or rely on the client’s normal trusted roots when the cert chains there.
+- For mTLS, present **`--tls-cert`** and **`--tls-key`** (or env / client file **`tls.cert`** / **`tls.key`**) matching **`client_ca_path`**.
+- Chain and hostname verification are **on by default**. Use **`--tls-insecure`** only as an explicit opt-out (for example a self-signed server cert without distributing a CA).
+
+Full flag, env, and YAML client-file reference: [gRPC and conduitctl — Connecting](/control-plane/grpc-and-conduitctl.md#connecting).
 
 API keys (`control.api_keys`) apply independently: when keys are configured, callers still send **`Authorization: Bearer …`** even over mTLS.
 
