@@ -1,0 +1,310 @@
+/* API reference cards — used on Transaction API and future Message API pages. */
+
+.md-typeset .txn-api-entry {
+  --txn-api-expand-duration: 0.24s;
+  --txn-api-expand-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid transparent;
+  background: transparent;
+  padding: 0.2rem 0;
+  margin: 0.85rem 0;
+  transition:
+    background-color var(--txn-api-expand-duration) var(--txn-api-expand-ease),
+    border-color var(--txn-api-expand-duration) var(--txn-api-expand-ease),
+    padding var(--txn-api-expand-duration) var(--txn-api-expand-ease),
+    margin var(--txn-api-expand-duration) var(--txn-api-expand-ease);
+}
+
+.md-typeset .txn-api-entry:not(.txn-api-entry--ready) > .txn-api-reference-panel,
+.md-typeset .txn-api-entry:not(.txn-api-entry--ready) > details {
+  display: none !important;
+}
+
+.md-typeset .txn-api-entry.txn-api-entry--open {
+  border-color: var(--md-default-fg-color--lightest);
+  border-radius: 0.2rem;
+  padding: 0.75rem 1.25rem 1rem;
+  margin: 0.85rem 0 1.25rem;
+  background: var(--md-code-bg-color);
+}
+
+.md-typeset .txn-api-entry-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  border-bottom: 0 solid var(--md-primary-fg-color);
+  transition:
+    margin var(--txn-api-expand-duration) var(--txn-api-expand-ease),
+    padding var(--txn-api-expand-duration) var(--txn-api-expand-ease),
+    border-bottom-width var(--txn-api-expand-duration) var(--txn-api-expand-ease),
+    border-bottom-color var(--txn-api-expand-duration) var(--txn-api-expand-ease);
+}
+
+.md-typeset .txn-api-entry.txn-api-entry--open .txn-api-entry-header {
+  margin: 0 0 0.65rem;
+  padding: 0.35rem 0 0.65rem;
+  border-bottom-width: 2px;
+}
+
+.md-typeset .txn-api-entry-header > h3,
+.md-typeset .txn-api-entry > h3 {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-family: var(--md-code-font-family);
+  font-size: 1.15em;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--md-default-fg-color);
+  letter-spacing: -0.01em;
+}
+
+.md-typeset .txn-api-entry-header > h3 code,
+.md-typeset .txn-api-entry > h3 code {
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+
+.md-typeset .txn-api-reference-toggle {
+  appearance: none;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--md-default-fg-color--light);
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.md-typeset .txn-api-reference-toggle:hover {
+  color: var(--md-primary-fg-color);
+}
+
+.md-typeset .txn-api-reference-toggle:focus-visible {
+  outline: 2px solid var(--md-accent-fg-color);
+  outline-offset: 2px;
+  border-radius: 0.1rem;
+}
+
+.md-typeset .txn-api-reference-chevron {
+  display: block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-right: 2px solid currentcolor;
+  border-bottom: 2px solid currentcolor;
+  transform: rotate(45deg) translate(-1px, -2px);
+  transition: transform var(--txn-api-expand-duration) var(--txn-api-expand-ease);
+}
+
+.md-typeset .txn-api-entry.txn-api-entry--open .txn-api-reference-chevron {
+  transform: rotate(225deg) translate(-1px, -1px);
+}
+
+.md-typeset .txn-api-entry > h4,
+.md-typeset .txn-api-entry .txn-api-reference-panel h4 {
+  margin-top: 1.1rem;
+  margin-bottom: 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--md-default-fg-color--light);
+}
+
+.md-typeset .txn-api-entry > h4 + p,
+.md-typeset .txn-api-entry > h4 + ul,
+.md-typeset .txn-api-entry > h4 + table,
+.md-typeset .txn-api-entry .txn-api-reference-panel h4 + p,
+.md-typeset .txn-api-entry .txn-api-reference-panel h4 + ul,
+.md-typeset .txn-api-entry .txn-api-reference-panel h4 + table {
+  margin-top: 0;
+}
+
+.md-typeset .txn-api-entry .txn-api-brief {
+  margin: 0.2rem 0 0;
+  font-size: 0.88em;
+  line-height: 1.5;
+  color: var(--md-default-fg-color--light);
+  overflow: hidden;
+  max-height: 12rem;
+  opacity: 1;
+  transition:
+    max-height var(--txn-api-expand-duration) var(--txn-api-expand-ease),
+    opacity calc(var(--txn-api-expand-duration) * 0.85) var(--txn-api-expand-ease),
+    margin var(--txn-api-expand-duration) var(--txn-api-expand-ease);
+}
+
+.md-typeset .txn-api-entry .txn-api-brief > p {
+  margin: 0;
+}
+
+.md-typeset .txn-api-entry .txn-api-brief > p + p {
+  margin-top: 0.35rem;
+}
+
+.md-typeset .txn-api-entry .txn-api-brief code {
+  font-size: 0.92em;
+}
+
+.md-typeset .txn-api-entry.txn-api-entry--open > .txn-api-brief {
+  max-height: 0;
+  opacity: 0;
+  margin-top: 0;
+  margin-bottom: 0;
+  pointer-events: none;
+}
+
+.md-typeset .txn-api-entry .txn-api-summary {
+  margin: 0.85rem 0 0;
+  font-size: 0.92em;
+  line-height: 1.55;
+}
+
+.md-typeset .txn-api-entry .txn-api-summary strong {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--md-default-fg-color--light);
+}
+
+.md-typeset .txn-api-entry > details,
+.md-typeset .txn-api-entry .txn-api-reference-panel > summary {
+  display: none;
+}
+
+.md-typeset .txn-api-entry .txn-api-reference-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--txn-api-expand-duration) var(--txn-api-expand-ease);
+}
+
+.md-typeset .txn-api-entry .txn-api-reference-panel.txn-api-reference-panel--open {
+  grid-template-rows: 1fr;
+}
+
+.md-typeset .txn-api-entry .txn-api-reference-panel__inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
+.md-typeset .txn-api-entry .txn-api-reference-panel[hidden] {
+  display: none;
+}
+
+.md-typeset .txn-api-entry > :last-child {
+  margin-bottom: 0;
+}
+
+.md-typeset .txn-api-section-bar {
+  display: flex;
+  justify-content: flex-end;
+  margin: 0.15rem 0 0.35rem;
+}
+
+.md-typeset .txn-api-section-toggle {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--md-default-fg-color--light);
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.md-typeset .txn-api-section-toggle:hover {
+  color: var(--md-primary-fg-color);
+}
+
+.md-typeset .txn-api-section-toggle:focus-visible {
+  outline: 2px solid var(--md-accent-fg-color);
+  outline-offset: 2px;
+  border-radius: 0.1rem;
+}
+
+.md-typeset .txn-api-section-chevron {
+  position: relative;
+  display: block;
+  width: 0.55rem;
+  height: 0.75rem;
+}
+
+.md-typeset .txn-api-section-chevron::before,
+.md-typeset .txn-api-section-chevron::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  width: 0.42rem;
+  height: 0.42rem;
+  margin-left: -0.21rem;
+  border-right: 2px solid currentcolor;
+  border-bottom: 2px solid currentcolor;
+  transform: rotate(45deg);
+  transition: transform var(--txn-api-expand-duration) var(--txn-api-expand-ease);
+}
+
+.md-typeset .txn-api-section-chevron::before {
+  top: 0;
+}
+
+.md-typeset .txn-api-section-chevron::after {
+  top: 0.28rem;
+}
+
+.md-typeset .txn-api-section-toggle--open .txn-api-section-chevron::before {
+  top: 0.28rem;
+  transform: rotate(225deg);
+}
+
+.md-typeset .txn-api-section-toggle--open .txn-api-section-chevron::after {
+  top: 0;
+  transform: rotate(225deg);
+}
+
+.md-typeset .txn-api-group + .txn-api-group {
+  margin-top: 0.5rem;
+}
+
+.md-typeset .txn-api-index {
+  margin: -0.15rem 0 1.25rem;
+  font-size: 0.85em;
+  line-height: 1.6;
+  color: var(--md-default-fg-color--light);
+}
+
+.md-typeset .txn-api-index a {
+  font-family: var(--md-code-font-family);
+  font-size: 0.95em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .md-typeset .txn-api-entry,
+  .md-typeset .txn-api-entry-header,
+  .md-typeset .txn-api-entry .txn-api-brief,
+  .md-typeset .txn-api-entry .txn-api-reference-panel,
+  .md-typeset .txn-api-reference-chevron,
+  .md-typeset .txn-api-section-chevron::before,
+  .md-typeset .txn-api-section-chevron::after {
+    transition: none !important;
+  }
+}

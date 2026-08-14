@@ -1,0 +1,4 @@
+posture,scenario_id,achieved_qps,latency_avg_ms,queries_sent,queries_completed,queries_lost
+metrics_off,feature-tax-metrics-off-forward-fast,75940.7,26.3,761386,761386,0
+standard_scrape,feature-tax-metrics-standard-scrape-forward-fast,70029.9,28.5,703153,703153,0
+scrape_hammer,feature-tax-metrics-standard-scrape-hammer-forward-fast,57968.8,34.4,582917,582917,0
