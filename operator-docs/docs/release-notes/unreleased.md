@@ -1,7 +1,15 @@
 # Unreleased
 
+## Control plane
+
+- **`conduitctl` client config file** (YAML): default `~/.config/conduit/conduitctl.yaml` (XDG / `%APPDATA%\conduit\` on Windows); override with **`--config`** / **`CONDUITCTL_CONFIG`**. Precedence: flags → env → file → built-ins for endpoint, API key / `api_key_file`, and TLS paths.
+- **TLS/mTLS from `conduitctl`**: HTTPS verifies certificate **chain** and **hostname** by default; **`--tls-ca`** / client identity for private CA and mTLS; explicit **`--tls-insecure`** (or env / file) opt-out for self-signed servers without a distributed CA. Offline **`validate`** / **`acl check --file`** still need no client file.
+- **Apply/reload status**: responses include **`generation`** and extensible **`notes`** (shared by document apply and config primitives).
+- **Pool/backend remove**: overlay **`remove: true`** on a named pool or backend (name preferred, else address); unknown targets fail the apply; **`export`** never emits tombstones. Typed **`conduitctl backend remove`** / **`ConduitPools.RemoveBackend`**.
+- **Config primitives** (capability gRPC + `conduitctl`): pools/backends, orchestrator limits, data sources, events filters/emit on existing sinks, Rhai limits, metrics plan patch, hot cache knobs. Document apply/export/reload unchanged. Restart-pending knobs are omitted from typed writes.
+
 ## Observability
 
 - Control-plane **`control rpc`** access logs include **`tls=true|false`**, indicating whether the RPC arrived over TLS (transport encryption). This is separate from requestor **`mtls`** (client certificate identity).
 - Failed control-plane connections that never become an RPC (TCP accept errors, TLS handshake failures) log at **`warn`** as **`control plane connection failed`** with **`tls`**, **`error`**, and **`peer`** when known.
-- Rejected config control RPCs (`ApplyConfig`, `ValidateConfig`, `ReloadFromFile`) log **`control rpc outcome`** at **`warn`** (`outcome=rejected`); successful outcomes remain at **`info`**. The transport **`control rpc`** line is unchanged.
+- Rejected config control RPCs (`ApplyConfig`, `ValidateConfig`, `ReloadFromFile`, mutating primitives) log **`control rpc outcome`** at **`warn`** (`outcome=rejected`); successful outcomes remain at **`info`**. The transport **`control rpc`** line is unchanged.

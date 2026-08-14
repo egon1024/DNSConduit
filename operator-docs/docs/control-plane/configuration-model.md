@@ -9,7 +9,7 @@ Conduit keeps configuration in **layers**:
 | Layer | What it is | How it changes |
 |-------|------------|----------------|
 | **[File layer](/glossary/index.md#file-layer)** | YAML at the path you pass when starting `conduit` | Edit on disk; reload with **SIGHUP** (Unix) or `conduitctl reload` |
-| **[Overlay](/glossary/index.md#overlay)** | In-memory patch applied through the [control plane](/glossary/index.md#control-plane) | `conduitctl apply` (default **merge** into accumulated overlay) |
+| **[Overlay](/glossary/index.md#overlay)** | In-memory patch applied through the [control plane](/glossary/index.md#control-plane) | `conduitctl apply` (default **merge** into accumulated overlay), or typed config primitives that synthesize a replace overlay |
 | **[Effective config](/glossary/index.md#effective-config)** | File layer merged with overlay (if any), then validated | Result of merge + validation before compile |
 | **[Runtime snapshot](/glossary/index.md#runtime-snapshot)** | Compiled configuration bundle the [dataplane](/glossary/index.md#dataplane) uses (rules, scripts, forward tables, observability filters) | Built from effective config on each successful apply or reload |
 
@@ -58,7 +58,7 @@ A sparse on-disk file and a fully exported file can behave the same at runtime. 
 
 ## Overlay
 
-An **[overlay](/glossary/index.md#overlay)** is an accumulated in-memory config patch held after one or more **`conduitctl apply`** calls. It does not rewrite your on-disk [file layer](/glossary/index.md#file-layer). Overlays are useful for short-lived or automated tweaks — for example shifting [backend](/glossary/index.md#backend) weights during an upstream maintenance window.
+An **[overlay](/glossary/index.md#overlay)** is an accumulated in-memory config patch held after one or more **`conduitctl apply`** calls (or after typed [config primitives](/control-plane/grpc-and-conduitctl.md#document-apply-vs-typed-primitives) that synthesize a full overlay replacement). It does not rewrite your on-disk [file layer](/glossary/index.md#file-layer). Overlays are useful for short-lived or automated tweaks — for example shifting [backend](/glossary/index.md#backend) weights during an upstream maintenance window.
 
 Each successful apply updates the overlay according to an **apply mode**, then rebuilds **[effective config](/glossary/index.md#effective-config)** as **file layer + overlay**. Flags, examples, and export workflows: [Reload and export — apply modes](/control-plane/reload-and-export.md#apply-modes).
 
@@ -102,7 +102,7 @@ Merge rules (current release):
 | **`schema_version`** | Overlay value wins when present |
 | **`listeners`**, **`forward`**, **`orchestrator`**, **`events`**, **`rhai`**, **`control`**, **`logging`** | If the overlay includes the section, it **replaces** the file-layer section entirely |
 | **`data_sources`** | Non-empty overlay list replaces the file-layer list |
-| **`pools`** | Match pools by `name`. Within a pool, match a [backend](/glossary/index.md#backend) by `name` when the overlay entry sets one, otherwise by `address`; matched fields are updated. A new pool — or an address-matched backend not already in the pool — is **appended**; an overlay backend whose `name` is not found in the pool is **rejected** (the apply fails). See [Targeting a backend by name or address](#targeting-a-backend-by-name-or-address). Unset `weight` in the overlay does **not** clear a file-layer weight |
+| **`pools`** | Match pools by `name`. Within a pool, match a [backend](/glossary/index.md#backend) by `name` when the overlay entry sets one, otherwise by `address`; matched fields are updated. A new pool — or an address-matched backend not already in the pool — is **appended**; an overlay backend whose `name` is not found in the pool is **rejected** (the apply fails). See [Targeting a backend by name or address](#targeting-a-backend-by-name-or-address). Unset `weight` in the overlay does **not** clear a file-layer weight. Opt-in **`remove: true`** deletes a matched pool or backend — see [Remove marker](#remove-marker) |
 | **`metrics`** | **Deep merge** — nested maps by key; `categories.include` / `exclude` list-replace when present; `user_metrics` match-by-name. See [Overlay merge strategy](/control-plane/overlay-merge-strategy.md) |
 | **`rules`**, **`tracing`** | **File layer only** — not allowed in overlay patches; apply is rejected if the patch includes these keys |
 
@@ -133,6 +133,27 @@ Within a matched [pool](/glossary/index.md#pool), how Conduit finds the [backend
 Match by **`name`** to patch a backend you have given a [name](/reference/config-schema/pools.md#backend-object): the patch keeps working even when the upstream `address` changes, and a name-keyed entry can itself update the `address` (for example to repoint a resolver) without adding a second backend. Because an unknown `name` is **rejected rather than appended**, a typo fails the apply instead of silently creating an extra upstream — and the previous overlay is left untouched.
 
 Match by **`address`** (the default when the overlay entry has no `name`) updates a backend already present at that address; an address that is not present is **appended** as a new backend.
+
+### Remove marker { #remove-marker }
+
+Sparse pool/backend merge **does not** delete members unless you opt in. Set **`remove: true`** on an overlay pool ( **`name` required**) or backend entry (`name` preferred when set, otherwise `address`). Unknown remove targets **fail** the apply and leave the previous overlay/snapshot unchanged. Effective **`export`** never emits `remove` markers.
+
+Example — remove backend `secondary` from pool `edge` without a typed Delete RPC:
+
+```yaml
+schema_version: 1
+pools:
+  - name: edge
+    backends:
+      - name: secondary
+        remove: true
+```
+
+```bash
+conduitctl apply --file remove-secondary.yaml
+```
+
+Typed equivalent: **`conduitctl backend remove --pool edge --backend secondary`**.
 
 Example — repoint and reweight the backend named `resolver-a` without editing the file, matching by `(pool, name)`:
 

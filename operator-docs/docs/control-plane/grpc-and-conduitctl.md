@@ -12,16 +12,60 @@ Config fields: [Reference: control](/reference/config-schema/control.md).
 
 ## Connecting
 
-Global flags apply to every subcommand:
+Every remote `conduitctl` subcommand shares one connect helper. Settings resolve in this order: **CLI flags → environment variables → optional YAML client config file → built-in defaults**. A missing client file is not an error.
 
-| Flag / env {: .column-no-wrap } | Default {: .column-no-wrap } | Purpose |
-|------------|---------|---------|
-| `--endpoint` / `CONDUIT_CONTROL` | `http://127.0.0.1:5199` | Control plane URL |
-| `--api-key` / `CONDUIT_API_KEY` | (none) | `Authorization: Bearer …` when the server requires API keys |
+Offline commands (**`validate --file`**, **`acl check --file`**) do **not** need the client file or a running control plane.
 
-Use **`http://`** when the listener is plain TCP. When **`control.tls`** is configured, use **`https://`** (or the scheme your TLS setup expects) on the same host and port.
+### Client configuration file
 
-On success, mutating commands print `ok` to stdout. Failures exit non-zero with error text on stderr.
+Default path (YAML):
+
+| Platform | Path |
+|----------|------|
+| Unix (XDG) | `$XDG_CONFIG_HOME/conduit/conduitctl.yaml`, or `~/.config/conduit/conduitctl.yaml` |
+| Windows | `%APPDATA%\conduit\conduitctl.yaml` |
+
+Override the path with **`--config`** or **`CONDUITCTL_CONFIG`**.
+
+Example file:
+
+```yaml
+endpoint: https://conduit.example:5199
+api_key_file: ~/secrets/conduit-api-key   # prefer a path over inline api_key
+tls:
+  ca: ~/tls/ca.pem
+  cert: ~/tls/client.pem                  # mTLS when the server requires a client cert
+  key: ~/tls/client-key.pem
+  # insecure_skip_verify: true            # opt-in only — see TLS below
+```
+
+### Flags, env, and file fields
+
+| Setting | Flag | Env | Client file |
+|---------|------|-----|-------------|
+| Endpoint | `--endpoint` | `CONDUIT_CONTROL` | `endpoint` |
+| API key (inline) | `--api-key` | `CONDUIT_API_KEY` | `api_key` (discouraged) |
+| API key file | `--api-key-file` | `CONDUIT_API_KEY_FILE` | `api_key_file` |
+| Trust CA / bundle | `--tls-ca` | `CONDUIT_TLS_CA` | `tls.ca` |
+| Client cert (mTLS) | `--tls-cert` | `CONDUIT_TLS_CERT` | `tls.cert` |
+| Client key (mTLS) | `--tls-key` | `CONDUIT_TLS_KEY` | `tls.key` |
+| Skip verify | `--tls-insecure` | `CONDUIT_TLS_INSECURE` | `tls.insecure_skip_verify` |
+| Client config path | `--config` | `CONDUITCTL_CONFIG` | — |
+
+Built-in default endpoint: **`http://127.0.0.1:5199`**. Use **`http://`** for plain TCP; use **`https://`** when **`control.tls`** is configured on the server.
+
+### TLS verification (HTTPS)
+
+For **`https://`** endpoints, `conduitctl` **by default**:
+
+1. Validates the server certificate **chain** against the configured trust store (`--tls-ca` / `tls.ca`, otherwise the client’s normal trusted roots), and  
+2. Verifies that the certificate identity matches the **endpoint hostname** (DNS SAN / usual TLS rules, or IP SAN when the host is an IP).
+
+Present a client certificate and key when the server sets **`control.tls.client_ca_path`** (mTLS). Server-side setup: [mTLS](/security/mtls.md).
+
+**Skip-verify** (`--tls-insecure` / `CONDUIT_TLS_INSECURE` / `tls.insecure_skip_verify`) disables chain and hostname verification. It is a **supported opt-out** for self-signed server certificates when you do not distribute a CA to every client host. Prefer pinning a CA when practical. Skip-verify is **never** the default and is **not** implied by using `https://` or setting other TLS fields. Treat it as a weakened transport authentication mode.
+
+On success, mutating commands print `ok` to stdout (and may print `generation=…` when the server returns it). Failures exit non-zero with error text on stderr.
 
 ## Authentication
 
@@ -32,6 +76,17 @@ On success, mutating commands print `ok` to stdout. Failures exit non-zero with 
 | `control.tls.client_ca_path` set | Server requires a client certificate (mTLS) in addition to any API key rules |
 
 Details: [API keys](/security/api-keys.md), [mTLS](/security/mtls.md).
+
+## Config control vs runtime control
+
+Two families share the same gRPC listener and `conduitctl` connect settings:
+
+| Family | What it changes | Examples | Shows up in **`export`**? |
+|--------|-----------------|----------|---------------------------|
+| **Config control** | Effective configuration (file layer and/or overlay) through the Configurator | `apply`, `reload`, `export`, typed primitives (`pool`, `backend`, `orchestrator`, …) | Yes — after a successful mutation |
+| **Runtime control** | Observed operator state **outside** effective config | `health` freeze / drain / resume | No — health runtime state is separate |
+
+Changing a backend’s **weight** is config control (`conduitctl backend set-weight` or an overlay apply). [Drain](/glossary/index.md#drain) / [freeze](/glossary/index.md#freeze) is runtime control (`conduitctl health`) and is **not** a substitute for a weight change. Details: [Backend health](/policy-routing/backend-health.md).
 
 ## Commands
 
@@ -45,8 +100,26 @@ Details: [API keys](/security/api-keys.md), [mTLS](/security/mtls.md).
 | `conduitctl acl check --file` | **No** | Same dry-run against a local config file (twin of `validate`) |
 | `conduitctl trace` | Yes | Fetch pipeline trace events for a transaction id |
 | `conduitctl health` | Yes | Per-backend health show, [freeze](/glossary/index.md#freeze), set up/down ([drain](/glossary/index.md#drain)), resume automatic |
+| `conduitctl pool` / `backend` | Yes | Typed pool list/get; backend set-weight / remove |
+| `conduitctl orchestrator` | Yes | Get / set overlay-hot orchestrator limits |
+| `conduitctl data-source` / `data-source-limits` | Yes | List/get/upsert/remove data sources; get/set limits |
+| `conduitctl events` | Yes | Get events; get/set filters and emit on **existing** sinks |
+| `conduitctl rhai` | Yes | Get / set Rhai sandbox limits |
+| `conduitctl metrics` | Yes | Get / patch metrics plan (deep merge) |
+| `conduitctl cache` | Yes | List/get; set hot cache knobs (`max_entries`, LMDB policy, …) |
 
 RPC methods and messages: [Reference: gRPC and CLI](/reference/grpc-and-cli.md).
+
+### Document apply vs typed primitives
+
+Both paths update the same [effective config](/glossary/index.md#effective-config) and [runtime snapshot](/glossary/index.md#runtime-snapshot):
+
+- **Document workflow** — author sparse YAML and **`conduitctl apply`** (merge / replace / clear), or edit the startup file and **`reload`**. Best when configuration management owns patches or you need a multi-field change in one file.
+- **Primitive workflow** — typed **`conduitctl`** subcommands (and the matching config-primitive gRPC services) for overlay-hot settings. Best for surgical automation (set one weight, adjust a limit). Internally the server mutates effective config, synthesizes a full overlay replacement, then validates and swaps — so interleaved document apply and primitives keep unrelated overlay fields.
+
+Primitives apply only where overlay is allowed **and** the change takes effect without process restart (including live reconcile after snapshot swap). They do **not** expose restart-pending-only knobs (for example listener bind, `orchestrator.txn_table_capacity`, event sink add/remove / `queue_depth`, `caches[].memory.shard_count`). Prefer document apply or a restart for those.
+
+**`export`** always shows effective config (no remove-marker tombstones). Mutating apply/reload/primitive responses include **`generation`** (correlates with [`conduit_config_generation`](/observability/built-in-metrics.md#conduit_config_generation)) and optional status notes.
 
 ### `apply`
 
@@ -66,7 +139,7 @@ conduitctl apply --clear                        # clear overlay; no --file
 
 **`--file`** is required for merge and replace; omit it for **`--clear`**.
 
-Patch files are **sparse YAML** — only keys you include are sent. Overlays **must not** include **`rules:`**, **`metrics:`**, or **`tracing:`**; apply is rejected if those sections are present. Semantics, examples, and overlay scope: [Reload and export — apply modes](/control-plane/reload-and-export.md#apply-modes).
+Patch files are **sparse YAML** — only keys you include are sent. Overlays **must not** include **`rules:`** or **`tracing:`**; apply is rejected if those sections are present. **`metrics:`** is allowed (deep merge). Semantics, examples, and overlay scope: [Reload and export — apply modes](/control-plane/reload-and-export.md#apply-modes). To remove a pool or backend via overlay, set **`remove: true`** on the matched entry — see [Configuration model — remove marker](/control-plane/configuration-model.md#remove-marker).
 
 ### `export`
 
@@ -176,13 +249,38 @@ conduitctl health resume --pool default --backend resolver-a
 
 `--backend` accepts the configured backend `name` or `host:port` address. Prefer **`health resume`** over ad-hoc clear sequences while [frozen](/glossary/index.md#freeze) — see [Clear-while-frozen](/policy-routing/backend-health.md#clear-while-frozen-footgun).
 
+### Config primitives (examples)
+
+```bash
+# Pools / backends
+conduitctl pool list
+conduitctl pool get edge
+conduitctl backend set-weight --pool edge --backend primary --weight 50
+conduitctl backend remove --pool edge --backend secondary
+
+# Orchestrator / Rhai limits (hot fields only)
+conduitctl orchestrator set-limits --max-attempts 5
+conduitctl rhai set-limits --max-operations 20000
+
+# Metrics plan (deep-merge patch)
+conduitctl metrics patch --enabled false
+
+# Cache hot knobs
+conduitctl cache set-max-entries --name answers --max-entries 2500
+
+# Event filters on an existing sink (not sink add/remove)
+conduitctl events set-filters --name lab-tap --sample-percent 25
+```
+
+gRPC services for these commands: [Reference: gRPC and CLI — Config primitive services](/reference/grpc-and-cli.md#config-primitive-services).
+
 ## Access logs
 
 Every control RPC logs at **`info`** as **`control rpc`** (the **transport** line): gRPC method (`rpc`), peer address (`peer`), whether the connection used TLS (`tls`: `true`/`false` — transport encryption, distinct from requestor **`mtls`**), requestor identity (`requestor`: anonymous, API key, mTLS, or rejected), gRPC status (`grpc_code`, e.g. `Ok`, `InvalidArgument`), and latency (`latency_ms`). Request and response bodies are **not** logged.
 
 Connections that never become an RPC — TCP accept errors, or TLS handshake failures (wrong protocol, bad/missing client certificate, etc.) — log at **`warn`** as **`control plane connection failed`** with **`tls`**, **`error`**, and **`peer`** when known.
 
-Config RPCs (`ApplyConfig`, `ValidateConfig`, `ReloadFromFile`) additionally emit a **separate** `control rpc outcome` line (the **application** line) with `rpc`, `outcome` (`ok` or `rejected`), `error_count`, and the joined `errors`. Successful outcomes (`outcome=ok`) log at **`info`**; rejections (`outcome=rejected`) log at **`warn`** so failed apply/validate/reload attempts stand out while the last-good snapshot stays active.
+Config RPCs (`ApplyConfig`, `ValidateConfig`, `ReloadFromFile`, and mutating config primitives) additionally emit a **separate** `control rpc outcome` line (the **application** line) with `rpc`, `outcome` (`ok` or `rejected`), `error_count`, and the joined `errors`. Successful outcomes (`outcome=ok`) log at **`info`**; rejections (`outcome=rejected`) log at **`warn`** so failed apply/validate/reload attempts stand out while the last-good snapshot stays active.
 
 The two lines report different layers. A config that fails validation is rejected **in-band** — the RPC still succeeds at the transport layer — so it logs `control rpc` with `grpc_code=Ok` **and** a `control rpc outcome` at **`warn`** with `outcome=rejected` and `error_count>0`. `conduitctl` surfaces the same rejection as a non-zero exit with the validation messages.
 

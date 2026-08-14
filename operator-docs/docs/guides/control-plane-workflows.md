@@ -43,10 +43,10 @@ Most sections take effect on **reload** for new queries. A few update the snapsh
 flowchart LR
   Edit[Edit startup YAML] --> Reload[reload or SIGHUP]
 
-  Reload --> Hot[Hot on reload — pools, health probe config, rules, Rhai, orchestrator, data_sources]
+  Reload --> Hot[Hot on reload — pools, health probe config, rules, Rhai, orchestrator, data_sources, metrics plan]
   Reload --> Pending[Snapshot updates — restart to apply on wire]
 
-  Pending --> Restart[listeners, forward, control, metrics, tracing, logging]
+  Pending --> Restart[listeners, forward, control listen/TLS, tracing hub, logging subscriber]
 ```
 
 The table summarizes commands and overlay behavior. [Workflow 5 — Hot reload vs process restart](#workflow-5-hot-reload-vs-process-restart) lists every section that needs a restart after reload.
@@ -54,12 +54,12 @@ The table summarizes commands and overlay behavior. [Workflow 5 — Hot reload v
 | Goal | Use | Clears overlay? | Re-reads startup file? |
 |------|-----|-----------------|------------------------|
 | Deploy updated YAML from configuration management | **SIGHUP** or **`conduitctl reload`** | Yes | Yes |
-| Temporary pool weight or section override | **`conduitctl apply`** (default **merge**) | No | No |
+| Temporary pool weight or section override | **`conduitctl apply`** (default **merge**) or typed primitives (`backend set-weight`, …) | No | No |
 | Drop overlay without picking up new disk edits | **`conduitctl apply --clear`** | Yes | No |
 | See effective config (file + overlay) | **`conduitctl export`** | No | No |
 | First enable gRPC or change listener bind | Edit file + **restart** | Yes (fresh process) | Yes (at start) |
 
-**Overlay limits:** patches must **not** include **`rules:`**, **`metrics:`**, or **`tracing:`** — apply is rejected. Edit those sections on disk and **reload** (or restart when export listeners must rebind). See [Configuration model — overlay](/control-plane/configuration-model.md#overlay).
+**Overlay limits:** patches must **not** include **`rules:`** or **`tracing:`** — apply is rejected. **`metrics:`** may be applied (deep merge). Edit **`rules:`** / **`tracing:`** on disk and **reload**. See [Configuration model — overlay](/control-plane/configuration-model.md#overlay).
 
 On validation failure while DNS is already running, Conduit keeps the **[last-good snapshot](/glossary/index.md#last-good-snapshot)** and continues answering queries.
 
@@ -179,11 +179,11 @@ After a successful reload or apply, most policy and pool changes affect **later*
 
 | Change | Reload/apply updates snapshot? | Restart needed for wire effect? |
 |--------|-------------------------------|----------------------------------|
-| Pool weights, rules, Rhai, `data_sources`, `orchestrator` | Yes | No |
+| Pool weights, rules, Rhai, `data_sources`, `orchestrator` limits, metrics plan / scrape rebind | Yes | No |
 | **`listeners`** (bind, `threads`, `reuse_port`) | Yes — logs **pending (restart required)** | Yes |
 | **`forward`** (egress sockets, timeout, transport) | Yes — logs **pending (restart required)** | Yes |
-| Add or move **`control:`** listener | Yes | Yes — gRPC starts at process start |
-| Enable or rebind **`metrics:`** / **`tracing:`** scrape or push | Yes | Yes — export tasks start at process start |
+| Add or move **`control:`** listener / TLS | Yes | Yes — gRPC starts at process start |
+| Enable or rebind **`tracing:`** | Yes | Yes — tracing hub starts at process start |
 | **`logging:`** level or output | Yes | Yes — subscriber binds at process start |
 
 Pattern for listener or forward edits:
@@ -195,16 +195,27 @@ Pattern for listener or forward edits:
 
 Details: [Configuration model — What takes effect when](/control-plane/configuration-model.md#what-takes-effect-when), [Observability — Changing observability config](/observability/index.md#changing-observability-config).
 
-## Workflow 6 — Rules or observability blocks on disk
+## Workflow 6 — Rules or tracing on disk
 
-**`rules:`**, **`metrics:`**, and **`tracing:`** are **file-layer only** — not allowed in overlay patches.
+**`rules:`** and **`tracing:`** are **file-layer only** — not allowed in overlay patches. **`metrics:`** may use overlay or **`conduitctl metrics patch`**.
 
-1. Edit the startup YAML (for example add a rule or enable `metrics.prometheus`).
+1. Edit the startup YAML (for example add a rule or change tracing activation).
 2. **`conduitctl validate --file …`**
 3. **`conduitctl reload`**
-4. If you added or changed **metrics scrape**, **tracing**, **logging**, or **new event sinks**, **restart** the process so listeners and subscribers rebind.
+4. If you changed **tracing** or **logging**, **restart** the process so hubs and subscribers rebind. Metrics plan and Prometheus/OTLP export settings hot-apply / rebind without process restart when the apply succeeds.
 
 Rule changes enter the snapshot on reload; see [Rules and actions — when changes take effect](/policy-routing/rules-and-actions.md#when-changes-to-rules-take-effect).
+
+## Workflow 7 — Typed config primitives
+
+Use primitives when you want a surgical change without authoring YAML:
+
+```bash
+conduitctl backend set-weight --pool default --backend resolver-a --weight 10
+conduitctl export | grep -A2 'name: resolver-a'
+```
+
+Mix with document apply as needed — both share the Configurator. Prefer primitives for overlay-hot knobs; use file reload for **`rules:`** / **`tracing:`**, and restart for bind topology. Do not use **`health set down`** as a substitute for lowering a config weight.
 
 ## Quick verification checklist
 

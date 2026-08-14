@@ -1,28 +1,39 @@
 # Reference: gRPC and CLI
 
-This page is a field-level reference for the **`ConduitControl`** gRPC service and how **`conduitctl`** maps to it. Connection, authentication, and operator-oriented command help: [gRPC and conduitctl](/control-plane/grpc-and-conduitctl.md). Proto source: `proto/conduit/v1/control.proto` and `proto/conduit/v1/config.proto` in the repository.
+Automation and operators map **`conduitctl`** subcommands onto gRPC services on the control listener. Connection, authentication, TLS, and command help: [gRPC and conduitctl](/control-plane/grpc-and-conduitctl.md). Proto sources live under `proto/conduit/v1/` in the repository (`control.proto`, `config.proto`, `health.proto`, `pools.proto`, and the other capability protos).
 
 ## Service: `ConduitControl`
+
+Document-centric RPCs (apply / export / reload / validate / …).
 
 | RPC {: .column-no-wrap } | Request | Response | Notes |
 |-----|---------|----------|-------|
 | `GetConfig` | `GetConfigRequest` (empty) | `effective` [`Config`](/reference/config-schema/index.md) | Current [effective config](/glossary/index.md#effective-config) |
 | `ValidateConfig` | `config` [`Config`](/reference/config-schema/index.md) | `ok`, `errors[]` | Structural validation only; does not read external paths |
-| `ApplyConfig` | `overlay`, `mode` | `ok`, `errors[]` | See [OverlayApplyMode](#overlayapplymode) |
+| `ApplyConfig` | `overlay`, `mode` | `ok`, `errors[]`, `generation`, `notes[]` | See [OverlayApplyMode](#overlayapplymode) and [status fields](#apply-status-fields) |
 | `ExportConfig` | `format` | `body` | **`format` must be `yaml`** (or empty → yaml). JSON is not implemented. |
-| `ReloadFromFile` | (empty) | `ok`, `errors[]` | [Reload from disk](/glossary/index.md#reload-from-disk) |
+| `ReloadFromFile` | (empty) | `ok`, `errors[]`, `generation`, `notes[]` | [Reload from disk](/glossary/index.md#reload-from-disk) |
 | `Health` | (empty) | `status` (`serving`) | Liveness |
 | `GetTrace` | `txn_id` (decimal string) | `found`, `events[]` | Pipeline trace when enabled |
 | `CheckAcl` | `ip`, optional `listener` | `ip`, `results[]` | Read-only ACL dry-run against the live snapshot; no metrics or denial logs |
 
-Mutating RPCs (`ApplyConfig`, `ReloadFromFile`) leave the prior [runtime snapshot](/glossary/index.md#runtime-snapshot) unchanged when `ok` is false.
+Mutating RPCs leave the prior [runtime snapshot](/glossary/index.md#runtime-snapshot) unchanged when `ok` is false.
 
 !!! note "`Health` is process liveness only"
     `Health` reports that the control plane is serving; it does **not** report upstream [backend](/glossary/index.md#backend) health. Per-backend health uses the separate **`BackendHealth`** service — see [BackendHealth service](#service-backendhealth) below and [Backend health](/policy-routing/backend-health.md).
 
+## Apply status fields
+
+Successful **`ApplyConfig`**, **`ReloadFromFile`**, and mutating config-primitive responses include:
+
+| Field | Meaning |
+|-------|---------|
+| `generation` | Resulting configuration generation (correlates with [`conduit_config_generation`](/observability/built-in-metrics.md#conduit_config_generation)); `0` when rejected |
+| `notes[]` | Extensible `kind` + `message` effect / pending-reconcile notes (proto3 additive). Empty notes are normal for fully hot applies; clients must tolerate unknown kinds |
+
 ## Service: `BackendHealth`
 
-Proto source: `proto/conduit/v1/health.proto`. Operator commands: [gRPC and conduitctl — health](/control-plane/grpc-and-conduitctl.md#health).
+Proto source: `proto/conduit/v1/health.proto`. Operator commands: [gRPC and conduitctl — health](/control-plane/grpc-and-conduitctl.md#health). **Runtime control** — does not rewrite effective config or appear in **`export`**.
 
 | RPC {: .column-no-wrap } | Request | Response | Notes |
 |-----|---------|----------|-------|
@@ -50,6 +61,22 @@ Proto source: `proto/conduit/v1/health.proto`. Operator commands: [gRPC and cond
 
 `scope.level`: `backend`, `pool`, or `global`; optional `pool` and `backend` identify the target. `backend` may be the configured `name` or `host:port` address.
 
+## Config primitive services
+
+Capability-oriented services for **overlay-hot** config. Mutating RPCs return the same [`ApplyConfigResponse`](#apply-status-fields) shape (`ok` / `errors` / `generation` / `notes`). Document RPCs remain on **`ConduitControl`**.
+
+| Service {: .column-no-wrap } | Proto | `conduitctl` | RPCs (summary) |
+|---------|-------|--------------|----------------|
+| `ConduitPools` | `pools.proto` | `pool`, `backend` | `ListPools`, `GetPool`, `SetBackendWeight`, `AddBackend`, `RemoveBackend` |
+| `ConduitOrchestrator` | `orchestrator.proto` | `orchestrator` | `GetOrchestrator`, `SetOrchestratorLimits` (`max_attempts` / `max_txn_duration_ms` only) |
+| `ConduitDataSources` | `data_sources.proto` | `data-source`, `data-source-limits` | List/Get/Upsert/Remove; Get/Set limits |
+| `ConduitEvents` | `events.proto` | `events` | GetEvents; GetEventSink; SetEventSinkFilters; SetEventSinkEmit (existing sinks) |
+| `ConduitRhai` | `rhai.proto` | `rhai` | `GetRhai`, `SetRhaiLimits` |
+| `ConduitMetrics` | `metrics_control.proto` | `metrics` | `GetMetrics`, `PatchMetrics` |
+| `ConduitCaches` | `caches.proto` | `cache` | List/Get; SetCacheMaxEntries; SetCacheLmdbHot; SetCachePolicyHot |
+
+Restart-pending fields are omitted from these RPCs (for example `txn_table_capacity`, event sink lifecycle / `queue_depth`, `memory.shard_count`). See [gRPC and conduitctl — document apply vs typed primitives](/control-plane/grpc-and-conduitctl.md#document-apply-vs-typed-primitives).
+
 ## OverlayApplyMode
 
 Used by **`ApplyConfig`**. **`OVERLAY_APPLY_MODE_UNSPECIFIED` (0)** is treated as **merge**.
@@ -71,10 +98,12 @@ message ApplyConfigRequest {
 message ApplyConfigResponse {
   bool ok = 1;
   repeated string errors = 2;
+  uint64 generation = 3;
+  repeated ConfigApplyStatusNote notes = 4;
 }
 ```
 
-Overlay patches must not include **`rules`**, **`metrics`**, or **`tracing`** — the server rejects them. Allowed sections match [Configuration model — overlay merge](/control-plane/configuration-model.md#how-file-and-overlay-merge).
+Overlay patches must not include **`rules`** or **`tracing`** — the server rejects them. **`metrics`** is allowed (deep merge). Allowed sections match [Configuration model — overlay merge](/control-plane/configuration-model.md#how-file-and-overlay-merge). Pool/backend **`remove: true`**: [Remove marker](/control-plane/configuration-model.md#remove-marker).
 
 ## CLI mapping
 
@@ -91,8 +120,16 @@ Overlay patches must not include **`rules`**, **`metrics`**, or **`tracing`** �
 | `health freeze` | `SetHealthControl` (`freeze`) | No |
 | `health set` | `SetHealthControl` (`set_up` / `set_down`) | No |
 | `health resume` | `SetHealthControl` (`resume_automatic`) | No |
+| `pool list` / `pool get` | `ListPools` / `GetPool` | No |
+| `backend set-weight` / `remove` | `SetBackendWeight` / `RemoveBackend` | No |
+| `orchestrator get` / `set-limits` | `GetOrchestrator` / `SetOrchestratorLimits` | No |
+| `data-source …` / `data-source-limits …` | `ConduitDataSources` | No |
+| `events …` | `ConduitEvents` | No |
+| `rhai get` / `set-limits` | `GetRhai` / `SetRhaiLimits` | No |
+| `metrics get` / `patch` | `GetMetrics` / `PatchMetrics` | No |
+| `cache …` | `ConduitCaches` | No |
 
-Global client flags: `--endpoint` / `CONDUIT_CONTROL`, `--api-key` / `CONDUIT_API_KEY`. See [gRPC and conduitctl — connecting](/control-plane/grpc-and-conduitctl.md#connecting).
+Global client flags and YAML client config: [gRPC and conduitctl — connecting](/control-plane/grpc-and-conduitctl.md#connecting).
 
 ## GetTrace event fields
 
@@ -109,6 +146,6 @@ Each `TraceEvent` in the response includes:
 
 ## Related topics
 
-- [gRPC and conduitctl](/control-plane/grpc-and-conduitctl.md) — enable control, connect, authenticate
+- [gRPC and conduitctl](/control-plane/grpc-and-conduitctl.md) — enable control, connect, authenticate, TLS, primitives
 - [Reference: control](/reference/config-schema/control.md) — `control:` config block
 - [Reload and export](/control-plane/reload-and-export.md) — operator workflows
