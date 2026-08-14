@@ -360,7 +360,7 @@ dependencies = [
 
 [[package]]
 name = "conduit"
-version = "1.4.0"
+version = "1.5.0"
 dependencies = [
  "anyhow",
  "conduit-api",
@@ -375,7 +375,7 @@ dependencies = [
 
 [[package]]
 name = "conduit-api"
-version = "1.4.0"
+version = "1.5.0"
 dependencies = [
  "anyhow",
  "conduit-config",
@@ -402,7 +402,7 @@ dependencies = [
 
 [[package]]
 name = "conduit-config"
-version = "1.4.0"
+version = "1.5.0"
 dependencies = [
  "conduit-dns-wire",
  "conduit-events",
@@ -420,7 +420,7 @@ dependencies = [
 
 [[package]]
 name = "conduit-core"
-version = "1.4.0"
+version = "1.5.0"
 dependencies = [
  "arc-swap",
  "conduit-config",
@@ -441,7 +441,7 @@ dependencies = [
 
 [[package]]
 name = "conduit-dataplane"
-version = "1.4.0"
+version = "1.5.0"
 dependencies = [
  "arc-swap",
  "conduit-config",
@@ -461,11 +461,11 @@ dependencies = [
 
 [[package]]
 name = "conduit-dns-wire"
-version = "1.4.0"
+version = "1.5.0"
 
 [[package]]
 name = "conduit-dnstap-tracer"
-version = "1.4.0"
+version = "1.5.0"
 dependencies = [
  "anyhow",
  "conduit-events",
@@ -478,7 +478,7 @@ dependencies = [
 
 [[package]]
 name = "conduit-events"
-version = "1.4.0"
+version = "1.5.0"
 dependencies = [
  "conduit-dns-wire",
  "conduit-proto",
@@ -491,7 +491,7 @@ dependencies = [
 
 [[package]]
 name = "conduit-metrics"
-version = "1.4.0"
+version = "1.5.0"
 dependencies = [
  "arc-swap",
  "async-trait",
@@ -522,7 +522,7 @@ dependencies = [
 
 [[package]]
 name = "conduit-otlp-metrics-tracer"
-version = "1.4.0"
+version = "1.5.0"
 dependencies = [
  "anyhow",
  "http-body-util",
@@ -535,7 +535,7 @@ dependencies = [
 
 [[package]]
 name = "conduit-proto"
-version = "1.4.0"
+version = "1.5.0"
 dependencies = [
  "prost",
  "prost-build",
@@ -547,7 +547,7 @@ dependencies = [
 
 [[package]]
 name = "conduit-script"
-version = "1.4.0"
+version = "1.5.0"
 dependencies = [
  "conduit-config",
  "conduit-dns-wire",
@@ -565,7 +565,7 @@ dependencies = [
 
 [[package]]
 name = "conduitctl"
-version = "1.4.0"
+version = "1.5.0"
 dependencies = [
  "anyhow",
  "clap",

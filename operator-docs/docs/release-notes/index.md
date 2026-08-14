@@ -7,6 +7,7 @@ This section lists operator-facing changes by release. For the full list of merg
 
 | Version | Released | Summary |
 | --- | --- | --- |
+| [1.5.0](1.5.0.md) | 2026-08-14 | Control plane |
 | [1.4.0](1.4.0.md) | 2026-08-10 | LMDB DNS answer cache |
 | [1.3.0](1.3.0.md) | 2026-08-04 | Performance documentation |
 | [1.2.0](1.2.0.md) | 2026-07-26 | Packaging |
