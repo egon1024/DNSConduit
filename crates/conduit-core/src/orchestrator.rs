@@ -220,9 +220,18 @@ impl Orchestrator {
         }
 
         loop {
-            if txn.started_at.elapsed() > Duration::from_millis(max_duration as u64) {
+            if txn.started_at.elapsed() > Duration::from_millis(max_duration as u64)
+                && !matches!(txn.current_phase, Phase::NoAnswer | Phase::Send)
+            {
                 txn.set_rcode_name("SERVFAIL");
-                txn.current_phase = Phase::Send;
+                if txn.response_wire.is_none() {
+                    txn.set_convergence_reason(
+                        crate::transaction::ConvergenceReason::DurationExhausted,
+                    );
+                    txn.current_phase = Phase::NoAnswer;
+                } else {
+                    txn.current_phase = Phase::Send;
+                }
             }
 
             let Some(stage) = self.registry.get(txn.current_phase) else {
@@ -275,7 +284,7 @@ impl Orchestrator {
                                             .record_parse_rejected(reason.as_str());
                                     }
                                 }
-                                Phase::RequestRules | Phase::ResponseRules => {
+                                Phase::RequestRules | Phase::ResponseRules | Phase::NoAnswer => {
                                     let protocol = match txn.protocol {
                                         crate::transaction::ClientProtocol::Udp => "udp",
                                         crate::transaction::ClientProtocol::Tcp => "tcp",
@@ -285,6 +294,7 @@ impl Orchestrator {
                                     let reason = match phase {
                                         Phase::RequestRules => "request_rules",
                                         Phase::ResponseRules => "response_rules",
+                                        Phase::NoAnswer => "no_answer_rules",
                                         _ => unreachable!(),
                                     };
                                     txn.builtin_registry(hub).record_query_dropped(
@@ -443,6 +453,7 @@ fn phase_name(phase: Phase) -> &'static str {
         Phase::Parse => "parse",
         Phase::RequestRules => "request_rules",
         Phase::Lookup => "lookup",
+        Phase::NoAnswer => "no_answer",
         Phase::ResponseRules => "response_rules",
         Phase::Send => "send",
         // Internal forward-provider steps — not emitted on the top-level trace path.
@@ -456,6 +467,7 @@ fn next_phase(phase: Phase) -> Phase {
         Phase::Parse => Phase::RequestRules,
         Phase::RequestRules => Phase::Lookup,
         Phase::Lookup => Phase::ResponseRules,
+        Phase::NoAnswer => Phase::Send,
         Phase::ResponseRules => Phase::Send,
         Phase::Send => Phase::Send,
         Phase::Route | Phase::Forward | Phase::WaitResponse => Phase::Lookup,
@@ -464,10 +476,13 @@ fn next_phase(phase: Phase) -> Phase {
 
 impl Orchestrator {
     pub fn with_default_stages() -> Self {
-        use crate::stages::{ParseStage, RequestRulesStage, ResponseRulesStage, SendStage};
+        use crate::stages::{
+            NoAnswerStage, ParseStage, RequestRulesStage, ResponseRulesStage, SendStage,
+        };
         let mut registry = StageRegistry::new();
         registry.register(Phase::Parse, Arc::new(ParseStage));
         registry.register(Phase::RequestRules, Arc::new(RequestRulesStage::default()));
+        registry.register(Phase::NoAnswer, Arc::new(NoAnswerStage::default()));
         registry.register(
             Phase::ResponseRules,
             Arc::new(ResponseRulesStage::default()),

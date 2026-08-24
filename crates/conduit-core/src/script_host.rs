@@ -23,6 +23,7 @@ impl HostTransaction for Transaction {
 
     fn phase(&self) -> ScriptPhase {
         match self.current_phase {
+            Phase::NoAnswer => ScriptPhase::NoAnswer,
             Phase::ResponseRules | Phase::Lookup | Phase::Send => ScriptPhase::Response,
             _ => ScriptPhase::Request,
         }
@@ -212,6 +213,10 @@ impl HostTransaction for Transaction {
 
     fn cache_instance(&self) -> Option<&str> {
         self.cache_instance.as_deref()
+    }
+
+    fn convergence_reason(&self) -> Option<&str> {
+        self.convergence_reason.map(|r| r.as_str())
     }
 
     fn is_dropped(&self) -> bool {

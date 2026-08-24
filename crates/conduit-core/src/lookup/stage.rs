@@ -6,7 +6,7 @@ use crate::phase::Phase;
 use crate::pipeline::{PipelineStage, StageOutcome};
 use crate::record_upstream_response;
 use crate::snapshot::RuntimeSnapshot;
-use crate::transaction::{LookupCacheFill, LookupCacheWait, Transaction};
+use crate::transaction::{ConvergenceReason, LookupCacheFill, LookupCacheWait, Transaction};
 use conduit_config::lookup::{CompiledLookupProvider, DEFAULT_LOOKUP_PROFILE};
 use conduit_metrics::MetricsHub;
 use std::sync::Arc;
@@ -137,10 +137,11 @@ impl LookupStage {
                 txn_id = txn.id,
                 attempt_count = txn.attempt_count,
                 max_attempts,
-                "lookup forward max attempts exceeded; responding SERVFAIL"
+                "lookup forward max attempts exceeded; converging at no_answer"
             );
             txn.set_rcode_name("SERVFAIL");
-            return StageOutcome::Continue(Phase::Send);
+            txn.set_convergence_reason(ConvergenceReason::AttemptsExhausted);
+            return StageOutcome::Continue(Phase::NoAnswer);
         }
 
         let route_out = self.route.handle(txn, snapshot);
@@ -156,11 +157,17 @@ impl LookupStage {
                     None,
                 );
             }
-            StageOutcome::Continue(Phase::Send) => return StageOutcome::Continue(Phase::Send),
+            StageOutcome::Continue(Phase::NoAnswer) => {
+                return StageOutcome::Continue(Phase::NoAnswer);
+            }
+            StageOutcome::Continue(Phase::ResponseRules) => {
+                return StageOutcome::Continue(Phase::ResponseRules);
+            }
             StageOutcome::Drop => return StageOutcome::Drop,
             other => {
                 tracing::warn!(?other, "unexpected route outcome inside lookup");
-                return StageOutcome::Continue(Phase::Send);
+                txn.set_convergence_reason(ConvergenceReason::ForwardError);
+                return StageOutcome::Continue(Phase::NoAnswer);
             }
         }
 
@@ -187,11 +194,22 @@ impl LookupStage {
             StageOutcome::Continue(Phase::ResponseRules) => {
                 self.finish_forward_answer(txn, snapshot, &profile, forward_started)
             }
-            StageOutcome::Continue(Phase::Send) => StageOutcome::Continue(Phase::Send),
+            StageOutcome::Continue(Phase::NoAnswer) => StageOutcome::Continue(Phase::NoAnswer),
+            StageOutcome::Continue(Phase::Send) => {
+                // Hard forward failure with no wire → NoAnswer (compat for callers
+                // that still return Send).
+                if txn.response_wire.is_none() {
+                    txn.set_convergence_reason(ConvergenceReason::ForwardError);
+                    StageOutcome::Continue(Phase::NoAnswer)
+                } else {
+                    StageOutcome::Continue(Phase::Send)
+                }
+            }
             StageOutcome::Drop => StageOutcome::Drop,
             other => {
                 tracing::warn!(?other, "unexpected forward outcome inside lookup");
-                StageOutcome::Continue(Phase::Send)
+                txn.set_convergence_reason(ConvergenceReason::ForwardError);
+                StageOutcome::Continue(Phase::NoAnswer)
             }
         }
     }
@@ -206,11 +224,24 @@ impl LookupStage {
         let wait_out = self.wait.handle(txn, snapshot);
         let continue_phase = match wait_out {
             StageOutcome::Continue(Phase::ResponseRules) => Phase::ResponseRules,
-            StageOutcome::Continue(Phase::Send) => Phase::Send,
+            StageOutcome::Continue(Phase::NoAnswer) => Phase::NoAnswer,
+            StageOutcome::Continue(Phase::Send) => {
+                if txn.response_wire.is_none() {
+                    txn.set_convergence_reason(ConvergenceReason::ForwardError);
+                    Phase::NoAnswer
+                } else {
+                    Phase::Send
+                }
+            }
             StageOutcome::Drop => return StageOutcome::Drop,
             other => {
                 tracing::warn!(?other, "unexpected wait outcome inside lookup");
-                Phase::Send
+                if txn.response_wire.is_none() {
+                    txn.set_convergence_reason(ConvergenceReason::ForwardError);
+                    Phase::NoAnswer
+                } else {
+                    Phase::Send
+                }
             }
         };
 
@@ -229,6 +260,11 @@ impl LookupStage {
             } else if let Some(gate) = cache.instance_gate(&fill.cache_name, &key) {
                 cache.complete_inflight_miss(&fill.cache_name, &key, &gate);
             }
+        }
+
+        if continue_phase == Phase::NoAnswer {
+            self.observe_lookup_provider_duration(profile, "forward", forward_started);
+            return StageOutcome::Continue(Phase::NoAnswer);
         }
 
         txn.lookup_outcome = Some(LookupOutcome::Answered);
@@ -380,7 +416,8 @@ impl PipelineStage for LookupStage {
         let Some(profile) = snapshot.lookup.profiles.get(profile_name) else {
             tracing::error!(profile = profile_name, "unknown lookup profile");
             txn.set_rcode_name("SERVFAIL");
-            return StageOutcome::Continue(Phase::Send);
+            txn.set_convergence_reason(ConvergenceReason::UnknownProfile);
+            return StageOutcome::Continue(Phase::NoAnswer);
         };
         txn.lookup_profile = Some(profile.name.clone());
 

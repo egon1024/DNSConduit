@@ -8,7 +8,8 @@ use crate::routing::{
     PoolHealthView,
 };
 use crate::snapshot::RuntimeSnapshot;
-use crate::transaction::Transaction;
+use crate::transaction::{ConvergenceReason, Transaction};
+use conduit_config::defaults::DEFAULT_ROUTE_FAILURE_POLICY;
 use std::sync::Arc;
 
 /// Route phase. When `health` is set (the dataplane runtimes), selection is
@@ -17,6 +18,26 @@ use std::sync::Arc;
 #[derive(Default)]
 pub struct RouteStage {
     health: Option<Arc<HealthRegistry>>,
+}
+
+fn route_failure_continue_phase(snapshot: &RuntimeSnapshot) -> Phase {
+    let policy = snapshot
+        .config
+        .orchestrator
+        .as_ref()
+        .map(|o| {
+            if o.route_failure_policy.is_empty() {
+                DEFAULT_ROUTE_FAILURE_POLICY
+            } else {
+                o.route_failure_policy.as_str()
+            }
+        })
+        .unwrap_or(DEFAULT_ROUTE_FAILURE_POLICY);
+    if policy == "response_rules" {
+        Phase::ResponseRules
+    } else {
+        Phase::NoAnswer
+    }
 }
 
 impl RouteStage {
@@ -47,8 +68,16 @@ impl PipelineStage for RouteStage {
         .or_else(|| default_pool_name(&snapshot.config));
 
         let Some(pool_name) = pool_name else {
+            let continue_phase = route_failure_continue_phase(snapshot);
+            tracing::warn!(
+                txn_id = txn.id,
+                reason = "no_pool",
+                next_phase = ?continue_phase,
+                "route failed: no pool resolvable"
+            );
             txn.set_rcode_name("SERVFAIL");
-            return StageOutcome::Continue(Phase::Send);
+            txn.set_convergence_reason(ConvergenceReason::NoPool);
+            return StageOutcome::Continue(continue_phase);
         };
 
         // Read the lock-free health side-table for this pool, if health is wired
@@ -73,8 +102,17 @@ impl PipelineStage for RouteStage {
             &tried,
             health_view,
         ) else {
+            let continue_phase = route_failure_continue_phase(snapshot);
+            tracing::warn!(
+                txn_id = txn.id,
+                pool = %pool_name,
+                reason = "no_backend_selected",
+                next_phase = ?continue_phase,
+                "route failed: no backend selectable"
+            );
             txn.set_rcode_name("SERVFAIL");
-            return StageOutcome::Continue(Phase::Send);
+            txn.set_convergence_reason(ConvergenceReason::NoBackendSelected);
+            return StageOutcome::Continue(continue_phase);
         };
 
         let backend_label = backend_metric_label_for_addr(&snapshot.config.pools, &pool, backend);

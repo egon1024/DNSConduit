@@ -167,6 +167,7 @@ struct FamilyLabelSchemas {
     timing: Vec<String>,
     forward_failures: Vec<String>,
     acl: Vec<String>,
+    lookup_no_answer: Vec<String>,
 }
 
 impl FamilyLabelSchemas {
@@ -178,6 +179,7 @@ impl FamilyLabelSchemas {
             timing: plan.dimensions_for("timing").to_vec(),
             forward_failures: plan.dimensions_for("forward_failures").to_vec(),
             acl: plan.dimensions_for("acl").to_vec(),
+            lookup_no_answer: plan.dimensions_for("lookup_no_answer").to_vec(),
         }
     }
 
@@ -206,6 +208,7 @@ impl FamilyLabelSchemas {
             timing: dims("timing"),
             forward_failures: dims("forward_failures"),
             acl: dims("acl"),
+            lookup_no_answer: dims("lookup_no_answer"),
         }
     }
 
@@ -243,6 +246,7 @@ pub struct BuiltinRegistry {
     acl_decisions_total: Option<AclDecisionsTotal>,
     response_duration: Option<ResponseDuration>,
     lookup_provider_outcomes: Option<IntCounterVec>,
+    lookup_no_answer_total: Option<IntCounterVec>,
     cache_lookups: Option<IntCounterVec>,
     cache_fills: Option<IntCounterVec>,
     cache_singleflight_coalesced: Option<IntCounterVec>,
@@ -565,6 +569,17 @@ impl BuiltinRegistry {
                 "conduit_lookup_provider_outcomes_total",
                 "Terminal lookup provider outcomes per attempt",
                 &["profile", "provider", "outcome"],
+            ))
+        } else {
+            None
+        };
+
+        let lookup_no_answer_labels = label_refs(&schemas.lookup_no_answer);
+        let lookup_no_answer_total = if effective {
+            Some(get_counter(
+                "conduit_lookup_no_answer_total",
+                "Transactions that reached the NoAnswer total-failure phase",
+                &lookup_no_answer_labels,
             ))
         } else {
             None
@@ -1019,6 +1034,7 @@ impl BuiltinRegistry {
             acl_decisions_total,
             response_duration,
             lookup_provider_outcomes,
+            lookup_no_answer_total,
             cache_lookups,
             cache_fills,
             cache_singleflight_coalesced,
@@ -1282,6 +1298,29 @@ impl BuiltinRegistry {
         if let Some(c) = self.lookup_provider_outcomes.as_ref() {
             c.with_label_values(&[profile, provider, outcome]).inc();
         }
+    }
+
+    /// Count a transaction that converged at the NoAnswer phase.
+    ///
+    /// Labels follow the `lookup_no_answer` plan family: `profile`+`reason` at
+    /// minimal, plus `pool` at full.
+    pub fn record_lookup_no_answer(&self, profile: &str, reason: &str, pool: &str) {
+        if !self.enabled {
+            return;
+        }
+        let Some(c) = self.lookup_no_answer_total.as_ref() else {
+            return;
+        };
+        let mut vals: Vec<&str> = Vec::with_capacity(self.schemas.lookup_no_answer.len());
+        for dim in &self.schemas.lookup_no_answer {
+            match dim.as_str() {
+                "profile" => vals.push(profile),
+                "reason" => vals.push(reason),
+                "pool" => vals.push(pool),
+                _ => vals.push(""),
+            }
+        }
+        c.with_label_values(&vals).inc();
     }
 
     pub fn record_cache_lookup(&self, cache: &str, profile: &str, result: &str) {
@@ -2395,6 +2434,41 @@ Max locked memory         8388608              8388608              bytes     \n
         assert!(
             !body.contains(r#"rcode_class="#),
             "label renamed to rcode, body:\n{body}"
+        );
+    }
+
+    #[test]
+    fn lookup_no_answer_respects_profile_tiers() {
+        let reg_min = BuiltinRegistry::new(true, BuiltinProfile::Minimal);
+        reg_min.record_lookup_no_answer("default", "no_backend_selected", "primary");
+        let body_min = encode_builtin(reg_min.gather());
+        assert!(
+            body_min.contains(
+                r#"conduit_lookup_no_answer_total{profile="default",reason="no_backend_selected"} 1"#
+            ),
+            "minimal omits pool, body:\n{body_min}"
+        );
+        assert!(
+            !body_min.contains(r#"pool="#),
+            "minimal must not export pool label, body:\n{body_min}"
+        );
+
+        let reg_full = BuiltinRegistry::new(true, BuiltinProfile::Full);
+        reg_full.record_lookup_no_answer("default", "no_backend_selected", "primary");
+        let body_full = encode_builtin(reg_full.gather());
+        assert!(
+            body_full.contains(
+                r#"conduit_lookup_no_answer_total{pool="primary",profile="default",reason="no_backend_selected"} 1"#
+            ),
+            "full includes pool, body:\n{body_full}"
+        );
+
+        let reg_off = BuiltinRegistry::new(true, BuiltinProfile::Off);
+        reg_off.record_lookup_no_answer("default", "no_pool", "");
+        let body_off = encode_builtin(reg_off.gather());
+        assert!(
+            !body_off.contains("conduit_lookup_no_answer_total"),
+            "off must not export the series, body:\n{body_off}"
         );
     }
 

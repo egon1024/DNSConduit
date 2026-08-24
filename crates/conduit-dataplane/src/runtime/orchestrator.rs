@@ -79,6 +79,12 @@ pub fn build_orchestrator(
             outstanding: Some(outstanding),
         }),
     );
+    orchestrator.registry.register(
+        Phase::NoAnswer,
+        Arc::new(conduit_core::stages::NoAnswerStage::new(Some(
+            metrics.clone(),
+        ))),
+    );
     orchestrator
         .registry
         .register(Phase::Lookup, Arc::new(lookup));

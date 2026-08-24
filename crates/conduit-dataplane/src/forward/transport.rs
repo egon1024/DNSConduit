@@ -13,7 +13,7 @@ use conduit_core::pipeline::{PipelineStage, StageOutcome};
 use conduit_core::record_upstream_response;
 use conduit_core::routing::backend_metric_label_for_addr;
 use conduit_core::snapshot::RuntimeSnapshot;
-use conduit_core::transaction::{ClientProtocol, Transaction};
+use conduit_core::transaction::{ClientProtocol, ConvergenceReason, Transaction};
 use conduit_core::txn_store::SlotId;
 use conduit_metrics::MetricsHub;
 use hickory_proto::op::Message;
@@ -250,7 +250,8 @@ impl ForwardTransport {
             }
         }
         txn.set_rcode_name("SERVFAIL");
-        StageOutcome::Continue(Phase::Send)
+        txn.set_convergence_reason(ConvergenceReason::ForwardError);
+        StageOutcome::Continue(Phase::NoAnswer)
     }
 
     fn register_forward_key(
@@ -361,7 +362,8 @@ impl ForwardTransport {
         let Some(backend) = txn.selected_backend else {
             self.record_forward(txn, snapshot, None, "error", Some("no_backend"), started);
             txn.set_rcode_name("SERVFAIL");
-            return StageOutcome::Continue(Phase::Send);
+            txn.set_convergence_reason(ConvergenceReason::ForwardError);
+            return StageOutcome::Continue(Phase::NoAnswer);
         };
 
         let key = match self.register_forward_key(txn, snapshot, backend) {
@@ -487,6 +489,10 @@ impl ForwardTransport {
                     %backend,
                     "forward recv timeout"
                 );
+                // Mirror split_io WaitResponse: record the forward failure, then
+                // enter ResponseRules with no wire so SERVFAIL retry / failover
+                // rules can run. ResponseRules falls through to NoAnswer when no
+                // rule retries (answerless + convergence_reason).
                 self.record_forward(
                     txn,
                     snapshot,
@@ -498,6 +504,7 @@ impl ForwardTransport {
                 self.report_passive_outcome(txn, snapshot, backend, true, Some("timeout"));
                 self.table.remove(key);
                 txn.set_rcode_name("SERVFAIL");
+                txn.set_convergence_reason(ConvergenceReason::ForwardError);
                 StageOutcome::Continue(Phase::ResponseRules)
             }
         }
@@ -705,5 +712,55 @@ mod tests {
         stop.store(true, Ordering::Relaxed);
         let _ = upstream.join();
         let _ = poll.join();
+    }
+
+    #[test]
+    fn sync_recv_timeout_enters_response_rules_with_forward_error() {
+        let sock = UdpSocket::bind("127.0.0.1:0").unwrap();
+        let backend = sock.local_addr().unwrap();
+        let _blackhole = std::thread::spawn(move || {
+            let mut buf = [0u8; 512];
+            loop {
+                let _ = sock.recv_from(&mut buf);
+            }
+        });
+
+        let table = Arc::new(TxnTable::new(64, 16));
+        let compiled = compiled_forward();
+        let egress =
+            WorkerForwardEgress::new(&compiled, &[Ipv4Addr::UNSPECIFIED], &[], 300).unwrap();
+        let forward = ForwardTransport::new_with_mode_and_egress(
+            egress,
+            table,
+            &compiled,
+            300,
+            None,
+            ForwardMode::Sync,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+
+        let mut txn = Transaction::new(1, "127.0.0.1:53".parse().unwrap(), ClientProtocol::Udp)
+            .with_query_wire(vec![
+                0x12, 0x34, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x77,
+                0x77, 0x77, 0x07, 0x65, 0x78, 0x61, 0x6d, 0x70, 0x6c, 0x65, 0x03, 0x63, 0x6f, 0x6d,
+                0x00, 0x00, 0x01, 0x00, 0x01,
+            ]);
+        txn.selected_backend = Some(backend);
+        txn.selected_pool = Some("default".into());
+
+        let snap = minimal_snapshot();
+        let outcome = forward.handle(&mut txn, &snap);
+        assert!(
+            matches!(outcome, StageOutcome::Continue(Phase::ResponseRules)),
+            "expected ResponseRules so retry/failover can run, got {outcome:?}"
+        );
+        assert_eq!(
+            txn.convergence_reason,
+            Some(conduit_core::ConvergenceReason::ForwardError)
+        );
+        assert!(txn.response_wire.is_none());
     }
 }

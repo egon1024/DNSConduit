@@ -80,7 +80,7 @@ fn merge_configs(base: &Config, overlay: &Config, mode: MergeMode) -> Result<Con
         merged.forward = overlay.forward.clone();
     }
     if overlay.orchestrator.is_some() {
-        merged.orchestrator = overlay.orchestrator;
+        merged.orchestrator = overlay.orchestrator.clone();
     }
     if overlay.events.is_some() {
         merged.events = overlay.events.clone();

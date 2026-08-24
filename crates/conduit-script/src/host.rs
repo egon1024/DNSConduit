@@ -21,6 +21,7 @@ pub enum ClientProtocol {
 pub enum ScriptPhase {
     Request,
     Response,
+    NoAnswer,
 }
 
 /// Host transaction surface for Rhai scripts (implemented by `conduit-core::Transaction`).
@@ -109,6 +110,10 @@ pub trait HostTransaction {
     }
     /// Named cache instance when `answer_source` is `cache`.
     fn cache_instance(&self) -> Option<&str> {
+        None
+    }
+    /// Why the transaction converged at NoAnswer, when applicable.
+    fn convergence_reason(&self) -> Option<&str> {
         None
     }
     fn is_dropped(&self) -> bool;

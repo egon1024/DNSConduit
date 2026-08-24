@@ -158,6 +158,7 @@ pub const GRANULARITY_FAMILIES: &[&str] = &[
     "forward_failures",
     "acl",
     "cache_lookup",
+    "lookup_no_answer",
 ];
 
 /// Maintainer table: closed dimension vocabulary per family, in canonical
@@ -176,6 +177,7 @@ pub fn family_allowed_dimensions(family: &str) -> Option<&'static [&'static str]
         "forward_failures" => Some(&["pool", "backend", "reason"]),
         "acl" => Some(&["tier", "action", "listener", "ip_family"]),
         "cache_lookup" => Some(&["cache", "profile", "result"]),
+        "lookup_no_answer" => Some(&["profile", "reason", "pool"]),
         _ => None,
     }
 }
@@ -222,6 +224,10 @@ pub fn preset_family_dimensions(
             Granularity::Fine => &["tier", "action", "listener", "ip_family"],
         }),
         "cache_lookup" => Some(&["cache", "profile", "result"]),
+        "lookup_no_answer" => Some(match granularity {
+            Granularity::Coarse | Granularity::Balanced => &["profile", "reason"],
+            Granularity::Fine => &["profile", "reason", "pool"],
+        }),
         _ => None,
     }
 }
@@ -474,9 +480,9 @@ pub fn builtin_metric_category(family_name: &str) -> Option<MetricCategory> {
         | "conduit_retries_total"
         | "conduit_slot_pool_exhausted_total" => Some(MetricCategory::Failures),
 
-        "conduit_lookup_provider_outcomes_total" | "conduit_cache_lookups_total" => {
-            Some(MetricCategory::Lookup)
-        }
+        "conduit_lookup_provider_outcomes_total"
+        | "conduit_cache_lookups_total"
+        | "conduit_lookup_no_answer_total" => Some(MetricCategory::Lookup),
 
         "conduit_phase_duration_seconds"
         | "conduit_forward_attempts_total"

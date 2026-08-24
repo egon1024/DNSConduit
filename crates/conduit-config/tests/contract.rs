@@ -135,6 +135,111 @@ rules:
     );
 }
 
+/// set_pool and set_retry_pool must name a pool declared in pools:.
+#[test]
+fn unknown_pool_in_set_pool_is_rejected() {
+    let yaml = r#"
+schema_version: 1
+listeners:
+  threads: 1
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+pools:
+  - name: primary
+    backends:
+      - address: "127.0.0.1:5300"
+        weight: 100
+rules:
+  match_mode: first_match
+  rules:
+    - name: bad-pool
+      hook: request
+      selectors: []
+      actions:
+        - type: set_pool
+          value: does-not-exist
+"#;
+    let cfg = load_yaml(yaml).expect("load");
+    let validation = validate(&cfg);
+    assert!(!validation.ok, "expected unknown pool rejection");
+    assert!(
+        validation.errors.iter().any(|e| {
+            e.contains("bad-pool") && e.contains("set_pool") && e.contains("does-not-exist")
+        }),
+        "errors: {:?}",
+        validation.errors
+    );
+}
+
+#[test]
+fn unknown_pool_in_set_retry_pool_is_rejected() {
+    let yaml = r#"
+schema_version: 1
+listeners:
+  threads: 1
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+pools:
+  - name: primary
+    backends:
+      - address: "127.0.0.1:5300"
+        weight: 100
+rules:
+  match_mode: first_match
+  rules:
+    - name: bad-retry-pool
+      hook: response
+      selectors:
+        - type: rcode
+          value: SERVFAIL
+      actions:
+        - type: set_retry_pool
+          value: backup
+        - type: retry
+"#;
+    let cfg = load_yaml(yaml).expect("load");
+    let validation = validate(&cfg);
+    assert!(!validation.ok);
+    assert!(
+        validation.errors.iter().any(|e| {
+            e.contains("bad-retry-pool") && e.contains("set_retry_pool") && e.contains("backup")
+        }),
+        "errors: {:?}",
+        validation.errors
+    );
+}
+
+#[test]
+fn set_pool_to_declared_pool_validates() {
+    let yaml = r#"
+schema_version: 1
+listeners:
+  threads: 1
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+pools:
+  - name: primary
+    backends:
+      - address: "127.0.0.1:5300"
+        weight: 100
+rules:
+  match_mode: first_match
+  rules:
+    - name: ok-pool
+      hook: request
+      selectors: []
+      actions:
+        - type: set_pool
+          value: primary
+"#;
+    let cfg = load_yaml(yaml).expect("load");
+    let validation = validate(&cfg);
+    assert!(validation.ok, "errors: {:?}", validation.errors);
+}
+
 /// A `qtype` IANA name and its `TYPE{n}` numeric alias compile to the same selector,
 /// so both forms validate identically.
 #[test]
@@ -176,6 +281,22 @@ rules:
             validation.errors
         );
     }
+}
+
+#[test]
+fn rules_unknown_set_pool_fixture_rejected() {
+    let yaml = include_str!("../../../tests/fixtures/config/rules-unknown-set-pool.yml");
+    let cfg = load_yaml(yaml).expect("load fixture");
+    let validation = validate(&cfg);
+    assert!(!validation.ok);
+    assert!(
+        validation
+            .errors
+            .iter()
+            .any(|e| { e.contains("typo-pool") && e.contains("set_pool") && e.contains("primry") }),
+        "errors: {:?}",
+        validation.errors
+    );
 }
 
 #[test]

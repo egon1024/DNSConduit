@@ -48,7 +48,7 @@ impl ConduitOrchestrator for OrchestratorService {
         _: Request<GetOrchestratorRequest>,
     ) -> Result<Response<GetOrchestratorResponse>, Status> {
         let snap = self.snapshots.load();
-        let orchestrator = snap.config.orchestrator.unwrap_or_default();
+        let orchestrator = snap.config.orchestrator.clone().unwrap_or_default();
         Ok(Response::new(GetOrchestratorResponse {
             orchestrator: Some(runtime_orchestrator_to_control(orchestrator)),
         }))

@@ -4,7 +4,7 @@ use crate::defaults::{
     DEFAULT_FORWARD_OUTSTANDING_PER_BACKEND, DEFAULT_FORWARD_TIMEOUT_MS,
     DEFAULT_LISTENER_REUSE_PORT, DEFAULT_LISTENER_THREADS, DEFAULT_ORCHESTRATOR_MAX_ATTEMPTS,
     DEFAULT_ORCHESTRATOR_MAX_TXN_DURATION_MS, DEFAULT_ORCHESTRATOR_TXN_TABLE_CAPACITY,
-    DEFAULT_RHAI_MAX_CALL_DEPTH, DEFAULT_RHAI_MAX_OPERATIONS,
+    DEFAULT_RHAI_MAX_CALL_DEPTH, DEFAULT_RHAI_MAX_OPERATIONS, DEFAULT_ROUTE_FAILURE_POLICY,
 };
 use crate::error::ConfigError;
 use crate::size::parse_si_size;
@@ -403,6 +403,12 @@ pub(crate) struct YamlOrchestrator {
     max_txn_duration_ms: u32,
     #[serde(default = "default_orchestrator_txn_table_capacity")]
     txn_table_capacity: u32,
+    #[serde(default = "default_route_failure_policy")]
+    route_failure_policy: String,
+}
+
+fn default_route_failure_policy() -> String {
+    DEFAULT_ROUTE_FAILURE_POLICY.into()
 }
 
 fn default_orchestrator_max_attempts() -> u32 {
@@ -423,6 +429,7 @@ impl Default for YamlOrchestrator {
             max_attempts: DEFAULT_ORCHESTRATOR_MAX_ATTEMPTS,
             max_txn_duration_ms: DEFAULT_ORCHESTRATOR_MAX_TXN_DURATION_MS,
             txn_table_capacity: DEFAULT_ORCHESTRATOR_TXN_TABLE_CAPACITY,
+            route_failure_policy: DEFAULT_ROUTE_FAILURE_POLICY.into(),
         }
     }
 }
@@ -438,6 +445,7 @@ impl PartialEq for YamlOrchestrator {
         self.max_attempts == other.max_attempts
             && self.max_txn_duration_ms == other.max_txn_duration_ms
             && self.txn_table_capacity == other.txn_table_capacity
+            && self.route_failure_policy == other.route_failure_policy
     }
 }
 
@@ -1454,6 +1462,7 @@ impl From<YamlOrchestrator> for OrchestratorConfig {
             max_attempts: y.max_attempts,
             max_txn_duration_ms: y.max_txn_duration_ms,
             txn_table_capacity: y.txn_table_capacity,
+            route_failure_policy: y.route_failure_policy,
         }
     }
 }
@@ -2138,6 +2147,11 @@ impl TryFrom<&OrchestratorConfig> for YamlOrchestrator {
             max_attempts: o.max_attempts,
             max_txn_duration_ms: o.max_txn_duration_ms,
             txn_table_capacity: o.txn_table_capacity,
+            route_failure_policy: if o.route_failure_policy.is_empty() {
+                DEFAULT_ROUTE_FAILURE_POLICY.into()
+            } else {
+                o.route_failure_policy.clone()
+            },
         })
     }
 }

@@ -6,6 +6,8 @@ pub enum Phase {
     Parse,
     RequestRules,
     Lookup,
+    /// Total-failure convergence before Send (no response wire).
+    NoAnswer,
     ResponseRules,
     Send,
     /// Internal to the forward lookup provider (route → forward → wait); not a top-level graph phase.

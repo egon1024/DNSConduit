@@ -189,7 +189,8 @@ fn register_host_api(engine: &mut Engine) {
             RhaiTxn::set_cache_lookup_eligible,
         )
         .register_fn("answer_source", RhaiTxn::answer_source)
-        .register_fn("cache_instance", RhaiTxn::cache_instance);
+        .register_fn("cache_instance", RhaiTxn::cache_instance)
+        .register_fn("convergence_reason", RhaiTxn::convergence_reason);
 
     dns_wire::register_dns_wire_api(engine);
 }
@@ -312,6 +313,7 @@ pub(crate) struct RhaiTxn {
     last_forward_ms: u64,
     answer_source: Option<String>,
     cache_instance: Option<String>,
+    convergence_reason: Option<String>,
     tags_snapshot_bools: HashMap<String, bool>,
     tags_snapshot_strings: HashMap<String, String>,
     effects: Arc<Mutex<ScriptEffects>>,
@@ -353,7 +355,12 @@ impl RhaiTxn {
 
     fn response(&mut self) -> Result<Dynamic, Box<EvalAltResult>> {
         if self.phase != ScriptPhase::Response {
-            return Err("response() is not available in request phase".into());
+            let phase = match self.phase {
+                ScriptPhase::Request => "request",
+                ScriptPhase::NoAnswer => "no_answer",
+                ScriptPhase::Response => "response",
+            };
+            return Err(format!("response() is not available in {phase} phase").into());
         }
         let mut map = rhai::Map::new();
         if let Some(rcode) = self.rcode {
@@ -447,35 +454,51 @@ impl RhaiTxn {
         self.tags_snapshot_strings.contains_key(key)
     }
 
-    fn set_pool(&mut self, name: &str) {
+    fn set_pool(&mut self, name: &str) -> Result<(), Box<EvalAltResult>> {
+        if self.phase == ScriptPhase::NoAnswer {
+            return Err("set_pool() is not available in no_answer phase".into());
+        }
         if let Ok(mut fx) = self.effects.lock() {
             fx.pool = Some(name.to_string());
             fx.clear_pool = false;
         }
+        Ok(())
     }
 
-    fn set_retry_pool(&mut self, pool: &str) {
+    fn set_retry_pool(&mut self, pool: &str) -> Result<(), Box<EvalAltResult>> {
+        if self.phase == ScriptPhase::NoAnswer {
+            return Err("set_retry_pool() is not available in no_answer phase".into());
+        }
         if let Ok(mut fx) = self.effects.lock() {
             fx.retry_pool = Some(pool.to_string());
         }
+        Ok(())
     }
 
-    fn request_retry(&mut self) {
+    fn request_retry(&mut self) -> Result<(), Box<EvalAltResult>> {
+        if self.phase == ScriptPhase::NoAnswer {
+            return Err("request_retry() is not available in no_answer phase".into());
+        }
         if self.phase != ScriptPhase::Response {
-            return;
+            return Ok(());
         }
         if let Ok(mut fx) = self.effects.lock() {
             fx.retry_requested = true;
         }
+        Ok(())
     }
 
-    fn request_retry_now(&mut self) {
+    fn request_retry_now(&mut self) -> Result<(), Box<EvalAltResult>> {
+        if self.phase == ScriptPhase::NoAnswer {
+            return Err("request_retry_now() is not available in no_answer phase".into());
+        }
         if self.phase != ScriptPhase::Response {
-            return;
+            return Ok(());
         }
         if let Ok(mut fx) = self.effects.lock() {
             fx.hard_retry = true;
         }
+        Ok(())
     }
 
     fn drop_query(&mut self) {
@@ -496,26 +519,38 @@ impl RhaiTxn {
         }
     }
 
-    fn clear_retry(&mut self) {
+    fn clear_retry(&mut self) -> Result<(), Box<EvalAltResult>> {
+        if self.phase == ScriptPhase::NoAnswer {
+            return Err("clear_retry() is not available in no_answer phase".into());
+        }
         if self.phase != ScriptPhase::Response {
-            return;
+            return Ok(());
         }
         if let Ok(mut fx) = self.effects.lock() {
             fx.clear_soft_retry = true;
         }
+        Ok(())
     }
 
-    fn clear_retry_pool(&mut self) {
+    fn clear_retry_pool(&mut self) -> Result<(), Box<EvalAltResult>> {
+        if self.phase == ScriptPhase::NoAnswer {
+            return Err("clear_retry_pool() is not available in no_answer phase".into());
+        }
         if let Ok(mut fx) = self.effects.lock() {
             fx.clear_retry_pool = true;
         }
+        Ok(())
     }
 
-    fn clear_pool(&mut self) {
+    fn clear_pool(&mut self) -> Result<(), Box<EvalAltResult>> {
+        if self.phase == ScriptPhase::NoAnswer {
+            return Err("clear_pool() is not available in no_answer phase".into());
+        }
         if let Ok(mut fx) = self.effects.lock() {
             fx.pool = None;
             fx.clear_pool = true;
         }
+        Ok(())
     }
 
     fn set_rcode_enum(&mut self, rcode: Rcode) {
@@ -752,6 +787,13 @@ impl RhaiTxn {
         self.cache_instance.clone().unwrap_or_default()
     }
 
+    fn convergence_reason(&mut self) -> String {
+        if self.phase != ScriptPhase::NoAnswer {
+            return String::new();
+        }
+        self.convergence_reason.clone().unwrap_or_default()
+    }
+
     fn attempt_count(&mut self) -> i64 {
         self.attempt_count as i64
     }
@@ -968,6 +1010,7 @@ fn run_one(
         last_forward_ms: host.last_forward_ms(),
         answer_source: host.answer_source().map(str::to_string),
         cache_instance: host.cache_instance().map(str::to_string),
+        convergence_reason: host.convergence_reason().map(str::to_string),
         tags_snapshot_bools: host.script_tag_bools(),
         tags_snapshot_strings: host.script_tag_strings(),
         effects: effects.clone(),
@@ -1363,6 +1406,7 @@ rules:
             last_forward_ms: 0,
             answer_source: None,
             cache_instance: None,
+            convergence_reason: None,
             tags_snapshot_bools: HashMap::new(),
             tags_snapshot_strings: HashMap::new(),
             effects: effects.clone(),
@@ -1811,6 +1855,7 @@ rules:
             last_forward_ms: 0,
             answer_source: None,
             cache_instance: None,
+            convergence_reason: None,
             tags_snapshot_bools: HashMap::new(),
             tags_snapshot_strings: HashMap::new(),
             effects: effects.clone(),
@@ -2290,6 +2335,7 @@ rules:
         let hook_name = match hook_phase {
             ScriptPhase::Request => "request",
             ScriptPhase::Response => "response",
+            ScriptPhase::NoAnswer => "no_answer",
         };
         let yaml = format!(
             r#"
@@ -2686,6 +2732,7 @@ rules:
             last_forward_ms: 0,
             answer_source: None,
             cache_instance: None,
+            convergence_reason: None,
             tags_snapshot_bools: HashMap::new(),
             tags_snapshot_strings: HashMap::new(),
             effects: effects.clone(),
@@ -2756,6 +2803,7 @@ rules:
             last_forward_ms: 0,
             answer_source: None,
             cache_instance: None,
+            convergence_reason: None,
             tags_snapshot_bools: HashMap::new(),
             tags_snapshot_strings: HashMap::new(),
             effects: effects.clone(),
@@ -2850,6 +2898,7 @@ rules:
             last_forward_ms: 12,
             answer_source: None,
             cache_instance: None,
+            convergence_reason: None,
             tags_snapshot_bools: HashMap::new(),
             tags_snapshot_strings: HashMap::new(),
             effects: effects.clone(),

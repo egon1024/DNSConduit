@@ -19,6 +19,32 @@ pub enum ClientProtocol {
 pub type ExportedTagBools = Vec<(String, bool)>;
 pub type ExportedTagStrings = Vec<(String, String)>;
 
+/// Why a transaction entered the NoAnswer convergence phase.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ConvergenceReason {
+    NoPool,
+    NoBackendSelected,
+    AttemptsExhausted,
+    DurationExhausted,
+    UnknownProfile,
+    ForwardError,
+    StaleMiss,
+}
+
+impl ConvergenceReason {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::NoPool => "no_pool",
+            Self::NoBackendSelected => "no_backend_selected",
+            Self::AttemptsExhausted => "attempts_exhausted",
+            Self::DurationExhausted => "duration_exhausted",
+            Self::UnknownProfile => "unknown_profile",
+            Self::ForwardError => "forward_error",
+            Self::StaleMiss => "stale_miss",
+        }
+    }
+}
+
 #[derive(Debug, Default, Clone)]
 pub struct TagSet {
     flags: HashMap<String, bool>,
@@ -139,6 +165,8 @@ pub struct Transaction {
     pub lookup_cache_wait: Option<LookupCacheWait>,
     /// Cache fill target after forward completes (leader single-flight).
     pub lookup_cache_fill: Option<LookupCacheFill>,
+    /// Set when the transaction converges at NoAnswer (total failure).
+    pub convergence_reason: Option<ConvergenceReason>,
     rcode: Option<u16>,
 }
 
@@ -208,7 +236,15 @@ impl Transaction {
             lookup_forward_step: None,
             lookup_cache_wait: None,
             lookup_cache_fill: None,
+            convergence_reason: None,
             rcode: None,
+        }
+    }
+
+    /// Record why this transaction is converging at NoAnswer (idempotent if already set).
+    pub fn set_convergence_reason(&mut self, reason: ConvergenceReason) {
+        if self.convergence_reason.is_none() {
+            self.convergence_reason = Some(reason);
         }
     }
 

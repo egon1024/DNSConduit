@@ -49,12 +49,25 @@ impl PipelineStage for ResponseRulesStage {
         );
 
         if result.outcome == RuleOutcome::Retry {
+            if txn.response_wire.is_none() && txn.convergence_reason.is_some() {
+                // Route never selected a backend; bump so Route honors stashed retry_pool.
+                txn.attempt_count = txn.attempt_count.max(1);
+            }
             return StageOutcome::Continue(Phase::Lookup);
         }
 
+        let answerless_route_failure =
+            txn.response_wire.is_none() && txn.convergence_reason.is_some();
+
         match result.outcome {
             RuleOutcome::Drop => StageOutcome::Drop,
-            RuleOutcome::Continue | RuleOutcome::Retry => StageOutcome::Continue(Phase::Send),
+            RuleOutcome::Continue | RuleOutcome::Retry => {
+                if answerless_route_failure {
+                    StageOutcome::Continue(Phase::NoAnswer)
+                } else {
+                    StageOutcome::Continue(Phase::Send)
+                }
+            }
         }
     }
 }

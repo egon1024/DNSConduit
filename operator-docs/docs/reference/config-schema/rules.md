@@ -86,4 +86,12 @@ At config load / validate:
 
 At [Forward](/concepts/architecture-and-packet-path.md#forward), standing overrides apply on every attempt unless a one-shot **`retry_source_override_*`** wins on retry forwards (`attempt_count > 1`). Allowed-set check uses the pool in use; disallowed addresses fail open to round-robin.
 
+### `set_pool` / `set_retry_pool` validation
+
+At config load / validate:
+
+- **`set_pool`** and **`set_retry_pool`** require a non-empty **`value`** (pool name).
+- The pool name must match a **`pools:`** entry on the effective config snapshot.
+- Rhai **`txn.set_pool`** / **`txn.set_retry_pool`** with dynamic names are not checked at load.
+
 See [Rules and actions — Action order](/policy-routing/rules-and-actions.md#action-order-on-one-rule).

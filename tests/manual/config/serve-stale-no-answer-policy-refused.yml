@@ -1,0 +1,43 @@
+# NoAnswer policy — rcode override to REFUSED on total failure
+schema_version: 1
+listeners:
+  threads: 1
+  reuse_port: false
+  listeners:
+    - address: "127.0.2.1:15353"
+      protocol: udp
+      name: lab-udp
+forward:
+  outstanding_per_backend: 100
+  timeout_ms: 2000
+orchestrator:
+  max_attempts: 3
+  max_txn_duration_ms: 5000
+  txn_table_capacity: 1024
+pools:
+  - name: default
+    backends:
+      - address: "127.0.2.1:15399"
+        name: dead-resolver
+        weight: 100
+rules:
+  match_mode: first_match
+  rules:
+    - name: refuse-total-failure
+      hook: no_answer
+      selectors: []
+      actions:
+        - type: set_rcode
+          value: REFUSED
+control:
+  listen_address: "127.0.2.1:5199"
+  reflection_enabled: true
+metrics:
+  enabled: true
+  profile: full
+  prometheus:
+    listen_address: "127.0.2.1:19090"
+    path: /metrics
+tracing:
+  enabled: true
+  sample_rate: 1.0

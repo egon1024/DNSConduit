@@ -33,6 +33,7 @@ pub struct CompiledRule {
 pub enum RuleHook {
     Request,
     Response,
+    NoAnswer,
 }
 
 #[derive(Debug, Clone)]
@@ -152,14 +153,19 @@ pub enum RuleOutcome {
 
 impl CompiledRule {
     fn compile(rule: &Rule, scripting: &CompiledScripting) -> Self {
-        let hook = if rule.hook == "response" {
-            RuleHook::Response
-        } else {
-            RuleHook::Request
+        let hook = match rule.hook.as_str() {
+            "response" => RuleHook::Response,
+            "no_answer" => RuleHook::NoAnswer,
+            "request" => RuleHook::Request,
+            other => panic!(
+                "rule '{}': unrecognized hook '{other}' must be rejected at validate",
+                rule.name
+            ),
         };
         let script_phase = match hook {
             RuleHook::Request => ScriptPhase::Request,
             RuleHook::Response => ScriptPhase::Response,
+            RuleHook::NoAnswer => ScriptPhase::NoAnswer,
         };
         let script_ids = scripting.script_ids_for_rule(&rule.name, script_phase);
         let mut rhai_idx = 0usize;
@@ -190,6 +196,13 @@ impl CompiledRule {
         }
     }
 
+    fn selector_requires_response_wire(sel: &CompiledSelector) -> bool {
+        matches!(
+            sel,
+            CompiledSelector::AnswerSource(_) | CompiledSelector::CacheInstance(_)
+        )
+    }
+
     fn matches(&self, txn: &Transaction, store: &conduit_script::DataSourceStore) -> bool {
         if self.selectors.is_empty() {
             return true;
@@ -198,7 +211,12 @@ impl CompiledRule {
         let client_ip = txn.client_addr.ip();
         let client_cidr_match = |name: &str| store.lookup_ip(name, client_ip).is_some();
         let ctx = selector_match_ctx(txn, &tag_has, Some(&client_cidr_match));
-        self.selectors.iter().all(|s| s.matches_ctx(&ctx))
+        self.selectors.iter().all(|s| {
+            if self.hook == RuleHook::NoAnswer && Self::selector_requires_response_wire(s) {
+                return false;
+            }
+            s.matches_ctx(&ctx)
+        })
     }
 
     fn execute_ordered(
@@ -213,6 +231,7 @@ impl CompiledRule {
         let script_phase = match self.hook {
             RuleHook::Request => ScriptPhase::Request,
             RuleHook::Response => ScriptPhase::Response,
+            RuleHook::NoAnswer => ScriptPhase::NoAnswer,
         };
         let mut retry = false;
 
@@ -373,9 +392,13 @@ impl CompiledAction {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::transaction::{ClientProtocol, Transaction};
+    use crate::phase::Phase;
+    use crate::snapshot::RuntimeSnapshot;
+    use crate::transaction::{ClientProtocol, ConvergenceReason, Transaction};
+    use conduit_config::load_yaml;
     use conduit_proto::config::{Action, Rule, RulesConfig, Selector};
     use std::net::SocketAddr;
+    use std::sync::Arc;
 
     fn empty_scripting() -> CompiledScripting {
         conduit_script::compile_from_config(
@@ -1174,6 +1197,44 @@ data_sources:
         );
         rules.eval(RuleHook::Response, &mut inside, &scripting, None, None);
         assert_eq!(inside.rcode_label().as_deref(), Some("REFUSED"));
+    }
+
+    #[test]
+    fn no_answer_rhai_metric_inc_via_rules_eval() {
+        let yaml = include_str!(
+            "../../../../tests/fixtures/config/with-rhai-block-hits-minimal-export.yaml"
+        );
+        let mut cfg = load_yaml(yaml).unwrap();
+        cfg.rules.as_mut().unwrap().rules[0].hook = "no_answer".into();
+        assert!(conduit_config::validate(&cfg).ok);
+        let base = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/config");
+        let snap = RuntimeSnapshot::try_from_config_with_base(cfg, Some(&base)).unwrap();
+        let hub = Arc::new(conduit_metrics::MetricsHub::from_config(&snap.config));
+
+        let mut txn = Transaction::new(
+            1,
+            "127.0.0.1:53".parse::<SocketAddr>().unwrap(),
+            ClientProtocol::Udp,
+        );
+        txn.qname = Some("eu.example.".into());
+        txn.qtype = Some(1);
+        txn.current_phase = Phase::NoAnswer;
+        txn.set_convergence_reason(ConvergenceReason::AttemptsExhausted);
+
+        snap.rules.eval(
+            RuleHook::NoAnswer,
+            &mut txn,
+            &snap.scripting,
+            Some(hub.as_ref()),
+            None,
+        );
+
+        let body = conduit_metrics::render_prometheus(hub.as_ref(), &[]);
+        assert!(
+            body.contains("block_hits"),
+            "no_answer Rhai should increment user metric, body:\n{body}"
+        );
     }
 
     #[test]

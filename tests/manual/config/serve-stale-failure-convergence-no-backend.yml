@@ -1,0 +1,51 @@
+# Failure convergence — no_backend_selected (pool exhausted after retries)
+# Two backends in default; SERVFAIL retry tries each once, then Route cannot select.
+schema_version: 1
+listeners:
+  threads: 1
+  reuse_port: false
+  listeners:
+    - address: "127.0.2.1:15353"
+      protocol: udp
+      name: lab-udp
+forward:
+  outstanding_per_backend: 100
+  timeout_ms: 300
+orchestrator:
+  max_attempts: 3
+  max_txn_duration_ms: 5000
+  txn_table_capacity: 1024
+events:
+  queue_depth: 4096
+  drop_policy: drop_oldest
+pools:
+  - name: default
+    backends:
+      - address: "127.0.2.1:15399"
+        name: dead-a
+        weight: 100
+      - address: "127.0.2.1:15398"
+        name: dead-b
+        weight: 100
+rules:
+  match_mode: first_match
+  rules:
+    - name: retry-on-servfail
+      hook: response
+      selectors:
+        - type: rcode
+          value: SERVFAIL
+      actions:
+        - type: retry
+control:
+  listen_address: "127.0.2.1:5199"
+  reflection_enabled: true
+metrics:
+  enabled: true
+  profile: full
+  prometheus:
+    listen_address: "127.0.2.1:19090"
+    path: /metrics
+tracing:
+  enabled: true
+  sample_rate: 1.0

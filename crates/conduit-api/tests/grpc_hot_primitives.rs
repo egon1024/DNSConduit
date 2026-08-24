@@ -370,7 +370,7 @@ async fn patch_metrics_plan_knobs_and_get_returns_full_config() {
 async fn set_orchestrator_limits_preserves_txn_table_capacity() {
     let yaml = include_str!("../../../tests/fixtures/config/minimal.yaml");
     let mut file_cfg = load_yaml(yaml).expect("parse");
-    let mut orch = file_cfg.orchestrator.unwrap_or_default();
+    let mut orch = file_cfg.orchestrator.clone().unwrap_or_default();
     orch.txn_table_capacity = 2048;
     orch.max_attempts = 3;
     file_cfg.orchestrator = Some(orch);

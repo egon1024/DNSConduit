@@ -275,6 +275,8 @@ message OrchestratorConfig {
   uint32 max_attempts = 1;
   uint32 max_txn_duration_ms = 2;
   uint32 txn_table_capacity = 3;
+  // "no_answer" (default) | "response_rules"
+  string route_failure_policy = 4;
 }
 
 message EventsConfig {

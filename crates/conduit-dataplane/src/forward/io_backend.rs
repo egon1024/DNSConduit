@@ -421,6 +421,7 @@ pub fn apply_wait_completion(txn: &mut conduit_core::Transaction, completion: &W
         WaitCompletion::Timeout => {
             txn.complete_forward_rtt_from_mark();
             txn.set_rcode_name("SERVFAIL");
+            txn.set_convergence_reason(conduit_core::ConvergenceReason::ForwardError);
         }
     }
 }
@@ -551,6 +552,10 @@ mod tests {
         txn.mark_forward_started(Instant::now() - Duration::from_millis(60));
         apply_wait_completion(&mut txn, &resume.completion);
         assert_eq!(txn.rcode_label().as_deref(), Some("SERVFAIL"));
+        assert_eq!(
+            txn.convergence_reason,
+            Some(conduit_core::ConvergenceReason::ForwardError)
+        );
         assert!(txn.last_forward_ms() >= 50);
     }
 

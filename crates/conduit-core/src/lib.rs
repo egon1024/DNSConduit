@@ -54,7 +54,7 @@ pub use rules::CompiledRules;
 pub use runtime_view::build_routing_runtime_snapshot;
 pub use snapshot::{RuntimeSnapshot, SnapshotStore};
 pub use structural_parse::{apply_parsed_query, structural_parse, ParsedQuery};
-pub use transaction::{ClientProtocol, TagSet, Transaction};
+pub use transaction::{ClientProtocol, ConvergenceReason, TagSet, Transaction};
 pub use txn_store::{
     AcquireError, SharedTxnStore, SlotError, SlotId, SlotState, TxnSlot, TxnStore, WireBufferError,
     DEFAULT_SLOT_CHUNK_SIZE, DNS_WIRE_BUFFER_SIZE,

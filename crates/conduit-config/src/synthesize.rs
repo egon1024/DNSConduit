@@ -35,7 +35,7 @@ fn synthesize_section_replace(file: &Config, desired: &Config, overlay: &mut Con
         overlay.forward = desired.forward.clone();
     }
     if desired.orchestrator != file.orchestrator {
-        overlay.orchestrator = desired.orchestrator;
+        overlay.orchestrator = desired.orchestrator.clone();
     }
     if desired.events != file.events {
         overlay.events = desired.events.clone();
@@ -423,6 +423,7 @@ pools:
             max_attempts: 4,
             max_txn_duration_ms: 2000,
             txn_table_capacity: 0,
+            route_failure_policy: String::new(),
         });
         assert_round_trip(&file, &desired);
     }

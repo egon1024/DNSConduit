@@ -252,6 +252,12 @@ pub fn start(
                         outstanding: Some(outstanding),
                     }),
                 );
+                orchestrator.registry.register(
+                    Phase::NoAnswer,
+                    Arc::new(conduit_core::stages::NoAnswerStage::new(Some(
+                        metrics.clone(),
+                    ))),
+                );
                 orchestrator.registry.register(Phase::Lookup, lookup);
                 let orchestrator = Arc::new(orchestrator);
 

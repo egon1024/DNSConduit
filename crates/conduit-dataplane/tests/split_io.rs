@@ -401,6 +401,12 @@ fn split_io_records_forward_timeout_metric_with_pool_and_name() {
         !body.contains(r#"pool="unknown""#),
         "timeout must not record pool=\"unknown\"; body:\n{body}"
     );
+    assert!(
+        body.contains(
+            r#"conduit_lookup_no_answer_total{pool="default",profile="default",reason="forward_error"} 1"#
+        ),
+        "expected NoAnswer convergence metric after forward timeout; body:\n{body}"
+    );
     handle.shutdown();
 }
 

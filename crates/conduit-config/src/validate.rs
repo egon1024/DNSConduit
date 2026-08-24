@@ -67,6 +67,17 @@ pub fn validate(cfg: &Config) -> ValidationResult {
         if o.max_attempts == 0 {
             errors.push("orchestrator.max_attempts must be >= 1".into());
         }
+        let policy = if o.route_failure_policy.is_empty() {
+            crate::defaults::DEFAULT_ROUTE_FAILURE_POLICY
+        } else {
+            o.route_failure_policy.as_str()
+        };
+        if policy != "no_answer" && policy != "response_rules" {
+            errors.push(format!(
+                "orchestrator.route_failure_policy '{}' must be no_answer or response_rules",
+                policy
+            ));
+        }
     }
 
     if let Some(f) = &cfg.forward {
@@ -272,9 +283,9 @@ pub fn validate(cfg: &Config) -> ValidationResult {
             } else if !rule_names.insert(rule.name.clone()) {
                 errors.push(format!("duplicate rule name '{}'", rule.name));
             }
-            if rule.hook != "request" && rule.hook != "response" {
+            if rule.hook != "request" && rule.hook != "response" && rule.hook != "no_answer" {
                 errors.push(format!(
-                    "rule '{}' has invalid hook '{}'",
+                    "rule '{}' has unrecognized hook '{}'",
                     rule.name, rule.hook
                 ));
             }
@@ -317,6 +328,29 @@ pub fn validate(cfg: &Config) -> ValidationResult {
                 }
             }
             for act in &rule.actions {
+                if rule.hook == "no_answer"
+                    && matches!(
+                        act.r#type.as_str(),
+                        "retry"
+                            | "retry_now"
+                            | "set_pool"
+                            | "clear_pool"
+                            | "set_retry_pool"
+                            | "clear_retry_pool"
+                            | "clear_retry"
+                            | "set_source_v4"
+                            | "set_source_v6"
+                            | "set_retry_source_v4"
+                            | "set_retry_source_v6"
+                            | "clear_retry_source_v4"
+                            | "clear_retry_source_v6"
+                    )
+                {
+                    errors.push(format!(
+                        "rule '{}' hook 'no_answer' does not permit action '{}'",
+                        rule.name, act.r#type
+                    ));
+                }
                 if !matches!(
                     act.r#type.as_str(),
                     "set_pool"
@@ -359,20 +393,40 @@ pub fn validate(cfg: &Config) -> ValidationResult {
                         rule.name, act.value
                     ));
                 }
-                if matches!(
-                    act.r#type.as_str(),
-                    "retry" | "retry_now" | "clear_retry" | "set_rcode"
-                ) && rule.hook != "response"
+                if matches!(act.r#type.as_str(), "retry" | "retry_now" | "clear_retry")
+                    && rule.hook != "response"
                 {
                     errors.push(format!(
                         "rule '{}' action '{}' is only valid on response hook",
                         rule.name, act.r#type
                     ));
                 }
+                if act.r#type == "set_rcode" && rule.hook != "response" && rule.hook != "no_answer"
+                {
+                    errors.push(format!(
+                        "rule '{}' action 'set_rcode' is only valid on response or no_answer hook",
+                        rule.name
+                    ));
+                }
                 if act.r#type == "set_retry_pool" && act.value.is_empty() {
                     errors.push(format!(
                         "rule '{}' set_retry_pool requires a pool name in value",
                         rule.name
+                    ));
+                }
+                if act.r#type == "set_pool" && act.value.is_empty() {
+                    errors.push(format!(
+                        "rule '{}' set_pool requires a pool name in value",
+                        rule.name
+                    ));
+                }
+                if matches!(act.r#type.as_str(), "set_pool" | "set_retry_pool")
+                    && !act.value.is_empty()
+                    && !pool_names.contains(act.value.as_str())
+                {
+                    errors.push(format!(
+                        "rule '{}' action '{}' references unknown pool '{}'; declare it under pools: or fix the pool name",
+                        rule.name, act.r#type, act.value
                     ));
                 }
                 if act.r#type == "clear_tag" && act.value.is_empty() {

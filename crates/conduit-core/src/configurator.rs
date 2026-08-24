@@ -535,7 +535,7 @@ fn mutate_desired(desired: &mut Config, primitive: &ConfigPrimitive) -> Result<(
                     "SetOrchestratorLimits requires max_attempts and/or max_txn_duration_ms".into(),
                 ]);
             }
-            let mut orch = desired.orchestrator.unwrap_or_default();
+            let mut orch = desired.orchestrator.clone().unwrap_or_default();
             if let Some(v) = max_attempts {
                 orch.max_attempts = *v;
             }

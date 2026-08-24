@@ -39,6 +39,7 @@ pub struct MockHost {
     pub last_forward_ms: u64,
     pub answer_source: Option<String>,
     pub cache_instance: Option<String>,
+    pub convergence_reason: Option<String>,
     pub cache_lookup_eligible: bool,
     pub phase: ScriptPhase,
 }
@@ -79,6 +80,7 @@ impl Default for MockHost {
             last_forward_ms: 0,
             answer_source: None,
             cache_instance: None,
+            convergence_reason: None,
             cache_lookup_eligible: true,
             phase: ScriptPhase::Request,
         }
@@ -278,6 +280,10 @@ impl HostTransaction for MockHost {
 
     fn cache_instance(&self) -> Option<&str> {
         self.cache_instance.as_deref()
+    }
+
+    fn convergence_reason(&self) -> Option<&str> {
+        self.convergence_reason.as_deref()
     }
 
     fn is_dropped(&self) -> bool {

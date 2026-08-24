@@ -412,6 +412,8 @@ These messages appear when config is loaded or validated (reload, apply, or star
 |-------------------|--------|
 | `retry … only valid on response hook` | `retry`, `retry_now`, or `clear_retry` on `hook: request` |
 | `set_retry_pool requires a pool name in value` | Empty `value` on `set_retry_pool` |
+| `set_pool requires a pool name in value` | Empty `value` on `set_pool` |
+| `references unknown pool` | `set_pool` or `set_retry_pool` names a pool not declared in `pools:` |
 | `set_source_v4 … only valid on request hook` | Standing source action on `hook: response` |
 | `set_source_v4 … not in configured sources_v4` | Address not in global or pool `sources_v4` union |
 | `set_source_v4 requires forward.sources_v4 or pool sources_v4` | No v4 sources configured anywhere |

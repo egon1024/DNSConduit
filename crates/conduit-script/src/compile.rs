@@ -171,10 +171,16 @@ fn compile_rule_scripts(
     base_dir: Option<&Path>,
     scripting: &mut CompiledScripting,
 ) -> Result<(), ScriptError> {
-    let hook = if rule.hook == "response" {
-        ScriptPhase::Response
-    } else {
-        ScriptPhase::Request
+    let hook = match rule.hook.as_str() {
+        "response" => ScriptPhase::Response,
+        "no_answer" => ScriptPhase::NoAnswer,
+        "request" => ScriptPhase::Request,
+        other => {
+            return Err(ScriptError::Rule {
+                rule_name: rule.name.clone(),
+                message: format!("unrecognized hook '{other}'"),
+            });
+        }
     };
 
     for action in &rule.actions {
