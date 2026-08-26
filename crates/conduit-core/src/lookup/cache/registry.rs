@@ -909,10 +909,7 @@ impl LookupCacheRegistry {
         if !hub.metrics_enabled() {
             return;
         }
-        let profile = txn
-            .lookup_profile
-            .as_deref()
-            .unwrap_or(conduit_config::lookup::DEFAULT_LOOKUP_PROFILE);
+        let profile = txn.lookup_profile_name();
         hub.builtin().record_cache_fill(cache_name, profile);
     }
 
@@ -929,10 +926,7 @@ impl LookupCacheRegistry {
         if !hub.metrics_enabled() {
             return;
         }
-        let profile = txn
-            .lookup_profile
-            .as_deref()
-            .unwrap_or(conduit_config::lookup::DEFAULT_LOOKUP_PROFILE);
+        let profile = txn.lookup_profile_name();
         hub.builtin()
             .observe_cache_fill_duration(cache_name, profile, duration_secs);
     }
@@ -964,10 +958,7 @@ impl LookupCacheRegistry {
         if !hub.metrics_enabled() {
             return;
         }
-        let profile = txn
-            .lookup_profile
-            .as_deref()
-            .unwrap_or(conduit_config::lookup::DEFAULT_LOOKUP_PROFILE);
+        let profile = txn.lookup_profile_name();
         hub.builtin()
             .record_cache_singleflight_coalesced(cache_name, profile);
     }

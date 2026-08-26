@@ -188,6 +188,7 @@ fn register_host_api(engine: &mut Engine) {
             "set_cache_lookup_eligible",
             RhaiTxn::set_cache_lookup_eligible,
         )
+        .register_fn("set_lookup_profile", RhaiTxn::set_lookup_profile)
         .register_fn("answer_source", RhaiTxn::answer_source)
         .register_fn("cache_instance", RhaiTxn::cache_instance)
         .register_fn("convergence_reason", RhaiTxn::convergence_reason);
@@ -276,6 +277,7 @@ pub(crate) struct ScriptEffects {
     clear_retry_source_v4: bool,
     clear_retry_source_v6: bool,
     cache_lookup_eligible: Option<bool>,
+    lookup_profile: Option<String>,
     user_metric_flushes: Vec<UserMetricFlush>,
 }
 
@@ -773,6 +775,23 @@ impl RhaiTxn {
         }
     }
 
+    fn set_lookup_profile(&mut self, name: &str) -> Result<(), Box<EvalAltResult>> {
+        if self.phase != ScriptPhase::Request {
+            let phase = match self.phase {
+                ScriptPhase::Request => "request",
+                ScriptPhase::Response => "response",
+                ScriptPhase::NoAnswer => "no_answer",
+            };
+            return Err(format!("set_lookup_profile() is not available in {phase} phase").into());
+        }
+        if name.is_empty() {
+            return Err("set_lookup_profile: profile name must not be empty".into());
+        }
+        let mut fx = self.effects.lock().map_err(|e| e.to_string())?;
+        fx.lookup_profile = Some(name.to_string());
+        Ok(())
+    }
+
     fn answer_source(&mut self) -> String {
         if self.phase != ScriptPhase::Response {
             return String::new();
@@ -966,6 +985,9 @@ fn apply_effects(host: &mut dyn HostTransaction, fx: &ScriptEffects) {
     if let Some(eligible) = fx.cache_lookup_eligible {
         host.set_cache_lookup_eligible(eligible);
     }
+    if let Some(ref profile) = fx.lookup_profile {
+        host.set_lookup_profile(profile);
+    }
 }
 
 fn run_one(
@@ -1082,6 +1104,7 @@ fn run_one(
         clear_retry_source_v4: fx.clear_retry_source_v4,
         clear_retry_source_v6: fx.clear_retry_source_v6,
         cache_lookup_eligible: fx.cache_lookup_eligible,
+        lookup_profile: fx.lookup_profile.clone(),
         user_metric_flushes: fx.user_metric_flushes.clone(),
     })
 }
@@ -2318,6 +2341,44 @@ rules:
         let (outcome, _) = run_inline_script(r#"txn.set_cache_lookup_eligible(false);"#, &mut host);
         assert_eq!(outcome, ScriptRunOutcome::Ok);
         assert!(host.cache_lookup_eligible);
+    }
+
+    #[test]
+    fn set_lookup_profile_on_request_hook() {
+        let mut host = MockHost {
+            phase: ScriptPhase::Request,
+            ..Default::default()
+        };
+        let (outcome, stats) =
+            run_inline_script(r#"txn.set_lookup_profile("with_stale");"#, &mut host);
+        assert_eq!(outcome, ScriptRunOutcome::Ok);
+        assert_eq!(stats.errors, 0);
+        assert_eq!(host.lookup_profile, "with_stale");
+    }
+
+    #[test]
+    fn set_lookup_profile_errors_on_response_hook() {
+        let mut host = MockHost {
+            phase: ScriptPhase::Response,
+            ..Default::default()
+        };
+        let (outcome, stats) =
+            run_inline_script(r#"txn.set_lookup_profile("with_stale");"#, &mut host);
+        assert_eq!(outcome, ScriptRunOutcome::Ok);
+        assert_eq!(stats.errors, 1);
+        assert_eq!(host.lookup_profile, "default");
+    }
+
+    #[test]
+    fn set_lookup_profile_errors_on_no_answer_hook() {
+        let mut host = MockHost {
+            phase: ScriptPhase::NoAnswer,
+            ..Default::default()
+        };
+        let (outcome, stats) =
+            run_inline_script(r#"txn.set_lookup_profile("with_stale");"#, &mut host);
+        assert_eq!(outcome, ScriptRunOutcome::Ok);
+        assert_eq!(stats.errors, 1);
     }
 
     fn run_inline_script(script: &str, host: &mut MockHost) -> (ScriptRunOutcome, ScriptRunStats) {

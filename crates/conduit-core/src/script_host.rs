@@ -207,6 +207,14 @@ impl HostTransaction for Transaction {
         self.cache_lookup_eligible = eligible;
     }
 
+    fn lookup_profile_name(&self) -> &str {
+        &self.lookup_profile
+    }
+
+    fn set_lookup_profile(&mut self, name: &str) {
+        Transaction::set_lookup_profile(self, name);
+    }
+
     fn answer_source(&self) -> Option<&str> {
         self.answer_source.map(|s| s.as_str())
     }

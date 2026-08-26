@@ -1,0 +1,70 @@
+# Profile selection lab — request Rhai selects the live lookup profile.
+schema_version: 1
+listeners:
+  threads: 1
+  reuse_port: false
+  listeners:
+    - address: "127.0.2.1:15353"
+      protocol: udp
+      name: lab-udp
+forward:
+  outstanding_per_backend: 100
+  timeout_ms: 2000
+orchestrator:
+  max_attempts: 3
+  max_txn_duration_ms: 5000
+  txn_table_capacity: 1024
+pools:
+  - name: default
+    backends:
+      - address: "127.0.2.1:15300"
+        name: live-resolver
+        weight: 100
+  - name: dead
+    backends:
+      - address: "127.0.2.1:15399"
+        name: dead-resolver
+        weight: 100
+lookup:
+  profiles:
+    default:
+      providers:
+        - type: forward
+    live:
+      providers:
+        - type: forward
+rules:
+  match_mode: first_match
+  rules:
+    - name: rhai-live-profile
+      hook: request
+      selectors:
+        - type: qname_suffix
+          value: ".profile-rhai.test."
+      actions:
+        - type: rhai
+          value: ../../fixtures/rhai/set-lookup-profile-live.rhai
+        - type: set_pool
+          value: default
+    - name: default-dead-pool
+      hook: request
+      selectors: []
+      actions:
+        - type: set_pool
+          value: dead
+rhai:
+  max_operations: 10000
+  max_call_depth: 32
+  hook_timeout_ms: 50
+control:
+  listen_address: "127.0.2.1:5199"
+  reflection_enabled: true
+metrics:
+  enabled: true
+  profile: minimal
+  prometheus:
+    listen_address: "127.0.2.1:19090"
+    path: /metrics
+tracing:
+  enabled: true
+  sample_rate: 1.0

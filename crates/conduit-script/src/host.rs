@@ -104,6 +104,11 @@ pub trait HostTransaction {
         true
     }
     fn set_cache_lookup_eligible(&mut self, eligible: bool);
+    /// Active lookup profile name for this transaction.
+    fn lookup_profile_name(&self) -> &str {
+        "default"
+    }
+    fn set_lookup_profile(&mut self, name: &str);
     /// How the answer was produced: `cache`, `forward`, or unset before an answer exists.
     fn answer_source(&self) -> Option<&str> {
         None

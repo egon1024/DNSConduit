@@ -41,6 +41,8 @@ pub struct MockHost {
     pub cache_instance: Option<String>,
     pub convergence_reason: Option<String>,
     pub cache_lookup_eligible: bool,
+    pub lookup_profile: String,
+    pub lookup_profile_locked: bool,
     pub phase: ScriptPhase,
 }
 
@@ -82,6 +84,8 @@ impl Default for MockHost {
             cache_instance: None,
             convergence_reason: None,
             cache_lookup_eligible: true,
+            lookup_profile: "default".into(),
+            lookup_profile_locked: false,
             phase: ScriptPhase::Request,
         }
     }
@@ -272,6 +276,16 @@ impl HostTransaction for MockHost {
 
     fn set_cache_lookup_eligible(&mut self, eligible: bool) {
         self.cache_lookup_eligible = eligible;
+    }
+
+    fn lookup_profile_name(&self) -> &str {
+        &self.lookup_profile
+    }
+
+    fn set_lookup_profile(&mut self, name: &str) {
+        if !self.lookup_profile_locked {
+            self.lookup_profile = name.to_string();
+        }
     }
 
     fn answer_source(&self) -> Option<&str> {

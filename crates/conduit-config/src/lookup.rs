@@ -710,6 +710,13 @@ fn preflight_lmdb_path(path: &Path, ctx: &str) -> Result<(), String> {
     Ok(())
 }
 
+pub fn configured_lookup_profile_names(cfg: &Config) -> HashSet<String> {
+    match cfg.lookup.as_ref() {
+        None => HashSet::from([DEFAULT_LOOKUP_PROFILE.to_string()]),
+        Some(lookup) => lookup.profiles.keys().cloned().collect(),
+    }
+}
+
 pub fn validate_lookup(cfg: &Config) -> Vec<String> {
     match CompiledLookup::compile_from_config(cfg) {
         Ok(_) => Vec::new(),

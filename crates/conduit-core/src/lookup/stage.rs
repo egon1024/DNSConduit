@@ -7,7 +7,7 @@ use crate::pipeline::{PipelineStage, StageOutcome};
 use crate::record_upstream_response;
 use crate::snapshot::RuntimeSnapshot;
 use crate::transaction::{ConvergenceReason, LookupCacheFill, LookupCacheWait, Transaction};
-use conduit_config::lookup::{CompiledLookupProvider, DEFAULT_LOOKUP_PROFILE};
+use conduit_config::lookup::CompiledLookupProvider;
 use conduit_metrics::MetricsHub;
 use std::sync::Arc;
 use std::time::Instant;
@@ -53,9 +53,7 @@ impl LookupStage {
     }
 
     fn profile_label(txn: &Transaction) -> String {
-        txn.lookup_profile
-            .clone()
-            .unwrap_or_else(|| DEFAULT_LOOKUP_PROFILE.to_string())
+        txn.lookup_profile_name().to_string()
     }
 
     fn record_provider_outcome(&self, profile: &str, provider: &str, outcome: &str) {
@@ -409,17 +407,14 @@ impl PipelineStage for LookupStage {
             return self.finish_forward_answer_from_wait(txn, snapshot);
         }
 
-        let profile_name = txn
-            .lookup_profile
-            .as_deref()
-            .unwrap_or(DEFAULT_LOOKUP_PROFILE);
+        txn.lock_lookup_profile();
+        let profile_name = txn.lookup_profile_name();
         let Some(profile) = snapshot.lookup.profiles.get(profile_name) else {
             tracing::error!(profile = profile_name, "unknown lookup profile");
             txn.set_rcode_name("SERVFAIL");
             txn.set_convergence_reason(ConvergenceReason::UnknownProfile);
             return StageOutcome::Continue(Phase::NoAnswer);
         };
-        txn.lookup_profile = Some(profile.name.clone());
 
         for provider in &profile.providers {
             match provider {

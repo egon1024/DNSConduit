@@ -213,7 +213,7 @@ fn unknown_profile_converges_byte_identical() {
 
     let mut txn = Transaction::new(4, "127.0.0.1:53".parse().unwrap(), ClientProtocol::Udp)
         .with_query_wire(query_wire());
-    txn.lookup_profile = Some("does-not-exist".into());
+    txn.set_lookup_profile("does-not-exist");
     txn = run_to_response(&orch, &snap, txn);
     assert_eq!(
         txn.convergence_reason,

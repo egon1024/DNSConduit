@@ -149,8 +149,10 @@ pub struct Transaction {
     pub suspend_phase_started_at: Option<Instant>,
     /// Set when sync forward (or submit resume) already recorded conduit_forward_* metrics.
     pub forward_metrics_recorded: bool,
-    /// Active lookup profile name (default when unset).
-    pub lookup_profile: Option<String>,
+    /// Active lookup profile name; defaults to **default** until request policy selects another.
+    pub lookup_profile: String,
+    /// Set when Lookup begins; profile selection is fixed for the rest of the transaction.
+    pub lookup_profile_locked: bool,
     /// Outcome of the most recent lookup provider attempt.
     pub lookup_outcome: Option<LookupOutcome>,
     /// How the answer was produced (`cache` or `forward`).
@@ -228,7 +230,8 @@ impl Transaction {
             pre_parsed: false,
             suspend_phase_started_at: None,
             forward_metrics_recorded: false,
-            lookup_profile: None,
+            lookup_profile: conduit_config::lookup::DEFAULT_LOOKUP_PROFILE.to_string(),
+            lookup_profile_locked: false,
             lookup_outcome: None,
             answer_source: None,
             cache_instance: None,
@@ -239,6 +242,22 @@ impl Transaction {
             convergence_reason: None,
             rcode: None,
         }
+    }
+
+    pub fn lookup_profile_name(&self) -> &str {
+        &self.lookup_profile
+    }
+
+    /// Select the lookup profile for this transaction (request hook / request-phase Rhai only).
+    pub fn set_lookup_profile(&mut self, name: impl Into<String>) {
+        if !self.lookup_profile_locked {
+            self.lookup_profile = name.into();
+        }
+    }
+
+    /// Freeze profile selection once Lookup begins (including retries within the same txn).
+    pub fn lock_lookup_profile(&mut self) {
+        self.lookup_profile_locked = true;
     }
 
     /// Record why this transaction is converging at NoAnswer (idempotent if already set).

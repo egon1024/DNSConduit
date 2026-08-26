@@ -74,6 +74,8 @@ pub enum CompiledAction {
     ClearRetrySourceV4,
     /// Clear `retry_source_override_v6` on the transaction.
     ClearRetrySourceV6,
+    /// Lookup profile for this transaction (request hook only).
+    SetLookupProfile(String),
     Rhai {
         script_id: usize,
     },
@@ -310,6 +312,7 @@ impl CompiledRule {
             CompiledAction::SetRetrySourceV6(addr) => txn.set_retry_source_override_v6(*addr),
             CompiledAction::ClearRetrySourceV4 => txn.clear_retry_source_override_v4(),
             CompiledAction::ClearRetrySourceV6 => txn.clear_retry_source_override_v6(),
+            CompiledAction::SetLookupProfile(name) => txn.set_lookup_profile(name.clone()),
             CompiledAction::Rhai { .. } => unreachable!(),
         }
         None
@@ -383,6 +386,7 @@ impl CompiledAction {
             ),
             "clear_retry_source_v4" => CompiledAction::ClearRetrySourceV4,
             "clear_retry_source_v6" => CompiledAction::ClearRetrySourceV6,
+            "set_lookup_profile" => CompiledAction::SetLookupProfile(act.value.clone()),
             "rhai" => panic!("rhai actions are compiled via CompiledRule::compile"),
             other => panic!("unknown action type '{other}' must be rejected at validate"),
         }
@@ -1235,6 +1239,37 @@ data_sources:
             body.contains("block_hits"),
             "no_answer Rhai should increment user metric, body:\n{body}"
         );
+    }
+
+    #[test]
+    fn set_lookup_profile_action_sets_profile() {
+        let rules = compile_request_rule(vec![Action {
+            r#type: "set_lookup_profile".into(),
+            value: "with_stale".into(),
+        }]);
+        let mut txn = Transaction::new(
+            1,
+            "127.0.0.1:53".parse::<SocketAddr>().unwrap(),
+            ClientProtocol::Udp,
+        );
+        eval_request(&rules, &mut txn);
+        assert_eq!(txn.lookup_profile_name(), "with_stale");
+    }
+
+    #[test]
+    fn locked_profile_ignores_rule_action() {
+        let rules = compile_request_rule(vec![Action {
+            r#type: "set_lookup_profile".into(),
+            value: "alt".into(),
+        }]);
+        let mut txn = Transaction::new(
+            1,
+            "127.0.0.1:53".parse::<SocketAddr>().unwrap(),
+            ClientProtocol::Udp,
+        );
+        txn.lock_lookup_profile();
+        eval_request(&rules, &mut txn);
+        assert_eq!(txn.lookup_profile_name(), "default");
     }
 
     #[test]

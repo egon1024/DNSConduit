@@ -28,10 +28,7 @@ impl PipelineStage for NoAnswerStage {
     fn handle(&self, txn: &mut Transaction, snapshot: &Arc<RuntimeSnapshot>) -> StageOutcome {
         if let Some(hub) = self.metrics.as_ref() {
             if hub.metrics_enabled() {
-                let profile = txn
-                    .lookup_profile
-                    .as_deref()
-                    .unwrap_or(conduit_config::lookup::DEFAULT_LOOKUP_PROFILE);
+                let profile = txn.lookup_profile_name();
                 let reason = txn
                     .convergence_reason
                     .map(|r| r.as_str())

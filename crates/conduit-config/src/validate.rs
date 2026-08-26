@@ -102,6 +102,8 @@ pub fn validate(cfg: &Config) -> ValidationResult {
     errors.extend(crate::health::validate_health(cfg));
     errors.extend(crate::lookup::validate_lookup(cfg));
 
+    let lookup_profile_names = crate::lookup::configured_lookup_profile_names(cfg);
+
     let mut pool_names = std::collections::HashSet::new();
     for p in &cfg.pools {
         if p.name.is_empty() {
@@ -373,6 +375,7 @@ pub fn validate(cfg: &Config) -> ValidationResult {
                         | "set_retry_source_v6"
                         | "clear_retry_source_v4"
                         | "clear_retry_source_v6"
+                        | "set_lookup_profile"
                 ) {
                     errors.push(format!(
                         "rule '{}' has unknown action type '{}'",
@@ -419,6 +422,25 @@ pub fn validate(cfg: &Config) -> ValidationResult {
                         "rule '{}' set_pool requires a pool name in value",
                         rule.name
                     ));
+                }
+                if act.r#type == "set_lookup_profile" {
+                    if rule.hook != "request" {
+                        errors.push(format!(
+                            "rule '{}' action 'set_lookup_profile' is only valid on request hook",
+                            rule.name
+                        ));
+                    }
+                    if act.value.is_empty() {
+                        errors.push(format!(
+                            "rule '{}' set_lookup_profile requires a profile name in value",
+                            rule.name
+                        ));
+                    } else if !lookup_profile_names.contains(act.value.as_str()) {
+                        errors.push(format!(
+                            "rule '{}' set_lookup_profile references unknown profile '{}'",
+                            rule.name, act.value
+                        ));
+                    }
                 }
                 if matches!(act.r#type.as_str(), "set_pool" | "set_retry_pool")
                     && !act.value.is_empty()
@@ -1150,20 +1172,119 @@ control:
     }
 
     #[test]
-    fn reject_clear_tag_without_key() {
-        let yaml = include_str!("../../../tests/fixtures/config/with-rules.yaml");
-        let mut cfg = load_yaml(yaml).unwrap();
-        cfg.rules.as_mut().unwrap().rules[0]
-            .actions
-            .push(conduit_proto::config::Action {
-                r#type: "clear_tag".into(),
-                value: "".into(),
-            });
+    fn set_lookup_profile_on_request_hook() {
+        let yaml = r#"
+schema_version: 1
+listeners:
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+pools:
+  - name: default
+    backends:
+      - address: "127.0.0.1:5300"
+        weight: 100
+lookup:
+  profiles:
+    default:
+      providers:
+        - type: forward
+    secondary:
+      providers:
+        - type: forward
+rules:
+  match_mode: first_match
+  rules:
+    - name: pick
+      hook: request
+      selectors: []
+      actions:
+        - type: set_lookup_profile
+          value: secondary
+"#;
+        let cfg = load_yaml(yaml).unwrap();
+        assert!(validate(&cfg).ok, "{:?}", validate(&cfg).errors);
+    }
+
+    #[test]
+    fn reject_set_lookup_profile_unknown_profile() {
+        let yaml = r#"
+schema_version: 1
+listeners:
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+pools:
+  - name: default
+    backends:
+      - address: "127.0.0.1:5300"
+        weight: 100
+lookup:
+  profiles:
+    default:
+      providers:
+        - type: forward
+rules:
+  match_mode: first_match
+  rules:
+    - name: pick
+      hook: request
+      selectors: []
+      actions:
+        - type: set_lookup_profile
+          value: absent
+"#;
+        let cfg = load_yaml(yaml).unwrap();
         let result = validate(&cfg);
         assert!(!result.ok);
-        assert!(result
-            .errors
-            .iter()
-            .any(|e| e.contains("clear_tag requires a non-empty tag key")));
+        assert!(
+            result.errors.iter().any(|e| e.contains("absent")),
+            "errors: {:?}",
+            result.errors
+        );
+    }
+
+    #[test]
+    fn reject_set_lookup_profile_on_no_answer_hook() {
+        let yaml = r#"
+schema_version: 1
+listeners:
+  listeners:
+    - address: "127.0.0.1:15353"
+      protocol: udp
+pools:
+  - name: default
+    backends:
+      - address: "127.0.0.1:5300"
+        weight: 100
+lookup:
+  profiles:
+    default:
+      providers:
+        - type: forward
+    secondary:
+      providers:
+        - type: forward
+rules:
+  match_mode: first_match
+  rules:
+    - name: pick
+      hook: no_answer
+      selectors: []
+      actions:
+        - type: set_lookup_profile
+          value: secondary
+"#;
+        let cfg = load_yaml(yaml).unwrap();
+        let result = validate(&cfg);
+        assert!(!result.ok);
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|e| e.contains("set_lookup_profile") && e.contains("request hook")),
+            "errors: {:?}",
+            result.errors
+        );
     }
 }

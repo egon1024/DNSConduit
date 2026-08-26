@@ -2,7 +2,7 @@
 
 use conduit_config::{load_yaml, validate};
 use conduit_core::snapshot::{RuntimeSnapshot, SnapshotStore};
-use conduit_dataplane::runtime::start;
+use conduit_dataplane::runtime::{start, DataplaneHandle};
 use conduit_metrics::{MetricsHub, TracingHub};
 use hickory_proto::op::{Message, Query};
 use hickory_proto::rr::{Name, RecordType};
@@ -181,25 +181,93 @@ fn split_io_config(listen_port: u16, backend_port: u16, capacity: u32) -> String
     split_io_config_workers(listen_port, backend_port, capacity, 2, 1)
 }
 
-fn bind_ephemeral() -> u16 {
-    let s = UdpSocket::bind("127.0.0.1:0").unwrap();
-    s.local_addr().unwrap().port()
+fn reserve_listen_port() -> u16 {
+    let sock = UdpSocket::bind("127.0.0.1:0").unwrap();
+    sock.local_addr().unwrap().port()
+}
+
+/// Bind split_io on an ephemeral listen port, retrying when parallel tests win the race.
+fn start_split_io<F>(mut build_yaml: F, label: &str) -> (DataplaneHandle, u16)
+where
+    F: FnMut(u16) -> String,
+{
+    use std::io::ErrorKind;
+    for _ in 0..64 {
+        let listen_port = reserve_listen_port();
+        let yaml = build_yaml(listen_port);
+        let cfg = load_yaml(&yaml).unwrap();
+        let store = Arc::new(SnapshotStore::new(RuntimeSnapshot::from_config(
+            cfg.clone(),
+        )));
+        let metrics = Arc::new(MetricsHub::from_config(&cfg));
+        let tracing = Arc::new(TracingHub::from_config(&cfg));
+        match start(store, metrics, tracing) {
+            Ok(handle) => return (handle, listen_port),
+            Err(e) if e.kind() == ErrorKind::AddrInUse => continue,
+            Err(e) => panic!("{label}: {e}"),
+        }
+    }
+    panic!("{label}: no free listen port after retries");
+}
+
+fn start_split_io_validated<F>(mut build_yaml: F, label: &str) -> (DataplaneHandle, u16)
+where
+    F: FnMut(u16) -> String,
+{
+    use std::io::ErrorKind;
+    for _ in 0..64 {
+        let listen_port = reserve_listen_port();
+        let yaml = build_yaml(listen_port);
+        let cfg = load_yaml(&yaml).unwrap();
+        assert!(validate(&cfg).ok, "{label}: invalid config");
+        let store = Arc::new(SnapshotStore::new(RuntimeSnapshot::from_config(
+            cfg.clone(),
+        )));
+        let metrics = Arc::new(MetricsHub::from_config(&cfg));
+        let tracing = Arc::new(TracingHub::from_config(&cfg));
+        match start(store, metrics, tracing) {
+            Ok(handle) => return (handle, listen_port),
+            Err(e) if e.kind() == ErrorKind::AddrInUse => continue,
+            Err(e) => panic!("{label}: {e}"),
+        }
+    }
+    panic!("{label}: no free listen port after retries");
+}
+
+fn start_split_io_with_metrics<F>(
+    mut build_yaml: F,
+    label: &str,
+) -> (DataplaneHandle, u16, Arc<MetricsHub>)
+where
+    F: FnMut(u16) -> String,
+{
+    use std::io::ErrorKind;
+    for _ in 0..64 {
+        let listen_port = reserve_listen_port();
+        let yaml = build_yaml(listen_port);
+        let cfg = load_yaml(&yaml).unwrap();
+        assert!(validate(&cfg).ok, "{label}: invalid config");
+        let store = Arc::new(SnapshotStore::new(RuntimeSnapshot::from_config(
+            cfg.clone(),
+        )));
+        let metrics = Arc::new(MetricsHub::from_config(&cfg));
+        let tracing = Arc::new(TracingHub::from_config(&cfg));
+        match start(store, metrics.clone(), tracing) {
+            Ok(handle) => return (handle, listen_port, metrics),
+            Err(e) if e.kind() == ErrorKind::AddrInUse => continue,
+            Err(e) => panic!("{label}: {e}"),
+        }
+    }
+    panic!("{label}: no free listen port after retries");
 }
 
 #[test]
 fn split_io_concurrent_queries_with_slow_upstream() {
-    let listen_port = bind_ephemeral();
     let (backend_port, _upstream) = mock_upstream(Duration::from_millis(200));
-
-    let yaml = split_io_config(listen_port, backend_port, 64);
-    let cfg = load_yaml(&yaml).unwrap();
-    assert!(validate(&cfg).ok);
-    let store = Arc::new(SnapshotStore::new(RuntimeSnapshot::from_config(
-        cfg.clone(),
-    )));
-    let metrics = Arc::new(MetricsHub::from_config(&cfg));
-    let tracing = Arc::new(TracingHub::from_config(&cfg));
-    let handle = start(store, metrics, tracing).expect("split_io start");
+    let (handle, listen_port) = start_split_io(
+        |listen_port| split_io_config(listen_port, backend_port, 64),
+        "split_io start",
+    );
 
     let client = UdpSocket::bind("127.0.0.1:0").unwrap();
     client
@@ -227,17 +295,11 @@ fn split_io_concurrent_queries_with_slow_upstream() {
 
 #[test]
 fn split_io_slot_exhaustion_increments_counter() {
-    let listen_port = bind_ephemeral();
     let (backend_port, _upstream) = mock_upstream(Duration::from_millis(500));
-
-    let yaml = split_io_config(listen_port, backend_port, 2);
-    let cfg = load_yaml(&yaml).unwrap();
-    let store = Arc::new(SnapshotStore::new(RuntimeSnapshot::from_config(
-        cfg.clone(),
-    )));
-    let metrics = Arc::new(MetricsHub::from_config(&cfg));
-    let tracing = Arc::new(TracingHub::from_config(&cfg));
-    let handle = start(store, metrics, tracing).expect("split_io start");
+    let (handle, listen_port) = start_split_io(
+        |listen_port| split_io_config(listen_port, backend_port, 2),
+        "split_io start",
+    );
 
     let client = UdpSocket::bind("127.0.0.1:0").unwrap();
     let target: std::net::SocketAddr = format!("127.0.0.1:{listen_port}").parse().unwrap();
@@ -254,17 +316,11 @@ fn split_io_slot_exhaustion_increments_counter() {
 
 #[test]
 fn split_io_garbage_query_does_not_consume_slot() {
-    let listen_port = bind_ephemeral();
     let (backend_port, _upstream) = mock_upstream(Duration::ZERO);
-
-    let yaml = split_io_config(listen_port, backend_port, 4);
-    let cfg = load_yaml(&yaml).unwrap();
-    let store = Arc::new(SnapshotStore::new(RuntimeSnapshot::from_config(
-        cfg.clone(),
-    )));
-    let metrics = Arc::new(MetricsHub::from_config(&cfg));
-    let tracing = Arc::new(TracingHub::from_config(&cfg));
-    let handle = start(store, metrics, tracing).expect("split_io start");
+    let (handle, listen_port) = start_split_io(
+        |listen_port| split_io_config(listen_port, backend_port, 4),
+        "split_io start",
+    );
 
     let client = UdpSocket::bind("127.0.0.1:0").unwrap();
     let target: std::net::SocketAddr = format!("127.0.0.1:{listen_port}").parse().unwrap();
@@ -278,17 +334,11 @@ fn split_io_garbage_query_does_not_consume_slot() {
 
 #[test]
 fn split_io_survives_idle_then_second_query() {
-    let listen_port = bind_ephemeral();
     let (backend_port, _upstream) = mock_upstream(Duration::ZERO);
-
-    let yaml = split_io_config(listen_port, backend_port, 4);
-    let cfg = load_yaml(&yaml).unwrap();
-    let store = Arc::new(SnapshotStore::new(RuntimeSnapshot::from_config(
-        cfg.clone(),
-    )));
-    let metrics = Arc::new(MetricsHub::from_config(&cfg));
-    let tracing = Arc::new(TracingHub::from_config(&cfg));
-    let handle = start(store, metrics, tracing).expect("split_io start");
+    let (handle, listen_port) = start_split_io(
+        |listen_port| split_io_config(listen_port, backend_port, 4),
+        "split_io start",
+    );
 
     let client = UdpSocket::bind("127.0.0.1:0").unwrap();
     client
@@ -312,18 +362,11 @@ fn split_io_survives_idle_then_second_query() {
 
 #[test]
 fn split_io_records_forward_success_metric_with_backend_name() {
-    let listen_port = bind_ephemeral();
     let (backend_port, _upstream) = mock_upstream(Duration::ZERO);
-
-    let yaml = split_io_named_metrics_config(listen_port, backend_port, 5000);
-    let cfg = load_yaml(&yaml).unwrap();
-    assert!(validate(&cfg).ok);
-    let store = Arc::new(SnapshotStore::new(RuntimeSnapshot::from_config(
-        cfg.clone(),
-    )));
-    let metrics = Arc::new(MetricsHub::from_config(&cfg));
-    let tracing = Arc::new(TracingHub::from_config(&cfg));
-    let handle = start(store, metrics.clone(), tracing).expect("split_io start");
+    let (handle, listen_port, metrics) = start_split_io_with_metrics(
+        |listen_port| split_io_named_metrics_config(listen_port, backend_port, 5000),
+        "split_io start",
+    );
 
     let client = UdpSocket::bind("127.0.0.1:0").unwrap();
     client
@@ -360,17 +403,11 @@ fn split_io_records_forward_success_metric_with_backend_name() {
 
 #[test]
 fn split_io_records_forward_timeout_metric_with_pool_and_name() {
-    let listen_port = bind_ephemeral();
     let (dead_port, _blackhole) = mock_blackhole();
-
-    let yaml = split_io_named_metrics_config(listen_port, dead_port, 300);
-    let cfg = load_yaml(&yaml).unwrap();
-    let store = Arc::new(SnapshotStore::new(RuntimeSnapshot::from_config(
-        cfg.clone(),
-    )));
-    let metrics = Arc::new(MetricsHub::from_config(&cfg));
-    let tracing = Arc::new(TracingHub::from_config(&cfg));
-    let handle = start(store, metrics.clone(), tracing).expect("split_io start");
+    let (handle, listen_port, metrics) = start_split_io_with_metrics(
+        |listen_port| split_io_named_metrics_config(listen_port, dead_port, 300),
+        "split_io start",
+    );
 
     let client = UdpSocket::bind("127.0.0.1:0").unwrap();
     client
@@ -412,17 +449,11 @@ fn split_io_records_forward_timeout_metric_with_pool_and_name() {
 
 #[test]
 fn split_io_valid_query_reaches_upstream() {
-    let listen_port = bind_ephemeral();
     let (backend_port, _upstream) = mock_upstream(Duration::ZERO);
-
-    let yaml = split_io_config(listen_port, backend_port, 4);
-    let cfg = load_yaml(&yaml).unwrap();
-    let store = Arc::new(SnapshotStore::new(RuntimeSnapshot::from_config(
-        cfg.clone(),
-    )));
-    let metrics = Arc::new(MetricsHub::from_config(&cfg));
-    let tracing = Arc::new(TracingHub::from_config(&cfg));
-    let handle = start(store, metrics, tracing).expect("split_io start");
+    let (handle, listen_port) = start_split_io(
+        |listen_port| split_io_config(listen_port, backend_port, 4),
+        "split_io start",
+    );
 
     let client = UdpSocket::bind("127.0.0.1:0").unwrap();
     client
@@ -439,18 +470,11 @@ fn split_io_valid_query_reaches_upstream() {
 /// resume exactly once (no lost replies across shards).
 #[test]
 fn split_io_multi_io_workers_concurrent_fast_upstream() {
-    let listen_port = bind_ephemeral();
     let (backend_port, _upstream) = mock_upstream(Duration::ZERO);
-
-    let yaml = split_io_config_workers(listen_port, backend_port, 128, 4, 4);
-    let cfg = load_yaml(&yaml).unwrap();
-    assert!(validate(&cfg).ok);
-    let store = Arc::new(SnapshotStore::new(RuntimeSnapshot::from_config(
-        cfg.clone(),
-    )));
-    let metrics = Arc::new(MetricsHub::from_config(&cfg));
-    let tracing = Arc::new(TracingHub::from_config(&cfg));
-    let handle = start(store, metrics, tracing).expect("split_io multi-io start");
+    let (handle, listen_port) = start_split_io_validated(
+        |listen_port| split_io_config_workers(listen_port, backend_port, 128, 4, 4),
+        "split_io multi-io start",
+    );
 
     let client = UdpSocket::bind("127.0.0.1:0").unwrap();
     client
@@ -482,18 +506,11 @@ fn split_io_multi_io_workers_concurrent_fast_upstream() {
 /// "slot was not in IoWait" drop storm / parked-forever slots).
 #[test]
 fn split_io_multi_policy_fast_upstream_no_resume_drops() {
-    let listen_port = bind_ephemeral();
     let (backend_port, _upstream) = mock_upstream(Duration::ZERO);
-
-    let yaml = split_io_config_workers(listen_port, backend_port, 256, 4, 2);
-    let cfg = load_yaml(&yaml).unwrap();
-    assert!(validate(&cfg).ok);
-    let store = Arc::new(SnapshotStore::new(RuntimeSnapshot::from_config(
-        cfg.clone(),
-    )));
-    let metrics = Arc::new(MetricsHub::from_config(&cfg));
-    let tracing = Arc::new(TracingHub::from_config(&cfg));
-    let handle = start(store, metrics, tracing).expect("split_io multi-policy start");
+    let (handle, listen_port) = start_split_io_validated(
+        |listen_port| split_io_config_workers(listen_port, backend_port, 256, 4, 2),
+        "split_io multi-policy start",
+    );
 
     let client = UdpSocket::bind("127.0.0.1:0").unwrap();
     client
@@ -537,18 +554,11 @@ fn split_io_multi_policy_fast_upstream_no_resume_drops() {
 /// (sharded ReplyRoutes + PolicyQueue must not lose routes or New/Resume pairs).
 #[test]
 fn split_io_multi_ingress_multi_policy_no_lost_replies() {
-    let listen_port = bind_ephemeral();
     let (backend_port, _upstream) = mock_upstream(Duration::ZERO);
-
-    let yaml = split_io_config_ingress_workers(listen_port, backend_port, 256, 4, 4, 2);
-    let cfg = load_yaml(&yaml).unwrap();
-    assert!(validate(&cfg).ok);
-    let store = Arc::new(SnapshotStore::new(RuntimeSnapshot::from_config(
-        cfg.clone(),
-    )));
-    let metrics = Arc::new(MetricsHub::from_config(&cfg));
-    let tracing = Arc::new(TracingHub::from_config(&cfg));
-    let handle = start(store, metrics, tracing).expect("split_io multi-ingress start");
+    let (handle, listen_port) = start_split_io_validated(
+        |listen_port| split_io_config_ingress_workers(listen_port, backend_port, 256, 4, 4, 2),
+        "split_io multi-ingress start",
+    );
 
     let client = UdpSocket::bind("127.0.0.1:0").unwrap();
     client
@@ -590,17 +600,11 @@ fn split_io_multi_ingress_multi_policy_no_lost_replies() {
 /// historic single-poller path.
 #[test]
 fn split_io_io_workers_one_matches_single_poller_concurrency() {
-    let listen_port = bind_ephemeral();
     let (backend_port, _upstream) = mock_upstream(Duration::from_millis(150));
-
-    let yaml = split_io_config_workers(listen_port, backend_port, 64, 2, 1);
-    let cfg = load_yaml(&yaml).unwrap();
-    let store = Arc::new(SnapshotStore::new(RuntimeSnapshot::from_config(
-        cfg.clone(),
-    )));
-    let metrics = Arc::new(MetricsHub::from_config(&cfg));
-    let tracing = Arc::new(TracingHub::from_config(&cfg));
-    let handle = start(store, metrics, tracing).expect("split_io io_workers=1 start");
+    let (handle, listen_port) = start_split_io(
+        |listen_port| split_io_config_workers(listen_port, backend_port, 64, 2, 1),
+        "split_io io_workers=1 start",
+    );
 
     let client = UdpSocket::bind("127.0.0.1:0").unwrap();
     client
